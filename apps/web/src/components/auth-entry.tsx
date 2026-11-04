@@ -27,12 +27,13 @@ export function AuthEntry() {
       const savedPhone = window.localStorage.getItem("wtp.remembered-phone");
       const savedCode = window.localStorage.getItem("wtp.remembered-country-code");
       if (savedPhone) {
-        const match = COUNTRY_CODES.find((country) => savedPhone.startsWith(country.code));
+        const savedDigits = savedPhone.replace(/\\D/g, "");
+        const match = COUNTRY_CODES.find((country) => savedDigits.startsWith(country.code.replace("+", "")));
         if (match) {
           setCountryCode(match.code);
-          setPhone(savedPhone.slice(match.code.length));
+          setPhone(savedDigits.slice(match.code.length - 1));
         } else {
-          setPhone(savedPhone);
+          setPhone(savedDigits);
         }
       }
       if (savedCode && COUNTRY_CODES.some((country) => country.code === savedCode)) setCountryCode(savedCode);
@@ -40,6 +41,18 @@ export function AuthEntry() {
       // Login remains available when browser storage is disabled.
     }
   }, []);
+
+  function handlePhoneChange(value: string) {
+    const cleaned = value.trim();
+    const digits = cleaned.replace(/\\D/g, "");
+    const matched = COUNTRY_CODES.find((country) => digits.startsWith(country.code.replace("+", "")));
+    if ((cleaned.startsWith("+") || (matched && digits.length > 10)) && matched) {
+      setCountryCode(matched.code);
+      setPhone(digits.slice(matched.code.length - 1));
+      return;
+    }
+    setPhone(value.replace(/[^0-9\\s-]/g, ""));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
