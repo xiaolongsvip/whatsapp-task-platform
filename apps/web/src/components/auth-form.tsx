@@ -3,26 +3,52 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, ChevronDown, Eye, EyeOff, LockKeyhole, Phone, ShieldCheck, UserRoundPlus } from "lucide-react";
 
 type AuthMode = "register" | "login";
+const COUNTRY_CODES = [
+  { name: "Kenya", flag: "🇰🇪", code: "+254" },
+  { name: "United States", flag: "🇺🇸", code: "+1" },
+  { name: "United Kingdom", flag: "🇬🇧", code: "+44" },
+  { name: "Japan", flag: "🇯🇵", code: "+81" },
+  { name: "Taiwan", flag: "🇹🇼", code: "+886" },
+];
 
 export function AuthForm({ mode }: { mode: AuthMode }) {
   const router = useRouter();
+  const isRegister = mode === "register";
+  const [countryCode, setCountryCode] = useState("+254");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const isRegister = mode === "register";
+
+  function handlePhoneChange(value: string) {
+    const cleaned = value.trim();
+    const digits = cleaned.replace(/\D/g, "");
+    const matched = COUNTRY_CODES.find((country) => digits.startsWith(country.code.replace("+", "")));
+    if ((cleaned.startsWith("+") || (matched && digits.length > 10)) && matched) {
+      setCountryCode(matched.code);
+      setPhone(digits.slice(matched.code.length - 1));
+      return;
+    }
+    setPhone(value.replace(/[^0-9\s-]/g, ""));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-
-    const normalizedPhone = phone.replace(/[\s()+-]/g, "");
-    if (!/^\d{8,15}$/.test(normalizedPhone)) {
-      setError("请输入正确的国际手机号码，例如 25412345678。");
+    setNotice("");
+    const localNumber = phone.replace(/\D/g, "");
+    const fullPhone = `${countryCode}${localNumber}`.replace(/\D/g, "");
+    if (!/^\d{8,15}$/.test(fullPhone)) {
+      setError("请输入正确的国际手机号码，包含国家区号。");
       return;
     }
     if (password.length < 6 || password.length > 128) {
@@ -41,7 +67,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: normalizedPhone,
+          phone: fullPhone,
           password,
           ...(isRegister && inviteCode.trim() ? { inviteCode: inviteCode.trim() } : {}),
         }),
@@ -50,8 +76,25 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       if (!response.ok) {
         throw new Error(typeof result.message === "string" ? result.message : "请求失败，请稍后重试。");
       }
-      router.push(isRegister ? "/login?registered=1" : "/");
-      router.refresh();
+      if (!isRegister) {
+        try {
+          if (remember) {
+            window.localStorage.setItem("wtp.remembered-phone", fullPhone);
+            window.localStorage.setItem("wtp.remembered-country-code", countryCode);
+          } else {
+            window.localStorage.removeItem("wtp.remembered-phone");
+            window.localStorage.removeItem("wtp.remembered-country-code");
+          }
+        } catch {
+          // Do not block login when browser storage is disabled.
+        }
+      }
+      if (isRegister) {
+        router.push("/login?registered=1");
+        router.refresh();
+      } else {
+        setNotice("登录验证成功。");
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "网络连接失败，请检查 API 服务。");
     } finally {
@@ -60,108 +103,97 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <main className="auth-shell">
-      <aside className="auth-visual" aria-label="平台介绍">
-        <div className="brand-lockup">
-          <span className="brand-mark">W</span>
+    <main className="aurora-login">
+      <div className="aurora-ribbon aurora-ribbon-top" aria-hidden="true" />
+      <div className="aurora-ribbon aurora-ribbon-bottom" aria-hidden="true" />
+      <div className="aurora-orb aurora-orb-one" aria-hidden="true" />
+      <div className="aurora-orb aurora-orb-two" aria-hidden="true" />
+
+      <section className="aurora-card">
+        <div className="aurora-brand">
+          <span className="aurora-brand-mark">W</span>
           <span>WHATSAPP TASK PLATFORM</span>
         </div>
-        <div className="visual-copy">
-          <div className="visual-eyebrow">A smarter way to work</div>
-          <h2>{isRegister ? "开启你的全新任务体验。" : "每一次努力，都值得被认真记录。"}</h2>
-          <p>在一个清晰、可靠的任务平台中，管理你的任务进度与账户信息，让每一步都简单明了。</p>
-          <div className="visual-points">
-            <span className="visual-point">账户安全保护</span>
-            <span className="visual-point">任务进度清晰</span>
-            <span className="visual-point">移动端便捷使用</span>
-          </div>
-        </div>
-        <div className="visual-foot">© 2026 WHATSAPP TASK PLATFORM</div>
-      </aside>
 
-      <section className="auth-main">
-        <div className="auth-card" aria-labelledby="auth-title">
-          <div className="auth-mobile-brand">
-            <span className="brand-mark">W</span>
-            <span>WHATSAPP TASK PLATFORM</span>
-          </div>
-          <div className="auth-kicker">{isRegister ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</div>
-          <h1 id="auth-title">{isRegister ? "创建你的账户" : "欢迎回来"}</h1>
-          <p className="auth-subtitle">{isRegister ? "填写以下信息，开启你的平台体验。" : "请输入手机号码和密码，继续使用你的账户。"}</p>
-          <form className="auth-form" onSubmit={handleSubmit}>
-            <div className="auth-field">
-              <label htmlFor="phone">电话号码</label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                placeholder="例如 25412345678"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                required
-                maxLength={20}
-              />
-              <span className="auth-hint">请填写包含国家区号的国际号码。</span>
+        <header className="aurora-heading">
+          <div className="aurora-eyebrow">{isRegister ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</div>
+          <h1>{isRegister ? "创建你的账户" : "欢迎回来"}</h1>
+          {!isRegister && <h2>登录账户</h2>}
+          <p>{isRegister ? "填写以下信息，开启你的平台体验。" : "使用手机号码和密码登录，继续你的任务体验。"}</p>
+        </header>
+
+        <form className="aurora-form" onSubmit={handleSubmit}>
+          <div className="aurora-field">
+            <label htmlFor="auth-phone"><Phone size={17} /> 电话号码</label>
+            <div className="aurora-phone-control">
+              <label className="aurora-country" htmlFor="auth-country-code" aria-label="国家区号">
+                <span>{COUNTRY_CODES.find((country) => country.code === countryCode)?.flag ?? "🌐"}</span>
+                <select id="auth-country-code" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-label="选择国家区号">
+                  {COUNTRY_CODES.map((country) => <option key={country.code} value={country.code}>{country.name} {country.code}</option>)}
+                </select>
+                <span className="aurora-country-code">{countryCode}</span>
+                <ChevronDown size={13} />
+              </label>
+              <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="输入手机号码或完整国际号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
             </div>
-            <div className="auth-field">
-              <label htmlFor="password">登录密码</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete={isRegister ? "new-password" : "current-password"}
-                placeholder="请输入密码（至少 6 位）"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                minLength={6}
-                maxLength={128}
-              />
-            </div>
-            {isRegister && (
-              <>
-                <div className="auth-field">
-                  <label htmlFor="confirmPassword">确认密码</label>
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder="请再次输入密码"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    required
-                    minLength={6}
-                    maxLength={128}
-                  />
-                </div>
-                <div className="auth-field">
-                  <label htmlFor="inviteCode">邀请码 <span className="auth-hint">（选填）</span></label>
-                  <input
-                    id="inviteCode"
-                    name="inviteCode"
-                    type="text"
-                    autoComplete="off"
-                    placeholder="请输入邀请码"
-                    value={inviteCode}
-                    onChange={(event) => setInviteCode(event.target.value)}
-                    maxLength={32}
-                  />
-                </div>
-              </>
-            )}
-            {error && <div className="auth-error" role="alert">{error}</div>}
-            <button className="auth-button" type="submit" disabled={busy}>
-              {busy ? "请稍候…" : isRegister ? "创建账户" : "安全登录"}
-            </button>
-          </form>
-          <div className="auth-footer">
-            {isRegister ? <>已经拥有账户？<Link href="/login">立即登录</Link></> : <>还没有账户？<Link href="/register">创建账户</Link></>}
+            {isRegister && <span className="aurora-auth-hint">支持国家区号 + 手机号码，例如 +25412345678。</span>}
           </div>
-          <div className="auth-security"><span className="auth-security-mark">✓</span>安全加密连接 · 保护你的账户信息</div>
-        </div>
+
+          <div className="aurora-field">
+            <label htmlFor="auth-password"><LockKeyhole size={17} /> 登录密码</label>
+            <div className="aurora-password-wrap">
+              <input id="auth-password" name="password" type={showPassword ? "text" : "password"} autoComplete={isRegister ? "new-password" : "current-password"} placeholder={isRegister ? "请输入密码（至少 6 位）" : "请输入登录密码"} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} maxLength={128} />
+              <button className="aurora-password-toggle" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "隐藏密码" : "显示密码"}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {isRegister && (
+            <>
+              <div className="aurora-field">
+                <label htmlFor="auth-confirm-password"><LockKeyhole size={17} /> 确认密码</label>
+                <div className="aurora-password-wrap">
+                  <input id="auth-confirm-password" name="confirmPassword" type={showConfirmPassword ? "text" : "password"} autoComplete="new-password" placeholder="请再次输入密码" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={6} maxLength={128} />
+                  <button className="aurora-password-toggle" type="button" onClick={() => setShowConfirmPassword((value) => !value)} aria-label={showConfirmPassword ? "隐藏确认密码" : "显示确认密码"}>
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <div className="aurora-field">
+                <label htmlFor="auth-invite-code">邀请码 <span className="aurora-optional">（选填）</span></label>
+                <input id="auth-invite-code" name="inviteCode" type="text" autoComplete="off" placeholder="请输入邀请码" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} maxLength={32} />
+              </div>
+            </>
+          )}
+
+          {!isRegister && (
+            <div className="aurora-options">
+              <label className="aurora-remember">
+                <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
+                <span className="aurora-check"><Check size={14} /></span>
+                <span>记住账号密码</span>
+              </label>
+              <span className="aurora-password-note">使用浏览器密码管理器保存密码</span>
+            </div>
+          )}
+
+          {error && <div className="aurora-feedback aurora-error" role="alert">{error}</div>}
+          {notice && <div className="aurora-feedback aurora-success" role="status">{notice}</div>}
+
+          <button className="aurora-submit" type="submit" disabled={busy}>
+            <span>{busy ? "请稍候…" : isRegister ? "创建账户" : "登录平台"}</span>
+            <span className="aurora-submit-arrow">→</span>
+          </button>
+        </form>
+
+        <Link href={isRegister ? "/login" : "/register"} className="aurora-register">
+          <UserRoundPlus size={17} />
+          <span>{isRegister ? "已经拥有账户？ 立即登录" : "还没有账户？ 创建新账户"}</span>
+          <span className="aurora-register-arrow">↗</span>
+        </Link>
+
+        <div className="aurora-security"><ShieldCheck size={17} /> 安全加密连接，保护你的账户信息。</div>
       </section>
     </main>
   );
