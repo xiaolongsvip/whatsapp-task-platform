@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum TaskStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CLOSED
+}
+
+enum ClaimStatus {
+  CLAIMED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ReviewDecision {
+  APPROVE
+  REJECT
+}
+
+enum LedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+enum WithdrawalStatus {
+  REQUESTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum AdminStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  email                 String?                @unique
+  phone                 String?                @unique
+  passwordHash          String                 @map("password_hash")
+  status                UserStatus             @default(PENDING)
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  profile               UserProfile?
+  invitedBy             ReferralEdge?           @relation("Invitee")
+  invitees              ReferralEdge[]          @relation("Inviter")
+  ancestors             ReferralAncestor[]      @relation("Descendant")
+  descendants           ReferralAncestor[]      @relation("Ancestor")
+  claims                TaskClaim[]
+  wallets               Wallet[]
+  adminIdentity         AdminUser?
+
+  @@index([status, createdAt])
+  @@map("users")
+}
+
+model UserProfile {
+  userId       String   @id @map("user_id") @db.Uuid
+  displayName  String?  @map("display_name")
+  locale       String   @default("en")
+  timezone     String   @default("UTC")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model ReferralEdge {
+  id            String   @id @default(uuid()) @db.Uuid
+  inviteeUserId String   @unique @map("invitee_user_id") @db.Uuid
+  inviterUserId String   @map("inviter_user_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  invitee       User     @relation("Invitee", fields: [inviteeUserId], references: [id], onDelete: Restrict)
+  inviter       User     @relation("Inviter", fields: [inviterUserId], references: [id], onDelete: Restrict)
+
+  @@index([inviterUserId, createdAt])
+  @@map("referral_edges")
+}
+
+model ReferralAncestor {
+  descendantUserId String   @map("descendant_user_id") @db.Uuid
+  ancestorUserId   String   @map("ancestor_user_id") @db.Uuid
+  depth            Int
+  createdAt        DateTime @default(now()) @map("created_at")
+  descendant       User     @relation("Descendant", fields: [descendantUserId], references: [id], onDelete: Cascade)
+  ancestor         User     @relation("Ancestor", fields: [ancestorUserId], references: [id], onDelete: Restrict)
+
+  @@id([descendantUserId, depth])
+  @@unique([descendantUserId, ancestorUserId])
+  @@index([ancestorUserId, depth])
+  @@map("referral_ancestors")
+}
+
+model Task {
+  id           String      @id @default(uuid()) @db.Uuid
+  title        String
+  description  String      @db.Text
+  category     String
+  status       TaskStatus  @default(DRAFT)
+  rewardMinor  BigInt      @map("reward_minor")
+  currency     String      @db.Char(3)
+  capacity     Int?
+  claimedCount Int         @default(0) @map("claimed_count")
+  startsAt     DateTime?   @map("starts_at")
+  endsAt       DateTime?   @map("ends_at")
+  policyVersion Int        @default(1) @map("policy_version")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  claims       TaskClaim[]
+
+  @@index([status, startsAt, endsAt])
+  @@map("tasks")
+}
+
+model TaskClaim {
+  id             String      @id @default(uuid()) @db.Uuid
+  taskId         String      @map("task_id") @db.Uuid
+  userId         String      @map("user_id") @db.Uuid
+  status         ClaimStatus @default(CLAIMED)
+  claimedAt      DateTime    @default(now()) @map("claimed_at")
+  expiresAt      DateTime?   @map("expires_at")
+  idempotencyKey String      @unique @map("idempotency_key")
+  task           Task        @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  submissions    TaskSubmission[]
+
+  @@unique([taskId, userId])
+  @@index([userId, status, claimedAt])
+  @@index([taskId, status])
+  @@map("task_claims")
+}
+
+model TaskSubmission {
+  id          String           @id @default(uuid()) @db.Uuid
+  claimId     String           @map("claim_id") @db.Uuid
+  objectKey   String           @map("object_key")
+  note        String?          @db.Text
+  status      SubmissionStatus @default(SUBMITTED)
+  submittedAt DateTime         @default(now()) @map("submitted_at")
+  claim       TaskClaim        @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  reviews     TaskReview[]
+
+  @@index([status, submittedAt])
+  @@map("task_submissions")
+}
+
+model TaskReview {
+  id                String         @id @default(uuid()) @db.Uuid
+  submissionId      String         @map("submission_id") @db.Uuid
+  reviewerAdminId   String         @map("reviewer_admin_id") @db.Uuid
+  decision          ReviewDecision
+  reason            String?        @db.Text
+  reviewedAt        DateTime       @default(now()) @map("reviewed_at")
+  submission        TaskSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  reviewer          AdminUser      @relation(fields: [reviewerAdminId], references: [id], onDelete: Restrict)
+
+  @@index([submissionId, reviewedAt])
+  @@map("task_reviews")
+}
+
+model Wallet {
+  id        String            @id @default(uuid()) @db.Uuid
+  userId    String            @map("user_id") @db.Uuid
+  currency  String            @db.Char(3)
+  createdAt DateTime          @default(now()) @map("created_at")
+  user      User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  entries   LedgerEntry[]
+  withdrawals WithdrawalRequest[]
+
+  @@unique([userId, currency])
+  @@map("wallets")
+}
+
+model LedgerEntry {
+  id             String          @id @default(uuid()) @db.Uuid
+  walletId       String          @map("wallet_id") @db.Uuid
+  sourceType     String          @map("source_type")
+  sourceId       String          @map("source_id")
+  direction      LedgerDirection
+  amountMinor    BigInt          @map("amount_minor")
+  currency       String          @db.Char(3)
+  idempotencyKey String          @unique @map("idempotency_key")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  wallet         Wallet          @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  @@index([walletId, createdAt])
+  @@index([sourceType, sourceId])
+  @@map("ledger_entries")
+}
+
+model ReferralReward {
+  id             String   @id @default(uuid()) @db.Uuid
+  beneficiaryId  String   @db.Uuid @map("beneficiary_id")
+  sourceUserId   String   @db.Uuid @map("source_user_id")
+  sourceEventId  String   @map("source_event_id")
+  depth          Int
+  amountMinor    BigInt   @map("amount_minor")
+  currency       String   @db.Char(3)
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([beneficiaryId, sourceEventId, depth])
+  @@index([beneficiaryId, createdAt])
+  @@map("referral_rewards")
+}
+
+model WithdrawalRequest {
+  id            String           @id @default(uuid()) @db.Uuid
+  walletId      String           @map("wallet_id") @db.Uuid
+  amountMinor   BigInt           @map("amount_minor")
+  currency      String           @db.Char(3)
+  status        WithdrawalStatus @default(REQUESTED)
+  reviewedById  String?          @map("reviewed_by_id") @db.Uuid
+  payoutReference String?         @map("payout_reference")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  wallet        Wallet           @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("withdrawal_requests")
+}
+
+model AdminUser {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String?      @unique @map("user_id") @db.Uuid
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  status       AdminStatus  @default(ACTIVE)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  roles        AdminUserRole[]
+  reviews      TaskReview[]
+
+  @@map("admin_users")
+}
+
+model Role {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique
+  description String?
+  permissions RolePermission[]
+  users       AdminUserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model AdminUserRole {
+  adminUserId String    @map("admin_user_id") @db.Uuid
+  roleId      String    @map("role_id") @db.Uuid
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  role        Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([adminUserId, roleId])
+  @@map("admin_user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorType  String   @map("actor_type")
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([actorType, actorId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@map("audit_events")
+}
