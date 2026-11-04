@@ -67,6 +67,14 @@ Last updated: 2026-11-04
 - [ ] Latest CI build and desktop/mobile browser visual acceptance pending.
 - [ ] User dashboard is not yet implemented; successful login currently shows an explicit in-progress notice.
 
+### Login action alignment refinement
+
+- [x] Centered the primary login action and reduced its width instead of stretching it edge-to-edge.
+- [x] Added a second matching create-account action below it, using a lighter contrasting blue treatment and the exact prompt “还没有账户？创建新账户”.
+- [x] Kept the create-account action linked to the existing `/register` route.
+- [x] Added mobile horizontal-overflow containment for the login page.
+- [ ] CI and refreshed browser screenshots still need verification.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
