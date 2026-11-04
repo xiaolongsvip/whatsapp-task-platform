@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.wtp.app.data.AuthRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private data class NavItem(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
@@ -95,6 +96,7 @@ fun TaskPlatformApp() {
 
 @Composable
 private fun MemberShell(phone: String, onLogout: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
@@ -125,7 +127,12 @@ private fun MemberShell(phone: String, onLogout: () -> Unit) {
                 1 -> PlaceholderScreen("任务大厅", "任务数据将在后续模块接入现有平台 API。")
                 2 -> PlaceholderScreen("推广中心", "推广关系和奖励数据将在后续模块接入现有平台 API。")
                 3 -> PlaceholderScreen("钱包", "余额和账单将在后续模块读取服务端真实账本。")
-                else -> AccountScreen(phone, onLogout)
+                else -> AccountScreen(phone) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }
+                        onLogout()
+                    }
+                }
             }
         }
     }
