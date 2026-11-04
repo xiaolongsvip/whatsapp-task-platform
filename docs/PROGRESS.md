@@ -153,6 +153,16 @@ Last updated: 2026-11-04
 - [x] Increased mobile card width and form typography for improved Android readability.
 - [ ] CI and local Android visual/functional testing remain pending.
 
+### Registration, same-origin API access, and initial workspace
+
+- [x] Changed browser API calls to same-origin `/api/v1` paths and configured the Next.js server rewrite to proxy to the local Nest API at `127.0.0.1:3002`, avoiding direct browser CORS and localhost-address problems.
+- [x] Successful registration uses the session cookie returned by the API and redirects directly to `/workspace`; successful login from both login entry points also redirects there.
+- [x] Added a responsive authenticated workspace with account summary and editable display name, language, and timezone.
+- [x] Extended profile validation and persistence for those editable fields.
+- [x] Added `pnpm db:push` to initialize the PostgreSQL schema.
+- [ ] Critical local prerequisite: PostgreSQL is not installed or started by the no-Docker startup script. Registration and profile persistence require a native PostgreSQL service, a database, a configured `.env` DATABASE_URL, and one `pnpm db:push` run.
+- [ ] CI and end-to-end register/login/profile-save tests are pending.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
