@@ -138,17 +138,21 @@ export class AuthService {
     });
   }
 
-  async updateProfile(token: string | undefined, input: { displayName?: string }) {
+  async updateProfile(token: string | undefined, input: { displayName?: string; locale?: string; timezone?: string }) {
     const user = await this.getCurrentUser(token);
     const profile = await prisma.userProfile.upsert({
       where: { userId: user.id },
       create: {
         userId: user.id,
         displayName: input.displayName?.trim() || null,
-        locale: "zh-CN",
-        timezone: "UTC",
+        locale: input.locale || "zh-CN",
+        timezone: input.timezone || "UTC",
       },
-      update: { displayName: input.displayName?.trim() || null },
+      update: {
+        ...(input.displayName !== undefined ? { displayName: input.displayName.trim() || null } : {}),
+        ...(input.locale !== undefined ? { locale: input.locale } : {}),
+        ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+      },
       select: { displayName: true, locale: true, timezone: true },
     });
     return { ...user, profile };
