@@ -13,21 +13,23 @@ The project is designed to run locally with live reload for all three applicatio
 - Windows 10/11 64-bit
 - Node.js 22
 - pnpm 10.34.9 via Corepack
-- Git (Git for Windows or GitHub Desktop)
+- Git for Windows or GitHub Desktop
 - Docker Desktop with the WSL 2 backend enabled
 
 PostgreSQL and Redis run in Docker Compose. The web applications and API run directly on Windows so file watching and browser debugging remain straightforward.
 
 ## First-time setup
 
-1. Clone this private repository to the local computer.
-2. Open a terminal in the repository root.
-3. Copy `.env.example` to `.env`. The example values are for local development only.
-4. Install dependencies with `pnpm install`.
-5. Start Docker Desktop and wait until it reports that the engine is running.
-6. Start the full stack with `pnpm dev:local`.
+1. Install the prerequisites listed above.
+2. Clone this private repository to the local computer (GitHub Desktop can do this without command-line Git).
+3. Start Docker Desktop and wait until its engine is ready.
+4. Double-click `start-local.cmd` in the repository root.
 
-The command starts PostgreSQL and Redis, then launches the user web, admin web, and API in parallel. Stop all development processes with Ctrl+C. Stop the database containers separately with `pnpm infra:down`.
+The startup helper creates `.env` from `.env.example` if needed, installs dependencies on first launch, verifies Docker is running, starts PostgreSQL and Redis, and launches the three development servers. It does not overwrite an existing `.env`.
+
+Alternatively, run `pnpm dev:local` from the repository root after the first-time setup.
+
+Stop the development servers with Ctrl+C. Stop the database containers separately with `pnpm infra:down`.
 
 ## Database initialization
 
