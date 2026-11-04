@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  repository-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required repository files
+        run: |
+          test -f README.md
+          test -f package.json
+          test -f pnpm-workspace.yaml
+          test -f docker-compose.yml
+          test -f docs/PRODUCT_SPEC.md
+          test -f docs/ARCHITECTURE.md
