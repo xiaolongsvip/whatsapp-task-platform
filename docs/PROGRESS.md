@@ -57,6 +57,16 @@ Last updated: 2026-11-04
 - [ ] Latest CI build and browser/device visual acceptance pending.
 - [ ] The authenticated user dashboard is not implemented yet; successful login currently displays an explicit in-progress notice rather than navigating to a nonexistent dashboard.
 
+### Latest homepage login-card redesign
+
+- [x] Root homepage is a single rounded card, not two separate cards.
+- [x] Left side contains phone/password login, remember-account option, login button, and create-account link directly below it.
+- [x] Right side contains a custom CSS phone/task illustration and three platform feature highlights.
+- [x] Desktop uses a two-column card; mobile stacks the login form first and feature panel second.
+- [x] Password input uses browser `autocomplete="current-password"`; the app stores only the remembered phone number and never stores a plaintext password.
+- [ ] Latest CI build and desktop/mobile browser visual acceptance pending.
+- [ ] User dashboard is not yet implemented; successful login currently shows an explicit in-progress notice.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
