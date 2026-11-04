@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, Eye, EyeOff, LockKeyhole, Phone, ShieldCheck, UserRoundPlus } from "lucide-react";
 
 export function AuthEntry() {
+  const router = useRouter();
   const [countryCode, setCountryCode] = useState("+1");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -68,7 +70,8 @@ export function AuthEntry() {
       } catch {
         // Do not block login if browser storage is disabled.
       }
-      setNotice("登录验证成功。");
+      router.push("/workspace");
+      router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "网络连接失败，请检查 API 服务。");
     } finally {
