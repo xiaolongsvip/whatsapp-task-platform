@@ -1210,3 +1210,43 @@ a { -webkit-tap-highlight-color:transparent; }
   .aurora-phone-control>input.aurora-country-code-input {font-size:13px!important;min-width:72px;padding:0 8px!important;}
   .aurora-phone-control>input.aurora-phone-number-input {font-size:13px!important;padding:0 10px!important;}
 }
+
+
+/* Final mobile-first technology login composition */
+.aurora-login {
+  justify-content:center;
+  padding:24px 16px max(24px,env(safe-area-inset-bottom));
+}
+.aurora-tech-globe {z-index:0;display:block;}
+.aurora-tech-grid {z-index:0;}
+.aurora-tech-beam {z-index:0;}
+.aurora-card {width:min(100%,430px);}
+.aurora-phone-control {width:100%;}
+.aurora-phone-control>input.aurora-country-code-input {flex-basis:32%;width:32%;}
+.aurora-phone-control>input.aurora-phone-number-input {flex-basis:68%;}
+.aurora-register-page {justify-content:center;}
+@media(max-width:600px) {
+  .aurora-login {padding:18px 14px max(18px,env(safe-area-inset-bottom));}
+  .aurora-card {width:min(100%,420px);padding:24px 24px 20px;border-radius:30px;}
+  .aurora-brand {margin-bottom:18px;}
+  .aurora-heading {margin-bottom:20px;}
+  .aurora-heading h1 {font-size:29px;}
+  .aurora-heading h2 {font-size:37px;}
+  .aurora-heading p {font-size:12px;white-space:normal;}
+  .aurora-form {gap:15px;}
+  .aurora-field>label {font-size:14px;}
+  .aurora-phone-control {height:48px!important;}
+  .aurora-phone-control>input.aurora-country-code-input {font-size:14px!important;flex-basis:34%;width:34%;max-width:116px;}
+  .aurora-phone-control>input.aurora-phone-number-input {font-size:14px!important;}
+  .aurora-password-wrap>input {height:48px;font-size:14px;}
+  .aurora-submit {height:50px;font-size:16px;}
+  .aurora-register {min-height:43px;font-size:13px;}
+  .aurora-security {font-size:10px;}
+  .aurora-register-page {padding-top:max(18px,env(safe-area-inset-top));}
+  .aurora-register-page .aurora-card {width:min(100%,420px);padding:22px 22px 19px;}
+}
+@media(max-width:380px) {
+  .aurora-card {padding:21px 18px 18px;}
+  .aurora-phone-control>input.aurora-country-code-input {flex-basis:35%;width:35%;min-width:70px;font-size:13px!important;}
+  .aurora-phone-control>input.aurora-phone-number-input {font-size:13px!important;}
+}
