@@ -34,15 +34,7 @@ if not exist ".env" (
   )
 )
 
-docker info >nul 2>nul
-if errorlevel 1 (
-  echo [ERROR] Docker Desktop is not running.
-  echo Start Docker Desktop, wait for the engine to become ready, then double-click this file again.
-  pause
-  exit /b 1
-)
-
-if not exist "node_modules\.bin\concurrently.cmd" (
+if not exist "node_modules\\.bin\\concurrently.cmd" (
   echo [INFO] Installing project dependencies. This is required only on first launch or after dependency changes.
   call pnpm install
   if errorlevel 1 (
@@ -53,7 +45,10 @@ if not exist "node_modules\.bin\concurrently.cmd" (
 )
 
 echo.
-echo [INFO] Starting PostgreSQL, Redis, user web, admin web and API...
+echo [INFO] Starting user web, admin web and API directly on Windows...
+echo [INFO] No Docker Desktop is required for this UI/API development mode.
+echo [INFO] Database-backed features remain unavailable until PostgreSQL and Redis are configured separately.
+echo.
 echo [INFO] User web:  http://localhost:3000
 echo [INFO] Admin web: http://localhost:3001
 echo [INFO] API health: http://localhost:3002/api/v1/health
