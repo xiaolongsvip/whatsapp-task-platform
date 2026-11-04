@@ -166,7 +166,7 @@ export function AuthEntry() {
                 <span className="aurora-country-code">{countryCode}</span>
                 <ChevronDown size={13} />
               </label>
-              <input id="home-phone" name="username" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="区号 + 手机号码" value={phone} onChange={(event) => setPhone(event.target.value.replace(/[^0-9\s-]/g, ""))} required maxLength={16} />
+              <input id="home-phone" name="username" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="区号 + 手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={16} />
             </div>
           </div>
 
