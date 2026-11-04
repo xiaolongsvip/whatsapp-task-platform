@@ -75,6 +75,16 @@ Last updated: 2026-11-04
 - [x] Added mobile horizontal-overflow containment for the login page.
 - [ ] CI and refreshed browser screenshots still need verification.
 
+### Premium login visual direction — approved by user
+
+- [x] Replaced the split login/showcase layout with one centered glass-effect login card.
+- [x] Applied a deep navy/indigo background with luminous blue/cyan flowing ribbon effects.
+- [x] Kept the account brand, large Chinese welcome/title, phone and password fields, remember option, centered login action, and create-account action inside the same card.
+- [x] Removed the lower product showcase section entirely from the login homepage.
+- [x] Preserved the existing login API call, phone-number validation, password visibility toggle, and remembered-phone behavior.
+- [x] Added responsive mobile sizing and safe-area spacing.
+- [ ] Run latest CI and verify on the user's Android browser; visual/browser acceptance is still pending.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
