@@ -85,6 +85,13 @@ Last updated: 2026-11-04
 - [x] Added responsive mobile sizing and safe-area spacing.
 - [ ] Run latest CI and verify on the user's Android browser; visual/browser acceptance is still pending.
 
+### Mobile background arc visibility adjustment
+
+- [x] Repositioned the two decorative luminous arcs to fit within the mobile viewport rather than being cropped off-screen.
+- [x] Simplified the mobile ribbon glow so it frames the login card without competing with the form.
+- [x] Kept desktop aurora styling unchanged.
+- [ ] Verify on the user's Android browser at common narrow viewport widths; visual acceptance is pending.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
