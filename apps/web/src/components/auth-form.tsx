@@ -104,8 +104,38 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
   return (
     <main className={isRegister ? "aurora-login aurora-register-page" : "aurora-login"}>
-      <div className="aurora-ribbon aurora-ribbon-top" aria-hidden="true" />
-      <div className="aurora-ribbon aurora-ribbon-bottom" aria-hidden="true" />
+      <div className="aurora-ribbon aurora-ribbon-top" aria-hidden="true">
+        <svg viewBox="0 0 400 150" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="aurora-top-gradient" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stopColor="#243cff" stopOpacity=".1" />
+              <stop offset=".38" stopColor="#5c63ff" />
+              <stop offset=".52" stopColor="#a5efff" />
+              <stop offset=".68" stopColor="#437cff" />
+              <stop offset="1" stopColor="#6045ff" stopOpacity=".08" />
+            </linearGradient>
+          </defs>
+          <path d="M-24 122 C42 103 54 55 104 20 C151 -14 205 -10 252 -28 C315 -52 354 -43 430 -76" fill="none" stroke="#534cff" strokeWidth="38" opacity=".38" />
+          <path d="M-24 122 C42 103 54 55 104 20 C151 -14 205 -10 252 -28 C315 -52 354 -43 430 -76" fill="none" stroke="url(#aurora-top-gradient)" strokeWidth="24" />
+          <path d="M-24 122 C42 103 54 55 104 20 C151 -14 205 -10 252 -28 C315 -52 354 -43 430 -76" fill="none" stroke="#a8edff" strokeWidth="4" opacity=".78" />
+        </svg>
+      </div>
+      <div className="aurora-ribbon aurora-ribbon-bottom" aria-hidden="true">
+        <svg viewBox="0 0 400 150" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="aurora-bottom-gradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#3d57ff" stopOpacity=".08" />
+              <stop offset=".34" stopColor="#5d54ff" />
+              <stop offset=".5" stopColor="#a2edff" />
+              <stop offset=".66" stopColor="#3977ff" />
+              <stop offset="1" stopColor="#6948ff" stopOpacity=".12" />
+            </linearGradient>
+          </defs>
+          <path d="M-28 18 C43 10 80 52 142 86 C210 123 281 119 329 72 C369 33 391 8 430 -8" fill="none" stroke="#514aff" strokeWidth="38" opacity=".4" />
+          <path d="M-28 18 C43 10 80 52 142 86 C210 123 281 119 329 72 C369 33 391 8 430 -8" fill="none" stroke="url(#aurora-bottom-gradient)" strokeWidth="24" />
+          <path d="M-28 18 C43 10 80 52 142 86 C210 123 281 119 329 72 C369 33 391 8 430 -8" fill="none" stroke="#a7edff" strokeWidth="4" opacity=".78" />
+        </svg>
+      </div>
       <div className="aurora-orb aurora-orb-one" aria-hidden="true" />
       <div className="aurora-orb aurora-orb-two" aria-hidden="true" />
 
@@ -134,9 +164,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
                 <span className="aurora-country-code">{countryCode}</span>
                 <ChevronDown size={13} />
               </label>
-              <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="区号 + 手机号码，例如 +25412345678" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
+              <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="区号 + 手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
             </div>
-            {isRegister && <span className="aurora-auth-hint">支持国家区号 + 手机号码，例如 +25412345678。</span>}
+            {isRegister && <span className="aurora-auth-hint">支持输入国家区号和手机号码。</span>}
           </div>
 
           <div className="aurora-field">
