@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -30,12 +31,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.wtp.app.data.AuthRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun AuthScreen(
-    onAuthenticated: (String) -> Unit
-) {
+fun AuthScreen(onAuthenticated: (String) -> Unit) {
+    val scope = rememberCoroutineScope()
     var isRegister by remember { mutableStateOf(false) }
     var callingCode by remember { mutableStateOf("+1") }
     var localPhone by remember { mutableStateOf("") }
@@ -58,19 +59,14 @@ fun AuthScreen(
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = { isRegister = false; error = "" }, modifier = Modifier.weight(1f), enabled = !busy) {
-                Text("登录")
-            }
-            OutlinedButton(onClick = { isRegister = true; error = "" }, modifier = Modifier.weight(1f), enabled = !busy) {
-                Text("注册")
-            }
+            OutlinedButton(onClick = { isRegister = false; error = "" }, modifier = Modifier.weight(1f), enabled = !busy) { Text("登录") }
+            OutlinedButton(onClick = { isRegister = true; error = "" }, modifier = Modifier.weight(1f), enabled = !busy) { Text("注册") }
         }
 
         OutlinedTextField(
             value = callingCode,
             onValueChange = { value -> callingCode = "+" + value.filter(Char::isDigit).take(4) },
             label = { Text("国家区号") },
-            leadingIcon = { Text("+") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
@@ -121,13 +117,23 @@ fun AuthScreen(
                 error = ""
                 val fullPhone = (callingCode + localPhone).filter(Char::isDigit)
                 when {
+                    callingCode == "+" -> error = "请输入国家区号。"
                     fullPhone.length !in 8..15 -> error = "请输入有效的国际手机号码（含国家区号）。"
                     password.length !in 6..128 -> error = "密码长度需要为 6 至 128 位。"
                     isRegister && password != confirmPassword -> error = "两次输入的密码不一致。"
-                    else -> {
+                    else -> scope.launch {
                         busy = true
-                        // The API uses the same phone/password and HttpOnly session cookie as the web app.
-                        kotlinx.coroutines.GlobalScope // no work is launched from this placeholder
+                        try {
+                            withContext(Dispatchers.IO) {
+                                if (isRegister) AuthRepository.register(fullPhone, password, inviteCode)
+                                else AuthRepository.login(fullPhone, password)
+                            }
+                            onAuthenticated(fullPhone)
+                        } catch (exception: Exception) {
+                            error = exception.message ?: "请求失败，请检查网络和 API 服务。"
+                        } finally {
+                            busy = false
+                        }
                     }
                 }
             },
