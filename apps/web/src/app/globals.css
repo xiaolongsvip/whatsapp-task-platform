@@ -1,0 +1,35 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: #f7f8fa; color: #17202a; font-family: Arial, Helvetica, sans-serif; }
+button, input { font: inherit; }
+.auth-shell { min-height: 100svh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.auth-card { width: 100%; max-width: 440px; background: #fff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 30px; box-shadow: 0 10px 30px rgba(15,23,42,.05); }
+.auth-brand { font-size: 13px; color: #667085; margin-bottom: 28px; }
+.auth-card h1 { font-size: 26px; margin: 0 0 8px; letter-spacing: -.4px; }
+.auth-subtitle { color: #667085; font-size: 14px; margin: 0 0 26px; line-height: 1.5; }
+.auth-form { display: grid; gap: 16px; }
+.auth-field { display: grid; gap: 8px; }
+.auth-field label { font-size: 14px; font-weight: 600; color: #344054; }
+.auth-field input { width: 100%; min-height: 54px; border: 1px solid #d0d5dd; border-radius: 10px; background: #fff; padding: 0 15px; color: #101828; outline: none; font-size: 16px; }
+.auth-field input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.auth-field input::placeholder { color: #98a2b3; }
+.auth-hint { font-size: 12px; color: #667085; line-height: 1.5; }
+.auth-button { min-height: 54px; border: 0; border-radius: 10px; background: #1769e0; color: #fff; font-weight: 700; cursor: pointer; margin-top: 4px; }
+.auth-button:disabled { opacity: .65; cursor: wait; }
+.auth-error { color: #b42318; background: #fef3f2; border: 1px solid #fecdca; border-radius: 9px; padding: 11px 12px; font-size: 13px; }
+.auth-footer { text-align: center; margin-top: 22px; color: #667085; font-size: 14px; }
+.auth-footer a, .auth-link { color: #1769e0; text-decoration: none; font-weight: 600; }
+.home-shell { min-height: 100svh; display: grid; place-items: center; padding: 24px; }
+.home-card { width: 100%; max-width: 560px; background: #fff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 32px; }
+.home-actions { display: flex; gap: 12px; margin-top: 24px; }
+.home-actions a { flex: 1; text-align: center; padding: 14px; border-radius: 10px; background: #1769e0; color: #fff; text-decoration: none; font-weight: 700; }
+.home-actions a.secondary { background: #eef2f6; color: #344054; }
+@media (max-width: 520px) {
+  .auth-shell { align-items: flex-start; padding: 14px 12px; }
+  .auth-card { border-radius: 14px; padding: 24px 18px; margin-top: 8px; }
+  .auth-card h1 { font-size: 24px; }
+  .auth-field input { min-height: 56px; font-size: 16px; }
+  .auth-button { min-height: 56px; }
+  .home-card { padding: 24px 18px; }
+  .home-actions { flex-direction: column; }
+}
