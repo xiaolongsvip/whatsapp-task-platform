@@ -29,7 +29,7 @@ Stop all development servers with Ctrl+C in the startup window.
 
 ## Important: database availability
 
-This no-Docker workflow currently starts the frontend applications and the API health endpoint only. PostgreSQL and Redis are not started by this script. Database-dependent features, Prisma migrations, queues, and persistent data operations will not work until PostgreSQL and Redis are installed and configured as native Windows services or another separately managed local service.
+This no-Docker workflow starts the frontend applications and API directly. PostgreSQL is still required for registration, login, sessions, and profile saving; Redis is not required by the current authentication/profile flow. Install PostgreSQL for Windows as a native service (Docker is not needed), create a local database, and set DATABASE_URL in the root .env to that database. Then run `pnpm db:push` once to create the schema. The sample DATABASE_URL is only a placeholder and will not work until a PostgreSQL server/user/database exists.
 
 The sample `DATABASE_URL` and `REDIS_URL` in `.env.example` are placeholders for local development. Do not treat them as running services or production credentials.
 
