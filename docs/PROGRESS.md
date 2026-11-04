@@ -47,6 +47,16 @@ Last updated: 2026-11-04
 - `apps/api/src/users/*` — authenticated current-user and profile update endpoints.
 - `apps/api/src/app.module.ts` — auth/users modules and request throttling.
 
+### Latest user-facing entry-screen revision
+
+- [x] Root route `/` now opens the account entry screen directly.
+- [x] Desktop layout places phone/password login on the left and new-account registration on the right.
+- [x] Registration includes phone, password, confirmation, and optional referral code.
+- [x] Both forms call the existing API endpoints and display inline success/error feedback.
+- [x] Mobile layout stacks login first and registration second; form controls and typography remain touch-friendly and readable.
+- [ ] Latest CI build and browser/device visual acceptance pending.
+- [ ] The authenticated user dashboard is not implemented yet; successful login currently displays an explicit in-progress notice rather than navigating to a nonexistent dashboard.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
