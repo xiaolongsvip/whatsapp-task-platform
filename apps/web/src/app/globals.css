@@ -761,3 +761,29 @@ a { -webkit-tap-highlight-color:transparent; }
 @media(prefers-reduced-motion:reduce) {
  .aurora-login * {transition:none!important;}
 }
+
+
+/* Mobile: keep both decorative light arcs fully inside the viewport */
+@media(max-width:600px) {
+  .aurora-login { overflow:hidden; }
+  .aurora-login:before {
+    width:94vw;height:118px;left:3vw;right:auto;top:7px;bottom:auto;
+    transform:none;border:1.5px solid rgba(112,184,255,.7);
+    box-shadow:0 0 12px rgba(67,143,255,.65),0 0 35px rgba(57,107,255,.32),inset 0 0 20px rgba(70,149,255,.14);
+  }
+  .aurora-login:after {
+    width:94vw;height:118px;right:3vw;left:auto;bottom:7px;top:auto;
+    transform:none;border:1.5px solid rgba(112,184,255,.68);
+    box-shadow:0 0 13px rgba(78,139,255,.68),0 0 38px rgba(81,81,255,.34),inset 0 0 22px rgba(80,129,255,.14);
+  }
+  .aurora-ribbon-top {
+    width:100vw;height:95px;left:0;top:0;transform:none;border-radius:0 0 50% 50%;
+    background:radial-gradient(ellipse at 50% -5%,rgba(104,155,255,.2),transparent 68%);
+    filter:none;opacity:.9;
+  }
+  .aurora-ribbon-bottom {
+    width:100vw;height:95px;right:0;bottom:0;transform:none;border-radius:50% 50% 0 0;
+    background:radial-gradient(ellipse at 50% 105%,rgba(104,155,255,.2),transparent 68%);
+    filter:none;opacity:.9;
+  }
+}
