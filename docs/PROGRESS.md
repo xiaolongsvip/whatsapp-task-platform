@@ -5,54 +5,81 @@ Last updated: 2026-11-04
 ## Governance
 
 - [x] User's project development and acceptance rules recorded in `docs/PROJECT_RULES.md`.
-- [x] GitHub private repository confirmed: `xiaolongsvip/whatsapp-task-platform`.
-- [x] GitHub integration has repository read/write permission.
+- [x] Private GitHub repository confirmed: `xiaolongsvip/whatsapp-task-platform`.
+- [x] Changes are developed module by module; user remains the acceptance tester.
 
-## Repository foundation
+## Module 0 — Foundation and local startup
 
-- [x] Initial README and product principles committed.
-- [x] Initial architecture, logical data model, and development plan committed.
-- [x] pnpm workspace manifest and root package manifest committed.
-- [x] Docker Compose template retained for a future optional database setup; it is not required by the current local startup path.
-- [x] Initial Next.js/NestJS application package manifests and selected source/config files committed.
-- [x] Initial Prisma schema committed.
-- [x] Initial API health endpoint source committed.
-- [x] User and admin Next.js App Router entry pages added.
-- [x] Shared package entry point added.
-- [x] Root scripts added for one-command local web/admin/API development without Docker.
-- [x] Windows double-click startup helper added as `start-local.cmd`; it no longer checks or requires Docker Desktop.
-- [x] Windows no-Docker local development workflow documented in `docs/LOCAL_DEVELOPMENT.md`.
-- [x] CI upgraded to install dependencies, generate Prisma Client, validate Prisma, typecheck, lint, and build.
-- [x] NestJS ESLint flat configuration and required lint dependencies added.
-- [ ] Dependency installation verified on the latest CI revision.
-- [ ] TypeScript checks verified.
-- [ ] Lint and production builds verified.
-- [ ] Database schema validation and migration verified.
-- [ ] User and admin interfaces run and browser-verified on the user's PC.
-- [ ] End-to-end API/database integration verified.
+- [x] Monorepo foundation and initial Next.js/NestJS apps committed.
+- [x] Windows startup helper runs web, admin, and API without requiring Docker Desktop.
+- [x] User confirmed the three development processes reached Ready / successful startup in the local CMD window.
+- [ ] Latest lockfile and generated Next.js type-file CI validation still needs final confirmation.
+- [ ] PostgreSQL/Redis and database integration are not configured in the user's no-Docker local environment.
+
+## Module 1.1 — Phone registration and login
+
+**Status: implementation started; automated validation and user acceptance pending.**
+
+### Confirmed requirements
+
+- Phone number is the only user login/registration identifier; email login is not included.
+- International phone number input, example: `25412345678`; API normalizes separators and stores digits.
+- Password accepts letters and numbers (no numeric-only restriction), minimum 6 and maximum 128 characters.
+- Registration includes password confirmation and optional referral code.
+- Login uses phone number and password.
+- User pages must be mobile-first and responsive from the first implementation.
+
+### Implemented files
+
+- `apps/web/src/app/globals.css` — mobile-first responsive auth styling.
+- `apps/web/src/components/auth-form.tsx` — registration/login form, validation and API requests.
+- `apps/web/src/app/register/page.tsx` — registration route.
+- `apps/web/src/app/login/page.tsx` — login route.
+- `apps/web/src/app/page.tsx` — login/register entry.
+- `apps/web/src/app/layout.tsx` — global styles and mobile viewport.
+- `packages/database/prisma/schema.prisma` — phone-only user identity, referral code, auth session model.
+- `packages/database/src/index.ts` — shared Prisma client export.
+- `packages/database/package.json` — workspace package entry.
+- `apps/api/package.json` — Argon2, database workspace and throttler dependencies.
+- `apps/api/src/auth/auth.dto.ts` — registration/login validation.
+- `apps/api/src/auth/auth.service.ts` — registration, login, referral ancestor creation, hashed refresh-session storage, session rotation, logout, profile update.
+- `apps/api/src/auth/auth.controller.ts` and `auth.module.ts` — auth endpoints and HttpOnly session cookie.
+- `apps/api/src/users/*` — authenticated current-user and profile update endpoints.
+- `apps/api/src/app.module.ts` — auth/users modules and request throttling.
+
+### API routes implemented
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/users/me`
+- `PATCH /api/v1/users/me`
+
+### Security and known limitations
+
+- Passwords are hashed with Argon2id.
+- Session tokens are random opaque values; only SHA-256 hashes are stored.
+- Session cookies are HttpOnly, SameSite=Lax, and Secure in production.
+- Registration and login have endpoint throttling; the current in-process throttler is not yet backed by Redis for multi-instance production.
+- Phone ownership is not SMS-verified yet. Production launch requires selecting and integrating an SMS verification provider before treating phone numbers as verified.
+- PostgreSQL is required for actual registration/login persistence. It is not currently running in the user's Docker-free local setup.
+- Database migration, frontend/API integration, build, lint, and browser/mobile tests have not yet been confirmed.
 
 ## Local development target
 
 - User web: `http://localhost:3000`
 - Admin web: `http://localhost:3001`
 - API health: `http://localhost:3002/api/v1/health`
-- One-click Windows startup: double-click `start-local.cmd`.
-- Alternative startup: `pnpm dev:local`.
-- Current startup runs Next.js user web, Next.js admin web, and NestJS API directly on Windows.
-- Docker Desktop is not required.
-- PostgreSQL and Redis are not started in this mode; database-backed features remain unavailable until those services are configured separately.
+- Start by double-clicking `start-local.cmd`; Docker Desktop is not required for frontend/API process startup.
 
-## Current milestone
+## Next acceptance steps
 
-**Status: Docker-free local web/API startup workflow committed; not yet accepted as a working local application.**
-
-The user wants to inspect both frontend applications locally during development. The startup helper and instructions now support running the three application processes directly on Windows without Docker Desktop. Local dependency installation, process startup, browser checks, and database service setup have not yet been verified.
-
-## Known prerequisites / risks
-
-- Node.js 22 and pnpm 10.34.9 were previously confirmed on the user's PC.
-- Git was not found in an earlier Windows environment check; GitHub Desktop can be used to clone the private repository without command-line Git.
-- No local dependency installation or browser verification has been reported.
-- The current no-Docker startup path is for frontend and API development only; PostgreSQL, Redis, Prisma migrations, queues, and persistent database operations need separately installed/configured services.
-- GitHub repository files were changed through GitHub integration; no claim is made that a local checkout or runtime has been started.
-- Do not commit secrets or use placeholder credentials in production.
+1. Wait for latest GitHub Actions validation and fix any errors.
+2. Pull the updated repository and install changed workspace dependencies.
+3. Configure a native/local PostgreSQL service without requiring Docker.
+4. Run Prisma migration and generate the client.
+5. Test registration, duplicate phone rejection, login, refresh rotation, logout, referral code, and profile endpoints.
+6. User reviews registration/login pages on mobile browser and desktop browser.
+7. User explicitly accepts Module 1.1 before moving to the next module.
