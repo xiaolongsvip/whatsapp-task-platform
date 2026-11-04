@@ -134,6 +134,15 @@ Last updated: 2026-11-04
 - [x] Kept the card, typography, input fields, remember checkbox, login action, and create-account action unchanged.
 - [ ] Awaiting user Android screenshot review and CI completion.
 
+### Phone field correction — country selector removed
+
+- [x] Removed the country flag, country-code dropdown, and `KE +254` selector completely from both login and registration.
+- [x] Phone number is now one full-width input field.
+- [x] User must type the complete international phone number including country prefix (for example the digits for Kenya's +254 number); API receives normalized digits.
+- [x] Placeholder now says `请输入含国家区号的手机号码`, without example-number text.
+- [x] Remembered account field restores the full phone number as entered; obsolete saved country-code state is no longer used.
+- [ ] CI and local Android browser verification remain pending.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
