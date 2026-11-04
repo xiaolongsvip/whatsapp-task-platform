@@ -19,8 +19,8 @@ function AuthPanel({ mode }: { mode: Mode }) {
     setError("");
     setNotice("");
 
-    const normalizedPhone = phone.replace(/[\\s()+-]/g, "");
-    if (!/^\\d{8,15}$/.test(normalizedPhone)) {
+    const normalizedPhone = phone.replace(/[\s()+-]/g, "");
+    if (!/^\d{8,15}$/.test(normalizedPhone)) {
       setError("请输入正确的国际手机号码，例如 25412345678。");
       return;
     }
