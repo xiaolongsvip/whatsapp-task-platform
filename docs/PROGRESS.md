@@ -209,3 +209,21 @@ Last updated: 2026-11-04
 - [x] Kept phone remembering in local storage; password is not stored as plaintext by the app and remains eligible for the browser's own password manager.
 - [x] Adjusted the upper-left and lower-right luminous diagonal background arcs to frame the card.
 - [ ] Run CI and verify at real Android viewport sizes; visual acceptance remains pending.
+
+
+### Module 2.1 — Mobile member home dashboard (implementation started)
+
+- [x] Replaced the authenticated `/workspace` landing page with a mobile-first home dashboard based on the user's two supplied reference screenshots.
+- [x] Added authenticated `GET /api/v1/users/dashboard` endpoint.
+- [x] Dashboard summary reads wallet ledger entries and outstanding withdrawal requests to calculate withdrawable amounts; no hardcoded earned balance is used.
+- [x] Dashboard summary reads approved task reviews for today's settlement count, pending task submissions for review count, today's task claims, and currently published tasks.
+- [x] Today's date boundary uses the member's saved timezone, with UTC fallback.
+- [x] Added top bar with withdrawable balance, configurable support link (via `NEXT_PUBLIC_SUPPORT_URL`), and Chinese/English/Japanese language selector persisted through the existing profile API.
+- [x] Added announcement/safety reminder, referral-code copy action, device permission explanation, task preview, task guide modal, quick links, and five-item bottom navigation.
+- [x] Kept the previous profile editor accessible at `/profile`; the new home page is at `/workspace`.
+- [x] Where no wallet exists, the UI displays zero rather than inventing an account balance. Published task list is empty until tasks are actually created and published in the admin workflow.
+- [x] No floating-window permission is falsely claimed: the browser page explains that web cannot enable Android overlay permission and that users select screenshots themselves.
+- [ ] Pull latest changes and verify API compilation, frontend typecheck/lint/build, and dashboard response against the user's local PostgreSQL database.
+- [ ] User visual acceptance on Android is pending.
+- [ ] Customer support URL is not configured yet; set `NEXT_PUBLIC_SUPPORT_URL` when the official support destination is chosen.
+- [ ] Referral reward percentages are intentionally not displayed as fixed values because no approved reward-rate configuration exists yet.
