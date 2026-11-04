@@ -96,12 +96,19 @@ Last updated: 2026-11-04
 
 - [x] Registration and `/login` now use the same aurora background, diagonal neon corner ribbons, glass card, brand lockup, typography, field styling, primary action, secondary account-switch action, and security footer as the homepage login.
 - [x] Kept the Kenya `+254` country prefix visible in the phone field and retained the country selector.
-- [x] Login and registration accept a complete international number typed into the phone field (for example `+25412345678`) and split the country prefix into the visible selector before submission.
+- [x] Login and registration accept a complete international number typed into the phone field (for example `+25412345678`) and normalize the typed country prefix at submission without stripping it while the user is typing.
 - [x] Fixed remembered phone restoration so the stored country prefix is correctly separated from the local number.
 - [x] Added show/hide controls for both registration password fields.
 - [x] Adjusted the upper-left and lower-right neon ribbons to use broad diagonal curved shapes inspired by the supplied reference.
 - [ ] CI build and visual acceptance on actual Android browser remain pending.
 - [ ] Password recovery remains a support-guidance notice, not a complete self-service reset flow.
+
+### Follow-up: preserve typed country prefix while entering the number
+
+- [x] The phone input no longer strips a leading `+` or country digits during typing.
+- [x] Users can type the full international number directly, such as `+25412345678`, while the `+254` selector remains visible.
+- [x] Submission detects an entered international prefix to avoid duplicating the selected country code.
+- [ ] CI and browser testing are pending.
 
 ### API routes implemented
 
