@@ -128,7 +128,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           <div className="aurora-field">
             <label htmlFor="auth-phone"><Phone size={17} /> 电话号码</label>
             <div className="aurora-phone-control aurora-phone-split">
-              <input className="aurora-country-code-input" id="auth-country-code" type="tel" inputMode="tel" autoComplete="tel-country-code" aria-label="国家区号" placeholder="+1" value={countryCode} onChange={(event) => setCountryCode(event.target.value.replace(/[^0-9+]/g, "").slice(0, 6))} required maxLength={6} />
+              <input className="aurora-country-code-input" id="auth-country-code" type="tel" inputMode="numeric" autoComplete="tel-country-code" aria-label="国家区号" placeholder="+1" value={countryCode} onChange={(event) => setCountryCode("+" + event.target.value.replace(/\D/g, "").slice(0, 5))} required maxLength={6} />
               <span className="aurora-phone-divider" aria-hidden="true" />
               <input className="aurora-phone-number-input" id="auth-phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="输入手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={16} />
             </div>
