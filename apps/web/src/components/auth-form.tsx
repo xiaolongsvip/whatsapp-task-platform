@@ -103,7 +103,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <main className="aurora-login">
+    <main className={isRegister ? "aurora-login aurora-register-page" : "aurora-login"}>
       <div className="aurora-ribbon aurora-ribbon-top" aria-hidden="true" />
       <div className="aurora-ribbon aurora-ribbon-bottom" aria-hidden="true" />
       <div className="aurora-orb aurora-orb-one" aria-hidden="true" />
