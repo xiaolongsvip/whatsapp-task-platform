@@ -86,7 +86,6 @@ fun TaskPlatformApp() {
         else -> MemberShell(
             phone = accountPhone,
             onLogout = {
-                runCatching { AuthRepository.logout() }
                 authenticated = false
                 accountPhone = ""
             }
