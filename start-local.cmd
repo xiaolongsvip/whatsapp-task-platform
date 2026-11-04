@@ -34,14 +34,20 @@ if not exist ".env" (
   )
 )
 
-if not exist "node_modules\\.bin\\concurrently.cmd" (
-  echo [INFO] Installing project dependencies. This is required only on first launch or after dependency changes.
-  call pnpm install
-  if errorlevel 1 (
-    echo [ERROR] Dependency installation failed.
-    pause
-    exit /b 1
-  )
+echo [INFO] Checking and installing workspace dependencies...
+call pnpm install --no-frozen-lockfile
+if errorlevel 1 (
+  echo [ERROR] Dependency installation failed.
+  pause
+  exit /b 1
+)
+
+echo [INFO] Generating Prisma Client from the current database schema...
+call pnpm db:generate
+if errorlevel 1 (
+  echo [ERROR] Prisma Client generation failed.
+  pause
+  exit /b 1
 )
 
 echo.
