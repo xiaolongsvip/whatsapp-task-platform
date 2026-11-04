@@ -1,6 +1,6 @@
-# Local Development (Windows)
+# Local Development (Windows, no Docker)
 
-The project is designed to run locally with live reload for all three applications.
+The current local workflow runs the user web app, admin web app, and API directly on Windows. Docker Desktop is not required.
 
 ## Local addresses
 
@@ -14,32 +14,24 @@ The project is designed to run locally with live reload for all three applicatio
 - Node.js 22
 - pnpm 10.34.9 via Corepack
 - Git for Windows or GitHub Desktop
-- Docker Desktop with the WSL 2 backend enabled
-
-PostgreSQL and Redis run in Docker Compose. The web applications and API run directly on Windows so file watching and browser debugging remain straightforward.
 
 ## First-time setup
 
 1. Install the prerequisites listed above.
 2. Clone this private repository to the local computer (GitHub Desktop can do this without command-line Git).
-3. Start Docker Desktop and wait until its engine is ready.
-4. Double-click `start-local.cmd` in the repository root.
+3. Double-click `start-local.cmd` in the repository root.
 
-The startup helper creates `.env` from `.env.example` if needed, installs dependencies on first launch, verifies Docker is running, starts PostgreSQL and Redis, and launches the three development servers. It does not overwrite an existing `.env`.
+The startup helper creates `.env` from `.env.example` if needed, installs dependencies on first launch, and starts the user web app, admin web app, and API in separate processes. It does not install, check, or start Docker Desktop, and it does not overwrite an existing `.env`.
 
 Alternatively, run `pnpm dev:local` from the repository root after the first-time setup.
 
-Stop the development servers with Ctrl+C. Stop the database containers separately with `pnpm infra:down`.
+Stop all development servers with Ctrl+C in the startup window.
 
-## Database initialization
+## Important: database availability
 
-After dependencies and Docker services are ready:
+This no-Docker workflow currently starts the frontend applications and the API health endpoint only. PostgreSQL and Redis are not started by this script. Database-dependent features, Prisma migrations, queues, and persistent data operations will not work until PostgreSQL and Redis are installed and configured as native Windows services or another separately managed local service.
 
-- `pnpm db:generate` generates Prisma Client.
-- `pnpm db:validate` validates the Prisma schema.
-- `pnpm db:migrate` creates/applies local development migrations.
-
-Do not use the sample credentials or local compose configuration as production credentials.
+The sample `DATABASE_URL` and `REDIS_URL` in `.env.example` are placeholders for local development. Do not treat them as running services or production credentials.
 
 ## Live development
 
@@ -48,5 +40,5 @@ Next.js development servers refresh the relevant browser page when frontend sour
 ## Notes
 
 - The first dependency installation requires internet access and may take several minutes.
-- Ports 3000, 3001, 3002, 5432, and 6379 must be available.
+- Ports 3000, 3001, and 3002 must be available for the three applications.
 - This local workflow is for development and manual acceptance, not production deployment.
