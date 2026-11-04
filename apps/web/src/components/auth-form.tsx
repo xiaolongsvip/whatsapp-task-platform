@@ -30,15 +30,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [busy, setBusy] = useState(false);
 
   function handlePhoneChange(value: string) {
-    const cleaned = value.trim();
-    const digits = cleaned.replace(/\D/g, "");
-    const matched = COUNTRY_CODES.find((country) => digits.startsWith(country.code.replace("+", "")));
-    if ((cleaned.startsWith("+") || (matched && digits.length > 10)) && matched) {
-      setCountryCode(matched.code);
-      setPhone(digits.slice(matched.code.length - 1));
-      return;
-    }
-    setPhone(value.replace(/[^0-9\s-]/g, ""));
+    setPhone(value.replace(/[^0-9+\\s()-]/g, ""));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -80,7 +72,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         try {
           if (remember) {
             window.localStorage.setItem("wtp.remembered-phone", fullPhone);
-            window.localStorage.setItem("wtp.remembered-country-code", countryCode);
+            window.localStorage.setItem("wtp.remembered-country-code", effectiveCountryCode);
           } else {
             window.localStorage.removeItem("wtp.remembered-phone");
             window.localStorage.removeItem("wtp.remembered-country-code");
@@ -134,7 +126,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
                 <span className="aurora-country-code">{countryCode}</span>
                 <ChevronDown size={13} />
               </label>
-              <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="输入手机号码或完整国际号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
+              <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="区号 + 手机号码，例如 +25412345678" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
             </div>
             {isRegister && <span className="aurora-auth-hint">支持国家区号 + 手机号码，例如 +25412345678。</span>}
           </div>
