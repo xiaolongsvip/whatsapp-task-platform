@@ -12,3 +12,10 @@ Thumbs.db
 .vscode/
 .idea/
 .turbo/
+
+# Android / Gradle
+.gradle/
+local.properties
+.cxx/
+.externalNativeBuild/
+*.iml
