@@ -126,6 +126,14 @@ Last updated: 2026-11-04
 - [x] Phone placeholder remains `区号 + 手机号码` without an example number.
 - [ ] Need compare the refreshed Android screenshot against the supplied reference; CI and visual acceptance are pending.
 
+### Mobile login visual refinement
+
+- [x] Retained the country selector; `KE +254` stays visible and selectable in the phone input. It is not to be removed.
+- [x] Reworked the decorative art into two restrained, opposite-corner aurora sweeps with limited dimensions instead of large diagonal waves.
+- [x] Removed the oversized decorative ellipse outlines that competed with the card.
+- [x] Kept the card, typography, input fields, remember checkbox, login action, and create-account action unchanged.
+- [ ] Awaiting user Android screenshot review and CI completion.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
