@@ -227,3 +227,18 @@ Last updated: 2026-11-04
 - [ ] User visual acceptance on Android is pending.
 - [ ] Customer support URL is not configured yet; set `NEXT_PUBLIC_SUPPORT_URL` when the official support destination is chosen.
 - [ ] Referral reward percentages are intentionally not displayed as fixed values because no approved reward-rate configuration exists yet.
+
+
+### Android native app — Phase 1 foundation (0.1.0)
+
+- [x] Added a separate `android/` Gradle project using Kotlin 2.0.21, Jetpack Compose, Material 3, Android Gradle Plugin 8.7.3, compile/target SDK 35, and min SDK 26.
+- [x] Added native launcher Activity and Android manifest.
+- [x] Added green Material 3 theme aligned with the approved member web dashboard palette.
+- [x] Added five-tab native navigation shell: Home, Tasks, Promote, Wallet, and Me.
+- [x] Added honest placeholder screens for modules not yet integrated; no fabricated wallet/task data is shown.
+- [x] Added Android setup instructions in `android/README.md`.
+- [x] Added Gradle/Android generated files to `.gitignore`.
+- [ ] Android Studio sync, Kotlin compilation, emulator/device launch, and APK build have not yet been run in this environment.
+- [ ] Authentication/API connection is intentionally deferred to the next explicitly approved module.
+- [ ] Overlay permission and MediaProjection capture are intentionally deferred to their own permission modules; no Android permission is requested in this foundation build.
+- [ ] No Gradle wrapper binary is included yet; use Android Studio's Gradle project import/sync or install compatible Gradle locally. Add a verified wrapper in a later build-tooling step.
