@@ -117,9 +117,9 @@ export function AuthEntry() {
             </button>
           </form>
 
-          <div className="register-prompt">
-            <span>还没有账户？</span>
-            <Link href="/register">创建新账户 <span>↗</span></Link>
+          <div className="register-action">
+            <div className="register-prompt"><span>还没有账户？</span><strong>创建新账户</strong></div>
+            <Link href="/register" className="register-button">创建新账户 <span>↗</span></Link>
           </div>
           <div className="login-form-foot"><ShieldCheck size={18} /> 安全加密连接，保护你的账户信息。</div>
         </div>
