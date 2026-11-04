@@ -110,6 +110,14 @@ Last updated: 2026-11-04
 - [x] Submission detects an entered international prefix to avoid duplicating the selected country code.
 - [ ] CI and browser testing are pending.
 
+### Curved ribbon and phone placeholder correction
+
+- [x] Replaced the diagonal gradient-bar approximation with SVG Bézier curves for the upper-left and lower-right flowing light ribbons on both login and registration screens.
+- [x] Kept the selected country prefix control (Kenya `KE +254`) visible in the phone input.
+- [x] Simplified the phone placeholder to exactly `区号 + 手机号码`; removed example phone numbers from the registration helper text too.
+- [x] Homepage phone input now preserves a typed leading plus sign and uses the same international-number normalization as registration.
+- [ ] Latest CI build and actual Android screenshot comparison remain pending.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
