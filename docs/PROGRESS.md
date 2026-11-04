@@ -143,6 +143,16 @@ Last updated: 2026-11-04
 - [x] Remembered account field restores the full phone number as entered; obsolete saved country-code state is no longer used.
 - [ ] CI and local Android browser verification remain pending.
 
+### Phone split input and premium technology background
+
+- [x] Replaced the single phone input with two editable fields: country calling code (default `+254`) and local phone number.
+- [x] Login and registration submit the concatenated calling code + local number as digits to the existing auth API.
+- [x] Login remembers country code and local number separately when remember-account is enabled.
+- [x] Replaced the old decorative corner-ribbon background with layered navy gradients, diagonal neon beams, a dotted digital globe/network motif, and a perspective dot-grid floor.
+- [x] Kept all form controls as real HTML inputs and buttons; generated concept artwork is not used as a flattened login screenshot.
+- [x] Increased mobile card width and form typography for improved Android readability.
+- [ ] CI and local Android visual/functional testing remain pending.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
