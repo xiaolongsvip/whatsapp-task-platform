@@ -6,4 +6,14 @@ export class UpdateProfileDto {
   @MinLength(2)
   @MaxLength(80)
   displayName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  locale?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
 }
