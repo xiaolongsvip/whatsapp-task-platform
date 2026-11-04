@@ -110,33 +110,27 @@ export function AuthEntry() {
       <div className="aurora-ribbon aurora-ribbon-top" aria-hidden="true">
         <svg viewBox="0 0 400 150" preserveAspectRatio="none">
           <defs>
-            <linearGradient id="aurora-top-gradient" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0" stopColor="#243cff" stopOpacity=".1" />
-              <stop offset=".38" stopColor="#5c63ff" />
-              <stop offset=".52" stopColor="#a5efff" />
-              <stop offset=".68" stopColor="#437cff" />
-              <stop offset="1" stopColor="#6045ff" stopOpacity=".08" />
+            <linearGradient id="aurora-top-fill" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stopColor="#172f91" /><stop offset=".28" stopColor="#3448ed" /><stop offset=".5" stopColor="#6c72ff" /><stop offset=".66" stopColor="#8edfff" /><stop offset=".82" stopColor="#477cff" /><stop offset="1" stopColor="#192c91" />
             </linearGradient>
           </defs>
-          <path d="M-24 122 C42 103 54 55 104 20 C151 -14 205 -10 252 -28 C315 -52 354 -43 430 -76" fill="none" stroke="#534cff" strokeWidth="38" opacity=".38" />
-          <path d="M-24 122 C42 103 54 55 104 20 C151 -14 205 -10 252 -28 C315 -52 354 -43 430 -76" fill="none" stroke="url(#aurora-top-gradient)" strokeWidth="24" />
-          <path d="M-24 122 C42 103 54 55 104 20 C151 -14 205 -10 252 -28 C315 -52 354 -43 430 -76" fill="none" stroke="#a8edff" strokeWidth="4" opacity=".78" />
+          <path d="M-28 139 C35 119 48 68 102 35 C145 8 186 7 238 -22 L263 1 C204 30 165 29 119 54 C64 84 53 132 -28 164 Z" fill="url(#aurora-top-fill)" opacity=".92" />
+          <path d="M-28 139 C35 119 48 68 102 35 C145 8 186 7 238 -22" fill="none" stroke="#6574ff" strokeWidth="9" opacity=".48" />
+          <path d="M-28 130 C35 110 48 59 102 26 C145 -1 186 -2 238 -31" fill="none" stroke="#a7edff" strokeWidth="4" opacity=".95" />
+          <path d="M-28 139 C35 119 48 68 102 35 C145 8 186 7 238 -22" fill="none" stroke="#9beaff" strokeWidth="1.8" opacity=".82" />
         </svg>
       </div>
       <div className="aurora-ribbon aurora-ribbon-bottom" aria-hidden="true">
-        <svg viewBox="0 0 400 150" preserveAspectRatio="none">
+        <svg viewBox="0 0 400 190" preserveAspectRatio="none">
           <defs>
-            <linearGradient id="aurora-bottom-gradient" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#3d57ff" stopOpacity=".08" />
-              <stop offset=".34" stopColor="#5d54ff" />
-              <stop offset=".5" stopColor="#a2edff" />
-              <stop offset=".66" stopColor="#3977ff" />
-              <stop offset="1" stopColor="#6948ff" stopOpacity=".12" />
+            <linearGradient id="aurora-bottom-fill" x1="1" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#182c91" /><stop offset=".3" stopColor="#3b48ec" /><stop offset=".52" stopColor="#7165ff" /><stop offset=".68" stopColor="#9be6ff" /><stop offset=".84" stopColor="#477bff" /><stop offset="1" stopColor="#182d91" />
             </linearGradient>
           </defs>
-          <path d="M-28 18 C43 10 80 52 142 86 C210 123 281 119 329 72 C369 33 391 8 430 -8" fill="none" stroke="#514aff" strokeWidth="38" opacity=".4" />
-          <path d="M-28 18 C43 10 80 52 142 86 C210 123 281 119 329 72 C369 33 391 8 430 -8" fill="none" stroke="url(#aurora-bottom-gradient)" strokeWidth="24" />
-          <path d="M-28 18 C43 10 80 52 142 86 C210 123 281 119 329 72 C369 33 391 8 430 -8" fill="none" stroke="#a7edff" strokeWidth="4" opacity=".78" />
+          <path d="M428 -12 C373 10 377 62 333 105 C292 145 246 143 207 168 C185 182 167 193 142 207 L126 180 C157 158 176 144 198 132 C243 108 284 111 315 80 C356 39 349 -3 428 -39 Z" fill="url(#aurora-bottom-fill)" opacity=".94" />
+          <path d="M428 -12 C373 10 377 62 333 105 C292 145 246 143 207 168 C185 182 167 193 142 207" fill="none" stroke="#626cff" strokeWidth="9" opacity=".48" />
+          <path d="M428 -23 C373 -1 377 51 333 94 C292 134 246 132 207 157 C185 171 167 182 142 196" fill="none" stroke="#a2edff" strokeWidth="4" opacity=".95" />
+          <path d="M428 -12 C373 10 377 62 333 105 C292 145 246 143 207 168 C185 182 167 193 142 207" fill="none" stroke="#a5edff" strokeWidth="1.8" opacity=".82" />
         </svg>
       </div>
       <div className="aurora-orb aurora-orb-one" aria-hidden="true" />
