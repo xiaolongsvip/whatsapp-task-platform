@@ -54,7 +54,7 @@ export class AuthService {
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
     const referralCode = createReferralCode();
 
-    let user;
+    let user: { id: string; phone: string; referralCode: string; status: string };
     try {
       user = await prisma.$transaction(async (tx) => {
         const created = await tx.user.create({
