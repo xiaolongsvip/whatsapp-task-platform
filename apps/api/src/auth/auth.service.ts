@@ -54,9 +54,7 @@ export class AuthService {
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
     const referralCode = createReferralCode();
 
-    let user: { id: string; phone: string; referralCode: string; status: string };
-    try {
-      user = await prisma.$transaction(async (tx) => {
+    const user = await prisma.$transaction(async (tx) => {
         const created = await tx.user.create({
           data: {
             phone,
@@ -85,13 +83,12 @@ export class AuthService {
           await tx.referralAncestor.createMany({ data: ancestors });
         }
         return created;
+      }).catch((error: unknown) => {
+        if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+          throw new ConflictException("手机号码或邀请码冲突，请重试。");
+        }
+        throw error;
       });
-    } catch (error) {
-      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
-        throw new ConflictException("手机号码或邀请码冲突，请重试。");
-      }
-      throw error;
-    }
 
     const session = await this.createSession(user.id);
     return { user, ...session };
