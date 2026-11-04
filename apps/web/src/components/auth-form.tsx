@@ -47,7 +47,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
     setBusy(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3002"}/api/v1/auth/${mode}`, {
+      const response = await fetch(`/api/v1/auth/${mode}`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -75,10 +75,11 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         }
       }
       if (isRegister) {
-        router.push("/login?registered=1");
+        router.push("/workspace");
         router.refresh();
       } else {
-        setNotice("登录验证成功。");
+        router.push("/workspace");
+        router.refresh();
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "网络连接失败，请检查 API 服务。");
