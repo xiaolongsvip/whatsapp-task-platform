@@ -118,6 +118,14 @@ Last updated: 2026-11-04
 - [x] Homepage phone input now preserves a typed leading plus sign and uses the same international-number normalization as registration.
 - [ ] Latest CI build and actual Android screenshot comparison remain pending.
 
+### Reference comparison correction
+
+- [x] Confirmed the supplied current mobile screenshot's ribbons did not match the reference: the prior output looked like parallel sine-wave bands.
+- [x] Replaced both login and registration SVG ribbon paths with broad, asymmetrical Bézier corner sweeps: upper-left ribbon rises toward the top edge; lower-right ribbon curls in from the right and sweeps toward the bottom edge.
+- [x] Kept the country selector control visible, including `KE +254`; it must not be removed.
+- [x] Phone placeholder remains `区号 + 手机号码` without an example number.
+- [ ] Need compare the refreshed Android screenshot against the supplied reference; CI and visual acceptance are pending.
+
 ### API routes implemented
 
 - `POST /api/v1/auth/register`
