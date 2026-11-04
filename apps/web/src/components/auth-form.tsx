@@ -3,21 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Eye, EyeOff, LockKeyhole, Phone, ShieldCheck, UserRoundPlus } from "lucide-react";
+import { Check, Eye, EyeOff, LockKeyhole, Phone, ShieldCheck, UserRoundPlus } from "lucide-react";
 
 type AuthMode = "register" | "login";
-const COUNTRY_CODES = [
-  { name: "Kenya", flag: "🇰🇪", code: "+254" },
-  { name: "United States", flag: "🇺🇸", code: "+1" },
-  { name: "United Kingdom", flag: "🇬🇧", code: "+44" },
-  { name: "Japan", flag: "🇯🇵", code: "+81" },
-  { name: "Taiwan", flag: "🇹🇼", code: "+886" },
-];
-
 export function AuthForm({ mode }: { mode: AuthMode }) {
   const router = useRouter();
   const isRegister = mode === "register";
-  const [countryCode, setCountryCode] = useState("+254");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,16 +28,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     event.preventDefault();
     setError("");
     setNotice("");
-    const typedDigits = phone.replace(/\D/g, "");
-    const typedInternational = phone.trim().startsWith("+") || COUNTRY_CODES.some((country) => {
-      const prefix = country.code.replace("+", "");
-      return typedDigits.startsWith(prefix) && typedDigits.length > prefix.length + 6;
-    });
-    const matchedCountry = typedInternational
-      ? COUNTRY_CODES.find((country) => typedDigits.startsWith(country.code.replace("+", "")))
-      : undefined;
-    const fullPhone = typedInternational ? typedDigits : `${countryCode}${typedDigits}`.replace(/\D/g, "");
-    const effectiveCountryCode = matchedCountry?.code ?? countryCode;
+    const fullPhone = phone.replace(/\D/g, "");
     if (!/^\d{8,15}$/.test(fullPhone)) {
       setError("请输入正确的国际手机号码，包含国家区号。");
       return;
@@ -80,11 +62,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         try {
           if (remember) {
             window.localStorage.setItem("wtp.remembered-phone", fullPhone);
-            window.localStorage.setItem("wtp.remembered-country-code", effectiveCountryCode);
-          } else {
+                      } else {
             window.localStorage.removeItem("wtp.remembered-phone");
-            window.localStorage.removeItem("wtp.remembered-country-code");
-          }
+                      }
         } catch {
           // Do not block login when browser storage is disabled.
         }
@@ -140,14 +120,6 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           <div className="aurora-field">
             <label htmlFor="auth-phone"><Phone size={17} /> 电话号码</label>
             <div className="aurora-phone-control">
-              <label className="aurora-country" htmlFor="auth-country-code" aria-label="国家区号">
-                <span>{COUNTRY_CODES.find((country) => country.code === countryCode)?.flag ?? "🌐"}</span>
-                <select id="auth-country-code" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-label="选择国家区号">
-                  {COUNTRY_CODES.map((country) => <option key={country.code} value={country.code}>{country.name} {country.code}</option>)}
-                </select>
-                <span className="aurora-country-code">{countryCode}</span>
-                <ChevronDown size={13} />
-              </label>
               <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="区号 + 手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
             </div>
             {isRegister && <span className="aurora-auth-hint">支持输入国家区号和手机号码。</span>}
