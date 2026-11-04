@@ -21,7 +21,7 @@ The current local workflow runs the user web app, admin web app, and API directl
 2. Clone this private repository to the local computer (GitHub Desktop can do this without command-line Git).
 3. Double-click `start-local.cmd` in the repository root.
 
-The startup helper creates `.env` from `.env.example` if needed, installs dependencies on first launch, and starts the user web app, admin web app, and API in separate processes. It does not install, check, or start Docker Desktop, and it does not overwrite an existing `.env`.
+The startup helper creates `.env` from `.env.example` if needed, checks and installs workspace dependencies, generates Prisma Client from the current schema, and starts the user web app, admin web app, and API in separate processes. It does not install, check, or start Docker Desktop, and it does not overwrite an existing `.env`.
 
 Alternatively, run `pnpm dev:local` from the repository root after the first-time setup.
 
