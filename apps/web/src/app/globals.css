@@ -1121,3 +1121,92 @@ a { -webkit-tap-highlight-color:transparent; }
   .aurora-phone-control {height:42px;}
   .aurora-phone-control>input {font-size:13px;padding:0 13px!important;}
 }
+
+
+/* Premium technology background and manually editable international phone prefix */
+.aurora-login {
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  background:
+    radial-gradient(ellipse at 78% 20%,rgba(0,119,255,.22),transparent 34%),
+    radial-gradient(ellipse at 8% 78%,rgba(28,75,210,.2),transparent 38%),
+    radial-gradient(ellipse at 52% 52%,rgba(11,42,103,.26),transparent 52%),
+    linear-gradient(145deg,#020b22 0%,#06183d 48%,#030a20 100%) !important;
+}
+.aurora-login:before,.aurora-login:after {display:none!important;}
+.aurora-tech-beam,.aurora-tech-globe,.aurora-tech-grid {
+  position:absolute;pointer-events:none;z-index:0;
+}
+.aurora-tech-beam-one {
+  width:78vw;height:170px;left:-22vw;top:-80px;transform:rotate(-27deg);
+  background:linear-gradient(180deg,transparent 8%,rgba(80,91,255,.08) 28%,rgba(67,113,255,.65) 43%,rgba(119,225,255,.86) 49%,rgba(76,103,255,.5) 56%,transparent 78%);
+  filter:blur(15px);
+}
+.aurora-tech-beam-two {
+  width:78vw;height:150px;right:-30vw;bottom:-66px;transform:rotate(-27deg);
+  background:linear-gradient(180deg,transparent 8%,rgba(76,84,255,.08) 28%,rgba(62,110,255,.65) 43%,rgba(104,221,255,.84) 49%,rgba(97,81,255,.55) 57%,transparent 80%);
+  filter:blur(17px);
+}
+.aurora-tech-globe {
+  width:min(72vw,360px);height:min(62vw,300px);
+  right:-7%;top:2%;opacity:.5;
+  filter:drop-shadow(0 0 22px rgba(0,153,255,.2));
+}
+.aurora-tech-globe svg {width:100%;height:100%;display:block;}
+.aurora-tech-grid {
+  width:120%;height:28%;left:-10%;bottom:-5%;
+  opacity:.55;
+  background-image:radial-gradient(circle,rgba(55,194,255,.9) 1px,transparent 1.6px);
+  background-size:12px 12px;
+  transform:perspective(260px) rotateX(58deg);
+  transform-origin:bottom center;
+  mask-image:radial-gradient(ellipse at 50% 55%,#000 0%,transparent 74%);
+}
+.aurora-card {
+  z-index:2;
+  border-color:rgba(132,190,255,.72);
+  background:
+    radial-gradient(ellipse at 88% 0%,rgba(39,115,255,.2),transparent 43%),
+    linear-gradient(145deg,rgba(8,29,72,.91),rgba(4,18,49,.94) 60%,rgba(8,22,65,.94));
+  box-shadow:0 28px 90px rgba(0,0,0,.5),0 0 34px rgba(31,128,255,.19),inset 0 1px 0 rgba(220,242,255,.24);
+  backdrop-filter:blur(24px) saturate(145%);
+  -webkit-backdrop-filter:blur(24px) saturate(145%);
+}
+.aurora-phone-control {
+  height:44px!important;display:flex;align-items:stretch;gap:0;
+  border:1px solid rgba(173,205,255,.58)!important;
+  border-radius:12px!important;
+  background:linear-gradient(110deg,rgba(255,255,255,.13),rgba(255,255,255,.075))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.aurora-phone-control:focus-within {
+  border-color:#69d9ff!important;
+  box-shadow:0 0 0 3px rgba(50,174,255,.15),0 0 18px rgba(42,154,255,.12);
+}
+.aurora-phone-control>input.aurora-country-code-input {
+  width:34%;max-width:105px;min-width:76px;flex:0 0 34%;
+  height:100%;padding:0 10px!important;
+  border:0!important;border-radius:0!important;
+  background:rgba(35,83,153,.2)!important;
+  color:#f2f7ff!important;font-size:14px!important;font-weight:700;
+  box-shadow:none!important;
+}
+.aurora-phone-divider {width:1px;align-self:stretch;background:rgba(179,211,255,.3);}
+.aurora-phone-control>input.aurora-phone-number-input {
+  min-width:0;flex:1;width:0;height:100%;
+  padding:0 12px!important;border:0!important;border-radius:0!important;
+  background:transparent!important;color:#f2f7ff!important;
+  font-size:14px!important;box-shadow:none!important;
+}
+.aurora-phone-control>input::placeholder {color:rgba(211,226,255,.55);}
+.aurora-phone-control>input:focus {outline:none;}
+@media(max-width:600px) {
+  .aurora-tech-beam-one {width:105vw;height:140px;left:-34vw;top:-68px;filter:blur(13px);}
+  .aurora-tech-beam-two {width:100vw;height:130px;right:-42vw;bottom:-50px;filter:blur(14px);}
+  .aurora-tech-globe {width:76vw;height:64vw;right:-12%;top:3%;opacity:.42;}
+  .aurora-tech-grid {height:23%;bottom:-3%;background-size:10px 10px;}
+  .aurora-phone-control {height:43px!important;}
+  .aurora-phone-control>input.aurora-country-code-input {font-size:13px!important;min-width:72px;padding:0 8px!important;}
+  .aurora-phone-control>input.aurora-phone-number-input {font-size:13px!important;padding:0 10px!important;}
+}
