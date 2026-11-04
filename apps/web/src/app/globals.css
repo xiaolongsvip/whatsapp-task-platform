@@ -896,3 +896,119 @@ a { -webkit-tap-highlight-color:transparent; }
   .aurora-register {margin-top:8px;}
   .aurora-security {margin-top:9px;}
 }
+
+
+/* Exact shared authentication frame: diagonal corner ribbons and unified register form */
+.aurora-ribbon-top {
+  width:150vw;
+  max-width:760px;
+  height:210px;
+  left:-24vw;
+  top:-112px;
+  right:auto;
+  bottom:auto;
+  transform:rotate(-18deg);
+  transform-origin:center;
+  border-radius:0 0 58% 42% / 0 0 72% 58%;
+  background:linear-gradient(164deg,
+    transparent 15%,
+    rgba(63,79,255,.12) 27%,
+    rgba(86,94,255,.72) 36%,
+    #3978ff 42%,
+    #a5eaff 47%,
+    #3772ff 52%,
+    rgba(106,66,255,.82) 61%,
+    rgba(33,65,195,.12) 72%,
+    transparent 83%);
+  filter:blur(5px);
+  box-shadow:0 10px 32px rgba(49,111,255,.22);
+}
+.aurora-ribbon-bottom {
+  width:152vw;
+  max-width:780px;
+  height:220px;
+  right:-27vw;
+  bottom:-116px;
+  left:auto;
+  top:auto;
+  transform:rotate(-18deg);
+  transform-origin:center;
+  border-radius:58% 42% 0 0 / 72% 58% 0 0;
+  background:linear-gradient(164deg,
+    transparent 14%,
+    rgba(65,75,255,.12) 26%,
+    rgba(101,84,255,.68) 36%,
+    #3b74ff 43%,
+    #a0e9ff 48%,
+    #3974ff 53%,
+    rgba(116,68,255,.82) 62%,
+    rgba(33,65,195,.12) 73%,
+    transparent 84%);
+  filter:blur(5px);
+  box-shadow:0 -10px 34px rgba(49,111,255,.22);
+}
+.aurora-login {overflow:hidden;}
+.aurora-card {position:relative;z-index:2;}
+.aurora-country select {color-scheme:light;}
+.aurora-auth-hint {color:rgba(211,226,255,.58);font-size:11px;line-height:1.5;}
+.aurora-optional {color:rgba(208,224,255,.58);font-size:12px;font-weight:500;}
+.aurora-register-page {justify-content:center;}
+.aurora-register-page .aurora-card {width:min(100%,380px);padding:26px 28px 22px;}
+.aurora-register-page .aurora-brand {margin-bottom:20px;}
+.aurora-register-page .aurora-heading {margin-bottom:19px;}
+.aurora-register-page .aurora-heading h1 {font-size:29px;}
+.aurora-register-page .aurora-heading p {white-space:normal;}
+.aurora-register-page .aurora-form {gap:13px;}
+.aurora-register-page .aurora-field {gap:6px;}
+.aurora-register-page .aurora-field>label {font-size:13px;}
+.aurora-register-page .aurora-phone-control,
+.aurora-register-page .aurora-password-wrap>input,
+.aurora-register-page .aurora-field>input {height:43px;}
+.aurora-register-page .aurora-phone-control>input,
+.aurora-register-page .aurora-password-wrap>input,
+.aurora-register-page .aurora-field>input {font-size:13px;}
+.aurora-register-page .aurora-submit {height:45px;font-size:15px;}
+.aurora-register-page .aurora-register {margin-top:11px;}
+.aurora-register-page .aurora-security {margin-top:14px;}
+@media(max-width:600px) {
+  .aurora-ribbon-top {
+    width:150vw;max-width:none;height:190px;left:-28vw;top:-105px;
+    transform:rotate(-18deg);filter:blur(4px);
+  }
+  .aurora-ribbon-bottom {
+    width:152vw;max-width:none;height:195px;right:-30vw;bottom:-105px;
+    transform:rotate(-18deg);filter:blur(4px);
+  }
+  .aurora-register-page {
+    justify-content:flex-start;
+    min-height:100svh;
+    padding-top:max(22px,env(safe-area-inset-top));
+    padding-bottom:max(22px,env(safe-area-inset-bottom));
+  }
+  .aurora-register-page .aurora-card {
+    width:min(100%,340px);
+    padding:21px 22px 18px;
+    border-radius:30px;
+  }
+  .aurora-register-page .aurora-brand {margin-bottom:15px;}
+  .aurora-register-page .aurora-heading {margin-bottom:15px;}
+  .aurora-register-page .aurora-heading h1 {font-size:25px;}
+  .aurora-register-page .aurora-heading p {font-size:11px;margin-top:9px;}
+  .aurora-register-page .aurora-form {gap:11px;}
+  .aurora-register-page .aurora-field>label {font-size:12px;}
+  .aurora-register-page .aurora-phone-control,
+  .aurora-register-page .aurora-password-wrap>input,
+  .aurora-register-page .aurora-field>input {height:40px;}
+  .aurora-register-page .aurora-country {font-size:10px;padding:0 6px;}
+  .aurora-register-page .aurora-phone-control>input {font-size:11px;padding:0 7px;}
+  .aurora-register-page .aurora-password-wrap>input,
+  .aurora-register-page .aurora-field>input {font-size:12px;}
+  .aurora-register-page .aurora-submit {height:42px;}
+  .aurora-register-page .aurora-register {min-height:37px;font-size:11px;}
+  .aurora-register-page .aurora-security {font-size:9px;}
+}
+@media(max-width:360px) {
+  .aurora-register-page .aurora-card {padding-left:17px;padding-right:17px;}
+  .aurora-register-page .aurora-country {gap:3px;padding:0 4px;}
+  .aurora-register-page .aurora-country-code {font-size:10px;}
+}
