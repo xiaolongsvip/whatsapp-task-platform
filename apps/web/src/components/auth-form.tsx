@@ -22,14 +22,16 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [busy, setBusy] = useState(false);
 
   function handlePhoneChange(value: string) {
-    setPhone(value.replace(/[^0-9+\s()-]/g, ""));
+    setPhone(value.replace(/\D/g, ""));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setNotice("");
-    const fullPhone = phone.replace(/\D/g, "");
+    const normalizedCode = countryCode.replace(/\D/g, "");
+    const normalizedPhone = phone.replace(/\D/g, "");
+    const fullPhone = normalizedCode + normalizedPhone;
     if (!/^\d{8,15}$/.test(fullPhone)) {
       setError("请分别输入国家区号和手机号码。");
       return;
