@@ -30,15 +30,23 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [busy, setBusy] = useState(false);
 
   function handlePhoneChange(value: string) {
-    setPhone(value.replace(/[^0-9+\\s()-]/g, ""));
+    setPhone(value.replace(/[^0-9+\s()-]/g, ""));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setNotice("");
-    const localNumber = phone.replace(/\D/g, "");
-    const fullPhone = `${countryCode}${localNumber}`.replace(/\D/g, "");
+    const typedDigits = phone.replace(/\D/g, "");
+    const typedInternational = phone.trim().startsWith("+") || COUNTRY_CODES.some((country) => {
+      const prefix = country.code.replace("+", "");
+      return typedDigits.startsWith(prefix) && typedDigits.length > prefix.length + 6;
+    });
+    const matchedCountry = typedInternational
+      ? COUNTRY_CODES.find((country) => typedDigits.startsWith(country.code.replace("+", "")))
+      : undefined;
+    const fullPhone = typedInternational ? typedDigits : `${countryCode}${typedDigits}`.replace(/\D/g, "");
+    const effectiveCountryCode = matchedCountry?.code ?? countryCode;
     if (!/^\d{8,15}$/.test(fullPhone)) {
       setError("请输入正确的国际手机号码，包含国家区号。");
       return;
