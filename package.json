@@ -15,6 +15,7 @@
     "db:generate": "dotenv -e .env -- pnpm --filter @wtp/database db:generate",
     "db:validate": "dotenv -e .env -- pnpm --filter @wtp/database db:validate",
     "db:migrate": "dotenv -e .env -- pnpm --filter @wtp/database db:migrate",
+    "db:push": "dotenv -e .env -- pnpm --filter @wtp/database db:push",
     "db:studio": "dotenv -e .env -- pnpm --filter @wtp/database db:studio",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down"
