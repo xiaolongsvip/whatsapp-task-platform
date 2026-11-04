@@ -2,18 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Eye, EyeOff, LockKeyhole, Phone, ShieldCheck, UserRoundPlus } from "lucide-react";
-
-const COUNTRY_CODES = [
-  { name: "Kenya", flag: "🇰🇪", code: "+254" },
-  { name: "United States", flag: "🇺🇸", code: "+1" },
-  { name: "United Kingdom", flag: "🇬🇧", code: "+44" },
-  { name: "Japan", flag: "🇯🇵", code: "+81" },
-  { name: "Taiwan", flag: "🇹🇼", code: "+886" },
-];
+import { Check, Eye, EyeOff, LockKeyhole, Phone, ShieldCheck, UserRoundPlus } from "lucide-react";
 
 export function AuthEntry() {
-  const [countryCode, setCountryCode] = useState("+254");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -25,18 +16,7 @@ export function AuthEntry() {
   useEffect(() => {
     try {
       const savedPhone = window.localStorage.getItem("wtp.remembered-phone");
-      const savedCode = window.localStorage.getItem("wtp.remembered-country-code");
-      if (savedPhone) {
-        const savedDigits = savedPhone.replace(/\\D/g, "");
-        const match = COUNTRY_CODES.find((country) => savedDigits.startsWith(country.code.replace("+", "")));
-        if (match) {
-          setCountryCode(match.code);
-          setPhone(savedDigits.slice(match.code.length - 1));
-        } else {
-          setPhone(savedDigits);
-        }
-      }
-      if (savedCode && COUNTRY_CODES.some((country) => country.code === savedCode)) setCountryCode(savedCode);
+      if (savedPhone) setPhone(savedPhone);
     } catch {
       // Login remains available when browser storage is disabled.
     }
@@ -50,16 +30,7 @@ export function AuthEntry() {
     event.preventDefault();
     setError("");
     setNotice("");
-    const typedDigits = phone.replace(/\D/g, "");
-    const typedInternational = phone.trim().startsWith("+") || COUNTRY_CODES.some((country) => {
-      const prefix = country.code.replace("+", "");
-      return typedDigits.startsWith(prefix) && typedDigits.length > prefix.length + 6;
-    });
-    const matchedCountry = typedInternational
-      ? COUNTRY_CODES.find((country) => typedDigits.startsWith(country.code.replace("+", "")))
-      : undefined;
-    const fullPhone = typedInternational ? typedDigits : `${countryCode}${typedDigits}`.replace(/\D/g, "");
-    const effectiveCountryCode = matchedCountry?.code ?? countryCode;
+    const fullPhone = phone.replace(/\D/g, "");
     if (!/^\d{8,15}$/.test(fullPhone)) {
       setError("请输入正确的手机号码。");
       return;
@@ -84,11 +55,9 @@ export function AuthEntry() {
       try {
         if (remember) {
           window.localStorage.setItem("wtp.remembered-phone", fullPhone);
-          window.localStorage.setItem("wtp.remembered-country-code", effectiveCountryCode);
-        } else {
+                  } else {
           window.localStorage.removeItem("wtp.remembered-phone");
-          window.localStorage.removeItem("wtp.remembered-country-code");
-        }
+                  }
       } catch {
         // Do not block login if browser storage is disabled.
       }
@@ -142,15 +111,7 @@ export function AuthEntry() {
           <div className="aurora-field">
             <label htmlFor="home-phone"><Phone size={17} /> 电话号码</label>
             <div className="aurora-phone-control">
-              <label className="aurora-country" htmlFor="country-code" aria-label="国家区号">
-                <span>{COUNTRY_CODES.find((country) => country.code === countryCode)?.flag ?? "🌐"}</span>
-                <select id="country-code" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-label="选择国家区号">
-                  {COUNTRY_CODES.map((country) => <option key={country.code} value={country.code}>{country.name} {country.code}</option>)}
-                </select>
-                <span className="aurora-country-code">{countryCode}</span>
-                <ChevronDown size={13} />
-              </label>
-              <input id="home-phone" name="username" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="区号 + 手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={16} />
+              <input id="home-phone" name="username" type="tel" inputMode="tel" autoComplete="tel" placeholder="区号 + 手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
             </div>
           </div>
 
