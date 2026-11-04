@@ -126,7 +126,6 @@ export function AuthEntry() {
         <div className="aurora-security"><ShieldCheck size={19} /> 安全加密连接，保护你的账户信息。</div>
       </section>
 
-      <div className="aurora-copyright">© 2026 WHATSAPP TASK PLATFORM</div>
     </main>
   );
 }
