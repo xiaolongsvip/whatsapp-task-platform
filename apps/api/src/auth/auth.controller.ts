@@ -7,6 +7,7 @@ import {
   Res,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
+import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import { LoginDto, RegisterDto } from "./auth.dto";
 
@@ -43,6 +44,7 @@ function clearSessionCookie(response: Response) {
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("register")
   async register(@Body() body: RegisterDto, @Res({ passthrough: true }) response: Response) {
     const result = await this.auth.register(body);
@@ -50,6 +52,7 @@ export class AuthController {
     return { user: result.user, expiresAt: result.expiresAt };
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("login")
   async login(@Body() body: LoginDto, @Res({ passthrough: true }) response: Response) {
     const result = await this.auth.login(body);
