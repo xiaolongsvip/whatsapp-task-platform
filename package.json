@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-task-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.34.9",
+  "scripts": {
+    "dev:web": "pnpm --filter @wtp/web dev",
+    "dev:admin": "pnpm --filter @wtp/admin dev",
+    "dev:api": "pnpm --filter @wtp/api start:dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @wtp/database db:generate",
+    "db:migrate": "pnpm --filter @wtp/database db:migrate",
+    "db:studio": "pnpm --filter @wtp/database db:studio",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
