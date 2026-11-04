@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, Bell, CheckCircle2, ChevronRight, ClipboardList, Copy,
+  AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Copy,
   Globe2, Headphones, Home, Image, LoaderCircle, Users, Wallet, UserRound,
-  ShieldCheck, CircleHelp, MonitorSmartphone, Languages,
+  ShieldCheck, CircleHelp, MonitorSmartphone,
 } from "lucide-react";
 
 type Locale = "zh-CN" | "en" | "ja";
