@@ -59,9 +59,11 @@ export function AuthEntry() {
       }
       try {
         if (remember) {
-          window.localStorage.setItem("wtp.remembered-phone", fullPhone);
+          window.localStorage.setItem("wtp.remembered-phone", normalizedPhone);
+          window.localStorage.setItem("wtp.remembered-country-code", countryCode);
                   } else {
           window.localStorage.removeItem("wtp.remembered-phone");
+          window.localStorage.removeItem("wtp.remembered-country-code");
                   }
       } catch {
         // Do not block login if browser storage is disabled.
@@ -119,7 +121,7 @@ export function AuthEntry() {
           <div className="aurora-field">
             <label htmlFor="home-phone"><Phone size={17} /> 电话号码</label>
             <div className="aurora-phone-control aurora-phone-split">
-              <input className="aurora-country-code-input" id="home-country-code" type="tel" inputMode="tel" autoComplete="tel-country-code" aria-label="国家区号" placeholder="+254" value={countryCode} onChange={(event) => setCountryCode(event.target.value.replace(/[^0-9+]/g, "").replace(/(?!^)\\+/g, "").slice(0, 6))} required maxLength={6} />
+              <input className="aurora-country-code-input" id="home-country-code" type="tel" inputMode="tel" autoComplete="tel-country-code" aria-label="国家区号" placeholder="+254" value={countryCode} onChange={(event) => setCountryCode(event.target.value.replace(/[^0-9+]/g, "").slice(0, 6))} required maxLength={6} />
               <span className="aurora-phone-divider" aria-hidden="true" />
               <input className="aurora-phone-number-input" id="home-phone" name="username" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="输入手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={16} />
             </div>
