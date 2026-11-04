@@ -128,3 +128,13 @@ Last updated: 2026-11-04
 5. Test registration, duplicate phone rejection, login, refresh rotation, logout, referral code, and profile endpoints.
 6. User reviews registration/login pages on mobile browser and desktop browser.
 7. User explicitly accepts Module 1.1 before moving to the next module.
+
+### Login homepage — exact supplied mobile reference implementation
+
+- [x] Reworked the single centered glass card to match the supplied 401 × 534 portrait reference proportions.
+- [x] Matched the compact brand row, centered two-line Chinese heading, helper copy, phone/password field styling, remember row, primary CTA, secondary create-account CTA, and security note.
+- [x] Added Kenya (+254) as the default calling code and an interactive country-code selector.
+- [x] Added the forgot-password interaction notice; full password-reset workflow is not implemented yet.
+- [x] Kept phone remembering in local storage; password is not stored as plaintext by the app and remains eligible for the browser's own password manager.
+- [x] Adjusted the upper-left and lower-right luminous diagonal background arcs to frame the card.
+- [ ] Run CI and verify at real Android viewport sizes; visual acceptance remains pending.
