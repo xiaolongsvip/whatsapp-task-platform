@@ -2,6 +2,7 @@ import { Body, Controller, Get, Patch, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AuthService } from "../auth/auth.service";
 import { UpdateProfileDto } from "./update-profile.dto";
+import { DashboardService } from "./dashboard.service";
 
 function sessionToken(request: Request): string | undefined {
   const header = request.headers.cookie;
@@ -12,7 +13,13 @@ function sessionToken(request: Request): string | undefined {
 
 @Controller("users")
 export class UsersController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService) {}
+
+  @Get("dashboard")
+  async getDashboard(@Req() request: Request) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.dashboard.getSummary(user.id, user.profile?.timezone ?? "UTC");
+  }
 
   @Get("me")
   getMe(@Req() request: Request) {
