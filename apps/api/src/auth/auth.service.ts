@@ -141,6 +141,22 @@ export class AuthService {
     });
   }
 
+  async updateProfile(token: string | undefined, input: { displayName?: string }) {
+    const user = await this.getCurrentUser(token);
+    const profile = await prisma.userProfile.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        displayName: input.displayName?.trim() || null,
+        locale: "zh-CN",
+        timezone: "UTC",
+      },
+      update: { displayName: input.displayName?.trim() || null },
+      select: { displayName: true, locale: true, timezone: true },
+    });
+    return { ...user, profile };
+  }
+
   async getCurrentUser(token?: string) {
     if (!token) throw new UnauthorizedException("请先登录。");
     const session = await prisma.authSession.findUnique({
