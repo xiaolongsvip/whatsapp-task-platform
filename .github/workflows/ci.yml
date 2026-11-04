@@ -7,15 +7,39 @@ on:
     branches: [main]
 
 jobs:
-  repository-check:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://wtp_dev:local_only_change_me@localhost:5432/wtp_dev?schema=public
     steps:
       - uses: actions/checkout@v4
-      - name: Check required repository files
-        run: |
-          test -f README.md
-          test -f package.json
-          test -f pnpm-workspace.yaml
-          test -f docker-compose.yml
-          test -f docs/PRODUCT_SPEC.md
-          test -f docs/ARCHITECTURE.md
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Validate Prisma schema
+        run: pnpm db:validate
+
+      - name: TypeScript checks
+        run: pnpm typecheck
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Production builds
+        run: pnpm build
