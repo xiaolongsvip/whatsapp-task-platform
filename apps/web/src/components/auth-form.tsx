@@ -30,7 +30,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     setNotice("");
     const fullPhone = phone.replace(/\D/g, "");
     if (!/^\d{8,15}$/.test(fullPhone)) {
-      setError("请输入正确的国际手机号码，包含国家区号。");
+      setError("请输入完整的国际手机号码，必须包含国家区号。");
       return;
     }
     if (password.length < 6 || password.length > 128) {
@@ -120,9 +120,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           <div className="aurora-field">
             <label htmlFor="auth-phone"><Phone size={17} /> 电话号码</label>
             <div className="aurora-phone-control">
-              <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="区号 + 手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
+              <input id="auth-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="请输入含国家区号的手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
             </div>
-            {isRegister && <span className="aurora-auth-hint">支持输入国家区号和手机号码。</span>}
+            {isRegister && <span className="aurora-auth-hint">请直接输入完整国际号码，包含国家区号。</span>}
           </div>
 
           <div className="aurora-field">
