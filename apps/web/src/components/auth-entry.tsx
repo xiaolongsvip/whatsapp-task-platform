@@ -25,7 +25,6 @@ export function AuthEntry() {
   useEffect(() => {
     try {
       const savedPhone = window.localStorage.getItem("wtp.remembered-phone");
-      const savedPassword = window.localStorage.getItem("wtp.remembered-password");
       const savedCode = window.localStorage.getItem("wtp.remembered-country-code");
       if (savedPhone) {
         const match = COUNTRY_CODES.find((country) => savedPhone.startsWith(country.code));
@@ -36,7 +35,6 @@ export function AuthEntry() {
           setPhone(savedPhone);
         }
       }
-      if (savedPassword) setPassword(savedPassword);
       if (savedCode && COUNTRY_CODES.some((country) => country.code === savedCode)) setCountryCode(savedCode);
     } catch {
       // Login remains available when browser storage is disabled.
@@ -73,11 +71,9 @@ export function AuthEntry() {
       try {
         if (remember) {
           window.localStorage.setItem("wtp.remembered-phone", fullPhone);
-          window.localStorage.setItem("wtp.remembered-password", password);
           window.localStorage.setItem("wtp.remembered-country-code", countryCode);
         } else {
           window.localStorage.removeItem("wtp.remembered-phone");
-          window.localStorage.removeItem("wtp.remembered-password");
           window.localStorage.removeItem("wtp.remembered-country-code");
         }
       } catch {
