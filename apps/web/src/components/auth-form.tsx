@@ -105,29 +105,19 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   return (
     <main className={isRegister ? "aurora-login aurora-register-page" : "aurora-login"}>
       <div className="aurora-ribbon aurora-ribbon-top" aria-hidden="true">
-        <svg viewBox="0 0 400 150" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="aurora-top-fill" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0" stopColor="#172f91" /><stop offset=".28" stopColor="#3448ed" /><stop offset=".5" stopColor="#6c72ff" /><stop offset=".66" stopColor="#8edfff" /><stop offset=".82" stopColor="#477cff" /><stop offset="1" stopColor="#192c91" />
-            </linearGradient>
-          </defs>
-          <path d="M-28 139 C35 119 48 68 102 35 C145 8 186 7 238 -22 L263 1 C204 30 165 29 119 54 C64 84 53 132 -28 164 Z" fill="url(#aurora-top-fill)" opacity=".92" />
-          <path d="M-28 139 C35 119 48 68 102 35 C145 8 186 7 238 -22" fill="none" stroke="#6574ff" strokeWidth="9" opacity=".48" />
-          <path d="M-28 130 C35 110 48 59 102 26 C145 -1 186 -2 238 -31" fill="none" stroke="#a7edff" strokeWidth="4" opacity=".95" />
-          <path d="M-28 139 C35 119 48 68 102 35 C145 8 186 7 238 -22" fill="none" stroke="#9beaff" strokeWidth="1.8" opacity=".82" />
+        <svg viewBox="0 0 240 145" preserveAspectRatio="none">
+          <defs><linearGradient id="aurora-top-band" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#2449d8" /><stop offset=".42" stopColor="#5658f4" /><stop offset=".68" stopColor="#5e9cff" /><stop offset=".82" stopColor="#a4eaff" /><stop offset="1" stopColor="#3e68e8" /></linearGradient><linearGradient id="aurora-top-glint" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#7d8dff" stopOpacity=".15" /><stop offset=".62" stopColor="#c4f5ff" /><stop offset="1" stopColor="#8acfff" stopOpacity=".12" /></linearGradient></defs>
+          <path d="M-18 88 C26 72 43 34 87 12 C117 -4 145 -10 177 -25 L192 -4 C158 10 132 16 105 31 C63 54 51 91 -18 116 Z" fill="url(#aurora-top-band)" opacity=".9" />
+          <path d="M-14 82 C29 65 47 29 91 7 C120 -7 146 -13 179 -28" fill="none" stroke="url(#aurora-top-glint)" strokeWidth="3.5" />
+          <path d="M-18 88 C26 72 43 34 87 12 C117 -4 145 -10 177 -25" fill="none" stroke="#9feaff" strokeWidth="1.2" opacity=".75" />
         </svg>
       </div>
       <div className="aurora-ribbon aurora-ribbon-bottom" aria-hidden="true">
-        <svg viewBox="0 0 400 190" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="aurora-bottom-fill" x1="1" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#182c91" /><stop offset=".3" stopColor="#3b48ec" /><stop offset=".52" stopColor="#7165ff" /><stop offset=".68" stopColor="#9be6ff" /><stop offset=".84" stopColor="#477bff" /><stop offset="1" stopColor="#182d91" />
-            </linearGradient>
-          </defs>
-          <path d="M428 -12 C373 10 377 62 333 105 C292 145 246 143 207 168 C185 182 167 193 142 207 L126 180 C157 158 176 144 198 132 C243 108 284 111 315 80 C356 39 349 -3 428 -39 Z" fill="url(#aurora-bottom-fill)" opacity=".94" />
-          <path d="M428 -12 C373 10 377 62 333 105 C292 145 246 143 207 168 C185 182 167 193 142 207" fill="none" stroke="#626cff" strokeWidth="9" opacity=".48" />
-          <path d="M428 -23 C373 -1 377 51 333 94 C292 134 246 132 207 157 C185 171 167 182 142 196" fill="none" stroke="#a2edff" strokeWidth="4" opacity=".95" />
-          <path d="M428 -12 C373 10 377 62 333 105 C292 145 246 143 207 168 C185 182 167 193 142 207" fill="none" stroke="#a5edff" strokeWidth="1.8" opacity=".82" />
+        <svg viewBox="0 0 250 190" preserveAspectRatio="none">
+          <defs><linearGradient id="aurora-bottom-band" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3c68e8" /><stop offset=".28" stopColor="#5b55ee" /><stop offset=".58" stopColor="#4e83f4" /><stop offset=".78" stopColor="#a4eaff" /><stop offset="1" stopColor="#385cdb" /></linearGradient><linearGradient id="aurora-bottom-glint" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#8acfff" stopOpacity=".12" /><stop offset=".62" stopColor="#c6f6ff" /><stop offset="1" stopColor="#8da7ff" stopOpacity=".15" /></linearGradient></defs>
+          <path d="M268 -16 C226 6 218 37 226 66 C236 100 207 121 172 139 C143 154 120 170 91 198 L72 176 C99 148 124 131 154 117 C188 101 207 83 199 58 C188 22 203 -5 248 -40 Z" fill="url(#aurora-bottom-band)" opacity=".9" />
+          <path d="M270 -20 C227 1 216 34 224 65 C233 97 204 118 169 136 C140 151 117 168 88 195" fill="none" stroke="url(#aurora-bottom-glint)" strokeWidth="3.5" />
+          <path d="M268 -16 C226 6 218 37 226 66 C236 100 207 121 172 139 C143 154 120 170 91 198" fill="none" stroke="#9feaff" strokeWidth="1.2" opacity=".75" />
         </svg>
       </div>
       <div className="aurora-orb aurora-orb-one" aria-hidden="true" />
