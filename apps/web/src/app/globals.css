@@ -787,3 +787,111 @@ a { -webkit-tap-highlight-color:transparent; }
     filter:none;opacity:.9;
   }
 }
+
+
+/* Approved reference: compact centered glass login card with diagonal neon arcs */
+.aurora-login {
+  min-height:100svh;
+  padding:22px 16px;
+  background:
+    radial-gradient(ellipse at 4% 3%,rgba(46,111,255,.26),transparent 32%),
+    radial-gradient(ellipse at 96% 98%,rgba(60,83,255,.25),transparent 34%),
+    linear-gradient(145deg,#06112f 0%,#071b49 52%,#050d2b 100%);
+}
+.aurora-card {
+  width:min(100%,380px);
+  padding:28px 30px 22px;
+  border-radius:34px;
+  border:1px solid rgba(142,181,255,.64);
+  background:
+    radial-gradient(ellipse at 88% 12%,rgba(66,105,230,.2),transparent 40%),
+    linear-gradient(145deg,rgba(22,47,100,.88),rgba(9,26,69,.93) 58%,rgba(13,30,82,.94));
+  box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 34px rgba(42,116,255,.25),inset 0 1px 0 rgba(255,255,255,.19);
+}
+.aurora-brand {justify-content:flex-start;gap:10px;margin-bottom:23px;font-size:11px;letter-spacing:.8px;}
+.aurora-brand-mark {width:34px;height:34px;flex-basis:34px;border-radius:11px;font-size:20px;}
+.aurora-heading {margin-bottom:22px;text-align:center;}
+.aurora-heading h1 {font-size:27px;line-height:1.2;}
+.aurora-heading h2 {font-size:34px;line-height:1.18;letter-spacing:-1px;}
+.aurora-heading h2:after {height:3px;bottom:-5px;}
+.aurora-heading p {margin-top:14px;font-size:12px;line-height:1.6;white-space:nowrap;}
+.aurora-form {gap:15px;}
+.aurora-field {gap:6px;}
+.aurora-field>label {gap:8px;font-size:13px;}
+.aurora-field>label svg {width:16px;height:16px;}
+.aurora-phone-control {height:42px;display:flex;align-items:center;overflow:hidden;border:1px solid rgba(194,216,255,.5);border-radius:11px;background:linear-gradient(110deg,rgba(255,255,255,.13),rgba(255,255,255,.075));}
+.aurora-phone-control:focus-within {border-color:#70d9ff;box-shadow:0 0 0 3px rgba(55,174,255,.13);}
+.aurora-country {height:100%;display:flex;align-items:center;gap:5px;padding:0 8px;border-right:1px solid rgba(194,216,255,.22);color:#eaf3ff;font-size:12px;white-space:nowrap;}
+.aurora-country select {position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
+.aurora-country-code {font-weight:700;}
+.aurora-country svg {color:#a9cfff;}
+.aurora-phone-control>input {min-width:0;height:100%;flex:1;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:0 10px;font-size:13px;}
+.aurora-phone-control>input:focus {outline:none;}
+.aurora-phone-control>input::placeholder {color:rgba(222,233,255,.55);}
+.aurora-password-wrap>input {height:42px;border-radius:11px;font-size:13px;padding:0 43px 0 12px;}
+.aurora-password-toggle {right:4px;width:34px;height:34px;}
+.aurora-options {margin-top:-1px;gap:8px;}
+.aurora-remember {gap:8px;font-size:12px;}
+.aurora-check {width:18px;height:18px;border-radius:5px;}
+.aurora-password-note {font-size:10px;}
+.aurora-forgot {border:0;padding:3px 0;background:transparent;color:#68caff;font-size:11px;white-space:nowrap;cursor:pointer;}
+.aurora-submit {height:42px;margin-top:0;border-radius:11px;font-size:15px;padding:0 42px;}
+.aurora-submit-arrow {right:14px;font-size:23px;}
+.aurora-register {min-height:36px;margin-top:12px;border-radius:10px;font-size:12px;gap:8px;}
+.aurora-security {margin-top:15px;font-size:10px;gap:7px;}
+.aurora-security svg {width:15px;height:15px;}
+.aurora-ribbon-top {
+  width:560px;height:175px;left:-150px;top:-75px;transform:rotate(-24deg);
+  border-radius:48% 52% 54% 46%;
+  background:linear-gradient(170deg,transparent 23%,rgba(91,105,255,.18) 34%,#467aff 43%,#9adfff 48%,#2559ed 54%,rgba(78,70,255,.55) 62%,transparent 76%);
+  filter:blur(5px);
+}
+.aurora-ribbon-bottom {
+  width:590px;height:170px;right:-205px;bottom:-76px;transform:rotate(-24deg);
+  border-radius:50%;
+  background:linear-gradient(170deg,transparent 20%,rgba(75,99,255,.18) 34%,#355ff2 43%,#8ce4ff 48%,#315bff 54%,rgba(111,75,255,.5) 64%,transparent 77%);
+  filter:blur(6px);
+}
+.aurora-login:before,.aurora-login:after {display:none;}
+@media(max-width:600px) {
+  .aurora-login {min-height:100svh;padding:18px 12px max(18px,env(safe-area-inset-bottom));}
+  .aurora-card {width:min(100%,304px);padding:20px 27px 17px;border-radius:34px;}
+  .aurora-brand {gap:9px;margin-bottom:14px;font-size:10px;letter-spacing:.55px;}
+  .aurora-brand-mark {width:30px;height:30px;flex-basis:30px;border-radius:9px;font-size:18px;}
+  .aurora-heading {margin-bottom:17px;}
+  .aurora-heading h1 {font-size:25px;}
+  .aurora-heading h2 {font-size:31px;}
+  .aurora-heading p {margin-top:12px;font-size:11px;}
+  .aurora-form {gap:12px;}
+  .aurora-field {gap:5px;}
+  .aurora-field>label {font-size:12px;gap:7px;}
+  .aurora-phone-control,.aurora-password-wrap>input {height:39px;}
+  .aurora-country {padding:0 6px;font-size:11px;gap:4px;}
+  .aurora-phone-control>input {font-size:12px;padding:0 8px;}
+  .aurora-password-wrap>input {font-size:12px;}
+  .aurora-options {gap:5px;}
+  .aurora-remember {font-size:11px;gap:7px;}
+  .aurora-check {width:18px;height:18px;}
+  .aurora-password-note {display:none;}
+  .aurora-forgot {font-size:10px;}
+  .aurora-submit {height:40px;font-size:14px;}
+  .aurora-register {min-height:34px;margin-top:10px;font-size:11px;gap:7px;}
+  .aurora-security {margin-top:13px;font-size:9px;}
+  .aurora-ribbon-top {width:520px;height:155px;left:-145px;top:-62px;}
+  .aurora-ribbon-bottom {width:540px;height:155px;right:-180px;bottom:-62px;}
+}
+@media(max-width:360px) {
+  .aurora-card {width:min(100%,296px);padding-left:22px;padding-right:22px;}
+  .aurora-heading p {font-size:10px;}
+  .aurora-brand {font-size:9px;}
+}
+@media(max-height:600px) and (max-width:600px) {
+  .aurora-login {padding-top:10px;padding-bottom:10px;}
+  .aurora-card {padding-top:15px;padding-bottom:13px;}
+  .aurora-brand {margin-bottom:10px;}
+  .aurora-heading {margin-bottom:12px;}
+  .aurora-heading p {margin-top:8px;}
+  .aurora-form {gap:9px;}
+  .aurora-register {margin-top:8px;}
+  .aurora-security {margin-top:9px;}
+}
