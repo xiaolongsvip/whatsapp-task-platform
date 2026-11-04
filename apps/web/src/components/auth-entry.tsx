@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Eye, EyeOff, LockKeyhole, Phone, ShieldCheck, UserRoundPlus } from "lucide-react";
 
 export function AuthEntry() {
+  const [countryCode, setCountryCode] = useState("+254");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -16,6 +17,8 @@ export function AuthEntry() {
   useEffect(() => {
     try {
       const savedPhone = window.localStorage.getItem("wtp.remembered-phone");
+      const savedCode = window.localStorage.getItem("wtp.remembered-country-code");
+      if (savedCode) setCountryCode(savedCode);
       if (savedPhone) setPhone(savedPhone);
     } catch {
       // Login remains available when browser storage is disabled.
@@ -32,7 +35,7 @@ export function AuthEntry() {
     setNotice("");
     const fullPhone = phone.replace(/\D/g, "");
     if (!/^\d{8,15}$/.test(fullPhone)) {
-      setError("请输入完整的国际手机号码，必须包含国家区号。");
+      setError("请分别输入国家区号和手机号码。");
       return;
     }
     if (password.length < 6 || password.length > 128) {
@@ -76,24 +79,27 @@ export function AuthEntry() {
 
   return (
     <main className="aurora-login">
-      <div className="aurora-ribbon aurora-ribbon-top" aria-hidden="true">
-        <svg viewBox="0 0 240 145" preserveAspectRatio="none">
-          <defs><linearGradient id="aurora-top-band" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#2449d8" /><stop offset=".42" stopColor="#5658f4" /><stop offset=".68" stopColor="#5e9cff" /><stop offset=".82" stopColor="#a4eaff" /><stop offset="1" stopColor="#3e68e8" /></linearGradient><linearGradient id="aurora-top-glint" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#7d8dff" stopOpacity=".15" /><stop offset=".62" stopColor="#c4f5ff" /><stop offset="1" stopColor="#8acfff" stopOpacity=".12" /></linearGradient></defs>
-          <path d="M-18 88 C26 72 43 34 87 12 C117 -4 145 -10 177 -25 L192 -4 C158 10 132 16 105 31 C63 54 51 91 -18 116 Z" fill="url(#aurora-top-band)" opacity=".9" />
-          <path d="M-14 82 C29 65 47 29 91 7 C120 -7 146 -13 179 -28" fill="none" stroke="url(#aurora-top-glint)" strokeWidth="3.5" />
-          <path d="M-18 88 C26 72 43 34 87 12 C117 -4 145 -10 177 -25" fill="none" stroke="#9feaff" strokeWidth="1.2" opacity=".75" />
+            <div className="aurora-tech-beam aurora-tech-beam-one" aria-hidden="true" />
+      <div className="aurora-tech-beam aurora-tech-beam-two" aria-hidden="true" />
+      <div className="aurora-tech-globe" aria-hidden="true">
+        <svg viewBox="0 0 360 300" role="presentation">
+          <defs>
+            <radialGradient id="tech-globe-fill"><stop offset="0" stopColor="#0b8cff" stopOpacity=".2"/><stop offset="1" stopColor="#061a48" stopOpacity="0"/></radialGradient>
+            <pattern id="tech-globe-dots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" fill="#42cfff" opacity=".8"/></pattern>
+            <clipPath id="tech-globe-clip"><circle cx="190" cy="145" r="118"/></clipPath>
+          </defs>
+          <circle cx="190" cy="145" r="124" fill="url(#tech-globe-fill)" stroke="#168cff" strokeOpacity=".45"/>
+          <g clipPath="url(#tech-globe-clip)">
+            <rect x="65" y="20" width="250" height="250" fill="url(#tech-globe-dots)"/>
+            <ellipse cx="190" cy="145" rx="118" ry="48" fill="none" stroke="#25aaff" strokeOpacity=".5"/>
+            <ellipse cx="190" cy="145" rx="72" ry="118" fill="none" stroke="#25aaff" strokeOpacity=".42"/>
+            <path d="M72 145H308M91 90H289M91 200H289" stroke="#25aaff" strokeOpacity=".3" fill="none"/>
+          </g>
+          <g fill="#a8f0ff"><circle cx="105" cy="85" r="3"/><circle cx="268" cy="112" r="3"/><circle cx="224" cy="35" r="2.5"/></g>
+          <g stroke="#21baff" strokeOpacity=".55" fill="none"><path d="M105 85L36 130L268 112L320 60M224 35L320 60"/></g>
         </svg>
       </div>
-      <div className="aurora-ribbon aurora-ribbon-bottom" aria-hidden="true">
-        <svg viewBox="0 0 250 190" preserveAspectRatio="none">
-          <defs><linearGradient id="aurora-bottom-band" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3c68e8" /><stop offset=".28" stopColor="#5b55ee" /><stop offset=".58" stopColor="#4e83f4" /><stop offset=".78" stopColor="#a4eaff" /><stop offset="1" stopColor="#385cdb" /></linearGradient><linearGradient id="aurora-bottom-glint" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#8acfff" stopOpacity=".12" /><stop offset=".62" stopColor="#c6f6ff" /><stop offset="1" stopColor="#8da7ff" stopOpacity=".15" /></linearGradient></defs>
-          <path d="M268 -16 C226 6 218 37 226 66 C236 100 207 121 172 139 C143 154 120 170 91 198 L72 176 C99 148 124 131 154 117 C188 101 207 83 199 58 C188 22 203 -5 248 -40 Z" fill="url(#aurora-bottom-band)" opacity=".9" />
-          <path d="M270 -20 C227 1 216 34 224 65 C233 97 204 118 169 136 C140 151 117 168 88 195" fill="none" stroke="url(#aurora-bottom-glint)" strokeWidth="3.5" />
-          <path d="M268 -16 C226 6 218 37 226 66 C236 100 207 121 172 139 C143 154 120 170 91 198" fill="none" stroke="#9feaff" strokeWidth="1.2" opacity=".75" />
-        </svg>
-      </div>
-      <div className="aurora-orb aurora-orb-one" aria-hidden="true" />
-      <div className="aurora-orb aurora-orb-two" aria-hidden="true" />
+      <div className="aurora-tech-grid" aria-hidden="true" />
 
       <section className="aurora-card">
         <div className="aurora-brand">
@@ -110,8 +116,10 @@ export function AuthEntry() {
         <form className="aurora-form" onSubmit={handleSubmit}>
           <div className="aurora-field">
             <label htmlFor="home-phone"><Phone size={17} /> 电话号码</label>
-            <div className="aurora-phone-control">
-              <input id="home-phone" name="username" type="tel" inputMode="tel" autoComplete="tel" placeholder="请输入含国家区号的手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={22} />
+            <div className="aurora-phone-control aurora-phone-split">
+              <input className="aurora-country-code-input" id="home-country-code" type="tel" inputMode="tel" autoComplete="tel-country-code" aria-label="国家区号" placeholder="+254" value={countryCode} onChange={(event) => setCountryCode(event.target.value.replace(/[^0-9+]/g, "").slice(0, 6))} required maxLength={6} />
+              <span className="aurora-phone-divider" aria-hidden="true" />
+              <input className="aurora-phone-number-input" id="home-phone" name="username" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="输入手机号码" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} required maxLength={16} />
             </div>
           </div>
 
