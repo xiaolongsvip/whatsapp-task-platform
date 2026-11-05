@@ -782,16 +782,16 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                PromotionMetric(if (isEnglish) "Today's commission" else "今日佣金", amount(data, "todayCommissions"))
-                PromotionMetric(if (isEnglish) "Total commission" else "累计佣金", amount(data, "totalCommissions"))
-                PromotionMetric(if (isEnglish) "Available balance" else "可用余额", balance)
+                PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "Today's commission" else "今日佣金", amount(data, "todayCommissions"))
+                PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "Total commission" else "累计佣金", amount(data, "totalCommissions"))
+                PromotionMetric(Icons.Default.Wallet, if (isEnglish) "Available balance" else "可用余额", balance)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                PromotionMetric(if (isEnglish) "Invited" else "邀请人数", data?.optInt("inviteCount", 0)?.toString() ?: "0")
-                PromotionMetric(if (isEnglish) "Active users" else "活跃用户", data?.optInt("activeCount", 0)?.toString() ?: "0")
-                PromotionMetric(if (isEnglish) "This month" else "本月佣金", amount(data, "monthCommissions"))
+                PromotionMetric(Icons.Default.PersonAdd, if (isEnglish) "Invited" else "邀请人数", data?.optInt("inviteCount", 0)?.toString() ?: "0")
+                PromotionMetric(Icons.Default.Groups, if (isEnglish) "Active users" else "活跃用户", data?.optInt("activeCount", 0)?.toString() ?: "0")
+                PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "This month" else "本月佣金", amount(data, "monthCommissions"))
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
@@ -879,10 +879,25 @@ private fun PromotionQrCode(value: String, modifier: Modifier = Modifier, onClic
 }
 
 @Composable
-private fun PromotionMetric(label: String, value: String) {
-    Column(Modifier.widthIn(min = 88.dp).padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
-        Text(value, color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+private fun PromotionMetric(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+    Column(
+        Modifier.weight(1f).padding(horizontal = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Surface(
+            color = Color(0xFFEEF6F2),
+            shape = RoundedCornerShape(50)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = Color(0xFF278666),
+                modifier = Modifier.padding(9.dp).size(21.dp)
+            )
+        }
+        Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+        Text(value, color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
     }
 }
 
