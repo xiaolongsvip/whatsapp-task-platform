@@ -214,6 +214,19 @@ export class ContactNumbersService {
       });
       if (!number) throw new NotFoundException("号码记录不存在。");
 
+      // Blocking is idempotent: a repeated admin request must not append
+      // duplicate consent-revocation events or rewrite the original timestamp.
+      if (number.status === "BLOCKED" && number.consentStatus === "REVOKED") {
+        return {
+          id: number.id,
+          phoneE164: number.phoneE164,
+          status: number.status,
+          consentStatus: number.consentStatus,
+          cancelledClaimIds: [],
+          alreadyBlocked: true,
+        };
+      }
+
       const assignments = number.assignments;
       if (assignments.some((assignment) => assignment.claim.submissions.length > 0)) {
         throw new ConflictException("该号码关联的任务正在审核中，请先完成审核，再封禁号码。");
