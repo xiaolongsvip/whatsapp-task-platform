@@ -1605,60 +1605,69 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
     var selected by rememberSaveable { mutableIntStateOf(0) }
     var summary by remember { mutableStateOf<JSONObject?>(null) }
     var records by remember { mutableStateOf<JSONObject?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var summaryError by remember { mutableStateOf(false) }
+    var recordsError by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var refresh by remember { mutableIntStateOf(0) }
     LaunchedEffect(refresh) {
         loading = true
-        error = null
-        try {
-            val loaded = withContext(Dispatchers.IO) { Pair(AuthRepository.promotionSummary(), AuthRepository.commissionRecords()) }
-            summary = loaded.first
-            records = loaded.second
-        } catch (e: Exception) {
-            error = e.message ?: if (en) "Unable to load commission data" else "佣金统计加载失败"
-        } finally { loading = false }
+        summaryError = false
+        recordsError = false
+        val result = withContext(Dispatchers.IO) {
+            val summaryResult = runCatching { AuthRepository.promotionSummary() }
+            val recordsResult = runCatching { AuthRepository.commissionRecords() }
+            Pair(summaryResult, recordsResult)
+        }
+        result.first.onSuccess { summary = it }.onFailure { summaryError = true }
+        result.second.onSuccess { records = it }.onFailure { recordsError = true }
+        loading = false
     }
     fun amount(key: String): String = formatCurrencyTotals(summary?.optJSONObject(key))
     val items = records?.optJSONArray("items")
+    val filtered = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter {
+        selected == 0 || it.optString("status") == if (selected == 1) "PENDING" else "CREDITED"
+    }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB))) {
-        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
             Text(if (en) "Commission history" else "佣金记录", color = Color(0xFF123E56), fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF5AAED0), modifier = Modifier.padding(end = 12.dp))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
+            Spacer(Modifier.width(12.dp))
+            Icon(Icons.Default.Language, null, tint = Color(0xFF667085))
+            Spacer(Modifier.width(8.dp))
         }
         Row(Modifier.fillMaxWidth().background(Color.White)) {
             listOf(if (en) "All" else "全部", if (en) "Pending" else "等待处理", if (en) "Credited" else "已入账").forEachIndexed { index, label ->
-                Column(Modifier.weight(1f).clickable { selected = index }.padding(top = 15.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(label, color = if (selected == index) Color(0xFF319CCB) else Color(0xFF667085), fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Normal)
+                Column(Modifier.weight(1f).clickable { selected = index }.padding(top = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(label, color = if (selected == index) Color(0xFF319CCB) else Color(0xFF667085), fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Medium)
                     Spacer(Modifier.height(12.dp))
                     Box(Modifier.fillMaxWidth().height(3.dp).background(if (selected == index) Color(0xFF319CCB) else Color.Transparent))
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CommissionSummaryCard(Modifier.weight(1f), if (en) "Total commission" else "累计佣金", if (summary == null) "—" else amount("totalCommissions"), Icons.Default.AccountBalanceWallet)
-            CommissionSummaryCard(Modifier.weight(1f), if (en) "This month" else "本月佣金", if (summary == null) "—" else amount("monthCommissions"), Icons.Default.CalendarMonth)
-            CommissionSummaryCard(Modifier.weight(1f), if (en) "Pending in list" else "待处理佣金", if (records == null) "—" else formatCurrencyTotals(records?.optJSONObject("pendingCommissions")), Icons.Default.Schedule)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CommissionSummaryCard(Modifier.weight(1f), if (en) "Total commission" else "累计佣金", if (summaryError || summary == null) "—" else amount("totalCommissions"), Icons.Default.AccountBalanceWallet)
+            CommissionSummaryCard(Modifier.weight(1f), if (en) "This month" else "本月佣金", if (summaryError || summary == null) "—" else amount("monthCommissions"), Icons.Default.CalendarMonth)
+            CommissionSummaryCard(Modifier.weight(1f), if (en) "Pending commission" else "历史待处理佣金", if (recordsError || records == null) "—" else formatCurrencyTotals(records?.optJSONObject("pendingCommissions")), Icons.Default.Schedule)
         }
-        if (loading) Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
-        if (error != null) {
-            Text((if (en) "Failed to load. Tap to retry: " else "佣金统计加载失败，点击重试：") + error.orEmpty(), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).background(Color(0xFFFFEEEE), RoundedCornerShape(10.dp)).clickable { refresh++ }.padding(12.dp), color = Color(0xFFB42318))
+        if (loading) {
+            Box(Modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
+        } else if (summaryError || recordsError) {
+            TextButton(onClick = { refresh++ }, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).background(Color(0xFFEAF6FC), RoundedCornerShape(10.dp))) {
+                Text(if (en) "Some data failed to load. Tap to retry." else "部分数据加载失败，点击重试", color = Color(0xFF258BB8))
+            }
         }
-        val filtered = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter {
-            selected == 0 || it.optString("status") == if (selected == 1) "PENDING" else "CREDITED"
-        }
-        if (!loading && error == null && filtered.isEmpty()) {
+        if (!loading && filtered.isEmpty()) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 42.dp, horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(34.dp))
+                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
                     Text(if (en) "No commission records" else "暂无佣金记录", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(if (en) "Eligible invited-user tasks appear here after commission is generated." else "符合条件的受邀任务审核并结算后，佣金会显示在这里。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(if (en) "Eligible invited-user tasks appear here after review and settlement." else "符合条件的受邀任务审核并结算后，佣金会显示在这里。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
                 }
             }
-        } else {
+        } else if (!loading) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 filtered.forEach { item ->
                     Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
