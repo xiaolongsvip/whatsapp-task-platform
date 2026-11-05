@@ -7,7 +7,7 @@ const RESERVED_STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"
 export class WithdrawalsService {
   async create(userId: string, payoutAccountId: string, amountMinorInput: string) {
     const amountMinor = BigInt(amountMinorInput);
-    if (amountMinor <= 0n) {
+    if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
       throw new BadRequestException("Withdrawal amount must be greater than zero.");
     }
 
