@@ -7,6 +7,7 @@ import { UsersModule } from "./users/users.module";
 import { TasksModule } from "./tasks/tasks.module";
 import { AdminAuthModule } from "./admin-auth/admin-auth.module";
 import { ContactNumbersModule } from "./contact-numbers/contact-numbers.module";
+import { AiConfigModule } from "./ai-config/ai-config.module";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ContactNumbersModule } from "./contact-numbers/contact-numbers.module";
     TasksModule,
     AdminAuthModule,
     ContactNumbersModule,
+    AiConfigModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
