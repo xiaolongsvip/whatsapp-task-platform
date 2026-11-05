@@ -173,7 +173,21 @@ export class ContactNumbersService {
 
   async block(numberId: string, adminId: string) {
     return prisma.$transaction(async (tx) => {
-      // Serialize the block action against claims and other number mutations.
+      // Match claim cancellation/expiry lock order: claim first, then number,
+      // then slot. This avoids a number/claim lock inversion during cleanup.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM task_claims
+        WHERE id IN (
+          SELECT claim_id
+          FROM contact_assignments
+          WHERE contact_number_id = ${numberId}::uuid
+            AND status = 'ASSIGNED'
+        )
+        ORDER BY id
+        FOR UPDATE
+      `;
+      // Serialize against new claims after locking any existing active claims.
       await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM contact_numbers WHERE id = ${numberId}::uuid FOR UPDATE
       `;
