@@ -1,6 +1,6 @@
 # Project Progress Register
 
-Last updated: 2026-11-04
+Last updated: 2026-11-05
 
 ## Governance
 
@@ -390,7 +390,7 @@ Last updated: 2026-11-04
 
 ## Module 1.2 — Consent-aware contact number pool and FIFO assignment
 
-**Status: implementation in progress; CI, local database sync, and user acceptance are still pending.**
+**Status: code implementation committed; GitHub CI passed. Local database sync, runtime tests, and user acceptance are still pending.**
 
 ### Confirmed business rules
 
@@ -417,10 +417,12 @@ Last updated: 2026-11-04
 
 - [ ] XLSX direct import; current admin screen accepts CSV/TXT. Excel workbooks must currently be saved/exported as CSV.
 - [ ] Completion hook that changes a number from ASSIGNED to USED after final task approval. This will be wired into the review/approval module; that module is not yet implemented.
-- [ ] Automatic expiration worker that marks overdue claims EXPIRED and releases their numbers. Claim expiry currently follows the task end time when one exists; user cancellation is implemented.
+- [x] Lazy overdue-claim cleanup runs when a user opens My Claims or requests a new claim; claim expiry follows the task end time when one exists, and expired numbers are released only if consent remains GRANTED.
+- [ ] Scheduled background worker for proactive expiration when users are inactive.
 - [ ] Display of the assigned WhatsApp number in the Android task flow.
 - [ ] Local `pnpm db:push` and Prisma Client regeneration after syncing the updated schema.
-- [ ] CI validation and runtime tests, including simultaneous claims, FIFO order, duplicate imports, cancellation release, and revoked-consent protection.
+- [x] GitHub CI passed on commit `3381698680ba798f0b476976d557fc6b3116e01d`: Prisma Client generation, Prisma schema validation, TypeScript checks, ESLint, and production builds.
+- [ ] Runtime tests, including simultaneous claims, FIFO order, duplicate imports, cancellation/expiry release, and revoked-consent protection.
 - [ ] Initial administrator bootstrap and user acceptance in the local admin console.
 
 ### Latest interaction decision for the Android phase
