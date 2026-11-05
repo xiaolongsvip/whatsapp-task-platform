@@ -521,7 +521,6 @@ fun TaskHallScreen(
             )
         }
     }
-}
 
     if (supportDialogOpen) {
         AlertDialog(
@@ -535,6 +534,7 @@ fun TaskHallScreen(
             }
         )
     }
+}
 
 @Composable
 private fun TaskExecutionScreen(
