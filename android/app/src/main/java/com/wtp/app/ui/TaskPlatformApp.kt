@@ -85,6 +85,7 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showCommissionHistory by rememberSaveable { mutableStateOf(false) }
     var showInvitePage by rememberSaveable { mutableStateOf(false) }
+    var showTeamPage by rememberSaveable { mutableStateOf(false) }
     var walletPage by rememberSaveable { mutableStateOf("home") }
     var profilePage by rememberSaveable { mutableStateOf("home") }
     val scope = rememberCoroutineScope()
@@ -99,9 +100,10 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
             0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it }, language = language, onLanguageChanged = onLanguageChanged)
             1 -> TaskHallScreen(Modifier.padding(padding), language, onLanguageChanged)
             2 -> when {
+                showTeamPage -> TeamDataScreen(Modifier.padding(padding), language, onBack = { showTeamPage = false })
                 showInvitePage -> InviteFriendsScreen(Modifier.padding(padding), language, onBack = { showInvitePage = false })
                 showCommissionHistory -> CommissionHistoryScreen(Modifier.padding(padding), language, onBack = { showCommissionHistory = false })
-                else -> PromotionScreen(Modifier.padding(padding), language, onWalletClick = { tab = 3 }, onCommissionClick = { showCommissionHistory = true }, onInviteClick = { showInvitePage = true })
+                else -> PromotionScreen(Modifier.padding(padding), language, onWalletClick = { tab = 3 }, onCommissionClick = { showCommissionHistory = true }, onInviteClick = { showInvitePage = true }, onTeamClick = { showTeamPage = true })
             }
             3 -> when (walletPage) {
                 "accounts" -> PayoutAccountsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" }, onAdd = { walletPage = "add-account" })
@@ -1599,41 +1601,145 @@ private fun InviteFriendsScreen(modifier: Modifier = Modifier, language: String,
 
 @Composable
 private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
-    val isEnglish = language == "en"
+    val en = language == "en"
     var selected by rememberSaveable { mutableIntStateOf(0) }
     var summary by remember { mutableStateOf<JSONObject?>(null) }
-    LaunchedEffect(Unit) {
-        runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }.onSuccess { summary = it }
+    var records by remember { mutableStateOf<JSONObject?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var refresh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(refresh) {
+        loading = true
+        error = null
+        try {
+            val loaded = withContext(Dispatchers.IO) { Pair(AuthRepository.promotionSummary(), AuthRepository.commissionRecords()) }
+            summary = loaded.first
+            records = loaded.second
+        } catch (e: Exception) {
+            error = e.message ?: if (en) "Unable to load commission data" else "佣金统计加载失败"
+        } finally { loading = false }
     }
-    fun amount(key: String): String =
-        formatCurrencyTotals(summary?.optJSONObject(key))
-    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
-        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    fun amount(key: String): String = formatCurrencyTotals(summary?.optJSONObject(key))
+    val items = records?.optJSONArray("items")
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Commission history" else "佣金记录", fontWeight = FontWeight.Bold)
+            Text(if (en) "Commission history" else "佣金记录", color = Color(0xFF123E56), fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF5AAED0), modifier = Modifier.padding(end = 12.dp))
         }
-        Row(Modifier.fillMaxWidth().background(Color.White), horizontalArrangement = Arrangement.SpaceEvenly) {
-            listOf(if (isEnglish) "All" else "全部", if (isEnglish) "Pending" else "等待处理", if (isEnglish) "Credited" else "已入账").forEachIndexed { index, label ->
-                Column(Modifier.weight(1f).clickable { selected = index }.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.fillMaxWidth().background(Color.White)) {
+            listOf(if (en) "All" else "全部", if (en) "Pending" else "等待处理", if (en) "Credited" else "已入账").forEachIndexed { index, label ->
+                Column(Modifier.weight(1f).clickable { selected = index }.padding(top = 15.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(label, color = if (selected == index) Color(0xFF319CCB) else Color(0xFF667085), fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Normal)
-                    Spacer(Modifier.height(8.dp))
-                    if (selected == index) Box(Modifier.width(54.dp).height(3.dp).background(Color(0xFF319CCB), RoundedCornerShape(4.dp)))
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().height(3.dp).background(if (selected == index) Color(0xFF319CCB) else Color.Transparent))
                 }
             }
         }
         Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "Total commission" else "累计佣金", amount("totalCommissions"), Icons.Default.AccountBalanceWallet)
-            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "This month" else "本月佣金", amount("monthCommissions"), Icons.Default.CalendarMonth)
-            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "Pending" else "历史待处理佣金", "—", Icons.Default.Schedule)
+            CommissionSummaryCard(Modifier.weight(1f), if (en) "Total commission" else "累计佣金", if (summary == null) "—" else amount("totalCommissions"), Icons.Default.AccountBalanceWallet)
+            CommissionSummaryCard(Modifier.weight(1f), if (en) "This month" else "本月佣金", if (summary == null) "—" else amount("monthCommissions"), Icons.Default.CalendarMonth)
+            CommissionSummaryCard(Modifier.weight(1f), if (en) "Pending in list" else "待处理佣金", if (records == null) "—" else formatCurrencyTotals(records?.optJSONObject("pendingCommissions")), Icons.Default.Schedule)
         }
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 34.dp, horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(34.dp))
-                Text(if (isEnglish) "Commission details unavailable" else "暂无佣金明细数据", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(if (isEnglish) "The current API provides commission totals only; individual records are not available." else "当前接口仅提供佣金汇总，暂未提供逐笔佣金明细。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        if (loading) Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
+        if (error != null) {
+            Text((if (en) "Failed to load. Tap to retry: " else "佣金统计加载失败，点击重试：") + error.orEmpty(), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).background(Color(0xFFFFEEEE), RoundedCornerShape(10.dp)).clickable { refresh++ }.padding(12.dp), color = Color(0xFFB42318))
+        }
+        val filtered = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter {
+            selected == 0 || it.optString("status") == if (selected == 1) "PENDING" else "CREDITED"
+        }
+        if (!loading && error == null && filtered.isEmpty()) {
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 42.dp, horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(34.dp))
+                    Text(if (en) "No commission records" else "暂无佣金记录", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(if (en) "Eligible invited-user tasks appear here after commission is generated." else "符合条件的受邀任务审核并结算后，佣金会显示在这里。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        } else {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                filtered.forEach { item ->
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50)) { Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(10.dp)) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(if (en) "Level ${item.optInt("depth")} commission" else "${item.optInt("depth")}级邀请佣金", fontWeight = FontWeight.Bold, color = Color(0xFF17243A))
+                                Text(item.optString("createdAt").take(10), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                                Text(if (item.optString("status") == "CREDITED") { if (en) "Credited" else "已入账" } else { if (en) "Pending" else "等待处理" }, color = Color(0xFF319CCB), style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text(formatCurrencyTotals(JSONObject().put(item.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                if (records?.optBoolean("hasMore") == true) Text(if (en) "Showing the latest 100 records" else "仅展示最近100条记录", color = Color(0xFF667085), modifier = Modifier.padding(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamDataScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val en = language == "en"
+    var selected by rememberSaveable { mutableIntStateOf(1) }
+    var data by remember { mutableStateOf<JSONObject?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var refresh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(refresh) {
+        loading = true
+        error = null
+        try { data = withContext(Dispatchers.IO) { AuthRepository.teamMembers() } }
+        catch (e: Exception) { error = e.message ?: if (en) "Failed to load team" else "团队数据加载失败" }
+        finally { loading = false }
+    }
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (en) "Team data" else "团队数据", color = Color(0xFF123E56), fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF5AAED0), modifier = Modifier.padding(end = 12.dp))
+        }
+        Row(Modifier.fillMaxWidth().background(Color.White)) {
+            (1..3).forEach { level ->
+                Column(Modifier.weight(1f).clickable { selected = level }.padding(top = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(if (en) "Level ${level}" else "${level} 级用户", color = if (selected == level) Color(0xFF319CCB) else Color(0xFF667085), fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(5.dp))
+                    Text(if (data == null) "—" else data?.optJSONObject("counts")?.optInt("level${level}", 0).toString(), color = if (selected == level) Color(0xFF319CCB) else Color(0xFF17243A), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().height(3.dp).background(if (selected == level) Color(0xFF319CCB) else Color.Transparent))
+                }
+            }
+        }
+        if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
+        if (error != null) Text((if (en) "Tap to retry: " else "团队数据加载失败，点击重试：") + error.orEmpty(), Modifier.fillMaxWidth().padding(12.dp).background(Color(0xFFFFEEEE), RoundedCornerShape(10.dp)).clickable { refresh++ }.padding(12.dp), color = Color(0xFFB42318))
+        val items = data?.optJSONArray("items")
+        val members = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter { it.optInt("depth") == selected }
+        if (!loading && error == null && members.isEmpty()) {
+            Card(Modifier.fillMaxWidth().padding(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.Groups, null, tint = Color(0xFF667085), modifier = Modifier.size(30.dp))
+                    Text(if (en) "No invited users" else "暂无邀请用户", color = Color(0xFF667085))
+                }
+            }
+        } else {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                members.forEachIndexed { index, item ->
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50)) { Icon(Icons.Default.Groups, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(10.dp)) }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(if (en) "Invited user #${index + 1}" else "邀请用户 #${index + 1}", color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+                                Text((if (en) "Joined: " else "加入时间：") + item.optString("invitedAt").take(10), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+                if (data?.optBoolean("hasMore") == true) Text(if (en) "Showing the latest 300 users" else "仅展示最近300位用户", color = Color(0xFF667085), modifier = Modifier.padding(8.dp))
             }
         }
     }
@@ -1651,7 +1757,7 @@ private fun CommissionSummaryCard(modifier: Modifier, title: String, value: Stri
 }
 
 @Composable
-private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onWalletClick: () -> Unit, onCommissionClick: () -> Unit, onInviteClick: () -> Unit) {
+private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onWalletClick: () -> Unit, onCommissionClick: () -> Unit, onInviteClick: () -> Unit, onTeamClick: () -> Unit) {
     val context = LocalContext.current
     val isEnglish = language == "en"
     var data by remember { mutableStateOf<JSONObject?>(null) }
@@ -1809,7 +1915,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
                 HorizontalDivider(color = Color(0xFFEEF1F3))
                 PromotionMenuRow(Icons.Default.ReceiptLong, if (isEnglish) "Commission history" else "佣金记录", if (isEnglish) "View commission amounts and settlement status" else "查看每笔佣金的金额和结算状态") { detail = "commission" }
                 HorizontalDivider(color = Color(0xFFEEF1F3))
-                PromotionMenuRow(Icons.Default.Groups, if (isEnglish) "Team data" else "团队数据", if (isEnglish) "View invited users and team levels" else "查看邀请用户和各层级人数") { detail = "team" }
+                PromotionMenuRow(Icons.Default.Groups, if (isEnglish) "Team data" else "团队数据", if (isEnglish) "View invited users and team levels" else "查看邀请用户和各层级人数", onTeamClick)
             }
         }
         if (detail.isNotBlank()) {
