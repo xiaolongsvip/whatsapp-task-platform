@@ -1,12 +1,18 @@
 package com.wtp.app.ui
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Intent
 import android.net.Uri
 import android.media.projection.MediaProjectionManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.wtp.app.capture.CaptureSessionState
+import com.wtp.app.capture.ScreenCaptureService
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
@@ -45,6 +51,7 @@ private val navItems = listOf(NavItem("首页", Icons.Default.Home), NavItem("�
 
 @Composable
 fun TaskPlatformApp() {
+    val appContext = LocalContext.current
     var checking by remember { mutableStateOf(true) }
     var authenticated by rememberSaveable { mutableStateOf(false) }
     var phone by rememberSaveable { mutableStateOf("") }
@@ -60,7 +67,12 @@ fun TaskPlatformApp() {
     when {
         checking -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         !authenticated -> AuthScreen { phone = it; authenticated = true }
-        else -> MemberShell(phone, language, onLanguageChanged = { language = it }) { withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }; authenticated = false; phone = "" }
+        else -> MemberShell(phone, language, onLanguageChanged = { language = it }) {
+            appContext.stopService(Intent(appContext, ScreenCaptureService::class.java))
+            withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }
+            authenticated = false
+            phone = ""
+        }
     }
 }
 
@@ -97,7 +109,9 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var overlay by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-    var capture by rememberSaveable { mutableStateOf(false) }
+    val captureActive by CaptureSessionState.active.collectAsState()
+    val lastCaptureName by CaptureSessionState.lastCaptureName.collectAsState()
+    val captureError by CaptureSessionState.error.collectAsState()
     var permissionStep by remember { mutableIntStateOf(0) }
     var showTutorial by remember { mutableStateOf(false) }
     var languageMenuOpen by remember { mutableStateOf(false) }
@@ -110,8 +124,41 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
     val ink = Color(0xFF17243A)
     val muted = Color(0xFF718096)
     val captureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        capture = result.resultCode == Activity.RESULT_OK && result.data != null
         permissionStep = 0
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val serviceIntent = Intent(context, ScreenCaptureService::class.java).apply {
+                action = ScreenCaptureService.ACTION_START
+                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.data)
+            }
+            runCatching {
+                ContextCompat.startForegroundService(context, serviceIntent)
+            }.onFailure { error ->
+                actionMessage = error.message ?: if (isEnglish) "Could not start capture service" else "无法启动截图服务"
+            }
+        } else {
+            actionMessage = if (isEnglish) "Screen capture was not authorized." else "你取消了屏幕截图授权。"
+        }
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            captureLauncher.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
+        } else {
+            actionMessage = if (isEnglish) {
+                "Allow notifications so the ongoing capture service can show its Capture and Stop controls."
+            } else {
+                "请允许通知权限，截图服务才能持续显示运行状态以及“截图”和“停止”按钮。"
+            }
+        }
+    }
+    val requestCaptureSession: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            captureLauncher.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
+        }
     }
     fun load() {
         scope.launch {
@@ -378,21 +425,70 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(if (isEnglish) "Device & permissions" else "设备与权限状态", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Surface(color = paleSky, shape = RoundedCornerShape(9.dp)) { Text(if (overlay && capture) if (isEnglish) "✓ All set" else "✓ 全部正常" else if (isEnglish) "Permission needed" else "待完成授权", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF1685B8), fontWeight = FontWeight.Bold) }
+                    Surface(color = paleSky, shape = RoundedCornerShape(9.dp)) { Text(if (overlay && captureActive) if (isEnglish) "✓ Session active" else "✓ 会话运行中" else if (isEnglish) "Permission needed" else "待完成授权", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF1685B8), fontWeight = FontWeight.Bold) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PermissionTile(if (isEnglish) "Overlay permission" else "悬浮窗权限", if (overlay) { if (isEnglish) "Enabled" else "已开启" } else { if (isEnglish) "Not enabled" else "未开启" }, overlay, Modifier.weight(1f))
-                    PermissionTile(if (isEnglish) "Screenshot permission" else "截图提交能力", if (capture) { if (isEnglish) "Authorized this session" else "本次已授权" } else if (isEnglish) "Authorize when starting a task" else "开始任务时授权", capture, Modifier.weight(1f))
+                    PermissionTile(
+                        if (isEnglish) "Screenshot session" else "持续截图会话",
+                        if (captureActive) {
+                            if (isEnglish) "Running" else "运行中"
+                        } else {
+                            if (isEnglish) "Start once for this work session" else "开始任务前授权一次"
+                        },
+                        captureActive,
+                        Modifier.weight(1f)
+                    )
                 }
                 Button(onClick = {
                     if (!overlay) {
                         permissionStep = 1
                         context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
-                    } else captureLauncher.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
+                    } else if (captureActive) {
+                        context.startService(Intent(context, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_CAPTURE))
+                    } else {
+                        requestCaptureSession()
+                    }
                 }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = sky), shape = RoundedCornerShape(12.dp)) {
-                    Text(if (!overlay) if (isEnglish) "Enable permissions (Step 1)" else "一键开启权限  (第 1 步)" else if (isEnglish) "Enable permissions (screen capture)" else "一键开启权限  (截图授权)", color = Color.White)
+                    Text(
+                        when {
+                            !overlay -> if (isEnglish) "Enable overlay permission" else "开启悬浮窗权限"
+                            captureActive -> if (isEnglish) "Capture current screen" else "截图当前屏幕"
+                            else -> if (isEnglish) "Start capture session" else "开启持续截图会话"
+                        },
+                        color = Color.White
+                    )
                 }
-                Text(if (isEnglish) "Android requires separate consent for overlay and screen capture. Screen-capture consent is valid only for this authorization session." else "Android 要求分别确认悬浮窗和屏幕捕获权限。截图授权仅对本次授权会话有效。", color = muted, style = MaterialTheme.typography.bodySmall)
+                if (captureActive) {
+                    Text(
+                        if (isEnglish) "Capture session is active. When you switch to another app, use the Capture action in the ongoing notification. You can take multiple screenshots without repeating consent while this session remains active."
+                        else "截图会话正在运行。切换到其他应用后，可在手机通知栏点击“截图当前屏幕”。会话持续期间可以连续截图，不需要重复授权。",
+                        color = muted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (lastCaptureName != null) {
+                        Text(
+                            (if (isEnglish) "Last screenshot saved locally: " else "最近截图已保存到本机：") + lastCaptureName,
+                            color = Color(0xFF1685B8),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    TextButton(onClick = {
+                        context.startService(Intent(context, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_STOP))
+                    }) {
+                        Text(if (isEnglish) "Stop capture session" else "停止截图会话")
+                    }
+                } else {
+                    Text(
+                        if (isEnglish) "Android requires user consent when a new capture session starts. One running session can serve multiple manual screenshots; system termination requires a new consent."
+                        else "Android 要求每次新截图会话开始时由用户确认。一个持续运行的会话可以供多个任务重复截图；系统终止会话后需要重新授权。",
+                        color = muted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (!captureError.isNullOrBlank()) {
+                    Text(captureError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
 
@@ -435,7 +531,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
         overlay = Settings.canDrawOverlays(context)
         if (permissionStep == 1 && overlay) {
             permissionStep = 2
-            captureLauncher.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
+            requestCaptureSession()
         }
     }
 }
