@@ -218,46 +218,134 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
         val stats = data?.optJSONObject("stats")
         val claimedToday = stats?.optInt("claimedToday", 0) ?: 0
         val dailyLimit = data?.optInt("dailyTaskLimit", 20) ?: 20
-        val hasTaskCapacity = featuredTask != null && (featuredTask.isNull("capacity") || featuredTask.optInt("claimedCount") < featuredTask.optInt("capacity"))
+        val hasTaskCapacity = featuredTask != null &&
+            (featuredTask.isNull("capacity") || featuredTask.optInt("claimedCount") < featuredTask.optInt("capacity"))
         val canClaimToday = claimedToday < dailyLimit
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+        // Only this task-and-guide block is being rearranged:
+        // warning -> guide -> reward/daily count -> availability/action.
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(11.dp)
+            ) {
                 Text(
-                    if (isEnglish) "Warning: Read the task guide before starting" else "警告：做任务之前请进入查看教程",
+                    if (isEnglish) "Warning: Read the task guide before starting"
+                    else "警告：做任务之前请进入查看教程",
                     color = Color(0xFFE53945),
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { showTutorial = true }
+                    fontWeight = FontWeight.Bold
                 )
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { showTutorial = true },
+                    color = Color(0xFFF5FBFE),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD9EFFB))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(color = paleSky, shape = RoundedCornerShape(40.dp)) {
+                            Icon(
+                                Icons.Default.Assignment,
+                                contentDescription = null,
+                                tint = sky,
+                                modifier = Modifier.padding(10.dp).size(26.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (isEnglish) "Task guide" else "任务使用教程",
+                                color = ink,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                if (isEnglish) "Learn task rules, steps and safety notes"
+                                else "了解任务规则、流程与注意事项",
+                                color = muted
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, null, tint = muted)
+                    }
+                }
+
                 Surface(
                     color = Color(0xFFF0F9FE),
                     shape = RoundedCornerShape(12.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD9EFFB))
                 ) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(if (isEnglish) "Reward per task" else "单次奖励", color = muted, style = MaterialTheme.typography.bodySmall)
                             Text(
-                                if (featuredTask != null) formatAmount(featuredTask.optString("rewardMinor"), featuredTask.optString("currency")) else "—",
+                                if (isEnglish) "Reward per task" else "单次奖励",
+                                color = muted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                if (featuredTask != null) {
+                                    formatTaskReward(
+                                        featuredTask.optString("rewardMinor"),
+                                        featuredTask.optString("currency", "USD")
+                                    )
+                                } else {
+                                    "USD 0.000"
+                                },
                                 color = ink,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         VerticalDivider(Modifier.height(38.dp), color = Color(0xFFDDE8EF))
-                        Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(if (isEnglish) "Tasks today" else "今日任务", color = muted, style = MaterialTheme.typography.bodySmall)
-                            Text("$claimedToday/$dailyLimit", color = ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Column(
+                            Modifier.weight(1f).padding(start = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                if (isEnglish) "Tasks today" else "今日任务",
+                                color = muted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                "$claimedToday/$dailyLimit",
+                                color = ink,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
+
                 if (featuredTask != null) {
-                    Text(featuredTask.optString("title"), color = ink, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        featuredTask.optString("title"),
+                        color = ink,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 } else if (!loading) {
-                    Text(if (isEnglish) "No published tasks are available right now" else "目前没有可领取的已发布任务", color = muted, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        if (isEnglish) "No published tasks are available right now"
+                        else "目前没有可领取的已发布任务",
+                        color = muted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     val statusText = when {
                         loading -> if (isEnglish) "Loading" else "正在读取"
                         !hasTaskCapacity -> if (isEnglish) "Unavailable" else "暂无可领取"
@@ -265,23 +353,24 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                         else -> if (isEnglish) "Available" else "可领取"
                     }
                     Surface(color = paleSky, shape = RoundedCornerShape(10.dp)) {
-                        Text("● $statusText", Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = Color(0xFF1685B8), style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "● $statusText",
+                            Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                            color = Color(0xFF1685B8),
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                     Button(
                         onClick = { onNavigate(1) },
                         colors = ButtonDefaults.buttonColors(containerColor = sky),
                         shape = RoundedCornerShape(11.dp)
-                    ) { Text(if (isEnglish) "Start task  ▷" else "开始任务  ▷", color = Color.White) }
+                    ) {
+                        Text(
+                            if (isEnglish) "Start task  ▷" else "开始任务  ▷",
+                            color = Color.White
+                        )
+                    }
                 }
-            }
-        }
-
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp).clickable { showTutorial = true }, verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = paleSky, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.Assignment, null, tint = sky, modifier = Modifier.padding(13.dp).size(28.dp)) }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) { Text(if (isEnglish) "Task guide" else "任务使用教程", color = ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text(if (isEnglish) "Learn task rules, steps and safety notes" else "了解任务规则、流程与注意事项", color = muted) }
-                Icon(Icons.Default.ChevronRight, null, tint = muted)
             }
         }
 
@@ -425,6 +514,17 @@ private fun formatAmount(minor: String, currency: String): String {
     val digits = runCatching { java.util.Currency.getInstance(currency).defaultFractionDigits }.getOrDefault(2).coerceAtLeast(0)
     val amount = runCatching { java.math.BigDecimal(minor).movePointLeft(digits).setScale(digits, java.math.RoundingMode.DOWN).toPlainString() }.getOrDefault("0")
     return "${currencySymbol(currency)}$amount"
+}
+private fun formatTaskReward(minor: String, currency: String): String {
+    // Keep the same 3-decimal display convention used by the web member dashboard.
+    val amount = runCatching {
+        java.math.BigDecimal(minor)
+            .movePointLeft(2)
+            .setScale(3, java.math.RoundingMode.DOWN)
+            .toPlainString()
+    }.getOrDefault("0.000")
+    val code = currency.trim().ifBlank { "USD" }
+    return "$code $amount"
 }
 private fun formatBalance(minor: String, currency: String): String = formatAmount(minor, currency)
 
