@@ -125,7 +125,13 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
     LaunchedEffect(Unit) { load() }
 
     Column(modifier.fillMaxSize().background(Color(0xFFF2F5F8)).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color(0xFF0A6FAF), Color(0xFFCDEFFC))))
+                .padding(horizontal = 6.dp, vertical = 3.dp)
+        ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Color.White, shape = RoundedCornerShape(28.dp)) {
                 Row(Modifier.padding(end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (isEnglish) "Withdraw" else "提现", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF0879B9), Color(0xFF48C5F1))), RoundedCornerShape(28.dp)).padding(horizontal = 14.dp, vertical = 9.dp))
@@ -133,7 +139,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                     Text(formatBalance(firstBalance(data), firstCurrency(data)), color = ink, fontWeight = FontWeight.Bold)
                 }
             }
-            Text(if (isEnglish) "Home" else "首页", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(if (isEnglish) "Home" else "首页", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = {
                     val supportUrl = data?.optString("supportUrl")?.takeIf { it.isNotBlank() && it != "null" }
@@ -143,10 +149,10 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                         require(uri.scheme == "https" || uri.scheme == "http")
                         context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                     }.onFailure { supportDialogOpen = true }
-                }) { Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Support" else "客服", tint = muted) }
+                }) { Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Support" else "客服", tint = Color.White) }
                 Box {
                     IconButton(onClick = { languageMenuOpen = true }) {
-                        Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = muted)
+                        Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color.White)
                     }
                     DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
                         DropdownMenuItem(text = { Text("简体中文") }, onClick = {
@@ -172,6 +178,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                     }
                 }
             }
+        }
         }
 
         if (error != null) Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3F2)), shape = RoundedCornerShape(16.dp)) {
@@ -377,7 +384,7 @@ private fun AnnouncementTicker(messages: List<String>, emptyText: String) {
         if (containerWidth > 0 && textWidth > 0) {
             val start = containerWidth.toFloat()
             val end = -textWidth.toFloat()
-            val duration = (((containerWidth + textWidth) / 110f) * 1000f).roundToInt().coerceAtLeast(2500)
+            val duration = (((containerWidth + textWidth) / 275f) * 1000f).roundToInt().coerceAtLeast(1000)
             tickerOffset.snapTo(start)
             while (true) {
                 tickerOffset.animateTo(end, animationSpec = tween(durationMillis = duration, easing = LinearEasing))
