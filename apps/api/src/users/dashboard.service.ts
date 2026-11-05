@@ -235,6 +235,7 @@ export class DashboardService {
         _sum: { amountMinor: true },
       }),
     ]);
+    const holds = await prisma.walletHold.groupBy({ by: ["walletId"], where: { walletId: { in: walletIds }, status: "ACTIVE" }, _sum: { amountMinor: true } });
     const totals = wallets.map((wallet) => {
       const entries = ledger.filter((row) => row.walletId === wallet.id);
       const requests = withdrawals.filter((row) => row.walletId === wallet.id);
@@ -248,7 +249,8 @@ export class DashboardService {
       const pending = sumStatuses(["REQUESTED", "UNDER_REVIEW"]);
       const processing = sumStatuses(["APPROVED", "PROCESSING"]);
       const reserved = pending + processing;
-      const available = income - expense - reserved;
+      const frozen = holds.find((row) => row.walletId === wallet.id)?._sum.amountMinor ?? 0n;
+      const available = income - expense - reserved - frozen;
       return {
         currency: wallet.currency.trim(),
         incomeMinor: income.toString(),
@@ -256,7 +258,7 @@ export class DashboardService {
         availableMinor: (available > 0n ? available : 0n).toString(),
         pendingWithdrawalMinor: pending.toString(),
         processingWithdrawalMinor: processing.toString(),
-        frozenMinor: "0",
+        frozenMinor: frozen.toString(),
       };
     });
     const categories = wallets.map((wallet) => ({
@@ -268,7 +270,7 @@ export class DashboardService {
         count: row._count._all,
       })),
     }));
-    return { totals, categories, frozenBalances: [], frozenBalanceAvailable: false };
+    return { totals, categories, frozenBalances: totals.map((row) => ({ currency: row.currency, amountMinor: row.frozenMinor })), frozenBalanceAvailable: true };
   }
 
   async getWalletTransactions(userId: string, limit = 100) {
