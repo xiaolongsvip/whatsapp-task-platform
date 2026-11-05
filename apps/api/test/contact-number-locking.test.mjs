@@ -36,7 +36,7 @@ test("cancel and expiry release number before slot", async () => {
 
 test("admin block locks claims, then number, then retires slots", async () => {
   const source = await readSource("../src/contact-numbers/contact-numbers.service.ts");
-  const body = section(source, "async block(", "\n  }\n}");
+  const body = section(source, "async block(", "\n    });\n  }\n}");
   const claimLock = body.indexOf("FROM task_claims");
   const numberLock = body.indexOf("FROM contact_numbers");
   const slotUpdate = body.indexOf("tx.taskSlot.updateMany");
@@ -47,7 +47,7 @@ test("admin block locks claims, then number, then retires slots", async () => {
 
 test("admin block refuses pending review before mutating assignments", async () => {
   const source = await readSource("../src/contact-numbers/contact-numbers.service.ts");
-  const body = section(source, "async block(", "\n  }\n}");
+  const body = section(source, "async block(", "\n    });\n  }\n}");
   const pendingGuard = body.indexOf("assignments.some");
   const firstMutation = body.indexOf("tx.taskClaim.update");
   assert.ok(pendingGuard >= 0 && firstMutation > pendingGuard);
@@ -56,7 +56,7 @@ test("admin block refuses pending review before mutating assignments", async () 
 
 test("repeated block returns before writing another revocation event", async () => {
   const source = await readSource("../src/contact-numbers/contact-numbers.service.ts");
-  const body = section(source, "async block(", "\n  }\n}");
+  const body = section(source, "async block(", "\n    });\n  }\n}");
   const idempotentGuard = body.indexOf('number.status === "BLOCKED"');
   const eventWrite = body.indexOf("tx.contactConsentEvent.create");
   assert.ok(idempotentGuard >= 0 && eventWrite > idempotentGuard);
