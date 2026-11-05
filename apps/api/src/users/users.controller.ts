@@ -63,6 +63,18 @@ export class UsersController {
     return this.dashboard.getPromotionSummary(user.id, user.profile?.timezone ?? "UTC");
   }
 
+  @Get("commission-records")
+  async getCommissionRecords(@Req() request: Request) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.dashboard.getCommissionRecords(user.id);
+  }
+
+  @Get("team")
+  async getTeam(@Req() request: Request) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.dashboard.getTeamMembers(user.id);
+  }
+
   @Get("me")
   getMe(@Req() request: Request) {
     return this.auth.getCurrentUser(sessionToken(request));
