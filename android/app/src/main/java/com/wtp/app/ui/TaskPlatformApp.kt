@@ -740,9 +740,15 @@ private fun WalletScreen(
             Row(Modifier.fillMaxWidth().clickable(onClick = onInviteFriends).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Groups, null, tint = Color(0xFF47752B))
                 Spacer(Modifier.width(10.dp))
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(if (isEnglish) "Invite friends to earn" else "邀请好友做任务", fontWeight = FontWeight.Bold)
                     Text(if (isEnglish) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
+                }
+                Surface(color = Color.White, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD8EFAE))) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (isEnglish) "Invite" else "去邀请", color = Color(0xFF47752B), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
+                        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF47752B), modifier = Modifier.size(16.dp))
+                    }
                 }
             }
         }
