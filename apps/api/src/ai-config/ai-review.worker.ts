@@ -27,7 +27,12 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    if (process.env.AI_REVIEW_WORKER_ENABLED === "false") return;
+    // Fail closed: the worker must be explicitly enabled only after the
+    // ai_review_jobs migration has been applied to the connected database.
+    if (process.env.AI_REVIEW_WORKER_ENABLED !== "true") {
+      this.logger.warn("AI review worker is paused. Set AI_REVIEW_WORKER_ENABLED=true only after database migrations are applied.");
+      return;
+    }
     this.timer = setInterval(() => void this.tick(), POLL_INTERVAL_MS);
     this.timer.unref?.();
     void this.tick();
