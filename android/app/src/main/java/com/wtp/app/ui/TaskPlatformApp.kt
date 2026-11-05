@@ -843,6 +843,28 @@ private fun PermissionLine(label: String, status: String, granted: Boolean) {
 }
 private fun firstBalance(data: JSONObject?): String = data?.optJSONArray("balances")?.optJSONObject(0)?.optString("amountMinor") ?: "0"
 private fun firstCurrency(data: JSONObject?): String = data?.optJSONArray("balances")?.optJSONObject(0)?.optString("currency") ?: "USD"
+private fun formatMinorByCurrency(minor: String, currency: String): String {
+    val code = currency.trim().ifBlank { "USD" }
+    val digits = runCatching { java.util.Currency.getInstance(code).defaultFractionDigits }.getOrDefault(2).coerceAtLeast(0)
+    val value = runCatching {
+        java.math.BigDecimal(minor).movePointLeft(digits).setScale(digits, java.math.RoundingMode.DOWN).toPlainString()
+    }.getOrDefault("0")
+    return "$value $code"
+}
+private fun formatCurrencyTotals(values: JSONObject?): String {
+    if (values == null || values.length() == 0) return formatMinorByCurrency("0", "USD")
+    return values.keys().asSequence().sorted().map { currency ->
+        formatMinorByCurrency(values.optString(currency, "0"), currency)
+    }.joinToString(" / ")
+}
+private fun formatAvailableBalances(values: JSONArray?): String {
+    if (values == null || values.length() == 0) return formatMinorByCurrency("0", "USD")
+    return (0 until values.length()).mapNotNull { index ->
+        values.optJSONObject(index)?.let { balance ->
+            formatMinorByCurrency(balance.optString("amountMinor", "0"), balance.optString("currency", "USD"))
+        }
+    }.joinToString(" / ").ifBlank { formatMinorByCurrency("0", "USD") }
+}
 private fun currencySymbol(currency: String): String = runCatching { java.util.Currency.getInstance(currency).getSymbol(java.util.Locale.US) }.getOrDefault("$")
 private fun formatAmount(minor: String, currency: String): String {
     val digits = runCatching { java.util.Currency.getInstance(currency).defaultFractionDigits }.getOrDefault(2).coerceAtLeast(0)
@@ -1196,12 +1218,8 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
     LaunchedEffect(Unit) {
         runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }.onSuccess { summary = it }
     }
-    fun amount(key: String): String {
-        val totals = summary?.optJSONObject(key) ?: JSONObject()
-        val currency = totals.keys().asSequence().firstOrNull() ?: "USD"
-        val minor = totals.optString(currency, "0").toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
-        return String.format(java.util.Locale.US, "%.3f %s", minor.divide(java.math.BigDecimal(100)), currency)
-    }
+    fun amount(key: String): String =
+        formatCurrencyTotals(summary?.optJSONObject(key))
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
@@ -1268,17 +1286,9 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
         }
     }
     LaunchedEffect(Unit) { load() }
-    fun amount(json: JSONObject?, key: String): String {
-        val values = json?.optJSONObject(key) ?: JSONObject()
-        val currency = values.keys().asSequence().firstOrNull() ?: "USD"
-        val minor = values.optString(currency, "0").toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
-        return String.format(java.util.Locale.US, "%.3f %s", minor.divide(java.math.BigDecimal(100)), currency)
-    }
-    val balances = data?.optJSONArray("availableBalances")
-    val balance = balances?.optJSONObject(0)?.let {
-        val minor = it.optString("amountMinor", "0").toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
-        String.format(java.util.Locale.US, "%.3f %s", minor.divide(java.math.BigDecimal(100)), it.optString("currency", "USD"))
-    } ?: "0.000 USD"
+    fun amount(json: JSONObject?, key: String): String =
+        formatCurrencyTotals(json?.optJSONObject(key))
+    val balance = formatAvailableBalances(data?.optJSONArray("availableBalances"))
     fun copyText(value: String, label: String) {
         if (value.isBlank()) return
         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
