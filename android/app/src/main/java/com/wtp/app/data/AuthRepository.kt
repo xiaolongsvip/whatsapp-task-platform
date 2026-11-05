@@ -174,7 +174,22 @@ object AuthRepository {
         return request("POST", "auth/register", body)
     }
 
-    fun currentUser(): JSONObject = request("GET", "auth/me")
+    fun currentUser(): JSONObject {
+        return try {
+            request("GET", "auth/me")
+        } catch (error: IOException) {
+            val message = error.message.orEmpty()
+            val sessionExpired = message.contains("HTTP 401") ||
+                message.contains("登录会话已失效") ||
+                message.contains("请先登录")
+            if (!sessionExpired) throw error
+
+            // The API rotates the HttpOnly session cookie on refresh. OkHttp's
+            // CookieJar persists the replacement cookie before the retry.
+            request("POST", "auth/refresh")
+            request("GET", "auth/me")
+        }
+    }
 
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
 
