@@ -19,3 +19,6 @@ local.properties
 .cxx/
 .externalNativeBuild/
 *.iml
+
+# TypeScript incremental build metadata
+*.tsbuildinfo
