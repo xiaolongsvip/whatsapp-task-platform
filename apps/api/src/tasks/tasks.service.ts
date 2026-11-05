@@ -168,6 +168,21 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
   }
 
   async myClaims(userId: string) {
+    // Backfill legacy active claims created before claim-time deadlines were
+    // introduced. Derive the deadline from claimedAt; never start a fresh
+    // three-minute window when the member opens the task screen.
+    await prisma.$executeRaw`
+      UPDATE task_claims AS claim
+      SET expires_at = LEAST(
+        claim.claimed_at + INTERVAL '3 minutes',
+        COALESCE(task.ends_at, 'infinity'::timestamptz)
+      )
+      FROM tasks AS task
+      WHERE claim.task_id = task.id
+        AND claim.user_id = ${userId}::uuid
+        AND claim.expires_at IS NULL
+        AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+    `;
     await this.expireOverdueClaims(userId);
     const claims = await prisma.taskClaim.findMany({
       where: { userId },
