@@ -1447,16 +1447,17 @@ private fun ClaimedTaskCard(
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(task.optString("title"), color = WtpText, fontWeight = FontWeight.Bold)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (isEnglish) "Status: " else "状态：", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                    Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold)
-                }
+                Text(
+                    task.optString("title"),
+                    modifier = Modifier.weight(1f),
+                    color = WtpText,
+                    fontWeight = FontWeight.Bold
+                )
                 val expiresAt = claim.optString("expiresAt")
                 if (
                     status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
@@ -1464,6 +1465,10 @@ private fun ClaimedTaskCard(
                 ) {
                     TaskCountdownBadge(expiresAt = expiresAt, isEnglish = isEnglish)
                 }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (isEnglish) "Status: " else "状态：", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold)
             }
             if (phone.isNotBlank() && phone != "null") {
                 Surface(color = WtpPaleGreen, shape = RoundedCornerShape(9.dp)) {
