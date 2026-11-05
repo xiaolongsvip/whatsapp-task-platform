@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,11 +61,13 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 private val WtpGreen = Color(0xFF27BD68)
-private val WtpDarkGreen = Color(0xFF167A55)
-private val WtpPaleGreen = Color(0xFFE2F6ED)
-private val WtpPage = Color(0xFFF3F5F7)
+private val WtpDarkGreen = Color(0xFF176B8A)
+private val WtpPaleGreen = Color(0xFFE4F4EC)
+private val WtpPage = Color(0xFFF0F7FB)
+private val WtpSky = Color(0xFFE6F3FA)
+private val WtpSkyBorder = Color(0xFFD5E9F4)
 private val WtpText = Color(0xFF17212F)
-private val WtpMuted = Color(0xFF708178)
+private val WtpMuted = Color(0xFF647987)
 
 private enum class TaskMainTab { HALL, RECORDS }
 private enum class HallFilter { AVAILABLE, IN_PROGRESS, EXPIRED, REJECTED, SETTLED }
@@ -91,6 +94,7 @@ fun TaskHallScreen(
     var mainTab by remember { mutableStateOf(TaskMainTab.HALL) }
     var hallFilter by remember { mutableStateOf(HallFilter.AVAILABLE) }
     var recordFilter by remember { mutableStateOf(RecordFilter.ALL) }
+    var selectedClaimId by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         scope.launch {
@@ -128,6 +132,8 @@ fun TaskHallScreen(
         val remaining = if (task.isNull("remainingCapacity")) -1 else task.optInt("remainingCapacity", -1)
         claimsByTask[taskId] == null && (remaining == -1 || remaining > 0)
     }
+
+    val selectedClaim = claims.firstOrNull { it.optString("id") == selectedClaimId }
 
     val claimedLastSevenDays = claims.count { it.isWithinLastSevenDays() }
     val approvedLastSevenDays = claims.count {
@@ -169,35 +175,51 @@ fun TaskHallScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                color = Color.White,
-                shape = RoundedCornerShape(24.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDCE9E2))
-            ) {
-                Row(
-                    Modifier.padding(start = 5.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (selectedClaim != null) {
+                OutlinedButton(
+                    onClick = {
+                        selectedClaimId = null
+                        mainTab = TaskMainTab.HALL
+                        hallFilter = HallFilter.IN_PROGRESS
+                        refresh()
+                    },
+                    shape = RoundedCornerShape(24.dp)
                 ) {
-                    Surface(color = WtpGreen, shape = RoundedCornerShape(18.dp)) {
+                    androidx.compose.material3.Icon(Icons.Default.ArrowBack, contentDescription = if (isEnglish) "Back" else "返回", tint = WtpDarkGreen)
+                }
+            } else {
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(24.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)
+                ) {
+                    Row(
+                        Modifier.padding(start = 5.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(color = WtpGreen, shape = RoundedCornerShape(18.dp)) {
+                            Text(
+                                if (isEnglish) "Withdraw" else "提现",
+                                Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            if (isEnglish) "Withdraw" else "提现",
-                            Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelSmall,
+                            formatCompactBalance(balanceAmount, balanceCurrency),
+                            color = WtpText,
+                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        formatCompactBalance(balanceAmount, balanceCurrency),
-                        color = WtpText,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
             Text(
-                if (mainTab == TaskMainTab.HALL) {
+                if (selectedClaim != null) {
+                    if (isEnglish) "Task" else "任务"
+                } else if (mainTab == TaskMainTab.HALL) {
                     if (isEnglish) "Task hall" else "任务大厅"
                 } else {
                     if (isEnglish) "Task records" else "任务记录"
@@ -205,7 +227,7 @@ fun TaskHallScreen(
                 color = Color(0xFF496257),
                 fontWeight = FontWeight.SemiBold
             )
-            OutlinedButton(
+            if (selectedClaim == null) OutlinedButton(
                 onClick = { refresh() },
                 enabled = !loading,
                 shape = RoundedCornerShape(24.dp),
@@ -228,6 +250,7 @@ fun TaskHallScreen(
             }
         }
 
+        if (selectedClaim == null) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             MainTab(
                 text = if (isEnglish) "Task hall" else "任务大厅",
@@ -329,14 +352,14 @@ fun TaskHallScreen(
                                                     AuthRepository.claimTask(taskId, UUID.randomUUID().toString())
                                                 }
                                                 val claimId = result.optString("id")
-                                                if (claimId.isNotBlank()) CaptureSessionState.setActiveClaim(claimId)
-                                                notice = if (isEnglish) {
-                                                    "Task claimed. Your assigned WhatsApp number is ready in the in-progress tab."
+                                                if (claimId.isNotBlank()) {
+                                                    CaptureSessionState.setActiveClaim(claimId)
+                                                    claims = claims.filterNot { it.optString("id") == claimId } + result
+                                                    selectedClaimId = claimId
                                                 } else {
-                                                    "任务领取成功。系统已分配专属号码，请在“进行中”中打开 WhatsApp。"
+                                                    throw IllegalStateException(if (isEnglish) "The claim response did not include an ID." else "领取结果缺少任务编号，请刷新后重试。")
                                                 }
                                                 refresh()
-                                                hallFilter = HallFilter.IN_PROGRESS
                                             } catch (e: Exception) {
                                                 error = e.message ?: if (isEnglish) "Could not start task." else "领取任务失败。"
                                             } finally {
@@ -372,7 +395,7 @@ fun TaskHallScreen(
                                 isEnglish = isEnglish,
                                 activeClaimId = activeClaimId,
                                 busy = busyId != null,
-                                onGoWhatsApp = { openWhatsApp(context, claim, isEnglish) },
+                                onGoWhatsApp = { selectedClaimId = claim.optString("id") },
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for evidence capture." else "已将该任务设为当前截图提交任务。"
@@ -450,6 +473,17 @@ fun TaskHallScreen(
                     ClaimRecordCard(claim, isEnglish)
                 }
             }
+        }
+        } else {
+            TaskExecutionScreen(
+                claim = selectedClaim,
+                isEnglish = isEnglish,
+                activeClaimId = activeClaimId,
+                onGoWhatsApp = {
+                    CaptureSessionState.setActiveClaim(selectedClaim.optString("id"))
+                    openWhatsApp(context, selectedClaim, isEnglish)
+                }
+            )
         }
     }
 }
