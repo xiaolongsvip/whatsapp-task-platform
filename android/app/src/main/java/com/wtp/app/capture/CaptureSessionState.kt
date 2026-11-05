@@ -4,8 +4,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * In-process state for the user-authorized capture session and last manual
- * screenshot. The MediaProjection consent token is never persisted.
+ * In-process state for the user-authorized capture session and the task
+ * explicitly selected for evidence submission. The MediaProjection consent
+ * token is never persisted.
  */
 object CaptureSessionState {
     private val _active = MutableStateFlow(false)
@@ -17,6 +18,12 @@ object CaptureSessionState {
     private val _lastCapturePath = MutableStateFlow<String?>(null)
     val lastCapturePath = _lastCapturePath.asStateFlow()
 
+    private val _activeClaimId = MutableStateFlow<String?>(null)
+    val activeClaimId = _activeClaimId.asStateFlow()
+
+    private val _uploadMessage = MutableStateFlow<String?>(null)
+    val uploadMessage = _uploadMessage.asStateFlow()
+
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
@@ -27,12 +34,31 @@ object CaptureSessionState {
     internal fun setLastCapture(name: String, path: String) {
         _lastCaptureName.value = name
         _lastCapturePath.value = path
+        _uploadMessage.value = null
         _error.value = null
+    }
+
+    fun setActiveClaim(claimId: String) {
+        _activeClaimId.value = claimId
+        _uploadMessage.value = null
+        _error.value = null
+    }
+
+    fun clearActiveClaim() {
+        _activeClaimId.value = null
+    }
+
+    fun markLastCaptureUploaded(message: String) {
+        _lastCapturePath.value = null
+        _uploadMessage.value = message
+        _error.value = null
+        _activeClaimId.value = null
     }
 
     fun clearLastCapture() {
         _lastCaptureName.value = null
         _lastCapturePath.value = null
+        _uploadMessage.value = null
     }
 
     internal fun setError(message: String?) {
