@@ -15,6 +15,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.io.File
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -173,6 +176,46 @@ object AuthRepository {
     fun currentUser(): JSONObject = request("GET", "auth/me")
 
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
+
+    fun publishedTasks(): JSONObject = request("GET", "tasks")
+
+    fun myTaskClaims(): JSONObject = request("GET", "tasks/my/claims")
+
+    fun claimTask(taskId: String, idempotencyKey: String): JSONObject =
+        request("POST", "tasks/$taskId/claims", JSONObject().put("idempotencyKey", idempotencyKey))
+
+    fun submitTaskEvidence(
+        claimId: String,
+        filePath: String,
+        note: String,
+        idempotencyKey: String,
+    ): JSONObject {
+        val file = File(filePath)
+        if (!file.isFile || !file.canRead()) throw IOException("找不到待上传截图，请重新截图。")
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", file.name, file.asRequestBody("image/jpeg".toMediaType()))
+            .addFormDataPart("note", note)
+            .build()
+        val httpRequest = Request.Builder()
+            .url(endpoint("tasks/claims/$claimId/submissions"))
+            .header("Idempotency-Key", idempotencyKey)
+            .post(body)
+            .build()
+        client.newCall(httpRequest).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            val json = if (raw.isBlank()) JSONObject() else runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
+            if (!response.isSuccessful) {
+                val message = when (val value = json.opt("message")) {
+                    is String -> value
+                    is JSONArray -> (0 until value.length()).joinToString("；") { value.optString(it) }
+                    else -> "证据上传失败（HTTP " + response.code + "），请稍后重试。"
+                }
+                throw IOException(message)
+            }
+            return json
+        }
+    }
 
     fun updateLocale(locale: String): JSONObject =
         request("PATCH", "users/me", JSONObject().put("locale", locale))
