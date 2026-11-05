@@ -109,6 +109,18 @@ enum AdminStatus {
   DISABLED
 }
 
+enum WalletHoldStatus {
+  ACTIVE
+  RELEASED
+  CAPTURED
+}
+
+enum WalletHoldEventType {
+  FROZEN
+  RELEASED
+  CAPTURED
+}
+
 enum AiReviewJobStatus {
   PENDING
   PROCESSING
@@ -391,6 +403,7 @@ model Wallet {
   entries   LedgerEntry[]
   withdrawals WithdrawalRequest[]
   paymentTransactions PaymentTransaction[]
+  holds WalletHold[]
 
   @@unique([userId, currency])
   @@map("wallets")
@@ -411,6 +424,44 @@ model LedgerEntry {
   @@index([walletId, createdAt])
   @@index([sourceType, sourceId])
   @@map("ledger_entries")
+}
+
+model WalletHold {
+  id              String            @id @default(uuid()) @db.Uuid
+  walletId        String            @map("wallet_id") @db.Uuid
+  amountMinor     BigInt            @map("amount_minor")
+  currency        String            @db.Char(3)
+  status          WalletHoldStatus  @default(ACTIVE)
+  reason          String            @db.VarChar(500)
+  referenceType   String?           @map("reference_type") @db.VarChar(80)
+  referenceId     String?           @map("reference_id") @db.VarChar(160)
+  idempotencyKey  String            @unique @map("idempotency_key")
+  createdByAdminId String           @map("created_by_admin_id") @db.Uuid
+  resolvedByAdminId String?         @map("resolved_by_admin_id") @db.Uuid
+  resolvedAt      DateTime?         @map("resolved_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  wallet          Wallet            @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  events          WalletHoldEvent[]
+
+  @@index([walletId, status, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("wallet_holds")
+}
+
+model WalletHoldEvent {
+  id             String              @id @default(uuid()) @db.Uuid
+  holdId         String              @map("hold_id") @db.Uuid
+  eventType      WalletHoldEventType @map("event_type")
+  amountMinor    BigInt              @map("amount_minor")
+  reason         String              @db.VarChar(500)
+  adminId        String              @map("admin_id") @db.Uuid
+  idempotencyKey String              @unique @map("idempotency_key")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  hold           WalletHold          @relation(fields: [holdId], references: [id], onDelete: Restrict)
+
+  @@index([holdId, createdAt])
+  @@map("wallet_hold_events")
 }
 
 model ReferralReward {
