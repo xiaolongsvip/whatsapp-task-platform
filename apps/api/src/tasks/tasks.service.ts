@@ -468,6 +468,37 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
   private async expireOverdueClaims(userId?: string) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
+      // Backfill deadlines for legacy active claims before checking expiry.
+      // Without this, expires_at IS NULL rows are invisible to the expiry
+      // query but still count as active in claimTask(), permanently blocking
+      // the member from claiming another task.
+      if (userId) {
+        await tx.$executeRaw`
+          UPDATE task_claims AS claim
+          SET expires_at = LEAST(
+            claim.claimed_at + INTERVAL '3 minutes',
+            COALESCE(task.ends_at, 'infinity'::timestamptz)
+          )
+          FROM tasks AS task
+          WHERE claim.task_id = task.id
+            AND claim.user_id = ${userId}::uuid
+            AND claim.expires_at IS NULL
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        `;
+      } else {
+        await tx.$executeRaw`
+          UPDATE task_claims AS claim
+          SET expires_at = LEAST(
+            claim.claimed_at + INTERVAL '3 minutes',
+            COALESCE(task.ends_at, 'infinity'::timestamptz)
+          )
+          FROM tasks AS task
+          WHERE claim.task_id = task.id
+            AND claim.expires_at IS NULL
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        `;
+      }
+
       const expiredRows = userId
         ? await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id
