@@ -70,7 +70,7 @@ export class S3ObjectStorageService {
   private async send(
     method: "PUT" | "DELETE",
     key: string,
-    body = Buffer.alloc(0),
+    body: Buffer = Buffer.alloc(0),
     contentType?: string,
   ): Promise<void> {
     const config = this.config();
