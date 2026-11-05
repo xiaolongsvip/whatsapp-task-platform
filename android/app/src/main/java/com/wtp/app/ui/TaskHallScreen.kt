@@ -25,6 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.HeadsetMic
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -89,6 +91,7 @@ private enum class RecordFilter { ALL, IN_PROGRESS, COMPLETED, NEED_ACTION, INCO
 fun TaskHallScreen(
     modifier: Modifier = Modifier,
     language: String,
+    onLanguageChanged: (String) -> Unit = {},
 ) {
     val isEnglish = language == "en"
     val context = LocalContext.current
@@ -107,6 +110,8 @@ fun TaskHallScreen(
     var hallFilter by remember { mutableStateOf(HallFilter.AVAILABLE) }
     var recordFilter by remember { mutableStateOf(RecordFilter.ALL) }
     var selectedClaimId by remember { mutableStateOf<String?>(null) }
+    var languageMenuOpen by remember { mutableStateOf(false) }
+    var supportDialogOpen by remember { mutableStateOf(false) }
 
     fun refresh() {
         scope.launch {
@@ -181,9 +186,8 @@ fun TaskHallScreen(
         modifier.fillMaxSize().background(WtpPage).padding(bottom = 2.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        // Compact header modeled on the reference design.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -197,68 +201,67 @@ fun TaskHallScreen(
                     },
                     shape = RoundedCornerShape(24.dp)
                 ) {
-                    androidx.compose.material3.Icon(Icons.Default.ArrowBack, contentDescription = if (isEnglish) "Back" else "返回", tint = WtpDarkGreen)
+                    androidx.compose.material3.Icon(Icons.Default.ArrowBack, contentDescription = if (isEnglish) "Back" else "返回", tint = Color(0xFF526B60))
                 }
             } else {
-                Surface(
-                    color = Color.White,
-                    shape = RoundedCornerShape(24.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)
-                ) {
-                    Row(
-                        Modifier.padding(start = 5.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Surface(color = Color.White, shape = RoundedCornerShape(24.dp), border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)) {
+                    Row(Modifier.padding(start = 5.dp, end = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Surface(color = WtpGreen, shape = RoundedCornerShape(18.dp)) {
-                            Text(
-                                if (isEnglish) "Withdraw" else "提现",
-                                Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(if (isEnglish) "Withdraw" else "提现", Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            formatCompactBalance(balanceAmount, balanceCurrency),
-                            color = WtpText,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text(formatCompactBalance(balanceAmount, balanceCurrency), color = WtpText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     }
                 }
             }
             Text(
-                if (selectedClaim != null) {
-                    if (isEnglish) "Task" else "任务"
-                } else if (mainTab == TaskMainTab.HALL) {
-                    if (isEnglish) "Task hall" else "任务大厅"
-                } else {
-                    if (isEnglish) "Task records" else "任务记录"
-                },
-                color = Color(0xFF496257),
+                if (selectedClaim != null) { if (isEnglish) "Task" else "任务" }
+                else if (mainTab == TaskMainTab.HALL) { if (isEnglish) "Task hall" else "任务大厅" }
+                else { if (isEnglish) "Task records" else "任务记录" },
+                color = Color(0xFF40594E),
                 fontWeight = FontWeight.SemiBold
             )
-            if (selectedClaim == null) OutlinedButton(
-                onClick = { refresh() },
-                enabled = !loading,
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.width(88.dp)
-            ) {
-                if (loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.width(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    androidx.compose.material3.Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = if (isEnglish) "Refresh" else "刷新",
-                        tint = WtpDarkGreen
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(if (isEnglish) "Refresh" else "刷新", color = WtpDarkGreen)
+            if (selectedClaim == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.IconButton(onClick = {
+                        val supportUrl = dashboard.optString("supportUrl").takeIf { it.isNotBlank() && it != "null" }
+                        if (supportUrl == null) supportDialogOpen = true
+                        else runCatching {
+                            val uri = Uri.parse(supportUrl)
+                            require(uri.scheme == "https" || uri.scheme == "http")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        }.onFailure { supportDialogOpen = true }
+                    }) {
+                        androidx.compose.material3.Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Customer support" else "客服", tint = Color(0xFF58786A))
+                    }
+                    Box {
+                        androidx.compose.material3.IconButton(onClick = { languageMenuOpen = true }) {
+                            androidx.compose.material3.Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF58786A))
+                        }
+                        androidx.compose.material3.DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("简体中文") }, onClick = {
+                                languageMenuOpen = false
+                                scope.launch {
+                                    try {
+                                        withContext(Dispatchers.IO) { AuthRepository.updateLocale("zh-CN") }
+                                        onLanguageChanged("zh-CN")
+                                    } catch (e: Exception) { error = e.message ?: "语言保存失败" }
+                                }
+                            })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("English") }, onClick = {
+                                languageMenuOpen = false
+                                scope.launch {
+                                    try {
+                                        withContext(Dispatchers.IO) { AuthRepository.updateLocale("en") }
+                                        onLanguageChanged("en")
+                                    } catch (e: Exception) { error = e.message ?: "Could not save language" }
+                                }
+                            })
+                        }
+                    }
                 }
+            } else {
+                Spacer(Modifier.width(80.dp))
             }
         }
 
@@ -519,6 +522,19 @@ fun TaskHallScreen(
         }
     }
 }
+
+    if (supportDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { supportDialogOpen = false },
+            title = { Text(if (isEnglish) "Customer support" else "联系客服") },
+            text = { Text(if (isEnglish) "The support link has not been configured yet. Please contact the administrator." else "客服入口暂未配置，请联系管理员获取帮助。") },
+            confirmButton = {
+                TextButton(onClick = { supportDialogOpen = false }) {
+                    Text(if (isEnglish) "OK" else "知道了")
+                }
+            }
+        )
+    }
 
 @Composable
 private fun TaskExecutionScreen(
