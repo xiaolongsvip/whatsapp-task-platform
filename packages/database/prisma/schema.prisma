@@ -60,6 +60,25 @@ enum WithdrawalStatus {
   CANCELLED
 }
 
+enum PayoutAccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum PaymentFlow {
+  DEPOSIT
+  PAYOUT
+}
+
+enum PaymentTransactionStatus {
+  CREATED
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 enum ContactNumberStatus {
   AVAILABLE
   ASSIGNED
@@ -116,6 +135,8 @@ model User {
   adminIdentity         AdminUser?
   sessions              AuthSession[]
   contactAssignments    ContactAssignment[]
+  payoutAccounts        PayoutAccount[]
+  paymentTransactions   PaymentTransaction[]
 
   @@index([status, createdAt])
   @@map("users")
@@ -369,6 +390,7 @@ model Wallet {
   user      User              @relation(fields: [userId], references: [id], onDelete: Restrict)
   entries   LedgerEntry[]
   withdrawals WithdrawalRequest[]
+  paymentTransactions PaymentTransaction[]
 
   @@unique([userId, currency])
   @@map("wallets")
@@ -415,12 +437,89 @@ model WithdrawalRequest {
   status        WithdrawalStatus @default(REQUESTED)
   reviewedById  String?          @map("reviewed_by_id") @db.Uuid
   payoutReference String?         @map("payout_reference")
+  payoutAccountId String?          @map("payout_account_id") @db.Uuid
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
   wallet        Wallet           @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  payoutAccount PayoutAccount?    @relation(fields: [payoutAccountId], references: [id], onDelete: Restrict)
+  paymentTransactions PaymentTransaction[]
 
   @@index([status, createdAt])
+  @@index([payoutAccountId])
   @@map("withdrawal_requests")
+}
+
+model PayoutAccount {
+  id                       String             @id @default(uuid()) @db.Uuid
+  userId                   String             @map("user_id") @db.Uuid
+  countryCode              String             @map("country_code") @db.Char(2)
+  currency                 String             @db.Char(3)
+  providerCode             String             @map("provider_code")
+  methodCode               String             @map("method_code")
+  accountHolder            String             @map("account_holder")
+  accountDetailsCiphertext String             @map("account_details_ciphertext") @db.Text
+  accountDetailsIv         String             @map("account_details_iv")
+  accountDetailsTag        String             @map("account_details_tag")
+  maskedAccount            String             @map("masked_account")
+  status                   PayoutAccountStatus @default(ACTIVE)
+  isDefault                Boolean            @default(false) @map("is_default")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+  user                     User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  withdrawals              WithdrawalRequest[]
+
+  @@index([userId, status, createdAt])
+  @@map("payout_accounts")
+}
+
+model PaymentProviderConfig {
+  id                    String   @id @default(uuid()) @db.Uuid
+  providerCode          String   @unique @map("provider_code")
+  displayName           String   @map("display_name")
+  environment           String   @default("SANDBOX")
+  credentialsCiphertext String?  @map("credentials_ciphertext") @db.Text
+  credentialsIv         String?  @map("credentials_iv")
+  credentialsTag        String?  @map("credentials_tag")
+  webhookSecretCiphertext String? @map("webhook_secret_ciphertext") @db.Text
+  webhookSecretIv       String?  @map("webhook_secret_iv")
+  webhookSecretTag      String?  @map("webhook_secret_tag")
+  enabled               Boolean  @default(false)
+  supportedCurrencies   String[] @default([]) @map("supported_currencies")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  transactions          PaymentTransaction[]
+
+  @@map("payment_provider_configs")
+}
+
+model PaymentTransaction {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  userId                String                  @map("user_id") @db.Uuid
+  walletId              String?                 @map("wallet_id") @db.Uuid
+  withdrawalRequestId   String?                 @map("withdrawal_request_id") @db.Uuid
+  providerCode          String                  @map("provider_code")
+  flow                  PaymentFlow
+  status                PaymentTransactionStatus @default(CREATED)
+  amountMinor           BigInt                  @map("amount_minor")
+  currency              String                  @db.Char(3)
+  idempotencyKey        String                  @unique @map("idempotency_key")
+  providerTransactionId String?                 @map("provider_transaction_id")
+  providerReference     String?                 @map("provider_reference")
+  failureCode           String?                 @map("failure_code")
+  failureMessage        String?                 @map("failure_message") @db.Text
+  metadata              Json?
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  wallet                Wallet?                 @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  withdrawalRequest     WithdrawalRequest?      @relation(fields: [withdrawalRequestId], references: [id], onDelete: Restrict)
+  provider              PaymentProviderConfig   @relation(fields: [providerCode], references: [providerCode], onDelete: Restrict)
+
+  @@unique([providerCode, providerTransactionId])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([withdrawalRequestId])
+  @@map("payment_transactions")
 }
 
 model AiReviewConfig {
