@@ -27,8 +27,8 @@ test("password change validates old password, hashes new password, and revokes o
 
 test("password change DTO enforces password length limits", async () => {
   const dto = await readSource("../src/users/change-password.dto.ts");
-  assert.match(dto, /currentPassword[\s\S]*?@MinLength\(6\)[\s\S]*?@MaxLength\(128\)/);
-  assert.match(dto, /newPassword[\s\S]*?@MinLength\(6\)[\s\S]*?@MaxLength\(128\)/);
+  assert.match(dto, /@MinLength\(6\)\s*@MaxLength\(128\)\s*currentPassword!:/);
+  assert.match(dto, /@MinLength\(6\)\s*@MaxLength\(128\)\s*newPassword!:/);
 });
 
 test("Android repository calls the password change endpoint", async () => {
