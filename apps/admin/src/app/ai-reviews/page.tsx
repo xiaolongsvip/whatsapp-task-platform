@@ -70,6 +70,8 @@ export default function AiReviewsPage() {
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingLoading, setPendingLoading] = useState(true);
   const [pendingError, setPendingError] = useState("");
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingStatus, setPendingStatus] = useState("ALL");
   const [selectedSubmission, setSelectedSubmission] = useState<PendingSubmission | null>(null);
 
 
@@ -93,8 +95,10 @@ export default function AiReviewsPage() {
   useEffect(() => {
     let active = true;
     setPendingLoading(true);
+    const query = new URLSearchParams({ page: String(pendingPage), pageSize: "20" });
+    if (pendingStatus !== "ALL") query.set("status", pendingStatus);
     request<{ submissions: PendingSubmission[]; total: number }>(
-      "/api/v1/admin/task-submissions?page=1&pageSize=100",
+      `/api/v1/admin/task-submissions?${query.toString()}`,
     )
       .then((data) => {
         if (!active) return;
@@ -105,7 +109,9 @@ export default function AiReviewsPage() {
       .catch((err) => active && setPendingError(err instanceof Error ? err.message : "读取待人工审核记录失败。"))
       .finally(() => active && setPendingLoading(false));
     return () => { active = false; };
-  }, []);
+  }, [pendingPage, pendingStatus]);
+
+  const pendingPages = Math.max(1, Math.ceil(pendingTotal / 20));
 
   async function reviewPendingSubmission(decision: "APPROVE" | "REJECT") {
     if (!selectedSubmission || reviewing) return;
@@ -180,9 +186,16 @@ export default function AiReviewsPage() {
       </header>
 
       <section className="panel">
-        <div>
-          <h2>待人工审核提交</h2>
-          <p className="muted">共 {pendingTotal} 条待处理提交，包含未启用 AI 审核的记录及 AI 转人工的记录。</p>
+        <div className="action-row" style={{ justifyContent: "space-between", marginTop: 0 }}>
+          <div>
+            <h2>待人工审核提交</h2>
+            <p className="muted">共 {pendingTotal} 条待处理提交，包含未启用 AI 审核的记录及 AI 转人工的记录。</p>
+          </div>
+          <select value={pendingStatus} onChange={(event) => { setPendingPage(1); setPendingStatus(event.target.value); }}>
+            <option value="ALL">全部待审核</option>
+            <option value="SUBMITTED">已提交</option>
+            <option value="UNDER_REVIEW">审核中</option>
+          </select>
         </div>
         {pendingError && <div className="notice error">{pendingError}</div>}
         {pendingLoading ? <p className="muted">正在加载待审核提交…</p> : pendingSubmissions.length === 0 ? (
@@ -213,6 +226,13 @@ export default function AiReviewsPage() {
             </table>
           </div>
         )}
+        <div className="action-row" style={{ justifyContent: "space-between" }}>
+          <span className="muted">第 {pendingPage} / {pendingPages} 页</span>
+          <div className="action-row" style={{ marginTop: 0 }}>
+            <button className="secondary-btn" disabled={pendingPage <= 1 || pendingLoading} onClick={() => setPendingPage((value) => value - 1)}>上一页</button>
+            <button className="secondary-btn" disabled={pendingPage >= pendingPages || pendingLoading} onClick={() => setPendingPage((value) => value + 1)}>下一页</button>
+          </div>
+        </div>
       </section>
 
       <section className="panel">
