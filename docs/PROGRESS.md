@@ -313,3 +313,15 @@ Last updated: 2026-11-04
 - [ ] During admin settings development, add a persistent configurable daily task claim limit with validation, audit history, and effective-time handling.
 - [ ] Enforce the configured limit in the server-side task-claim transaction using the member's configured timezone; client display values are informational only and must never be trusted for enforcement.
 - [ ] Web and Android dashboard clients will read the same authoritative value from the shared dashboard API.
+
+
+### Android header, support/language settings and announcement ticker follow-up
+
+- [x] Announcement ticker background changed from plain white to a light sky-blue vertical gradient to improve red-text contrast.
+- [x] Increased ticker speed from 42 px/sec to 110 px/sec (about 2.6× faster); actual motion still needs emulator review.
+- [x] Dashboard API now reserves `supportUrl` and `supportedLocales` fields for shared client configuration; support URL is null until admin configuration is implemented.
+- [x] Android support icon is now actionable: opens the configured HTTP(S) support URL, or shows an explicit not-configured message while the value is null.
+- [x] Added Chinese/English language selector; selected locale is saved through the existing authenticated `PATCH /api/v1/users/me` profile endpoint.
+- [x] English selection updates the dashboard and bottom navigation labels; saved preference is restored from the account profile on app launch.
+- [ ] Android compile and emulator review still required, including language persistence after app restart, support URL behavior once configured, blue ticker contrast and ticker speed.
+- [ ] The support URL and supported-language list will be managed from the protected admin settings module later; no separate settings backend has been created.
