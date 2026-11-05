@@ -150,6 +150,31 @@ export class AuthService {
     });
   }
 
+  async changePassword(token: string | undefined, currentPassword: string, newPassword: string) {
+    const currentUser = await this.getCurrentUser(token);
+    const user = await prisma.user.findUnique({
+      where: { id: currentUser.id },
+      select: { id: true, passwordHash: true },
+    });
+    if (!user || !(await argon2.verify(user.passwordHash, currentPassword))) {
+      throw new UnauthorizedException("当前密码错误。");
+    }
+    if (await argon2.verify(user.passwordHash, newPassword)) {
+      throw new BadRequestException("新密码不能与当前密码相同。");
+    }
+
+    const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
+    const currentTokenHash = hashToken(token!);
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+      prisma.authSession.updateMany({
+        where: { userId: user.id, revokedAt: null, refreshTokenHash: { not: currentTokenHash } },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    return { success: true, message: "密码已修改，其他设备的登录会话已失效。" };
+  }
+
   async updateProfile(token: string | undefined, input: { displayName?: string; locale?: string; timezone?: string }) {
     const user = await this.getCurrentUser(token);
     const profile = await prisma.userProfile.upsert({
