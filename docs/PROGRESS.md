@@ -547,3 +547,20 @@ Last updated: 2026-11-05
 - [ ] Verify the latest Android Build and CI workflows complete successfully.
 - [ ] Physical-device acceptance: test direct WhatsApp launch, message prefill, timer starting at first launch, abandon after 00:00, overlay on top of WhatsApp, screenshot capture, upload retry, and submission status.
 - [ ] The user must first grant Android overlay permission and MediaProjection screen-capture consent from Home > Device & permissions. Android requires explicit system consent; the app cannot silently grant screen capture.
+
+### Number inventory fan-out into individual claimable tasks (2026-11-05)
+
+**Implementation committed to main. Database schema synchronization and CI/device acceptance remain required.**
+
+- [x] Added `TaskSlot`: each authorized imported phone number is linked to one task template as an independent inventory slot.
+- [x] Publishing a task template binds all currently available, consent-granted, not-yet-bound numbers to that template. One number produces one independent task card.
+- [x] Authenticated `GET /api/v1/tasks` now returns one item per available slot, with a unique slot ID, template ID, reward/message/link data, and a masked phone number. Anonymous access remains blocked by the existing session authentication.
+- [x] Android task hall renders every returned slot instead of filtering all cards by the shared template ID. The claim request now submits both the template ID and the selected slot ID.
+- [x] Claiming reserves the selected slot and number transactionally; the same user can claim multiple different numbers from the same template, subject to the existing maximum of three active tasks and daily limit of twenty.
+- [x] Cancel and expiry return the assigned number slot to AVAILABLE. The task list endpoint expires stale claims before reading inventory, so returning to the app refreshes released slots immediately.
+- [x] Evidence submission keeps the number reserved while the submission is under review; it is not returned to the public pool on upload.
+- [x] Admin task list now reports total / available / assigned / used number inventory. The old per-template capacity field is no longer used to limit number-based slots.
+- [ ] Run `pnpm db:push` against the configured PostgreSQL database to create the new `task_slots` table and remove the old unique task/user claim constraint.
+- [ ] CI must pass Prisma generation, TypeScript, ESLint and production builds.
+- [ ] Android Build must pass and device acceptance must verify multiple number cards, simultaneous claim collision handling, cancellation/expiry reuse, and resume refresh.
+- [ ] Import numbers before publishing a template. Numbers already bound to another template are not duplicated into a second template.
