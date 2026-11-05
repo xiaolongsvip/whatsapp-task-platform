@@ -1014,6 +1014,7 @@ private fun ClaimedTaskCard(
     isEnglish: Boolean,
     activeClaimId: String?,
     busy: Boolean,
+    onViewDetails: () -> Unit,
     onGoWhatsApp: () -> Unit,
     onSelect: () -> Unit
 ) {
@@ -1076,17 +1077,27 @@ private fun ClaimedTaskCard(
                 )
             }
             if (canOpen) {
-                Button(
-                    onClick = {
-                        onSelect()
-                        onGoWhatsApp()
-                    },
-                    enabled = !busy && phone.isNotBlank() && phone != "null",
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
-                    shape = RoundedCornerShape(9.dp)
-                ) {
-                    Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    OutlinedButton(
+                        onClick = onViewDetails,
+                        modifier = Modifier.weight(1f),
+                        enabled = !busy,
+                        shape = RoundedCornerShape(9.dp)
+                    ) {
+                        Text(if (isEnglish) "View details" else "查看详情", color = WtpDarkGreen)
+                    }
+                    Button(
+                        onClick = {
+                            onSelect()
+                            onGoWhatsApp()
+                        },
+                        modifier = Modifier.weight(1.35f),
+                        enabled = !busy && phone.isNotBlank() && phone != "null",
+                        colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
+                        shape = RoundedCornerShape(9.dp)
+                    ) {
+                        Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
                 if (phone.isBlank() || phone == "null") {
                     Text(
