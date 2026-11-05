@@ -210,6 +210,52 @@ export class DashboardService {
     };
   }
 
+  async getWalletOverview(userId: string) {
+    const wallets = await prisma.wallet.findMany({
+      where: { userId },
+      select: { id: true, currency: true },
+    });
+    const walletIds = wallets.map((wallet) => wallet.id);
+    if (!walletIds.length) return { items: [], totals: [], frozenBalances: [] };
+    const [ledger, withdrawals] = await Promise.all([
+      prisma.ledgerEntry.groupBy({
+        by: ["walletId", "direction"],
+        where: { walletId: { in: walletIds } },
+        _sum: { amountMinor: true },
+      }),
+      prisma.withdrawalRequest.groupBy({
+        by: ["walletId", "status"],
+        where: { walletId: { in: walletIds } },
+        _sum: { amountMinor: true },
+      }),
+    ]);
+    const totals = wallets.map((wallet) => {
+      const entries = ledger.filter((row) => row.walletId === wallet.id);
+      const requests = withdrawals.filter((row) => row.walletId === wallet.id);
+      const sumDirection = (direction: "CREDIT" | "DEBIT") =>
+        entries.find((row) => row.direction === direction)?._sum.amountMinor ?? 0n;
+      const sumStatuses = (statuses: string[]) => requests
+        .filter((row) => statuses.includes(row.status))
+        .reduce((sum, row) => sum + (row._sum.amountMinor ?? 0n), 0n);
+      const income = sumDirection("CREDIT");
+      const expense = sumDirection("DEBIT");
+      const pending = sumStatuses(["REQUESTED", "UNDER_REVIEW"]);
+      const processing = sumStatuses(["APPROVED", "PROCESSING"]);
+      const reserved = pending + processing;
+      const available = income - expense - reserved;
+      return {
+        currency: wallet.currency.trim(),
+        incomeMinor: income.toString(),
+        expenseMinor: expense.toString(),
+        availableMinor: (available > 0n ? available : 0n).toString(),
+        pendingWithdrawalMinor: pending.toString(),
+        processingWithdrawalMinor: processing.toString(),
+        frozenMinor: "0",
+      };
+    });
+    return { totals, frozenBalances: [] };
+  }
+
   async getWalletTransactions(userId: string, limit = 100) {
     const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 100, 1), 100);
     const wallets = await prisma.wallet.findMany({
