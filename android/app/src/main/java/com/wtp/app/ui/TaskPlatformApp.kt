@@ -1055,6 +1055,30 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
 @Composable
 private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
     val isEnglish = language == "en"
+    var items by remember { mutableStateOf<JSONArray?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        loading = true
+        runCatching { withContext(Dispatchers.IO) { AuthRepository.withdrawalHistory() } }
+            .onSuccess { response -> items = response.optJSONArray("items") ?: JSONArray() }
+            .onFailure { error = it.message ?: if (isEnglish) "Unable to load records" else "加载提现记录失败" }
+        loading = false
+    }
+
+    fun statusLabel(status: String): String = when (status) {
+        "REQUESTED" -> if (isEnglish) "Requested" else "待处理"
+        "UNDER_REVIEW" -> if (isEnglish) "Under review" else "审核中"
+        "APPROVED" -> if (isEnglish) "Approved" else "已批准"
+        "PROCESSING" -> if (isEnglish) "Processing" else "处理中"
+        "PAID" -> if (isEnglish) "Paid" else "已支付"
+        "REJECTED" -> if (isEnglish) "Rejected" else "已拒绝"
+        "FAILED" -> if (isEnglish) "Failed" else "失败"
+        "CANCELLED" -> if (isEnglish) "Cancelled" else "已取消"
+        else -> status
+    }
+
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
@@ -1063,15 +1087,37 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
             Spacer(Modifier.weight(1f))
             Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
-        Card(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(Modifier.fillMaxWidth().height(120.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text(if (isEnglish) "No withdrawal records" else "暂无提现记录", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                Text(if (isEnglish) "Submit a withdrawal request to track its progress here" else "提交提现申请后，可在这里查看进度", color = Color(0xFF789087), style = MaterialTheme.typography.bodyMedium)
+        when {
+            loading -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            error != null -> Text(error.orEmpty(), Modifier.padding(20.dp), color = Color(0xFFB42318))
+            items == null || items!!.length() == 0 -> Card(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().height(120.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(if (isEnglish) "No withdrawal records" else "暂无提现记录", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(if (isEnglish) "Your withdrawal requests will appear here" else "提交提现申请后，可在这里查看处理进度", color = Color(0xFF789087), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val data = items!!
+                for (index in 0 until data.length()) {
+                    val item = data.optJSONObject(index) ?: continue
+                    val currency = item.optString("currency", "")
+                    val amount = formatMinorByCurrency(item.optString("amountMinor", "0").toLongOrNull() ?: 0L, currency)
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(amount, color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                                Text(statusLabel(item.optString("status")), color = Color(0xFF319CCB), fontWeight = FontWeight.SemiBold)
+                            }
+                            Text(if (isEnglish) "Request ID: " + item.optString("id") else "申请编号：" + item.optString("id"), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                            Text(item.optString("createdAt"), color = Color(0xFF98A2B3), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
         }
     }
