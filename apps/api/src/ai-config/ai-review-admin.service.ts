@@ -115,9 +115,6 @@ export class AiReviewAdminService {
 
       const submission = job.submission;
       const claim = submission.claim;
-      if (submission.aiReviewJob && submission.aiReviewJob.status !== "NEEDS_REVIEW") {
-        throw new ConflictException("AI 审核任务尚未进入人工处理状态，请稍后刷新。");
-      }
       if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
           !["SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
         throw new ConflictException("任务或提交状态已变化，不能重复审核。");
