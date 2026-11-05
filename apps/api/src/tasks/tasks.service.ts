@@ -336,7 +336,15 @@ export class TasksService {
       if (!claim || claim.userId !== userId) {
         throw new NotFoundException("任务领取记录不存在。");
       }
-      if (![ "CLAIMED", "IN_PROGRESS", "REJECTED" ].includes(claim.status)) {
+      if (claim.status === "EXPIRED" || claim.status === "CANCELLED") {
+        return {
+          claimId,
+          status: claim.status,
+          numberReturnedToPool: false,
+          alreadyClosed: true,
+        };
+      }
+      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能开始或继续。");
       }
       if (claim.status === "IN_PROGRESS" && claim.expiresAt) {
