@@ -189,4 +189,106 @@ export class AiReviewAdminService {
     });
   }
 
+  async reviewSubmission(submissionId: string, adminId: string, decision: "APPROVE" | "REJECT", reason: string) {
+    const cleanReason = reason.trim();
+    if (!cleanReason) throw new BadRequestException("请填写审核理由。");
+
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_submissions WHERE id = ${submissionId}::uuid FOR UPDATE
+      `;
+      const submission = await tx.taskSubmission.findUnique({
+        where: { id: submissionId },
+        include: {
+          aiReviewJob: true,
+          claim: {
+            include: {
+              task: true,
+              contactAssignment: true,
+              taskSlot: true,
+            },
+          },
+        },
+      });
+      if (!submission) throw new NotFoundException("任务提交记录不存在。");
+      const claim = submission.claim;
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
+          !["SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
+        throw new ConflictException("该提交已处理或状态已变化，不能重复审核。");
+      }
+
+      await tx.taskReview.create({
+        data: {
+          submissionId: submission.id,
+          reviewerAdminId: adminId,
+          decision,
+          reason: cleanReason,
+        },
+      });
+
+      if (decision === "APPROVE") {
+        const wallet = await tx.wallet.upsert({
+          where: { userId_currency: { userId: claim.userId, currency: claim.task.currency } },
+          create: { userId: claim.userId, currency: claim.task.currency },
+          update: {},
+        });
+        await tx.ledgerEntry.createMany({
+          data: [{
+            walletId: wallet.id,
+            sourceType: "TASK_REWARD",
+            sourceId: claim.id,
+            direction: "CREDIT",
+            amountMinor: claim.task.rewardMinor,
+            currency: claim.task.currency,
+            idempotencyKey: `task-reward:${claim.id}`,
+          }],
+          skipDuplicates: true,
+        });
+        await tx.taskSubmission.update({ where: { id: submission.id }, data: { status: "APPROVED" } });
+        await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "APPROVED" } });
+        if (claim.contactAssignment) {
+          await tx.contactAssignment.update({
+            where: { id: claim.contactAssignment.id },
+            data: { status: "COMPLETED", completedAt: new Date() },
+          });
+          await tx.contactNumber.updateMany({
+            where: { id: claim.contactAssignment.contactNumberId, status: "ASSIGNED" },
+            data: { status: "USED" },
+          });
+        }
+        if (claim.taskSlot) {
+          await tx.taskSlot.updateMany({
+            where: { id: claim.taskSlot.id, status: "ASSIGNED", claimId: claim.id },
+            data: { status: "USED", usedAt: new Date() },
+          });
+        }
+      } else {
+        await tx.taskSubmission.update({ where: { id: submission.id }, data: { status: "REJECTED" } });
+        await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "REJECTED" } });
+      }
+
+      if (submission.aiReviewJob) {
+        await tx.aiReviewJob.update({
+          where: { id: submission.aiReviewJob.id },
+          data: {
+            status: "COMPLETED",
+            decision,
+            reason: cleanReason,
+            lockedAt: null,
+            lastError: null,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        submissionId: submission.id,
+        claimId: claim.id,
+        decision,
+        submissionStatus: decision === "APPROVE" ? "APPROVED" : "REJECTED",
+        claimStatus: decision === "APPROVE" ? "APPROVED" : "REJECTED",
+      };
+    });
+  }
+
 }
