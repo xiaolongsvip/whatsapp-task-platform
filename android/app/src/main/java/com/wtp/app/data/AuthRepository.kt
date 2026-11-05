@@ -179,6 +179,8 @@ object AuthRepository {
 
     fun promotionSummary(): JSONObject = request("GET", "users/promotion")
 
+    fun withdrawalHistory(): JSONObject = request("GET", "users/withdrawals")
+
     fun publishedTasks(): JSONObject = request("GET", "tasks")
 
     fun myTaskClaims(): JSONObject = request("GET", "tasks/my/claims")
