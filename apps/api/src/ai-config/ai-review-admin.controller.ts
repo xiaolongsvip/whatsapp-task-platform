@@ -1,7 +1,8 @@
-import { Controller, Get, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { AiReviewAdminService } from "./ai-review-admin.service";
+import { ReviewAiSubmissionDto } from "./review-ai-submission.dto";
 
 const COOKIE = "wtp_admin_session";
 
@@ -33,4 +34,14 @@ export class AiReviewAdminController {
       Math.min(100, Math.max(1, Number.parseInt(pageSize || "20", 10) || 20)),
     );
   }
+  @Post(":id/review")
+  async review(
+    @Req() request: Request,
+    @Param("id") id: string,
+    @Body() body: ReviewAiSubmissionDto,
+  ) {
+    const admin = await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.review(id, admin.id, body.decision, body.reason);
+  }
+
 }
