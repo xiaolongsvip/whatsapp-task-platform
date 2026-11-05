@@ -115,16 +115,25 @@ export class AiConfigService {
     if (input.clearApiKey && input.apiKey?.trim()) {
       throw new BadRequestException("不能同时设置新 API Key 和清除 API Key。");
     }
-    if (
-      input.approveThreshold !== undefined &&
-      input.rejectThreshold !== undefined &&
-      input.approveThreshold < input.rejectThreshold
-    ) {
+    const existing = await this.getOrCreate();
+    const nextApproveThreshold = input.approveThreshold ?? existing.approveThreshold;
+    const nextRejectThreshold = input.rejectThreshold ?? existing.rejectThreshold;
+    if (nextApproveThreshold < nextRejectThreshold) {
       throw new BadRequestException("通过阈值不能低于拒绝阈值。");
     }
 
-    const existing = await this.getOrCreate();
     const apiKey = input.apiKey?.trim();
+    if (
+      input.enabled === true &&
+      !apiKey &&
+      !input.clearApiKey &&
+      !existing.apiKeyCiphertext
+    ) {
+      throw new BadRequestException("启用 AI 自动审核前，请先配置 API Key。");
+    }
+    if (input.enabled === true && input.clearApiKey) {
+      throw new BadRequestException("清除 API Key 前，请先关闭 AI 自动审核。");
+    }
     const encrypted = apiKey ? encryptApiKey(apiKey) : undefined;
     const clear = input.clearApiKey === true;
 
