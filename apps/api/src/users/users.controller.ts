@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { ChangePasswordDto } from "./change-password.dto";
 import type { Request } from "express";
@@ -61,6 +61,12 @@ export class UsersController {
   async getPromotion(@Req() request: Request) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
     return this.dashboard.getPromotionSummary(user.id, user.profile?.timezone ?? "UTC");
+  }
+
+  @Get("wallet-transactions")
+  async getWalletTransactions(@Req() request: Request, @Query("limit") limit?: string) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.dashboard.getWalletTransactions(user.id, limit ? Number(limit) : 100);
   }
 
   @Get("commission-records")
