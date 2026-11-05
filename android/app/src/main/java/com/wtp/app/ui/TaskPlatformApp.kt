@@ -89,7 +89,7 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
     }) { padding ->
         when (tab) {
             0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it }, language = language, onLanguageChanged = onLanguageChanged)
-            1 -> SimpleScreen(if (language == "en") "Task Hall" else "任务大厅", if (language == "en") "Task list will be connected in the task module." else "任务列表将在任务模块接入。", Modifier.padding(padding))
+            1 -> TaskHallScreen(Modifier.padding(padding), language)
             2 -> SimpleScreen(if (language == "en") "Promote" else "推广中心", if (language == "en") "Referral relationships and rewards will be connected in the promotion module." else "推广关系和奖励将在推广模块接入。", Modifier.padding(padding))
             3 -> SimpleScreen(if (language == "en") "Wallet" else "钱包", if (language == "en") "Wallet balances and statements will be connected in the wallet module." else "钱包余额和账单将在钱包模块接入。", Modifier.padding(padding))
             else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
