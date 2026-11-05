@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { StorageConfigService } from "../storage-config/storage-config.service";
 import { createHash, createHmac } from "node:crypto";
 
 type StorageConfig = {
@@ -25,7 +26,16 @@ function awsEncode(value: string): string {
 
 @Injectable()
 export class S3ObjectStorageService {
-  private config(): StorageConfig {
+  constructor(private readonly storageConfig: StorageConfigService) {}
+
+  private async config(): Promise<StorageConfig> {
+    const saved = await this.storageConfig.getRuntimeCredentials();
+    if (saved) {
+      let endpoint: URL;
+      try { endpoint = new URL(saved.endpoint); }
+      catch { throw new ServiceUnavailableException("后台对象存储 Endpoint 无效。"); }
+      return { endpoint, bucket: saved.bucket, accessKey: saved.accessKey, secretKey: saved.secretKey, region: saved.region || "auto" };
+    }
     const endpointValue = process.env.STORAGE_ENDPOINT?.trim();
     const bucket = process.env.STORAGE_BUCKET?.trim();
     const accessKey = process.env.STORAGE_ACCESS_KEY?.trim();
@@ -79,7 +89,7 @@ export class S3ObjectStorageService {
     body: Buffer = Buffer.alloc(0),
     contentType?: string,
   ): Promise<Buffer | void> {
-    const config = this.config();
+    const config = await this.config();
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
     const dateStamp = amzDate.slice(0, 8);
