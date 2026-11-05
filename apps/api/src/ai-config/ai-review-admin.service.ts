@@ -291,4 +291,55 @@ export class AiReviewAdminService {
     });
   }
 
+  async listSubmissions(status?: string, page = 1, pageSize = 20) {
+    const allowed = ["SUBMITTED", "UNDER_REVIEW"];
+    const normalized = status && allowed.includes(status) ? status : undefined;
+    const take = Math.min(100, Math.max(1, pageSize));
+    const skip = (Math.max(1, page) - 1) * take;
+    const where = { status: normalized ? normalized as never : { in: allowed as never[] } };
+    const [total, submissions] = await prisma.$transaction([
+      prisma.taskSubmission.count({ where }),
+      prisma.taskSubmission.findMany({
+        where,
+        orderBy: [{ submittedAt: "asc" }],
+        skip,
+        take,
+        include: {
+          aiReviewJob: { select: { id: true, status: true, decision: true, confidence: true, reason: true } },
+          claim: {
+            include: {
+              task: { select: { id: true, title: true, rewardMinor: true, currency: true } },
+              user: { select: { id: true, phone: true } },
+            },
+          },
+        },
+      }),
+    ]);
+    return {
+      page: Math.max(1, page),
+      pageSize: take,
+      total,
+      submissions: submissions.map((submission) => ({
+        id: submission.id,
+        status: submission.status,
+        originalName: submission.originalName,
+        mimeType: submission.mimeType,
+        sizeBytes: submission.sizeBytes,
+        submittedAt: submission.submittedAt.toISOString(),
+        note: submission.note,
+        aiReview: submission.aiReviewJob,
+        task: {
+          id: submission.claim.task.id,
+          title: submission.claim.task.title,
+          rewardMinor: submission.claim.task.rewardMinor.toString(),
+          currency: submission.claim.task.currency.trim(),
+        },
+        user: {
+          id: submission.claim.user.id,
+          phone: submission.claim.user.phone,
+        },
+      })),
+    };
+  }
+
 }
