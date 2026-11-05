@@ -79,6 +79,12 @@ enum ContactAssignmentStatus {
   COMPLETED
 }
 
+enum TaskSlotStatus {
+  AVAILABLE
+  ASSIGNED
+  USED
+}
+
 enum AdminStatus {
   ACTIVE
   DISABLED
@@ -189,6 +195,7 @@ model ContactNumber {
   updatedAt       DateTime              @updatedAt @map("updated_at")
   importBatch     ContactImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
   assignments     ContactAssignment[]
+  taskSlots       TaskSlot[]
   consentEvents   ContactConsentEvent[]
 
   @@index([status, consentStatus, importOrder])
@@ -206,6 +213,25 @@ model ContactConsentEvent {
 
   @@index([contactNumberId, recordedAt])
   @@map("contact_consent_events")
+}
+
+model TaskSlot {
+  id              String         @id @default(uuid()) @db.Uuid
+  taskId          String         @map("task_id") @db.Uuid
+  contactNumberId String         @unique @map("contact_number_id") @db.Uuid
+  claimId         String?        @unique @map("claim_id") @db.Uuid
+  status          TaskSlotStatus @default(AVAILABLE)
+  assignedAt      DateTime?      @map("assigned_at")
+  releasedAt      DateTime?      @map("released_at")
+  usedAt          DateTime?      @map("used_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  task            Task           @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  contactNumber   ContactNumber  @relation(fields: [contactNumberId], references: [id], onDelete: Restrict)
+  claim           TaskClaim?     @relation(fields: [claimId], references: [id], onDelete: Restrict)
+
+  @@index([taskId, status, createdAt])
+  @@map("task_slots")
 }
 
 model ContactAssignment {
@@ -247,6 +273,7 @@ model Task {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   claims       TaskClaim[]
+  slots        TaskSlot[]
 
   @@index([status, startsAt, endsAt])
   @@map("tasks")
@@ -264,8 +291,9 @@ model TaskClaim {
   user           User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   submissions    TaskSubmission[]
   contactAssignment ContactAssignment?
+  taskSlot       TaskSlot?
 
-  @@unique([taskId, userId])
+  @@index([taskId, userId, status])
   @@index([userId, status, claimedAt])
   @@index([taskId, status])
   @@map("task_claims")
