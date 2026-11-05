@@ -208,7 +208,7 @@ export class TaskAdminService {
       });
       if (availableNumbers.length === 0) {
         const existingSlots = await tx.taskSlot.count({
-          where: { taskId, status: "AVAILABLE" },
+          where: { taskId, status: { in: ["AVAILABLE", "ASSIGNED"] } },
         });
         if (existingSlots === 0) {
           throw new ConflictException("号码池没有可分配的已授权号码，请先导入号码后再发布任务。");
