@@ -196,7 +196,8 @@ class ScreenCaptureService : Service() {
             return
         }
         CaptureSessionState.setError(null)
-        updateNotification("已请求截图，正在获取当前画面…")
+        setFloatingStatus("截图中…")
+        updateNotification("正在截取当前屏幕，请稍候…")
     }
 
     private fun onImageAvailable(reader: ImageReader) {
@@ -212,6 +213,8 @@ class ScreenCaptureService : Service() {
             val activeClaimId = CaptureSessionState.activeClaimId.value
             if (!activeClaimId.isNullOrBlank()) {
                 try {
+                    setFloatingStatus("上传中…")
+                    updateNotification("截图成功，正在上传并提交审核…")
                     AuthRepository.submitTaskEvidence(
                         claimId = activeClaimId,
                         filePath = file.absolutePath,
@@ -220,19 +223,23 @@ class ScreenCaptureService : Service() {
                     )
                     CaptureSessionState.markLastCaptureUploaded("截图已自动上传并提交审核")
                     updateNotification("截图已自动上传并提交审核")
-                    mainHandler.post { removeFloatingAction() }
+                    setFloatingStatus("已提交 ✓")
+                    mainHandler.postDelayed({ removeFloatingAction() }, 2500)
                 } catch (uploadError: Exception) {
                     CaptureSessionState.setError("自动上传失败，截图已保存在本机，请检查网络后再次点击蓝色水球：${uploadError.message ?: "网络或存储错误"}")
-                    updateNotification("上传失败；截图已保存在本机，可再次点击水球重试")
+                    updateNotification("上传失败；截图已保存在本机，点击水球可重试")
+                    setFloatingStatus("上传失败\n点击重试")
                     mainHandler.postDelayed({ showFloatingAction() }, 700)
                 }
             } else {
-                updateNotification("截图已保存：${file.name}；选择当前任务后可提交审核")
+                updateNotification("截图已保存：${file.name}；当前没有选定任务，尚未上传")
+                setFloatingStatus("已截图\n未提交")
                 mainHandler.postDelayed({ showFloatingAction() }, 700)
             }
         } catch (error: Exception) {
             CaptureSessionState.setError("保存截图失败：${error.message ?: "未知错误"}")
-            updateNotification("截图保存失败；截图会话仍在运行")
+            updateNotification("截图保存失败；请再次点击水球重试")
+            setFloatingStatus("截图失败\n点击重试")
             mainHandler.postDelayed({ showFloatingAction() }, 700)
         } finally {
             captureRequested.set(false)
@@ -279,7 +286,7 @@ class ScreenCaptureService : Service() {
             setLayerInset(1, dp(9), dp(5), dp(29), dp(35))
         }
         val button = TextView(this).apply {
-            text = "已发送\n提交任务"
+            text = "点击截图\n自动提交"
             textSize = 9f
             setTextColor(android.graphics.Color.WHITE)
             gravity = Gravity.CENTER
@@ -333,8 +340,11 @@ class ScreenCaptureService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!dragged) {
-                        removeFloatingAction()
-                        mainHandler.postDelayed({ requestCapture() }, 300)
+                        if (captureRequested.get()) {
+                            updateNotification("正在处理截图，请稍候…")
+                        } else {
+                            mainHandler.postDelayed({ requestCapture() }, 120)
+                        }
                     }
                     true
                 }
@@ -348,6 +358,13 @@ class ScreenCaptureService : Service() {
         } catch (_: Exception) {
             floatingAction = null
             floatingParams = null
+        }
+    }
+
+    private fun setFloatingStatus(message: String) {
+        mainHandler.post {
+            floatingAction?.text = message
+            floatingAction?.contentDescription = message.replace("\n", " ")
         }
     }
 
