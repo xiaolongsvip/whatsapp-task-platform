@@ -9,7 +9,7 @@ import {
 import type { Request, Response } from "express";
 import { Throttle } from "@nestjs/throttler";
 import { AdminAuthService } from "./admin-auth.service";
-import { AdminLoginDto } from "./admin-auth.dto";
+import { AdminBootstrapDto, AdminLoginDto } from "./admin-auth.dto";
 
 const COOKIE_NAME = "wtp_admin_session";
 const COOKIE_MAX_AGE = 8 * 60 * 60 * 1000;
@@ -34,6 +34,14 @@ function setSessionCookie(response: Response, token: string) {
 @Controller("admin-auth")
 export class AdminAuthController {
   constructor(private readonly auth: AdminAuthService) {}
+
+  @Throttle({ default: { limit: 2, ttl: 60_000 } })
+  @Post("bootstrap")
+  async bootstrap(@Body() body: AdminBootstrapDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.auth.bootstrap(body.bootstrapToken, body.email, body.password);
+    setSessionCookie(response, result.token);
+    return { admin: result.admin, expiresAt: result.expiresAt };
+  }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("login")
