@@ -361,14 +361,13 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       if (claim.task.endsAt && claim.task.endsAt <= now) {
         throw new ConflictException("任务已结束，无法开始。");
       }
-      // Restarting a rejected task reuses its original deadline; it never
-      // grants another three-minute execution window.
-      const expiresAt = claim.status === "REJECTED"
-        ? claim.expiresAt!
-        : new Date(Math.min(
-            now.getTime() + 3 * 60 * 1000,
-            claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
-          ));
+      // The three-minute deadline starts when the task is claimed, not when
+      // the member opens WhatsApp. Starting or restarting never extends it.
+      // The fallback only supports legacy claims created without expiresAt.
+      const expiresAt = claim.expiresAt ?? new Date(Math.min(
+        now.getTime() + 3 * 60 * 1000,
+        claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
+      ));
       const started = await tx.taskClaim.update({
         where: { id: claimId },
         data: { status: "IN_PROGRESS", expiresAt },
