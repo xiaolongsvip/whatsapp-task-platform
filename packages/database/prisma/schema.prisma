@@ -446,12 +446,12 @@ model ObjectStorageConfig {
   endpoint            String   @db.Text
   bucket              String
   region              String   @default("auto")
-  accessKeyCiphertext String   @map("access_key_ciphertext") @db.Text
-  accessKeyIv         String   @map("access_key_iv")
-  accessKeyTag        String   @map("access_key_tag")
-  secretKeyCiphertext String   @map("secret_key_ciphertext") @db.Text
-  secretKeyIv         String   @map("secret_key_iv")
-  secretKeyTag        String   @map("secret_key_tag")
+  accessKeyCiphertext String?    @map("access_key_ciphertext") @db.Text
+  accessKeyIv         String?    @map("access_key_iv")
+  accessKeyTag        String?    @map("access_key_tag")
+  secretKeyCiphertext String?    @map("secret_key_ciphertext") @db.Text
+  secretKeyIv         String?    @map("secret_key_iv")
+  secretKeyTag        String?    @map("secret_key_tag")
   enabled             Boolean  @default(false)
   updatedByAdminId    String?  @map("updated_by_admin_id") @db.Uuid
   createdAt           DateTime @default(now()) @map("created_at")
