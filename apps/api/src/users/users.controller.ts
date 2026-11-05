@@ -63,6 +63,12 @@ export class UsersController {
     return this.dashboard.getPromotionSummary(user.id, user.profile?.timezone ?? "UTC");
   }
 
+  @Get("wallet-overview")
+  async getWalletOverview(@Req() request: Request) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.dashboard.getWalletOverview(user.id);
+  }
+
   @Get("wallet-transactions")
   async getWalletTransactions(@Req() request: Request, @Query("limit") limit?: string) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
