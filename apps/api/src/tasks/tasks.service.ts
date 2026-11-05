@@ -137,6 +137,9 @@ export class TasksService {
             currency: true,
           },
         },
+        contactAssignment: {
+          include: { contactNumber: { select: { phoneE164: true } } },
+        },
         submissions: {
           orderBy: { submittedAt: "desc" },
           take: 1,
@@ -158,6 +161,7 @@ export class TasksService {
         taskId: claim.taskId,
         status: claim.status,
         claimedAt: claim.claimedAt.toISOString(),
+        assignedPhoneNumber: claim.contactAssignment?.contactNumber.phoneE164 ?? null,
         task: {
           ...claim.task,
           rewardMinor: claim.task.rewardMinor.toString(),
@@ -173,7 +177,7 @@ export class TasksService {
     const key = idempotencyKey(rawKey);
     const replay = await prisma.taskClaim.findUnique({
       where: { idempotencyKey: key },
-      include: { task: true },
+      include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
     });
     if (replay) {
       if (replay.userId !== userId || replay.taskId !== taskId) {
@@ -215,6 +219,34 @@ export class TasksService {
           throw new ConflictException(`已达到每日领取上限（${DAILY_TASK_LIMIT} 个任务）。`);
         }
 
+        // Lock the oldest eligible number. SKIP LOCKED makes concurrent
+        // claim requests move to the next number instead of double-assigning it.
+        const availableNumbers = await tx.$queryRaw<Array<{ id: string; phone_e164: string }>>`
+          SELECT id, phone_e164
+          FROM contact_numbers
+          WHERE status = 'AVAILABLE'::"ContactNumberStatus"
+            AND consent_status = 'GRANTED'::"ContactConsentStatus"
+          ORDER BY import_order ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        `;
+        const contactNumber = availableNumbers[0];
+        if (!contactNumber) {
+          throw new ConflictException("当前没有可分配的已授权号码，请稍后再试。");
+        }
+
+        const numberReserved = await tx.contactNumber.updateMany({
+          where: {
+            id: contactNumber.id,
+            status: "AVAILABLE",
+            consentStatus: "GRANTED",
+          },
+          data: { status: "ASSIGNED" },
+        });
+        if (numberReserved.count !== 1) {
+          throw new ConflictException("号码刚刚被其他任务占用，请重新领取。");
+        }
+
         const capacityUpdate = await tx.task.updateMany({
           where: {
             id: taskId,
@@ -233,8 +265,21 @@ export class TasksService {
             userId,
             status: "CLAIMED",
             idempotencyKey: key,
+            expiresAt: task.endsAt ?? undefined,
+            contactAssignment: {
+              create: {
+                contactNumberId: contactNumber.id,
+                userId,
+                status: "ASSIGNED",
+              },
+            },
           },
-          include: { task: true },
+          include: {
+            task: true,
+            contactAssignment: {
+              include: { contactNumber: { select: { phoneE164: true } } },
+            },
+          },
         });
       });
       return this.claimResponse(claim);
@@ -242,7 +287,7 @@ export class TasksService {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
         const existing = await prisma.taskClaim.findUnique({
           where: { idempotencyKey: key },
-          include: { task: true },
+          include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
         });
         if (existing && existing.userId === userId && existing.taskId === taskId) {
           return this.claimResponse(existing);
@@ -250,6 +295,60 @@ export class TasksService {
       }
       throw error;
     }
+  }
+
+  async cancelClaim(userId: string, claimId: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_claims WHERE id = ${claimId}::uuid FOR UPDATE
+      `;
+
+      const claim = await tx.taskClaim.findUnique({
+        where: { id: claimId },
+        include: { contactAssignment: true },
+      });
+      if (!claim || claim.userId !== userId) {
+        throw new NotFoundException("任务领取记录不存在。");
+      }
+      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+        throw new ConflictException("当前任务状态不能取消。");
+      }
+
+      const pending = await tx.taskSubmission.findFirst({
+        where: { claimId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } },
+        select: { id: true },
+      });
+      if (pending) {
+        throw new ConflictException("任务正在审核中，不能取消。");
+      }
+
+      await tx.taskClaim.update({
+        where: { id: claimId },
+        data: { status: "CANCELLED" },
+      });
+
+      if (claim.contactAssignment?.status === "ASSIGNED") {
+        await tx.contactAssignment.update({
+          where: { id: claim.contactAssignment.id },
+          data: { status: "RELEASED", releasedAt: new Date() },
+        });
+        await tx.contactNumber.updateMany({
+          where: {
+            id: claim.contactAssignment.contactNumberId,
+            status: "ASSIGNED",
+            consentStatus: "GRANTED",
+          },
+          data: { status: "AVAILABLE" },
+        });
+      }
+
+      await tx.task.updateMany({
+        where: { id: claim.taskId, claimedCount: { gt: 0 } },
+        data: { claimedCount: { decrement: 1 } },
+      });
+
+      return { claimId, status: "CANCELLED", numberReturnedToPool: claim.contactAssignment?.status === "ASSIGNED" };
+    });
   }
 
   async submitEvidence(
@@ -380,12 +479,14 @@ export class TasksService {
     status: string;
     claimedAt: Date;
     task: { id: string; title: string; rewardMinor: bigint; currency: string };
+    contactAssignment?: { contactNumber: { phoneE164: string } } | null;
   }) {
     return {
       id: claim.id,
       taskId: claim.taskId,
       status: claim.status,
       claimedAt: claim.claimedAt.toISOString(),
+      assignedPhoneNumber: claim.contactAssignment?.contactNumber.phoneE164 ?? null,
       task: {
         id: claim.task.id,
         title: claim.task.title,
