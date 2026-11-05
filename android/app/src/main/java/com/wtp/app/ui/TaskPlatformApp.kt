@@ -176,7 +176,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
 
         if (error != null) Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3F2)), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(14.dp)) {
-                Text("首页数据加载失败", color = Color(0xFFB42318), fontWeight = FontWeight.Bold)
+                Text(if (isEnglish) "Dashboard failed to load" else "首页数据加载失败", color = Color(0xFFB42318), fontWeight = FontWeight.Bold)
                 Text(error!!, color = Color(0xFFB42318))
                 TextButton(onClick = { load() }) { Text(if (isEnglish) "Retry" else "重新加载") }
             }
@@ -190,7 +190,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                     Text(if (isEnglish) "Important notice" else "重要提醒", color = Color(0xFFE53945), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(if (isEnglish) "Follow WhatsApp rules and work only with people who agreed to receive messages. Harassment, forged evidence and attempts to bypass platform rules are prohibited." else "为保障 WhatsApp 账号安全，请遵守 WhatsApp 使用规则，仅向已同意接收消息的用户开展任务。禁止骚扰信息、伪造任务证据或规避平台规则.", color = Color(0xFFD93640), style = MaterialTheme.typography.bodyMedium)
+                Text(if (isEnglish) "Follow WhatsApp rules and work only with people who agreed to receive messages. Harassment, forged evidence and attempts to bypass platform rules are prohibited." else "为保障 WhatsApp 账号安全，请遵守 WhatsApp 使用规则，仅向已同意接收消息的用户开展任务。禁止骚扰信息、伪造任务证据或规避平台规则。", color = Color(0xFFD93640), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
