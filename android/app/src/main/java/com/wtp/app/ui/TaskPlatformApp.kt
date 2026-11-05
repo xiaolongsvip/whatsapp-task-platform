@@ -139,17 +139,17 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
     LaunchedEffect(Unit) { user = withContext(Dispatchers.IO) { runCatching { AuthRepository.currentUser() }.getOrNull() } }
     val id = user?.optString("id")?.takeIf { it.isNotBlank() && it != "null" } ?: user?.optString("userId")?.takeIf { it.isNotBlank() && it != "null" }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFFB5E7D0), Color(0xFFE8F7EF)))).padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFFB9E8FC), Color(0xFFF2F7FB)))).padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text(if (en) "Withdraw  0.000" else "提现  0.000", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF278666), fontWeight = FontWeight.Bold) }
-                Spacer(Modifier.weight(1f)); Text(if (en) "My" else "我的", color = Color(0xFF315D4D), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Spacer(Modifier.weight(1f))
-                Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF638579)); Spacer(Modifier.width(14.dp)); Icon(Icons.Default.Language, null, tint = Color(0xFF638579))
+                Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text(if (en) "Withdraw  0.000" else "提现  0.000", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold) }
+                Spacer(Modifier.weight(1f)); Text(if (en) "My" else "我的", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Spacer(Modifier.weight(1f))
+                Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF5AAED0)); Spacer(Modifier.width(14.dp)); Icon(Icons.Default.Language, null, tint = Color(0xFF5AAED0))
             }
             Row(Modifier.fillMaxWidth().clickable { dialog = "security" }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Color(0xFFE9F8F0), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)) { Icon(Icons.Default.Person, null, tint = Color(0xFF278666), modifier = Modifier.size(68.dp).padding(17.dp)) }
+                Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)) { Icon(Icons.Default.Person, null, tint = Color(0xFF319CCB), modifier = Modifier.size(68.dp).padding(17.dp)) }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Text(phone, color = Color(0xFF17243A), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge); Surface(color = Color(0xFFDDF4E8), shape = RoundedCornerShape(20.dp)) { Text(if (en) "Verified" else "已认证", Modifier.padding(horizontal = 9.dp, vertical = 4.dp), color = Color(0xFF278666), style = MaterialTheme.typography.labelSmall) } }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Text(phone, color = Color(0xFF17243A), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge); Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(20.dp)) { Text(if (en) "Verified" else "已认证", Modifier.padding(horizontal = 9.dp, vertical = 4.dp), color = Color(0xFF319CCB), style = MaterialTheme.typography.labelSmall) } }
                     if (id != null) Text("ID: $id", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
                 }
                 Surface(color = Color.White, shape = RoundedCornerShape(50)) { Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF667085), modifier = Modifier.padding(8.dp)) }
@@ -157,20 +157,20 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
         }
         Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onInvite), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Color(0xFFE5F6ED), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFF278666), modifier = Modifier.padding(12.dp)) }
+                Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(12.dp)) }
                 Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(if (en) "Invite friends and earn commission" else "邀请好友赚佣金", fontWeight = FontWeight.Bold, color = Color(0xFF17243A)); Text(if (en) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外佣金奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall) }
-                Button(onClick = onInvite, shape = RoundedCornerShape(24.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666))) { Text(if (en) "Invite  ›" else "去邀请  ›") }
+                Button(onClick = onInvite, shape = RoundedCornerShape(24.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) { Text(if (en) "Invite  ›" else "去邀请  ›") }
             }
         }
         Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if (en) "My assets" else "我的资产", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17243A))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    ProfileAsset(Icons.Default.Wallet, if (en) "Available balance" else "可提现余额", "0.000", Color(0xFF278666), Modifier.weight(1f), onPayoutAccounts)
-                    Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFE8EDF0)))
+                    ProfileAsset(Icons.Default.Wallet, if (en) "Available balance" else "可提现余额", "0.000", Color(0xFF319CCB), Modifier.weight(1f), onPayoutAccounts)
+                    Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFD8E5EC)))
                     ProfileAsset(Icons.Default.AccountBalanceWallet, if (en) "Pending rewards" else "待审核奖励", "—", Color(0xFFFF8A22), Modifier.weight(1f))
-                    Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFE8EDF0)))
-                    ProfileAsset(Icons.Default.Paid, if (en) "Total earnings" else "累计收益", "0.000", Color(0xFF278666), Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFD8E5EC)))
+                    ProfileAsset(Icons.Default.Paid, if (en) "Total earnings" else "累计收益", "0.000", Color(0xFF319CCB), Modifier.weight(1f))
                 }
             }
         }
@@ -228,16 +228,16 @@ private fun ChangePasswordScreen(modifier: Modifier = Modifier, language: String
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Text(if (en) "Change password" else "修改密码", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
                 @Composable fun passwordField(value: String, label: String, visible: Boolean, onVisible: () -> Unit, onValue: (String) -> Unit) {
-                    OutlinedTextField(value = value, onValueChange = onValue, modifier = Modifier.fillMaxWidth(), placeholder = { Text(label, color = Color(0xFF71877D)) }, singleLine = true, shape = RoundedCornerShape(5.dp), visualTransformation = if (visible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(), trailingIcon = { IconButton(onClick = onVisible) { Icon(if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (en) "Show password" else "显示密码", tint = Color(0xFF71877D)) } }, colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color(0xFFE1EAE5), focusedBorderColor = Color(0xFF8BB9A6)))
+                    OutlinedTextField(value = value, onValueChange = onValue, modifier = Modifier.fillMaxWidth(), placeholder = { Text(label, color = Color(0xFF667085)) }, singleLine = true, shape = RoundedCornerShape(5.dp), visualTransformation = if (visible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(), trailingIcon = { IconButton(onClick = onVisible) { Icon(if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (en) "Show password" else "显示密码", tint = Color(0xFF667085)) } }, colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color(0xFFD8E5EC), focusedBorderColor = Color(0xFF5AAED0)))
                 }
                 passwordField(current, if (en) "Current password" else "当前密码", showCurrent, { showCurrent = !showCurrent }) { current = it; message = "" }
                 passwordField(newPassword, if (en) "New password" else "新密码", showNew, { showNew = !showNew }) { newPassword = it; message = "" }
                 passwordField(confirm, if (en) "Confirm new password" else "确认新密码", showConfirm, { showConfirm = !showConfirm }) { confirm = it; message = "" }
-                Button(onClick = { message = if (newPassword.length < 8) { if (en) "Password must be at least 8 characters" else "新密码至少需要8位" } else if (newPassword != confirm) { if (en) "Passwords do not match" else "两次输入的新密码不一致" } else { if (en) "Password change service is not connected yet" else "密码修改接口尚未接入，暂不能提交" } }, enabled = valid, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666), disabledContainerColor = Color(0xFFE9ECEB), disabledContentColor = Color(0xFFB5C1BC))) {
+                Button(onClick = { message = if (newPassword.length < 8) { if (en) "Password must be at least 8 characters" else "新密码至少需要8位" } else if (newPassword != confirm) { if (en) "Passwords do not match" else "两次输入的新密码不一致" } else { if (en) "Password change service is not connected yet" else "密码修改接口尚未接入，暂不能提交" } }, enabled = valid, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFE6ECF1), disabledContentColor = Color(0xFF98A2B3))) {
                     Text(if (en) "Confirm change" else "确认修改", fontWeight = FontWeight.SemiBold)
                 }
                 if (message.isNotBlank()) Text(message, color = Color(0xFFD04444), style = MaterialTheme.typography.bodySmall)
-                Text(if (en) "After changing your password, all login sessions will be invalidated. Please sign in again with your new password." else "密码修改成功后，所有登录会话将失效，需要使用新密码重新登录。", color = Color(0xFF71877D), style = MaterialTheme.typography.bodySmall)
+                Text(if (en) "After changing your password, all login sessions will be invalidated. Please sign in again with your new password." else "密码修改成功后，所有登录会话将失效，需要使用新密码重新登录。", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -249,14 +249,14 @@ private fun LanguageSettingsScreen(modifier: Modifier = Modifier, language: Stri
     var selected by remember(language) { mutableStateOf(language) }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         SubPageHeader(if (en) "Language settings" else "语言设置", onBack, language)
-        Text(if (en) "Language settings" else "语言设置", modifier = Modifier.padding(start = 18.dp, top = 18.dp, bottom = 12.dp), color = Color(0xFF405A50), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        Text(if (en) "Language settings" else "语言设置", modifier = Modifier.padding(start = 18.dp, top = 18.dp, bottom = 12.dp), color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
         Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
                 listOf("system" to if (en) "Follow system" else "跟随系统", "zh-CN" to "简体中文", "en" to "English").forEach { (value, label) ->
                     Row(Modifier.fillMaxWidth().clickable { selected = value; onLanguageChanged(value) }.padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selected == value, onClick = { selected = value; onLanguageChanged(value) }, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF278666), unselectedColor = Color(0xFF71877D)))
+                        RadioButton(selected = selected == value, onClick = { selected = value; onLanguageChanged(value) }, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF319CCB), unselectedColor = Color(0xFF667085)))
                         Spacer(Modifier.width(8.dp))
-                        Text(label, color = Color(0xFF405A50), style = MaterialTheme.typography.titleMedium)
+                        Text(label, color = Color(0xFF123E56), style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
@@ -280,7 +280,7 @@ private fun PermissionStatusScreen(modifier: Modifier = Modifier, language: Stri
                 PermissionLine(if (en) "Screenshot submission" else "截图提交能力", if (captureAvailable) { if (en) "Can submit screenshots" else "可提交截图" } else { if (en) "Unavailable" else "不可用" }, captureAvailable)
                 PermissionLine(if (en) "Withdrawal application" else "提现申请", if (en) "Restricted" else "受限", false)
                 Spacer(Modifier.height(2.dp))
-                Text(if (en) "Screen capture permission is not permanent. It can be reused during the same task session; after the session ends, authorization is required again." else "屏幕截图不是长期权限，同一任务截图会话内可复用授权；会话停止后需要重新授权", color = Color(0xFF71877D), style = MaterialTheme.typography.bodyMedium)
+                Text(if (en) "Screen capture permission is not permanent. It can be reused during the same task session; after the session ends, authorization is required again." else "屏幕截图不是长期权限，同一任务截图会话内可复用授权；会话停止后需要重新授权", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
                 if (!overlay) {
                     Button(onClick = { context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + context.packageName))) }, modifier = Modifier.fillMaxWidth()) { Text(if (en) "Enable floating window permission" else "开启悬浮窗权限") }
                 }
@@ -292,27 +292,27 @@ private fun PermissionStatusScreen(modifier: Modifier = Modifier, language: Stri
 @Composable
 private fun SubPageHeader(title: String, onBack: () -> Unit, language: String) {
     Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
         Spacer(Modifier.weight(1f))
-        Text(title, color = Color(0xFF405A50), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        Text(title, color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.weight(1f))
-        Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D), modifier = Modifier.padding(horizontal = 8.dp))
-        Icon(Icons.Default.Language, null, tint = Color(0xFF71877D), modifier = Modifier.padding(horizontal = 8.dp))
+        Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085), modifier = Modifier.padding(horizontal = 8.dp))
+        Icon(Icons.Default.Language, null, tint = Color(0xFF667085), modifier = Modifier.padding(horizontal = 8.dp))
     }
 }
 
 @Composable
 private fun PermissionLine(label: String, value: String, enabled: Boolean?) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(label, color = Color(0xFF71877D), style = MaterialTheme.typography.bodyLarge)
-        Text(value, color = if (enabled == false) Color(0xFFB36B32) else Color(0xFF405A50), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+        Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.bodyLarge)
+        Text(value, color = if (enabled == false) Color(0xFFB36B32) else Color(0xFF123E56), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
     }
 }
 
 @Composable
 private fun ProfileAsset(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
     Column(modifier.clickable(onClick = onClick).padding(horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Surface(color = Color(0xFFF0F7F3), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = tint, modifier = Modifier.padding(10.dp).size(22.dp)) }
+        Surface(color = Color(0xFFF2F7FB), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = tint, modifier = Modifier.padding(10.dp).size(22.dp)) }
         Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall, maxLines = 1)
         Text(value, color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
     }
@@ -322,12 +322,12 @@ private fun ProfileAsset(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 private fun ProfileMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit, status: Boolean? = null, showDivider: Boolean = true) {
     Column {
         Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color(0xFFF0F7F3), shape = RoundedCornerShape(10.dp)) { Icon(icon, null, tint = Color(0xFF347B62), modifier = Modifier.padding(10.dp).size(22.dp)) }
+            Surface(color = Color(0xFFF2F7FB), shape = RoundedCornerShape(10.dp)) { Icon(icon, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(10.dp).size(22.dp)) }
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(title, color = Color(0xFF17243A), fontWeight = FontWeight.SemiBold); Text(subtitle, color = if (status == true) Color(0xFF278666) else Color(0xFF718096), style = MaterialTheme.typography.bodySmall) }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(title, color = Color(0xFF17243A), fontWeight = FontWeight.SemiBold); Text(subtitle, color = if (status == true) Color(0xFF319CCB) else Color(0xFF718096), style = MaterialTheme.typography.bodySmall) }
             Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF667085))
         }
-        if (showDivider) HorizontalDivider(color = Color(0xFFE8EDF0))
+        if (showDivider) HorizontalDivider(color = Color(0xFFD8E5EC))
     }
 }
 
@@ -889,15 +889,15 @@ private fun WalletScreen(
     val balance = String.format(java.util.Locale.US, "%.3f", minor.divide(java.math.BigDecimal(100)))
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF278666), fontWeight = FontWeight.Bold) }
+            Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold) }
             Text(if (isEnglish) "Wallet" else "钱包", color = Color(0xFF26352D), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { }) {
-                    Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Support" else "客服", tint = Color(0xFF71877D))
+                    Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Support" else "客服", tint = Color(0xFF667085))
                 }
                 Box {
                     IconButton(onClick = { languageMenuOpen = true }) {
-                        Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF71877D))
+                        Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF667085))
                     }
                     DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
                         DropdownMenuItem(text = { Text("简体中文") }, onClick = {
@@ -924,24 +924,24 @@ private fun WalletScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Surface(color = Color(0xFFEAF8B9), shape = RoundedCornerShape(20.dp)) {
                             Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (isEnglish) "Available balance ($currency)" else "可提现余额 ($currency)", color = Color(0xFF52633A), style = MaterialTheme.typography.labelMedium)
+                                Text(if (isEnglish) "Available balance ($currency)" else "可提现余额 ($currency)", color = Color(0xFF123E56), style = MaterialTheme.typography.labelMedium)
                                 IconButton(onClick = { balanceVisible = !balanceVisible }, modifier = Modifier.size(22.dp)) {
-                                    Icon(if (balanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = Color(0xFF52633A), modifier = Modifier.size(16.dp))
+                                    Icon(if (balanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = Color(0xFF123E56), modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
                     }
-                    Button(onClick = onApplyWithdraw, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF24351D))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
+                    Button(onClick = onApplyWithdraw, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF123E56))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
                 }
-                Text(if (balanceVisible) "$" + balance else "••••••", color = Color(0xFF1F2C17), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
+                Text(if (balanceVisible) "$" + balance else "••••••", color = Color(0xFF123E56), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
                 Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending (USD)" else "提现待释放 (USD)", "0.000", Color(0xFF80C91A))
-                    Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFE8EDF0)))
+                    Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
                     WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Frozen (USD)" else "风险冻结 (USD)", "0.000", Color(0xFFFF7A1A))
-                    Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFE8EDF0)))
+                    Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
                     WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Processing (USD)" else "提现中 (USD)", "0.000", Color(0xFF4388FF))
                 }
-                Text((if (isEnglish) "Total income: " else "累计收入：") + "0.000 $currency", color = Color(0xFF73834E), style = MaterialTheme.typography.bodySmall)
+                Text((if (isEnglish) "Total income: " else "累计收入：") + "0.000 $currency", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
@@ -950,7 +950,7 @@ private fun WalletScreen(
                     Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(
                         if (isEnglish) "All details  ›" else "全部明细  ›",
-                        color = Color(0xFF397A32),
+                        color = Color(0xFF0A6FAF),
                         modifier = Modifier.clickable(onClick = onWalletDetails)
                     )
                 }
@@ -970,7 +970,7 @@ private fun WalletScreen(
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (isEnglish) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFEAF7CE), Color(0xFF4F7D2B), onClick = onPayoutAccounts)
+                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFDDF3FF), Color(0xFF0A6FAF), onClick = onPayoutAccounts)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
                 WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史", Color(0xFFE7F1FF), Color(0xFF2584F4), onClick = onWithdrawalHistory)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
@@ -979,16 +979,16 @@ private fun WalletScreen(
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF3FBE5)), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().clickable(onClick = onInviteFriends).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Groups, null, tint = Color(0xFF47752B))
+                Icon(Icons.Default.Groups, null, tint = Color(0xFF0A6FAF))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(if (isEnglish) "Invite friends to earn" else "邀请好友做任务", fontWeight = FontWeight.Bold)
                     Text(if (isEnglish) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
                 }
-                Surface(color = Color.White, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD8EFAE))) {
+                Surface(color = Color.White, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD9EFFB))) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (isEnglish) "Invite" else "去邀请", color = Color(0xFF47752B), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
-                        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF47752B), modifier = Modifier.size(16.dp))
+                        Text(if (isEnglish) "Invite" else "去邀请", color = Color(0xFF0A6FAF), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
+                        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF0A6FAF), modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -1001,11 +1001,11 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
     val isEnglish = language == "en"
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
         Card(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
@@ -1026,11 +1026,11 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
     val isEnglish = language == "en"
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Withdrawal history" else "提现记录", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Text(if (isEnglish) "Withdrawal history" else "提现记录", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
         Card(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
@@ -1051,15 +1051,15 @@ private fun WithdrawalGuideScreen(modifier: Modifier = Modifier, language: Strin
     val isEnglish = language == "en"
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Withdrawal guide" else "提现说明", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Text(if (isEnglish) "Withdrawal guide" else "提现说明", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
         Card(Modifier.fillMaxWidth().padding(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(if (isEnglish) "Withdrawal instructions" else "提现说明", color = Color(0xFF405A50), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(if (isEnglish) "Withdrawal instructions" else "提现说明", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Text(
                     if (isEnglish) "1. Add and verify your payout account before requesting a withdrawal.\n\n2. Make sure the payout account details are accurate and belong to you.\n\n3. After submitting a request, check Withdrawal history for its progress.\n\n4. Available balance and withdrawal eligibility are subject to platform review."
                     else "1. 申请提现前，请先添加并确认收款账户。\n\n2. 请确保收款账户信息准确，并且属于本人。\n\n3. 提交提现申请后，可在「提现记录」中查看处理进度。\n\n4. 实际可提现金额及提现资格以平台审核结果为准。",
@@ -1076,14 +1076,14 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
     val isEnglish = language == "en"
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666))) {
+            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
                 Icon(Icons.Default.Add, null)
                 Spacer(Modifier.width(8.dp))
                 Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold)
@@ -1112,33 +1112,33 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
     val valid = account.matches(Regex("^03[0-9]{9}$"))
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
         Column(Modifier.fillMaxWidth().padding(18.dp).background(Color.White, RoundedCornerShape(18.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(color = Color(0xFFE2F5ED), shape = RoundedCornerShape(50)) { Icon(Icons.Default.Add, null, tint = Color(0xFF278666), modifier = Modifier.padding(8.dp)) }
-                Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold, color = Color(0xFF405A50), style = MaterialTheme.typography.titleMedium)
+                Surface(color = Color(0xFFE2F5ED), shape = RoundedCornerShape(50)) { Icon(Icons.Default.Add, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(8.dp)) }
+                Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold, color = Color(0xFF123E56), style = MaterialTheme.typography.titleMedium)
             }
-            Text(if (isEnglish) "Select payout country" else "选择收款国家", color = Color(0xFF71877D), style = MaterialTheme.typography.bodySmall)
+            Text(if (isEnglish) "Select payout country" else "选择收款国家", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             Box {
                 OutlinedButton(onClick = { countryExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Icon(Icons.Default.Language, null, tint = Color(0xFF278666))
+                    Icon(Icons.Default.Language, null, tint = Color(0xFF319CCB))
                     Spacer(Modifier.width(12.dp))
-                    Text(country, modifier = Modifier.weight(1f), color = Color(0xFF52665D))
+                    Text(country, modifier = Modifier.weight(1f), color = Color(0xFF123E56))
                     Icon(Icons.Default.ArrowDropDown, null)
                 }
                 DropdownMenu(expanded = countryExpanded, onDismissRequest = { countryExpanded = false }) {
                     DropdownMenuItem(text = { Text("Pakistan · PKR") }, onClick = { country = "Pakistan · PKR"; countryExpanded = false })
                 }
             }
-            Text(if (isEnglish) "Payout method" else "收款方式", color = Color(0xFF71877D), style = MaterialTheme.typography.bodySmall)
+            Text(if (isEnglish) "Payout method" else "收款方式", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             Box {
                 OutlinedButton(onClick = { methodExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Text(method, modifier = Modifier.weight(1f), color = Color(0xFF52665D))
+                    Text(method, modifier = Modifier.weight(1f), color = Color(0xFF123E56))
                     Icon(Icons.Default.ArrowDropDown, null)
                 }
                 DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
@@ -1151,7 +1151,7 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
             Text(if (isEnglish) "11 digits, starts with 03. Example: 03428888900. Enter your own account number." else "仅限 11 位数字（0–9），以 03 开头。示例：03428888900。请填写本人账号。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
             OutlinedTextField(value = holder, onValueChange = { holder = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder (optional)" else "姓名（选填）") })
             OutlinedTextField(value = phone, onValueChange = { phone = it.filter(Char::isDigit).take(15) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Phone number (optional)" else "手机号（选填）") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone))
-            Button(onClick = onSaved, enabled = valid, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666), disabledContainerColor = Color(0xFFB8D7CC))) {
+            Button(onClick = onSaved, enabled = valid, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFB8D7CC))) {
                 Text(if (isEnglish) "Save account" else "保存账户", fontWeight = FontWeight.Bold)
             }
         }
@@ -1196,18 +1196,18 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
     }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
             Text(if (isEnglish) "Commission history" else "佣金记录", fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
         Row(Modifier.fillMaxWidth().background(Color.White), horizontalArrangement = Arrangement.SpaceEvenly) {
             listOf(if (isEnglish) "All" else "全部", if (isEnglish) "Pending" else "等待处理", if (isEnglish) "Credited" else "已入账").forEachIndexed { index, label ->
                 Column(Modifier.weight(1f).clickable { selected = index }.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(label, color = if (selected == index) Color(0xFF278666) else Color(0xFF667085), fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Normal)
+                    Text(label, color = if (selected == index) Color(0xFF319CCB) else Color(0xFF667085), fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Normal)
                     Spacer(Modifier.height(8.dp))
-                    if (selected == index) Box(Modifier.width(54.dp).height(3.dp).background(Color(0xFF278666), RoundedCornerShape(4.dp)))
+                    if (selected == index) Box(Modifier.width(54.dp).height(3.dp).background(Color(0xFF319CCB), RoundedCornerShape(4.dp)))
                 }
             }
         }
@@ -1230,9 +1230,9 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
 private fun CommissionSummaryCard(modifier: Modifier, title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Card(modifier, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 5.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Surface(color = Color(0xFFEEF6F2), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = Color(0xFF278666), modifier = Modifier.padding(9.dp).size(20.dp)) }
+            Surface(color = Color(0xFFEEF6F2), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(9.dp).size(20.dp)) }
             Text(title, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Text(value, color = Color(0xFF278666), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            Text(value, color = Color(0xFF319CCB), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
     }
 }
@@ -1294,16 +1294,16 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) {
-                Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF177A5B), fontWeight = FontWeight.Bold)
+                Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF0A6FAF), fontWeight = FontWeight.Bold)
             }
-            Text(if (isEnglish) "Promote" else "推广", color = Color(0xFF245C4C), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Text(if (isEnglish) "Promote" else "推广", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { supportDialog = true }) { Icon(Icons.Default.HeadsetMic, contentDescription = "Support", tint = Color(0xFF477C6C)) }
-                Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF477C6C))
+                IconButton(onClick = { supportDialog = true }) { Icon(Icons.Default.HeadsetMic, contentDescription = "Support", tint = Color(0xFF5AAED0)) }
+                Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF5AAED0))
             }
         }
         if (loading && data == null) {
-            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF278666)) }
+            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
         }
         if (error != null) {
             Surface(color = Color(0xFFFFEEEE), shape = RoundedCornerShape(10.dp)) {
@@ -1319,12 +1319,12 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(if (isEnglish) "My invitation code" else "我的邀请码", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
-                        Text(inviteCode.ifBlank { if (loading) "…" else "—" }, color = Color(0xFF216D54), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineMedium)
+                        Text(inviteCode.ifBlank { if (loading) "…" else "—" }, color = Color(0xFF0A6FAF), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineMedium)
                         OutlinedButton(
                             onClick = { copyText(inviteCode, "Invitation code") },
                             enabled = inviteCode.isNotBlank(),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF278666))
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF319CCB))
                         ) {
                             Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(5.dp))
@@ -1342,8 +1342,8 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    Surface(color = Color(0xFFE3F3EC), shape = RoundedCornerShape(30.dp)) {
-                        Icon(Icons.Default.Link, null, tint = Color(0xFF218365), modifier = Modifier.padding(10.dp))
+                    Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(30.dp)) {
+                        Icon(Icons.Default.Link, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(10.dp))
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(if (isEnglish) "My invitation link" else "我的邀请链接", color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
@@ -1363,7 +1363,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
                         onClick = { shareInvite() },
                         enabled = inviteUrl.isNotBlank(),
                         modifier = Modifier.weight(1f).height(44.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.PersonAdd, null)
@@ -1375,7 +1375,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
                         enabled = inviteUrl.isNotBlank(),
                         modifier = Modifier.weight(1f).height(44.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF278666))
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF319CCB))
                     ) {
                         Icon(Icons.Default.Share, null)
                         Spacer(Modifier.width(6.dp))
@@ -1477,7 +1477,7 @@ private fun PromotionQrCode(value: String, modifier: Modifier = Modifier, onClic
         )
     } else {
         Surface(modifier, color = Color(0xFFF5F8F6), shape = RoundedCornerShape(12.dp)) {
-            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.QrCode2, null, tint = Color(0xFF278666)) }
+            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.QrCode2, null, tint = Color(0xFF319CCB)) }
         }
     }
 }
@@ -1496,7 +1496,7 @@ private fun PromotionMetric(icon: androidx.compose.ui.graphics.vector.ImageVecto
             Icon(
                 icon,
                 contentDescription = null,
-                tint = Color(0xFF278666),
+                tint = Color(0xFF319CCB),
                 modifier = Modifier.padding(9.dp).size(21.dp)
             )
         }
@@ -1508,8 +1508,8 @@ private fun PromotionMetric(icon: androidx.compose.ui.graphics.vector.ImageVecto
 @Composable
 private fun PromotionMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Surface(color = Color(0xFFEAF5F0), shape = RoundedCornerShape(10.dp)) {
-            Icon(icon, null, tint = Color(0xFF278666), modifier = Modifier.padding(10.dp))
+        Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(10.dp)) {
+            Icon(icon, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(10.dp))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, color = Color(0xFF17243A), fontWeight = FontWeight.SemiBold)
