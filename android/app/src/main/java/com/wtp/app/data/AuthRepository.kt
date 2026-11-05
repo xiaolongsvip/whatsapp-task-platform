@@ -285,6 +285,11 @@ object AuthRepository {
         }
     }
 
+    fun changePassword(currentPassword: String, newPassword: String): JSONObject =
+        request("PATCH", "users/me/password", JSONObject()
+            .put("currentPassword", currentPassword)
+            .put("newPassword", newPassword))
+
     fun updateLocale(locale: String): JSONObject =
         request("PATCH", "users/me", JSONObject().put("locale", locale))
 
