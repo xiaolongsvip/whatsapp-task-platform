@@ -60,6 +60,25 @@ enum WithdrawalStatus {
   CANCELLED
 }
 
+enum ContactNumberStatus {
+  AVAILABLE
+  ASSIGNED
+  USED
+  BLOCKED
+}
+
+enum ContactConsentStatus {
+  UNKNOWN
+  GRANTED
+  REVOKED
+}
+
+enum ContactAssignmentStatus {
+  ASSIGNED
+  RELEASED
+  COMPLETED
+}
+
 enum AdminStatus {
   ACTIVE
   DISABLED
@@ -82,6 +101,7 @@ model User {
   wallets               Wallet[]
   adminIdentity         AdminUser?
   sessions              AuthSession[]
+  contactAssignments    ContactAssignment[]
 
   @@index([status, createdAt])
   @@map("users")
@@ -138,6 +158,74 @@ model ReferralAncestor {
   @@map("referral_ancestors")
 }
 
+model ContactImportBatch {
+  id                String          @id @default(uuid()) @db.Uuid
+  fileName          String?         @map("file_name")
+  totalRows         Int             @default(0) @map("total_rows")
+  importedCount     Int             @default(0) @map("imported_count")
+  duplicateCount    Int             @default(0) @map("duplicate_count")
+  invalidCount      Int             @default(0) @map("invalid_count")
+  createdByAdminId  String?         @map("created_by_admin_id") @db.Uuid
+  createdAt         DateTime        @default(now()) @map("created_at")
+  createdBy         AdminUser?      @relation(fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  numbers           ContactNumber[]
+
+  @@index([createdAt])
+  @@map("contact_import_batches")
+}
+
+model ContactNumber {
+  id              String                @id @default(uuid()) @db.Uuid
+  phoneE164       String                @unique @map("phone_e164")
+  status          ContactNumberStatus   @default(AVAILABLE)
+  consentStatus   ContactConsentStatus  @default(UNKNOWN) @map("consent_status")
+  consentSource   String?               @map("consent_source") @db.Text
+  consentedAt     DateTime?             @map("consented_at")
+  revokedAt       DateTime?             @map("revoked_at")
+  importBatchId   String?               @map("import_batch_id") @db.Uuid
+  importOrder     BigInt                @unique @default(autoincrement()) @map("import_order")
+  importedAt      DateTime              @default(now()) @map("imported_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  importBatch     ContactImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
+  assignments     ContactAssignment[]
+  consentEvents   ContactConsentEvent[]
+
+  @@index([status, consentStatus, importOrder])
+  @@index([importBatchId, importOrder])
+  @@map("contact_numbers")
+}
+
+model ContactConsentEvent {
+  id              String                @id @default(uuid()) @db.Uuid
+  contactNumberId String                @map("contact_number_id") @db.Uuid
+  status          ContactConsentStatus
+  source          String?               @db.Text
+  recordedAt      DateTime              @default(now()) @map("recorded_at")
+  contactNumber   ContactNumber         @relation(fields: [contactNumberId], references: [id], onDelete: Restrict)
+
+  @@index([contactNumberId, recordedAt])
+  @@map("contact_consent_events")
+}
+
+model ContactAssignment {
+  id              String                  @id @default(uuid()) @db.Uuid
+  contactNumberId String                  @map("contact_number_id") @db.Uuid
+  claimId         String                  @unique @map("claim_id") @db.Uuid
+  userId          String                  @map("user_id") @db.Uuid
+  status          ContactAssignmentStatus @default(ASSIGNED)
+  assignedAt      DateTime                @default(now()) @map("assigned_at")
+  releasedAt      DateTime?               @map("released_at")
+  completedAt     DateTime?               @map("completed_at")
+  contactNumber   ContactNumber           @relation(fields: [contactNumberId], references: [id], onDelete: Restrict)
+  claim           TaskClaim               @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  user            User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([contactNumberId, status, assignedAt])
+  @@index([userId, assignedAt])
+  @@map("contact_assignments")
+}
+
 model Task {
   id           String      @id @default(uuid()) @db.Uuid
   title        String
@@ -170,6 +258,7 @@ model TaskClaim {
   task           Task        @relation(fields: [taskId], references: [id], onDelete: Restrict)
   user           User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   submissions    TaskSubmission[]
+  contactAssignment ContactAssignment?
 
   @@unique([taskId, userId])
   @@index([userId, status, claimedAt])
@@ -282,8 +371,23 @@ model AdminUser {
   user         User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
   roles        AdminUserRole[]
   reviews      TaskReview[]
+  sessions     AdminSession[]
+  importBatches ContactImportBatch[]
 
   @@map("admin_users")
+}
+
+model AdminSession {
+  id          String    @id @default(uuid()) @db.Uuid
+  adminUserId String    @map("admin_user_id") @db.Uuid
+  tokenHash   String    @unique @map("token_hash")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, expiresAt])
+  @@map("admin_sessions")
 }
 
 model Role {
