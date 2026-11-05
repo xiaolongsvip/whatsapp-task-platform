@@ -345,12 +345,15 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       if (!claim || claim.userId !== userId) {
         throw new NotFoundException("任务领取记录不存在。");
       }
-      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能开始或继续。");
       }
       const now = new Date();
       if (claim.expiresAt && claim.expiresAt <= now) {
         throw new ConflictException("任务领取已过期，请返回任务大厅重新领取。");
+      }
+      if (claim.status === "REJECTED" && !claim.expiresAt) {
+        throw new ConflictException("该驳回任务没有剩余执行时间，不能重新开始。");
       }
       if (claim.status === "IN_PROGRESS" && claim.expiresAt) {
         return this.claimResponse(claim);
@@ -358,10 +361,14 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       if (claim.task.endsAt && claim.task.endsAt <= now) {
         throw new ConflictException("任务已结束，无法开始。");
       }
-      const expiresAt = new Date(Math.min(
-        now.getTime() + 3 * 60 * 1000,
-        claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
-      ));
+      // Restarting a rejected task reuses its original deadline; it never
+      // grants another three-minute execution window.
+      const expiresAt = claim.status === "REJECTED"
+        ? claim.expiresAt!
+        : new Date(Math.min(
+            now.getTime() + 3 * 60 * 1000,
+            claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
+          ));
       const started = await tx.taskClaim.update({
         where: { id: claimId },
         data: { status: "IN_PROGRESS", expiresAt },
@@ -397,7 +404,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           alreadyClosed: true,
         };
       }
-      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能取消。");
       }
 
@@ -550,7 +557,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     if (claim.expiresAt && claim.expiresAt < new Date()) {
       throw new ConflictException("该任务领取已过期，不能再提交证据。");
     }
-    if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+    if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
       throw new ConflictException("该任务当前状态不允许提交证据。");
     }
     const pending = await prisma.taskSubmission.findFirst({
