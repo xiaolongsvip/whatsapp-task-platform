@@ -1116,22 +1116,6 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
                 }
             }
         }
-        val totals = data?.optJSONObject("totals")
-        if (totals != null) {
-            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val income = JSONObject()
-                val expense = JSONObject()
-                val keys = totals.keys()
-                while (keys.hasNext()) {
-                    val key = keys.next()
-                    val value = totals.optJSONObject(key) ?: continue
-                    income.put(key, value.optString("incomeMinor", "0"))
-                    expense.put(key, value.optString("expenseMinor", "0"))
-                }
-                CommissionSummaryCard(Modifier.weight(1f), if (en) "Total income" else "累计收入", formatCurrencyTotals(income), Icons.Default.TrendingUp)
-                CommissionSummaryCard(Modifier.weight(1f), if (en) "Total expense" else "累计支出", formatCurrencyTotals(expense), Icons.Default.TrendingDown)
-            }
-        }
         if (loading) {
             Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
         } else if (error != null) {
