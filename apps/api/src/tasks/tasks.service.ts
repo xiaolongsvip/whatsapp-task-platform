@@ -312,17 +312,20 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           throw new ConflictException("已达到每日领取上限（" + DAILY_TASK_LIMIT + " 个任务）。");
         }
 
-        const slotReserved = await tx.taskSlot.updateMany({
-          where: { id: slotId, status: "AVAILABLE", claimId: null },
-          data: { status: "ASSIGNED", assignedAt: now, releasedAt: null },
-        });
-        if (slotReserved.count !== 1) throw new ConflictException("该号码任务刚刚被其他用户领取，请刷新后重试。");
-
+        // Keep the inventory lock order consistent with cancellation, expiry,
+        // and admin blocking: contact number first, then task slot. If the slot
+        // reservation fails, the transaction rolls the number reservation back.
         const numberReserved = await tx.contactNumber.updateMany({
           where: { id: slot.contactNumberId, status: "AVAILABLE", consentStatus: "GRANTED" },
           data: { status: "ASSIGNED" },
         });
         if (numberReserved.count !== 1) throw new ConflictException("号码刚刚被其他用户领取，请刷新后重试。");
+
+        const slotReserved = await tx.taskSlot.updateMany({
+          where: { id: slotId, status: "AVAILABLE", claimId: null },
+          data: { status: "ASSIGNED", assignedAt: now, releasedAt: null },
+        });
+        if (slotReserved.count !== 1) throw new ConflictException("该号码任务刚刚被其他用户领取，请刷新后重试。");
 
         const created = await tx.taskClaim.create({
           data: {
