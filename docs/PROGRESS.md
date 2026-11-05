@@ -355,3 +355,23 @@ Last updated: 2026-11-04
 - [ ] Android Studio Gradle sync, Kotlin compilation, and emulator behavior are not yet verified by the user.
 - [ ] Evidence upload/API workflow and task submission integration remain a separate follow-up; the current implementation only saves local JPEG evidence.
 - [ ] Floating overlay UI is not part of this change; the visible notification action is the current cross-app manual capture control.
+
+
+### Android task evidence upload — implementation started
+
+- [x] Added task submission metadata to Prisma `TaskSubmission`: optional idempotency key, MIME type, byte size and original file name. Fields are nullable so existing rows can remain intact when the schema is pushed.
+- [x] Added private S3-compatible object storage adapter using AWS Signature V4; it supports Cloudflare R2 endpoints and S3-compatible providers without adding a new SDK dependency.
+- [x] Added authenticated `GET /api/v1/tasks` and `GET /api/v1/tasks/my/claims`.
+- [x] Added authenticated `POST /api/v1/tasks/:taskId/claims` with idempotency, local-day daily cap (current provisional value 20), row locking, and atomic task capacity increment.
+- [x] Added authenticated multipart `POST /api/v1/tasks/claims/:claimId/submissions`; validates that claim belongs to current user, accepts only JPEG/PNG/WebP signatures, limits file size to 8 MB, checks one pending submission per claim, and creates a `SUBMITTED` review record.
+- [x] Upload object key is private and user/claim scoped; database stores the object key and file metadata, not a public file URL.
+- [x] On database write failure after object upload, API attempts to delete the newly uploaded object.
+- [x] Added per-endpoint rate limits and mandatory `Idempotency-Key` for claim and evidence requests.
+- [x] Android task tab now loads real tasks and claim history, allows claiming a published task, and can submit the latest manually captured JPEG for a claimed task.
+- [x] Successful evidence submission clears the in-memory “ready to submit” pointer so the same local screenshot is not accidentally reused for another task.
+- [ ] Local PostgreSQL schema must be synchronized and Prisma Client regenerated before API compilation: run `pnpm db:push`, then `pnpm db:generate`.
+- [ ] Configure private object storage credentials in the local API `.env`: `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, and optionally `STORAGE_REGION` (Cloudflare R2 normally uses `auto`). Do not commit real credentials.
+- [ ] Android API integration and evidence upload need end-to-end verification using a real published task, a claim owned by the signed-in user, an authorized screenshot, and a configured private bucket.
+- [ ] Current storage adapter supports server-side PUT/DELETE; an authenticated admin evidence-preview/download endpoint remains to be implemented with the admin review module.
+- [ ] Current daily task limit is a provisional server constant of 20; later admin settings must replace it with the shared persistent policy source.
+- [ ] Task review decisions, reviewer UI, reward settlement and payout remain outside this upload module.
