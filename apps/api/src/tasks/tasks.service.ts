@@ -227,8 +227,8 @@ export class TasksService {
           WHERE status = 'AVAILABLE'::"ContactNumberStatus"
             AND consent_status = 'GRANTED'::"ContactConsentStatus"
           ORDER BY import_order ASC
-          FOR UPDATE SKIP LOCKED
           LIMIT 1
+          FOR UPDATE SKIP LOCKED
         `;
         const contactNumber = availableNumbers[0];
         if (!contactNumber) {
