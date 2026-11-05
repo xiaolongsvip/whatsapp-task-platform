@@ -144,8 +144,7 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
             dashboard = runCatching { AuthRepository.dashboard() }.getOrNull()
         }
     }
-    val balanceCurrency = firstCurrency(dashboard)
-    val availableBalance = formatAmount(firstBalance(dashboard), balanceCurrency)
+    val availableBalance = formatAvailableBalances(dashboard?.optJSONArray("balances"))
     val id = user?.optString("id")?.takeIf { it.isNotBlank() && it != "null" } ?: user?.optString("userId")?.takeIf { it.isNotBlank() && it != "null" }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFFB9E8FC), Color(0xFFF2F7FB)))).padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -914,10 +913,7 @@ private fun WalletScreen(
             .onSuccess { summary = it }
             .onFailure { error = it.message }
     }
-    val balanceItem = summary?.optJSONArray("availableBalances")?.optJSONObject(0)
-    val currency = balanceItem?.optString("currency", "USD") ?: "USD"
-    val minor = balanceItem?.optString("amountMinor", "0")?.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
-    val balance = String.format(java.util.Locale.US, "%.3f", minor.divide(java.math.BigDecimal(100)))
+    val balance = formatAvailableBalances(summary?.optJSONArray("availableBalances"))
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold) }
@@ -955,7 +951,7 @@ private fun WalletScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Surface(color = Color(0xFFEAF8B9), shape = RoundedCornerShape(20.dp)) {
                             Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (isEnglish) "Available balance ($currency)" else "可提现余额 ($currency)", color = Color(0xFF123E56), style = MaterialTheme.typography.labelMedium)
+                                Text(if (isEnglish) "Available balance" else "可提现余额", color = Color(0xFF123E56), style = MaterialTheme.typography.labelMedium)
                                 IconButton(onClick = { balanceVisible = !balanceVisible }, modifier = Modifier.size(22.dp)) {
                                     Icon(if (balanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = Color(0xFF123E56), modifier = Modifier.size(16.dp))
                                 }
@@ -964,7 +960,7 @@ private fun WalletScreen(
                     }
                     Button(onClick = onApplyWithdraw, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF123E56))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
                 }
-                Text(if (balanceVisible) "$" + balance else "••••••", color = Color(0xFF123E56), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
+                Text(if (balanceVisible) balance else "••••••", color = Color(0xFF123E56), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
                 Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending (USD)" else "提现待释放 (USD)", "—", Color(0xFF80C91A))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
@@ -1106,7 +1102,7 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
                 for (index in 0 until data.length()) {
                     val item = data.optJSONObject(index) ?: continue
                     val currency = item.optString("currency", "")
-                    val amount = formatMinorByCurrency(item.optString("amountMinor", "0").toLongOrNull() ?: 0L, currency)
+                    val amount = formatMinorByCurrency(item.optString("amountMinor", "0"), currency)
                     Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
