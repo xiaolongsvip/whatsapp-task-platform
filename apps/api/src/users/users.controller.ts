@@ -21,6 +21,12 @@ export class UsersController {
     return this.dashboard.getSummary(user.id, user.profile?.timezone ?? "UTC");
   }
 
+  @Get("promotion")
+  async getPromotion(@Req() request: Request) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.dashboard.getPromotionSummary(user.id, user.profile?.timezone ?? "UTC");
+  }
+
   @Get("me")
   getMe(@Req() request: Request) {
     return this.auth.getCurrentUser(sessionToken(request));
