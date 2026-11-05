@@ -330,3 +330,11 @@ Last updated: 2026-11-04
 - [x] English mode also translates the bottom navigation, major dashboard headings, task card labels/status, permission labels, tutorial and support-not-configured dialog.
 - [x] Language preference is restored from the authenticated user's saved profile locale; only locales advertised by the current client contract (Chinese and English) are offered in this iteration.
 - [ ] User must sync and run the updated Android project; compilation and persistence have not been locally verified after these changes.
+
+
+### Android status bar contrast and announcement speed adjustment
+
+- [x] Set the Android system status-bar backing surface to deep blue and force light system status icons for stronger time/signal/battery contrast.
+- [x] Changed the home header itself to a deep-blue-to-pale-sky gradient; title, support and language icons are white for readability.
+- [x] Increased announcement ticker speed from about 110 px/sec to about 275 px/sec (2.5× the prior speed); minimum loop duration is 1 second.
+- [ ] Compile and visually verify on the user's Android emulator, especially Android 15+ edge-to-edge status bar rendering and whether the faster ticker remains readable.
