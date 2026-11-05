@@ -1026,31 +1026,6 @@ private fun WalletScreen(
 @Composable
 private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
     val isEnglish = language == "en"
-    if (accountToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { if (!deleting) accountToDelete = null },
-            title = { Text(if (isEnglish) "Delete payout account?" else "确认删除收款账户？") },
-            text = {
-                Text(
-                    (if (isEnglish) "Are you sure you want to delete this payout account?\n" else "确定要删除以下收款账户吗？\n") +
-                        accountToDelete!!.second +
-                        (if (isEnglish) "\nThis action cannot be undone." else "\n删除后该账户将从列表中移除。")
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { confirmDelete() }, enabled = !deleting) {
-                    if (deleting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Text(if (isEnglish) "Delete" else "确认删除", color = Color(0xFFB42318))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { accountToDelete = null }, enabled = !deleting) {
-                    Text(if (isEnglish) "Cancel" else "取消")
-                }
-            }
-        )
-    }
-
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
@@ -1187,6 +1162,31 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
         loading = false
     }
     LaunchedEffect(Unit) { reload() }
+
+    if (accountToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) accountToDelete = null },
+            title = { Text(if (isEnglish) "Delete payout account?" else "确认删除收款账户？") },
+            text = {
+                Text(
+                    (if (isEnglish) "Are you sure you want to delete this payout account?\n" else "确定要删除以下收款账户吗？\n") +
+                        accountToDelete!!.second +
+                        (if (isEnglish) "\nThis action cannot be undone." else "\n删除后该账户将从列表中移除。")
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete() }, enabled = !deleting) {
+                    if (deleting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text(if (isEnglish) "Delete" else "确认删除", color = Color(0xFFB42318))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { accountToDelete = null }, enabled = !deleting) {
+                    Text(if (isEnglish) "Cancel" else "取消")
+                }
+            }
+        )
+    }
 
     fun confirmDelete() {
         val target = accountToDelete ?: return
