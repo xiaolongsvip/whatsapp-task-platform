@@ -435,3 +435,48 @@ Last updated: 2026-11-05
 - [x] The user manually sends the message in WhatsApp, then taps that one action once.
 - [ ] After that tap, the APP will capture the current screen and upload the evidence to the current claim automatically. No second screenshot/upload action should be required.
 - [ ] Android overlay, capture sequencing, and real-device validation are pending.
+
+
+## Module 1.3 — Task creation and publishing
+
+**Status: implementation committed; GitHub CI and local schema sync/runtime acceptance are pending.**
+
+### Confirmed scope
+
+- [x] Admin can create task drafts, edit unclaimed draft/paused tasks, publish, pause, and close tasks.
+- [x] Task settings include title, description, category, reward amount/currency, claim capacity, start/end time, WhatsApp message template, destination URL, and optional preview metadata.
+- [x] Rewards are parsed as decimal strings and stored as integer minor units (USD-style two decimal places); no floating-point amount is written to the database.
+- [x] Publishing requires a non-empty message template, valid time range, available capacity, and at least one currently AVAILABLE contact with GRANTED consent.
+- [x] Admin endpoints require the authenticated administrator session.
+- [x] Public task list and user's claims now return task message/link/preview fields for the Android client.
+- [x] Android task cards now display the assigned WhatsApp number, message template, and task link for claimed tasks.
+- [x] Admin task management page added at `/tasks`, with navigation from the number-pool page.
+
+### Files changed
+
+- `packages/database/prisma/schema.prisma` — message template and link preview fields on Task.
+- `apps/api/src/task-admin/task-admin.dto.ts` — validated create/update inputs.
+- `apps/api/src/task-admin/task-admin.service.ts` — draft creation, update, publishing, pause, close and money conversion.
+- `apps/api/src/task-admin/task-admin.controller.ts` — admin-session-protected task management endpoints.
+- `apps/api/src/tasks/tasks.module.ts` — registers task admin controller/service.
+- `apps/api/src/tasks/tasks.service.ts` — exposes configured task data to the member API.
+- `apps/admin/src/app/tasks/page.tsx` — task management UI.
+- `apps/admin/src/app/page.tsx` — navigation to task management.
+- `android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt` — shows assigned phone number, message template and task link in claimed task details.
+
+### Important behavior and limits
+
+- [x] Editing a published task is blocked; pause it first. Any task with existing claims cannot have its rules edited; create a new task instead.
+- [x] Closing a task prevents new claims but does not delete users' existing claim history.
+- [ ] Current admin import supports CSV/TXT, not native XLSX.
+- [ ] The preview title/description/image fields are stored and returned as app metadata. WhatsApp's actual rich-link card still depends on Open Graph metadata at the destination URL and WhatsApp's cache; these fields alone do not force a WhatsApp card.
+- [ ] No task is auto-created. Admin must create and publish a real task before it appears in the mobile task hall.
+- [ ] Local Prisma schema sync, generated-client refresh, task creation/publish UI test, and client/Android task list verification are pending.
+- [ ] Android Kotlin compile/emulator test remains separate from repository CI.
+
+### User-facing task claim flow after this module
+
+- Admin creates and publishes a task.
+- Member app fetches it from `GET /api/v1/tasks`.
+- Claiming it atomically locks the earliest eligible consented phone number and returns that assigned number plus task message/link configuration.
+- Member task card displays the assigned number and message configuration. WhatsApp launch and the single-action overlay capture/upload workflow remain in the next Android execution module.
