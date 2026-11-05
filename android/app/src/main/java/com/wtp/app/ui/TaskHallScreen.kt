@@ -544,10 +544,12 @@ fun TaskHallScreen(
                             withContext(Dispatchers.IO) { AuthRepository.cancelTaskClaim(claimId) }
                             if (activeClaimId == claimId) {
                                 CaptureSessionState.clearActiveClaim()
-                                context.startService(
-                                    Intent(context, ScreenCaptureService::class.java)
-                                        .setAction(ScreenCaptureService.ACTION_HIDE_FLOATING)
-                                )
+                                if (CaptureSessionState.active.value) {
+                                    context.startService(
+                                        Intent(context, ScreenCaptureService::class.java)
+                                            .setAction(ScreenCaptureService.ACTION_HIDE_FLOATING)
+                                    )
+                                }
                             }
                             selectedClaimId = null
                             mainTab = TaskMainTab.HALL
@@ -606,7 +608,7 @@ private fun TaskExecutionScreen(
         mutableStateOf(if (timerStarted) ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0) else 180L)
     }
     var showAbandonDialog by remember { mutableStateOf(false) }
-    val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")
+    val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "EXPIRED")
     val reward = formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD"))
 
     LaunchedEffect(expiryMillis, timerStarted) {
