@@ -172,6 +172,14 @@ ${taskRequirements}
 
       if (!confidentApprove && !confidentReject) {
         await prisma.$transaction(async (tx) => {
+          // Use the same lock order as manual review: submission first, then job.
+          // If an admin wins the lock, this worker must observe the completed job
+          // and leave the manual decision untouched.
+          await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM task_submissions WHERE id = ${submission.id}::uuid FOR UPDATE
+          `;
+          const current = await tx.aiReviewJob.findUnique({ where: { id: job.id } });
+          if (!current || current.status !== "PROCESSING") return;
           await tx.aiReviewJob.update({
             where: { id: job.id },
             data: {
@@ -240,6 +248,16 @@ ${taskRequirements}
 
   private async approve(jobId: string, result: AiDecision) {
     await prisma.$transaction(async (tx) => {
+      const target = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        select: { submissionId: true },
+      });
+      if (!target) return;
+      // Match the admin transaction lock order to serialize all decisions
+      // for this submission, regardless of whether AI or an admin got there first.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_submissions WHERE id = ${target.submissionId}::uuid FOR UPDATE
+      `;
       const current = await tx.aiReviewJob.findUnique({
         where: { id: jobId },
         include: {
