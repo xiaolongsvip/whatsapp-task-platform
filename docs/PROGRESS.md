@@ -298,9 +298,9 @@ Last updated: 2026-11-04
 - [x] Summary card vertical padding reduced to make it more compact.
 - [x] Withdrawable balance display removes the ISO currency code and shows a currency symbol; the withdrawable metric label includes the matching symbol (USD displays $).
 - [x] Replaced the static blue promotion sentence with a red, right-to-left continuously looping announcement ticker.
-- [x] Ticker content is returned by the dashboard API from `WTP_HOME_ANNOUNCEMENTS`, with up to 10 messages separated by `||`.
+- [x] Dashboard API reserves an `announcements` array for the future shared admin-managed announcement source; it currently returns an empty array.
 - [x] Task preview follows the requested card structure: red tutorial warning, light-blue reward/daily-count panel, status chip and task-hall action.
 - [x] Daily task limit is returned by the API from `DASHBOARD_DAILY_TASK_LIMIT` (defaults to 20).
-- [ ] The admin portal currently has no authenticated announcement-management module. Announcement text is configurable through the API server environment for this iteration; a protected admin editor requires completing admin authentication before exposing write endpoints.
+- [ ] Announcement management is intentionally deferred until the admin portal and admin authentication are developed; at that point CRUD, ordering, publish/disable state, and the shared API data source will be connected. No temporary environment-variable announcement source is used.
 - [ ] Android compile, API restart/response, ticker motion, and amount display still require local verification.
 - [ ] Task-claim action remains a navigation to the Task tab; actual claim workflow is not implemented yet.
