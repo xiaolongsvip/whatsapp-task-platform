@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -166,7 +167,7 @@ fun TaskHallScreen(
     }
 
     Column(
-        modifier.fillMaxSize().padding(bottom = 2.dp),
+        modifier.fillMaxSize().background(WtpPage).padding(bottom = 2.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         // Compact header modeled on the reference design.
