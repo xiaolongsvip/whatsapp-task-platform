@@ -64,7 +64,9 @@ function publicSubmission(submission: {
   mimeType: string | null;
   sizeBytes: number | null;
   originalName: string | null;
+  reviews?: Array<{ decision: string; reason: string | null; reviewedAt: Date }>;
 }) {
+  const latestReview = submission.reviews?.[0];
   return {
     id: submission.id,
     claimId: submission.claimId,
@@ -73,6 +75,9 @@ function publicSubmission(submission: {
     mimeType: submission.mimeType,
     sizeBytes: submission.sizeBytes,
     originalName: submission.originalName,
+    reviewDecision: latestReview?.decision ?? null,
+    reviewReason: latestReview?.reason ?? null,
+    reviewedAt: latestReview?.reviewedAt.toISOString() ?? null,
   };
 }
 
@@ -167,6 +172,15 @@ export class TasksService {
             mimeType: true,
             sizeBytes: true,
             originalName: true,
+            reviews: {
+              orderBy: { reviewedAt: "desc" },
+              take: 1,
+              select: {
+                decision: true,
+                reason: true,
+                reviewedAt: true,
+              },
+            },
           },
         },
       },
