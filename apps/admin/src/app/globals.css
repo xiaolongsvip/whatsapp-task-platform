@@ -52,7 +52,7 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 
 /* EasyEarn split-screen admin sign-in */
 .login-layout { min-height:100vh; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(440px,.8fr); background:#f5f8fc; }
-.login-showcase { min-height:100vh; display:flex; flex-direction:column; justify-content:space-between; padding:48px clamp(28px,5vw,76px) 28px; color:#f7f9ff; background:radial-gradient(ellipse at 20% 18%,rgba(31,93,180,.22),transparent 38%),linear-gradient(145deg,#0b1220 0%,#10182b 58%,#11182e 100%); }
+.login-showcase { min-height:100vh; display:flex; flex-direction:column; justify-content:space-between; padding:48px clamp(28px,5vw,76px) 28px; color:#f7f9ff; background:#07152b url("/tech-background.svg") center center / cover no-repeat; }
 .showcase-brand { display:flex; align-items:center; gap:12px; font-size:22px; font-weight:800; letter-spacing:-.4px; }
 .showcase-logo { width:40px; height:40px; display:grid; place-items:center; color:#f7c948; border:1px solid rgba(255,205,70,.38); border-radius:12px; background:linear-gradient(145deg,#1c2a40,#070b13); box-shadow:0 8px 24px rgba(0,0,0,.25); }
 .brand-tag { margin-left:2px; padding:4px 10px; border:1px solid rgba(59,130,246,.42); border-radius:99px; color:#79b5ff; font-size:11px; font-weight:600; letter-spacing:0; }
