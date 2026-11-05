@@ -191,7 +191,7 @@ class ScreenCaptureService : Service() {
         try {
             if (!captureRequested.compareAndSet(true, false)) return
             val file = saveImage(image)
-            CaptureSessionState.setLastCapture(file.name)
+            CaptureSessionState.setLastCapture(file.name, file.absolutePath)
             updateNotification("截图已保存：${file.name}；会话仍在运行")
         } catch (error: Exception) {
             CaptureSessionState.setError("保存截图失败：${error.message ?: "未知错误"}")
