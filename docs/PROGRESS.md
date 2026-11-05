@@ -500,3 +500,19 @@ Last updated: 2026-11-05
 - [ ] Android Studio Gradle sync and Kotlin compile are not verified by current GitHub CI.
 - [ ] Real-device test is required for WhatsApp regular/business app routing, message prefill, filters, empty states, and returning to the app.
 - [ ] The single floating action button requested for “已发送并截图上传” is not implemented in this UI change; current screenshot service still has its existing explicit notification action until the overlay service is developed and tested. Do not describe the end-to-end floating-button capture flow as available yet.
+
+### Android task UI v2 — pale sky-blue reference flow (2026-11-05)
+
+**Status: source committed; Android CI and real-device acceptance are pending.**
+
+- [x] Applied the pale sky-blue palette to the task page and Android system status/navigation surface; green remains the primary action color.
+- [x] Added a dedicated task-execution detail page after a successful claim, with reward/status, masked assigned contact, task steps, prepared message, and configured link-preview metadata.
+- [x] Added an optional HTTPS preview-image renderer with a 3 MB response-size ceiling; WhatsApp's own rich preview still depends on valid Open Graph metadata at the destination URL and WhatsApp cache behavior.
+- [x] Masked assigned WhatsApp numbers in task cards and execution details; only the WhatsApp deep link receives the actual assigned number.
+- [x] Changed active/rejected task-card actions to open the task detail page before launching WhatsApp.
+- [x] Added a draggable floating action labeled “已发送并截图上传” to the already user-authorized MediaProjection foreground session. The overlay appears only when Android overlay permission is granted; tapping it hides the overlay briefly, captures the current screen, and uploads evidence to the explicitly selected claim.
+- [x] The user still manually reviews and sends the prefilled WhatsApp message. The app does not auto-send or bulk-send messages.
+- [ ] Verify overlay permission request path, overlay visibility while WhatsApp is foreground, tap-to-capture timing, upload success/failure restoration, and Android 13–15 behavior on a physical device.
+- [ ] Add a server-configurable task duration/countdown; the current task model exposes task start/end dates but does not define the 3-minute per-claim timer shown in the reference.
+- [ ] Android Kotlin compile, GitHub Android Build workflow, and visual comparison against the supplied references are pending.
+- [ ] Actual WhatsApp preview image must be tested against a published HTTPS destination with correct Open Graph tags; the app cannot force WhatsApp to display a preview when the destination page or WhatsApp cache does not provide one.
