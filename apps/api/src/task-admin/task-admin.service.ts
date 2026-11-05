@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import type { CreateAdminTaskDto, UpdateAdminTaskDto } from "./task-admin.dto";
+import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
 
 function toMinorUnits(value: string): bigint {
   const normalized = value.trim();
@@ -197,32 +198,18 @@ export class TaskAdminService {
     }
 
     return prisma.$transaction(async (tx) => {
-      const availableNumbers = await tx.contactNumber.findMany({
-        where: {
-          status: "AVAILABLE",
-          consentStatus: "GRANTED",
-          taskSlots: { none: {} },
-        },
-        select: { id: true },
-        orderBy: { importOrder: "asc" },
-      });
-      if (availableNumbers.length === 0) {
-        const existingSlots = await tx.taskSlot.count({
-          where: { taskId, status: { in: ["AVAILABLE", "ASSIGNED"] } },
-        });
-        if (existingSlots === 0) {
-          throw new ConflictException("号码池没有可分配的已授权号码，请先导入号码后再发布任务。");
-        }
-      } else {
-        await tx.taskSlot.createMany({
-          data: availableNumbers.map((number) => ({ taskId, contactNumberId: number.id })),
-          skipDuplicates: true,
-        });
-      }
-
-      const updated = await tx.task.update({
+      await tx.task.update({
         where: { id: taskId },
         data: { status: "PUBLISHED" },
+      });
+
+      // The allocator applies FIFO across all currently published tasks.
+      // A task may be published with zero slots while an older task owns the
+      // current inventory; future imports will be routed by the same rule.
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
+
+      const updated = await tx.task.findUniqueOrThrow({
+        where: { id: taskId },
         include: { _count: { select: { claims: true, slots: true } } },
       });
       return {
@@ -242,23 +229,35 @@ export class TaskAdminService {
     if (task.status !== "PUBLISHED") {
       throw new ConflictException("只有已发布任务才能暂停。");
     }
-    const updated = await prisma.task.update({
-      where: { id: taskId },
-      data: { status: "PAUSED" },
-      include: { _count: { select: { claims: true } } },
+    return prisma.$transaction(async (tx) => {
+      await tx.task.update({
+        where: { id: taskId },
+        data: { status: "PAUSED" },
+      });
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
+      const updated = await tx.task.findUniqueOrThrow({
+        where: { id: taskId },
+        include: { _count: { select: { claims: true } } },
+      });
+      return publicTask(updated);
     });
-    return publicTask(updated);
   }
 
   async close(taskId: string) {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException("任务不存在。");
     if (task.status === "CLOSED") return publicTask({ ...task, _count: { claims: task.claimedCount } });
-    const updated = await prisma.task.update({
-      where: { id: taskId },
-      data: { status: "CLOSED" },
-      include: { _count: { select: { claims: true } } },
+    return prisma.$transaction(async (tx) => {
+      await tx.task.update({
+        where: { id: taskId },
+        data: { status: "CLOSED" },
+      });
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
+      const updated = await tx.task.findUniqueOrThrow({
+        where: { id: taskId },
+        include: { _count: { select: { claims: true } } },
+      });
+      return publicTask(updated);
     });
-    return publicTask(updated);
   }
 }
