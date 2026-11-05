@@ -425,7 +425,9 @@ Last updated: 2026-11-05
 - [x] User confirmed local API TypeScript check (`pnpm.cmd --filter @wtp/api typecheck`) passed.
 - [x] GitHub CI passed on commit `3381698680ba798f0b476976d557fc6b3116e01d`: Prisma Client generation, Prisma schema validation, TypeScript checks, ESLint, and production builds.
 - [ ] Runtime tests, including simultaneous claims, FIFO order, duplicate imports, cancellation/expiry release, and revoked-consent protection.
-- [ ] Initial administrator bootstrap and user acceptance in the local admin console.
+- [x] User confirmed local first-administrator initialization succeeded on 2026-11-05.
+- [x] User confirmed local import of three test numbers succeeded: 3 imported, 0 duplicates, 0 invalid; dashboard shows 3 AVAILABLE, 0 ASSIGNED, 0 USED, 0 BLOCKED.
+- [ ] End-to-end FIFO claim assignment still requires a published test task and runtime acceptance.
 
 ### Latest interaction decision for the Android phase
 
