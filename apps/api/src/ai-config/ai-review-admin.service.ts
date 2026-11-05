@@ -1,8 +1,24 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { prisma } from "@wtp/database";
+import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 
 @Injectable()
 export class AiReviewAdminService {
+  constructor(private readonly storage: S3ObjectStorageService) {}
+
+  async getEvidence(submissionId: string) {
+    const submission = await prisma.taskSubmission.findUnique({
+      where: { id: submissionId },
+      select: { objectKey: true, mimeType: true, originalName: true },
+    });
+    if (!submission) throw new NotFoundException("任务提交记录不存在。");
+    const buffer = await this.storage.getObjectBuffer(submission.objectKey);
+    const mimeType = ["image/jpeg", "image/png", "image/webp"].includes(submission.mimeType || "")
+      ? submission.mimeType!
+      : "application/octet-stream";
+    return { buffer, mimeType, originalName: submission.originalName || "evidence" };
+  }
+
   async list(status?: string, page = 1, pageSize = 20) {
     const allowed = ["PENDING", "PROCESSING", "RETRY", "COMPLETED", "NEEDS_REVIEW"];
     const normalized = status && allowed.includes(status) ? status : undefined;
