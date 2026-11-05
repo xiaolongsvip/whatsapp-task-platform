@@ -38,3 +38,10 @@ test("wallet overview endpoint requires the current authenticated user", () => {
   assert.match(controller, /@Get\("wallet-overview"\)[\s\S]*?getWalletOverview/);
   assert.match(controller, /getCurrentUser\(sessionToken\(request\)\)[\s\S]*?getWalletOverview\(user\.id\)/);
 });
+
+test("wallet overview exposes ledger source categories without inventing frozen balances", () => {
+  assert.match(service, /by: \["walletId", "direction", "sourceType"\]/);
+  assert.match(service, /categories,/);
+  assert.match(service, /frozenBalanceAvailable: false/);
+  assert.match(service, /frozenBalances: \[\]/);
+});
