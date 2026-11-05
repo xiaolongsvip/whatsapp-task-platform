@@ -1546,7 +1546,7 @@ private fun InviteFriendsScreen(modifier: Modifier = Modifier, language: String,
                     Text(if (en) "Invite friends to complete eligible tasks" else "邀请好友完成符合条件的任务并审核、结算后，你可获得佣金。", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(if (en) "Commission is calculated according to the platform rules." else "佣金按平台任务规则和实际结算结果计算。", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
                 }
-                Icon(Icons.Default.PersonAddAlt1, null, tint = Color(0xFF319CCB), modifier = Modifier.size(42.dp))
+                Icon(Icons.Default.PersonAdd, null, tint = Color(0xFF319CCB), modifier = Modifier.size(42.dp))
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD6EAF5))) {
