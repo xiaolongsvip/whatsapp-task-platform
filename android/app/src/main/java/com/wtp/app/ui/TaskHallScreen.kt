@@ -431,7 +431,7 @@ fun TaskHallScreen(
                                 isEnglish = isEnglish,
                                 activeClaimId = activeClaimId,
                                 busy = busyId != null,
-                                onGoWhatsApp = { openWhatsApp(context, claim, isEnglish) },
+                                onGoWhatsApp = { selectedClaimId = claim.optString("id") },
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for resubmission." else "已选择此任务，可返回 WhatsApp 重新处理。"
@@ -486,6 +486,138 @@ fun TaskHallScreen(
             )
         }
     }
+}
+
+@Composable
+private fun TaskExecutionScreen(
+    claim: JSONObject,
+    isEnglish: Boolean,
+    activeClaimId: String?,
+    onGoWhatsApp: () -> Unit
+) {
+    val task = claim.optJSONObject("task") ?: JSONObject()
+    val status = claim.optString("status")
+    val phone = claim.optString("assignedPhoneNumber")
+    val previewTitle = task.optString("previewTitle").takeUnless { it == "null" }.orEmpty()
+    val previewDescription = task.optString("previewDescription").takeUnless { it == "null" }.orEmpty()
+    val previewImageUrl = task.optString("previewImageUrl").takeUnless { it == "null" }.orEmpty()
+    val link = task.optString("linkUrl").takeUnless { it == "null" }.orEmpty()
+    val message = task.optString("messageTemplate").takeUnless { it == "null" }.orEmpty()
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(task.optString("title"), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatusPill(claimStatus(status, isEnglish), WtpPaleGreen, WtpDarkGreen)
+                    if (activeClaimId == claim.optString("id")) {
+                        Text(if (isEnglish) "Evidence task selected" else "当前截图任务", color = WtpDarkGreen, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                if (phone.isNotBlank() && phone != "null") {
+                    Surface(color = WtpSky, shape = RoundedCornerShape(9.dp), border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(if (isEnglish) "Assigned WhatsApp contact" else "后台分配的 WhatsApp 号码", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                            Text(maskPhoneNumber(phone), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().background(WtpSky, RoundedCornerShape(9.dp)).padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (isEnglish) "Reward" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD")), color = WtpDarkGreen, fontWeight = FontWeight.Bold)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (isEnglish) "Task status" else "任务状态", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(if (isEnglish) "Task steps" else "任务步骤", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                TaskStep(1, if (isEnglish) "Open WhatsApp" else "打开 WhatsApp", if (isEnglish) "Review the assigned contact and the prepared message before sending." else "核对后台分配的号码和预设内容，确认无误后再发送。")
+                TaskStep(2, if (isEnglish) "Review the link preview" else "检查链接预览", if (isEnglish) "WhatsApp creates the preview from the destination page metadata. Confirm the destination is expected." else "WhatsApp 会根据目标网页的元数据生成预览，请确认链接和图片与任务说明一致。")
+                TaskStep(3, if (isEnglish) "Send and submit evidence" else "发送并提交截图", if (isEnglish) "Send manually in WhatsApp, return here, then use the authorized capture action to submit the screenshot." else "在 WhatsApp 中手动发送，返回本页后使用已授权的截图操作提交证据。")
+
+                if (message.isNotBlank()) {
+                    Text(if (isEnglish) "Prepared message" else "预设消息内容", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
+                    Surface(color = WtpPage, shape = RoundedCornerShape(9.dp)) {
+                        Text(message, Modifier.fillMaxWidth().padding(12.dp), color = WtpText)
+                    }
+                }
+
+                if (link.isNotBlank()) {
+                    Text(if (isEnglish) "Link preview" else "链接预览", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
+                    Surface(color = WtpSky, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            if (previewTitle.isNotBlank()) Text(previewTitle, color = WtpText, fontWeight = FontWeight.Bold)
+                            if (previewDescription.isNotBlank()) Text(previewDescription, color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                            Text(link, color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
+                            if (previewImageUrl.isNotBlank()) {
+                                Text(if (isEnglish) "Preview image configured" else "已配置链接预览图片", color = WtpDarkGreen, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = onGoWhatsApp,
+                    enabled = phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED"),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    if (isEnglish) "The message is not sent automatically. Check the recipient and content, then tap Send in WhatsApp." else "APP 不会自动发送消息。请在 WhatsApp 中核对收件号码和内容，再由你本人点击发送。",
+                    color = WtpMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskStep(number: Int, title: String, description: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Surface(color = WtpSky, shape = RoundedCornerShape(50)) {
+            Text(number.toString(), Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = WtpDarkGreen, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, color = WtpText, fontWeight = FontWeight.SemiBold)
+            Text(description, color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+private fun maskPhoneNumber(value: String): String {
+    val digits = value.filter { it.isDigit() }
+    if (digits.length <= 4) return "****"
+    return "******" + digits.takeLast(6)
+}
+
+private fun displayTaskTitle(value: String): String {
+    val digits = value.filter { it.isDigit() }
+    return if (digits.length >= 8) maskPhoneNumber(value) else value
 }
 
 @Composable
@@ -619,7 +751,7 @@ private fun AvailableTaskCard(
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(task.optString("title"), color = WtpText, fontWeight = FontWeight.Bold)
+            Text(displayTaskTitle(task.optString("title")), color = WtpText, fontWeight = FontWeight.Bold)
             Text(task.optString("description"), color = WtpMuted, style = MaterialTheme.typography.bodySmall)
             Surface(
                 color = Color(0xFFF6FCF8),
@@ -692,7 +824,7 @@ private fun ClaimedTaskCard(
                 Surface(color = WtpPaleGreen, shape = RoundedCornerShape(9.dp)) {
                     Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(if (isEnglish) "Assigned WhatsApp number" else "本任务专属号码", color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
-                        Text(phone, color = Color(0xFF17446A), fontWeight = FontWeight.Bold)
+                        Text(maskPhoneNumber(phone), color = WtpText, fontWeight = FontWeight.Bold)
                     }
                 }
             }
