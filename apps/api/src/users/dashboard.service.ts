@@ -64,6 +64,7 @@ export class DashboardService {
             where: { status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] } },
             select: { amountMinor: true },
           },
+          holds: { where: { status: "ACTIVE" }, select: { amountMinor: true } },
         },
       }),
       prisma.taskReview.count({
@@ -111,7 +112,8 @@ export class DashboardService {
         .filter((entry) => entry.direction === "DEBIT")
         .reduce((sum, entry) => sum + entry.amountMinor, 0n);
       const reserved = wallet.withdrawals.reduce((sum, item) => sum + item.amountMinor, 0n);
-      const withdrawable = credited - debited - reserved;
+      const frozen = wallet.holds.reduce((sum, item) => sum + item.amountMinor, 0n);
+      const withdrawable = credited - debited - reserved - frozen;
       return {
         currency: wallet.currency.trim(),
         amountMinor: (withdrawable > 0n ? withdrawable : 0n).toString(),
@@ -158,7 +160,7 @@ export class DashboardService {
       prisma.referralReward.findMany({ where: { beneficiaryId: userId }, select: { amountMinor: true, currency: true } }),
       prisma.referralReward.findMany({ where: { beneficiaryId: userId, createdAt: { gte: today } }, select: { amountMinor: true, currency: true } }),
       prisma.referralReward.findMany({ where: { beneficiaryId: userId, createdAt: { gte: monthStart } }, select: { amountMinor: true, currency: true } }),
-      prisma.wallet.findMany({ where: { userId }, include: { entries: { select: { direction: true, amountMinor: true } }, withdrawals: { where: { status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] } }, select: { amountMinor: true } } } }),
+      prisma.wallet.findMany({ where: { userId }, include: { entries: { select: { direction: true, amountMinor: true } }, withdrawals: { where: { status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] } }, select: { amountMinor: true } }, holds: { where: { status: "ACTIVE" }, select: { amountMinor: true } } } }),
     ]);
     const sum = (rows: Array<{ amountMinor: bigint; currency: string }>) => {
       const totals: Record<string, string> = {};
@@ -169,7 +171,8 @@ export class DashboardService {
       const credits = wallet.entries.filter((entry) => entry.direction === "CREDIT").reduce((v, entry) => v + entry.amountMinor, 0n);
       const debits = wallet.entries.filter((entry) => entry.direction === "DEBIT").reduce((v, entry) => v + entry.amountMinor, 0n);
       const reserved = wallet.withdrawals.reduce((v, item) => v + item.amountMinor, 0n);
-      return { currency: wallet.currency.trim(), amountMinor: (credits - debits - reserved > 0n ? credits - debits - reserved : 0n).toString() };
+      const frozen = wallet.holds.reduce((v, item) => v + item.amountMinor, 0n);
+      return { currency: wallet.currency.trim(), amountMinor: (credits - debits - reserved - frozen > 0n ? credits - debits - reserved - frozen : 0n).toString() };
     });
     let code = user?.referralCode ?? "";
     // Upgrade legacy long codes when the member opens the promotion page.
