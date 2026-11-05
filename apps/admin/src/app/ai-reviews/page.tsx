@@ -50,6 +50,8 @@ export default function AiReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<ReviewJob | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewError, setReviewError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -69,6 +71,34 @@ export default function AiReviewsPage() {
   }, [status, page]);
 
   const pages = Math.max(1, Math.ceil(total / 20));
+
+  async function submitManualDecision(decision: "APPROVE" | "REJECT") {
+    if (!selected || selected.status !== "NEEDS_REVIEW" || reviewing) return;
+    const reason = window.prompt(decision === "APPROVE" ? "请输入通过审核的理由：" : "请输入驳回原因：");
+    if (reason === null) return;
+    if (reason.trim().length < 2) {
+      setReviewError("审核理由至少需要 2 个字符。");
+      return;
+    }
+    setReviewing(true);
+    setReviewError("");
+    try {
+      const response = await fetch(`/api/v1/admin/task-submissions/${selected.submission.id}/review`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, reason: reason.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.message === "string" ? data.message : "人工审核失败。");
+      setSelected(null);
+      window.location.reload();
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : "人工审核失败。");
+    } finally {
+      setReviewing(false);
+    }
+  }
 
   return (
     <main className="admin-shell">
@@ -152,6 +182,27 @@ export default function AiReviewsPage() {
             <div style={{ gridColumn: "1 / -1" }}><strong>AI 理由</strong><p style={{ whiteSpace: "pre-wrap" }}>{selected.reason || "—"}</p></div>
             <div style={{ gridColumn: "1 / -1" }}><strong>OCR 提取文字</strong><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{selected.extractedText || "暂无识别文字"}</pre></div>
             <div style={{ gridColumn: "1 / -1" }}><strong>用户提交说明</strong><p>{selected.submission.note || "—"}</p></div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <strong>原始提交截图</strong>
+              <div style={{ marginTop: 10 }}>
+                <img
+                  src={`/api/v1/admin/task-submissions/${selected.submission.id}/evidence`}
+                  alt="任务提交证据"
+                  style={{ display: "block", maxWidth: "100%", maxHeight: 560, objectFit: "contain", border: "1px solid #ddd", borderRadius: 8 }}
+                />
+              </div>
+            </div>
+            {reviewError && <div className="notice error" style={{ gridColumn: "1 / -1" }}>{reviewError}</div>}
+            {selected.status === "NEEDS_REVIEW" && (
+              <div className="action-row" style={{ gridColumn: "1 / -1" }}>
+                <button className="primary-btn" disabled={reviewing} onClick={() => void submitManualDecision("APPROVE")}>
+                  {reviewing ? "正在提交…" : "人工通过"}
+                </button>
+                <button className="secondary-btn" disabled={reviewing} onClick={() => void submitManualDecision("REJECT")}>
+                  人工驳回
+                </button>
+              </div>
+            )}
             {selected.lastError && <div style={{ gridColumn: "1 / -1" }}><strong>最近错误</strong><p style={{ whiteSpace: "pre-wrap" }}>{selected.lastError}</p></div>}
           </div>
         </section>
