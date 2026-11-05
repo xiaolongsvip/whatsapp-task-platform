@@ -49,9 +49,6 @@ export class StorageConfigService {
       throw new BadRequestException("对象存储 Endpoint 必须使用 HTTPS。");
     }
     const existing = await prisma.objectStorageConfig.findUnique({ where: { id: CONFIG_ID } });
-    if (!existing && (!input.accessKey?.trim() || !input.secretKey?.trim())) {
-      throw new BadRequestException("首次配置必须填写 Access Key 和 Secret Key。");
-    }
     if (Boolean(input.accessKey?.trim()) !== Boolean(input.secretKey?.trim())) {
       throw new BadRequestException("Access Key 和 Secret Key 必须同时填写或同时留空。");
     }
@@ -66,7 +63,12 @@ export class StorageConfigService {
       create: {
         id: CONFIG_ID, endpoint: input.endpoint.trim().replace(/\/+$/, ""), bucket: input.bucket.trim(),
         region: input.region?.trim() || "auto",
-        ...credentials,
+        accessKeyCiphertext: credentials.accessKeyCiphertext ?? null,
+        accessKeyIv: credentials.accessKeyIv ?? null,
+        accessKeyTag: credentials.accessKeyTag ?? null,
+        secretKeyCiphertext: credentials.secretKeyCiphertext ?? null,
+        secretKeyIv: credentials.secretKeyIv ?? null,
+        secretKeyTag: credentials.secretKeyTag ?? null,
         enabled: input.enabled ?? false, updatedByAdminId: adminId,
       },
       update: {
@@ -86,7 +88,7 @@ export class StorageConfigService {
 
   async getRuntimeCredentials() {
     const row = await prisma.objectStorageConfig.findUnique({ where: { id: CONFIG_ID } });
-    if (!row || !row.enabled) return null;
+    if (!row || !row.enabled || !row.accessKeyCiphertext || !row.accessKeyIv || !row.accessKeyTag || !row.secretKeyCiphertext || !row.secretKeyIv || !row.secretKeyTag) return null;
     return {
       endpoint: row.endpoint, bucket: row.bucket, region: row.region,
       accessKey: decrypt(row.accessKeyCiphertext, row.accessKeyIv, row.accessKeyTag),
