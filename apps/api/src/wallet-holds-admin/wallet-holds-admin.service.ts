@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { prisma } from "@wtp/database";
+import { prisma, type Prisma } from "@wtp/database";
 
 const RESERVED = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
 
@@ -7,9 +7,11 @@ const RESERVED = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as cons
 export class WalletHoldsAdminService {
   async list(walletId?: string, status?: string, page = 1, pageSize = 20) {
     const take = Math.min(100, Math.max(1, pageSize));
-    const where = {
+    const where: Prisma.WalletHoldWhereInput = {
       ...(walletId ? { walletId } : {}),
-      ...(status === "ACTIVE" || status === "RELEASED" || status === "CAPTURED" ? { status } : {}),
+      ...(status === "ACTIVE" || status === "RELEASED" || status === "CAPTURED"
+        ? { status: status as NonNullable<Prisma.WalletHoldWhereInput["status"]> }
+        : {}),
     };
     const [total, items] = await prisma.$transaction([
       prisma.walletHold.count({ where }),
