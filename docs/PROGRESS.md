@@ -420,7 +420,9 @@ Last updated: 2026-11-05
 - [x] Lazy overdue-claim cleanup runs when a user opens My Claims or requests a new claim; claim expiry follows the task end time when one exists, and expired numbers are released only if consent remains GRANTED.
 - [ ] Scheduled background worker for proactive expiration when users are inactive.
 - [ ] Display of the assigned WhatsApp number in the Android task flow.
-- [ ] Local `pnpm db:push` and Prisma Client regeneration after syncing the updated schema.
+- [x] User confirmed local PostgreSQL schema sync (`pnpm.cmd db:push`) completed successfully on 2026-11-05.
+- [x] User confirmed local Prisma Client generation completed successfully after stopping the API process holding the Windows query-engine DLL.
+- [x] User confirmed local API TypeScript check (`pnpm.cmd --filter @wtp/api typecheck`) passed.
 - [x] GitHub CI passed on commit `3381698680ba798f0b476976d557fc6b3116e01d`: Prisma Client generation, Prisma schema validation, TypeScript checks, ESLint, and production builds.
 - [ ] Runtime tests, including simultaneous claims, FIFO order, duplicate imports, cancellation/expiry release, and revoked-consent protection.
 - [ ] Initial administrator bootstrap and user acceptance in the local admin console.
