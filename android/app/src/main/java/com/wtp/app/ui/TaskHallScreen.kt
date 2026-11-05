@@ -1210,12 +1210,56 @@ private fun ClaimedTaskCard(
                 )
             }
             if (submission != null) {
-                Text(
-                    (if (isEnglish) "Latest submission: " else "最近提交：") +
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (isEnglish) "Evidence review" else "凭证审核状态",
+                        color = WtpMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    StatusPill(
                         claimStatus(submission.optString("status"), isEnglish),
-                    color = WtpMuted,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                        when (submission.optString("status")) {
+                            "APPROVED" -> WtpPaleGreen
+                            "REJECTED" -> Color(0xFFFFF1E5)
+                            else -> Color(0xFFEAF4FF)
+                        },
+                        when (submission.optString("status")) {
+                            "APPROVED" -> WtpDarkGreen
+                            "REJECTED" -> Color(0xFFB45309)
+                            else -> Color(0xFF245987)
+                        }
+                    )
+                }
+                val submittedAt = submission.optString("submittedAt")
+                if (submittedAt.isNotBlank() && submittedAt != "null") {
+                    Text(
+                        (if (isEnglish) "Submitted: " else "提交时间：") + formatDate(submittedAt),
+                        color = WtpMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                val reviewReason = submission.optString("reviewReason").takeUnless { it.isNullOrBlank() || it == "null" }
+                if (submission.optString("status") == "REJECTED" && reviewReason != null) {
+                    Surface(
+                        color = Color(0xFFFFF4E8),
+                        shape = RoundedCornerShape(9.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                if (isEnglish) "Reason for rejection" else "审核驳回原因",
+                                color = Color(0xFF9A3412),
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(reviewReason, color = Color(0xFF7C2D12), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
             if (activeClaimId == claim.optString("id")) {
                 StatusPill(
