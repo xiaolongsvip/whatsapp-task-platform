@@ -5,6 +5,8 @@ import { UpdateProfileDto } from "./update-profile.dto";
 import { DashboardService } from "./dashboard.service";
 import { PayoutAccountsService } from "./payout-accounts.service";
 import { CreatePayoutAccountDto } from "./create-payout-account.dto";
+import { CreateWithdrawalDto } from "./create-withdrawal.dto";
+import { WithdrawalsService } from "./withdrawals.service";
 
 function sessionToken(request: Request): string | undefined {
   const header = request.headers.cookie;
@@ -15,7 +17,7 @@ function sessionToken(request: Request): string | undefined {
 
 @Controller("users")
 export class UsersController {
-  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService, private readonly payoutAccounts: PayoutAccountsService) {}
+  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService, private readonly payoutAccounts: PayoutAccountsService, private readonly withdrawals: WithdrawalsService) {}
 
   @Get("dashboard")
   async getDashboard(@Req() request: Request) {
@@ -27,6 +29,12 @@ export class UsersController {
   async getWithdrawals(@Req() request: Request) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
     return this.dashboard.getWithdrawalHistory(user.id);
+  }
+
+  @Post("withdrawals")
+  async createWithdrawal(@Req() request: Request, @Body() body: CreateWithdrawalDto) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.withdrawals.create(user.id, body.payoutAccountId, body.amountMinor);
   }
 
   @Get("payout-accounts")
