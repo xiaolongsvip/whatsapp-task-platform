@@ -104,13 +104,14 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
             }
             3 -> when (walletPage) {
                 "accounts" -> PayoutAccountsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" }, onAdd = { walletPage = "add-account" })
+                "apply" -> ApplyWithdrawalScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" }, onAddAccount = { walletPage = "add-account" }, onSubmitted = { walletPage = "withdrawals" })
                 "add-account" -> AddPayoutAccountScreen(Modifier.padding(padding), language, onBack = { walletPage = "accounts" }, onSaved = { walletPage = "accounts" })
                 "details" -> WalletDetailsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
                 "withdrawals" -> WithdrawalHistoryScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
                 "guide" -> WithdrawalGuideScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
                 else -> WalletScreen(
                     Modifier.padding(padding), language,
-                    onApplyWithdraw = { walletPage = "accounts" },
+                    onApplyWithdraw = { walletPage = "apply" },
                     onPayoutAccounts = { walletPage = "accounts" },
                     onWithdrawalHistory = { walletPage = "withdrawals" },
                     onWithdrawalGuide = { walletPage = "guide" },
@@ -1257,6 +1258,133 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApplyWithdrawalScreen(
+    modifier: Modifier = Modifier,
+    language: String,
+    onBack: () -> Unit,
+    onAddAccount: () -> Unit,
+    onSubmitted: () -> Unit
+) {
+    val isEnglish = language == "en"
+    var accounts by remember { mutableStateOf(JSONArray()) }
+    var balances by remember { mutableStateOf(JSONArray()) }
+    var selectedId by rememberSaveable { mutableStateOf("") }
+    var amount by rememberSaveable { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+    var saving by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        loading = true
+        runCatching {
+            withContext(Dispatchers.IO) {
+                Pair(AuthRepository.payoutAccounts(), AuthRepository.promotionSummary())
+            }
+        }.onSuccess { result ->
+            accounts = result.first.optJSONArray("items") ?: JSONArray()
+            balances = result.second.optJSONArray("availableBalances") ?: JSONArray()
+            for (index in 0 until accounts.length()) {
+                val item = accounts.optJSONObject(index) ?: continue
+                if (item.optBoolean("isDefault")) { selectedId = item.optString("id"); break }
+            }
+            if (selectedId.isBlank() && accounts.length() > 0) selectedId = accounts.optJSONObject(0)?.optString("id").orEmpty()
+        }.onFailure { error = it.message ?: if (isEnglish) "Unable to load withdrawal data" else "加载提现信息失败" }
+        loading = false
+    }
+
+    val selected = (0 until accounts.length()).mapNotNull { accounts.optJSONObject(it) }.firstOrNull { it.optString("id") == selectedId }
+    val currency = selected?.optString("currency")?.trim().orEmpty()
+    val digits = if (currency.isBlank()) 2 else runCatching { java.util.Currency.getInstance(currency).defaultFractionDigits.coerceAtLeast(0) }.getOrDefault(2)
+    val availableMinor = (0 until balances.length()).mapNotNull { balances.optJSONObject(it) }
+        .firstOrNull { it.optString("currency").trim().equals(currency, ignoreCase = true) }
+        ?.optString("amountMinor", "0")?.toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
+    val requestedMinor = runCatching { java.math.BigDecimal(amount.trim()).movePointRight(digits).toBigIntegerExact() }.getOrNull()
+    val amountValid = requestedMinor != null && requestedMinor > java.math.BigInteger.ZERO && requestedMinor <= availableMinor
+
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (isEnglish) "Apply withdrawal" else "申请提现", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
+        }
+        if (loading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        } else {
+            Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(if (isEnglish) "Available balance" else "可提现余额", color = Color(0xFF667085))
+                        Text(if (selected == null) "—" else formatMinorByCurrency(availableMinor.toString(), currency), color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
+                        Text(if (isEnglish) "No minimum withdrawal amount." else "不设置最低提现金额。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (accounts.length() == 0) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(if (isEnglish) "No payout account" else "尚未添加收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
+                            Button(onClick = onAddAccount) { Text(if (isEnglish) "Add payout account" else "新增收款账户") }
+                        }
+                    }
+                } else {
+                    Text(if (isEnglish) "Payout account" else "选择收款账户", color = Color(0xFF667085))
+                    Box {
+                        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                            Text(selected?.let { it.optString("methodCode") + " · " + it.optString("maskedAccount") + " · " + it.optString("currency") } ?: if (isEnglish) "Select account" else "请选择收款账户", modifier = Modifier.weight(1f), color = Color(0xFF123E56))
+                            Icon(Icons.Default.ArrowDropDown, null)
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            for (index in 0 until accounts.length()) {
+                                val item = accounts.optJSONObject(index) ?: continue
+                                DropdownMenuItem(text = { Text(item.optString("methodCode") + " · " + item.optString("maskedAccount") + " · " + item.optString("currency")) }, onClick = { selectedId = item.optString("id"); amount = ""; expanded = false })
+                            }
+                        }
+                    }
+                    Text(if (isEnglish) "Withdrawal amount" else "提现金额", color = Color(0xFF667085))
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { value -> if (value.matches(Regex("[0-9]{0,18}(\\.[0-9]{0,8})?"))) amount = value },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        placeholder = { Text(if (isEnglish) "Enter amount" else "请输入提现金额") },
+                        suffix = { Text(currency) }
+                    )
+                    Text((if (isEnglish) "Maximum available: " else "最多可提现：") + formatMinorByCurrency(availableMinor.toString(), currency), color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall)
+                    if (error != null) Text(error.orEmpty(), color = Color(0xFFB42318))
+                    Button(
+                        onClick = {
+                            val id = selected?.optString("id").orEmpty()
+                            val minor = requestedMinor?.toString().orEmpty()
+                            if (id.isNotBlank() && minor.isNotBlank() && !saving) {
+                                scope.launch {
+                                    saving = true
+                                    error = null
+                                    runCatching { withContext(Dispatchers.IO) { AuthRepository.createWithdrawal(id, minor) } }
+                                        .onSuccess { onSubmitted() }
+                                        .onFailure { error = it.message ?: if (isEnglish) "Withdrawal request failed" else "提现申请失败" }
+                                    saving = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        enabled = amountValid && selected != null && !saving,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))
+                    ) {
+                        if (saving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (isEnglish) "Submit withdrawal request" else "提交提现申请")
+                    }
+                }
+                if (error != null && accounts.length() == 0) Text(error.orEmpty(), color = Color(0xFFB42318))
             }
         }
     }
