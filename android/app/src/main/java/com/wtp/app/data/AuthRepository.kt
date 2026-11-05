@@ -176,7 +176,7 @@ object AuthRepository {
     fun currentUser(): JSONObject = request("GET", "auth/me")
 
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
-
+\n    fun promotionSummary(): JSONObject = request("GET", "users/promotion")\n
     fun publishedTasks(): JSONObject = request("GET", "tasks")
 
     fun myTaskClaims(): JSONObject = request("GET", "tasks/my/claims")
