@@ -792,14 +792,6 @@ private fun LoadingState() {
     }
 }
 
-private fun Modifier.height(2.dp): Modifier = this.then(
-    Modifier.padding(top = 0.dp)
-).let { modifier ->
-    androidx.compose.foundation.layout.height(2.dp).let { heightModifier ->
-        modifier.then(heightModifier)
-    }
-}
-
 private fun JSONArray?.asObjectList(): List<JSONObject> {
     if (this == null) return emptyList()
     return (0 until length()).mapNotNull { optJSONObject(it) }
