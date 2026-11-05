@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -172,15 +173,77 @@ export class ContactNumbersService {
 
   async block(numberId: string, adminId: string) {
     return prisma.$transaction(async (tx) => {
-      const number = await tx.contactNumber.findUnique({ where: { id: numberId } });
+      // Serialize the block action against claims and other number mutations.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM contact_numbers WHERE id = ${numberId}::uuid FOR UPDATE
+      `;
+      const number = await tx.contactNumber.findUnique({
+        where: { id: numberId },
+        include: {
+          assignments: {
+            where: { status: "ASSIGNED" },
+            orderBy: { assignedAt: "desc" },
+            take: 1,
+            include: {
+              claim: {
+                include: {
+                  submissions: {
+                    where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] } },
+                    select: { id: true },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+          taskSlots: { take: 1, select: { id: true, claimId: true, status: true } },
+        },
+      });
       if (!number) throw new NotFoundException("号码记录不存在。");
+
+      const assignment = number.assignments[0];
+      if (assignment?.claim.submissions.length) {
+        throw new ConflictException("该号码关联的任务正在审核中，请先完成审核，再封禁号码。");
+      }
+
+      const now = new Date();
+      if (assignment) {
+        const claim = assignment.claim;
+        if (["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+          await tx.taskClaim.update({
+            where: { id: claim.id },
+            data: { status: "CANCELLED" },
+          });
+          await tx.task.updateMany({
+            where: { id: claim.taskId, claimedCount: { gt: 0 } },
+            data: { claimedCount: { decrement: 1 } },
+          });
+        }
+
+        await tx.contactAssignment.update({
+          where: { id: assignment.id },
+          data: { status: "RELEASED", releasedAt: now },
+        });
+      }
+
+      // A blocked number must never leave a reusable slot behind. USED is the
+      // terminal slot state in the current schema; the number itself remains
+      // BLOCKED and cannot be allocated by the inventory allocator.
+      await tx.taskSlot.updateMany({
+        where: { contactNumberId: numberId, status: { in: ["AVAILABLE", "ASSIGNED"] } },
+        data: {
+          status: "USED",
+          usedAt: now,
+          releasedAt: now,
+        },
+      });
 
       const updated = await tx.contactNumber.update({
         where: { id: numberId },
         data: {
           status: "BLOCKED",
           consentStatus: "REVOKED",
-          revokedAt: new Date(),
+          revokedAt: now,
         },
       });
       await tx.contactConsentEvent.create({
@@ -188,6 +251,7 @@ export class ContactNumbersService {
           contactNumberId: numberId,
           status: "REVOKED",
           source: `Admin block action: ${adminId}`,
+          recordedAt: now,
         },
       });
 
@@ -196,6 +260,9 @@ export class ContactNumbersService {
         phoneE164: updated.phoneE164,
         status: updated.status,
         consentStatus: updated.consentStatus,
+        cancelledClaimId: assignment && ["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(assignment.claim.status)
+          ? assignment.claim.id
+          : null,
       };
     });
   }
