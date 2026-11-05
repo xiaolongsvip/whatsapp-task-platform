@@ -746,6 +746,38 @@ private fun TaskExecutionScreen(
                     color = WtpMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
+                val latestSubmission = claim.optJSONObject("latestSubmission")
+                val reviewReason = latestSubmission?.optString("reviewReason")
+                    ?.takeUnless { it.isNullOrBlank() || it == "null" }
+                if (status == "REJECTED") {
+                    Surface(
+                        color = Color(0xFFFFF4E8),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(
+                                if (isEnglish) "Resubmission required" else "本次审核未通过，请按原因修正后重新提交",
+                                color = Color(0xFF9A3412),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (reviewReason != null) {
+                                    (if (isEnglish) "Reviewer feedback: " else "驳回原因：") + reviewReason
+                                } else {
+                                    if (isEnglish) "No reviewer note was provided. Check the task requirements and submit a clear new screenshot." else "管理员没有填写具体原因，请重新核对任务要求，并提交清晰完整的新截图。"
+                                },
+                                color = Color(0xFF7C2D12),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                if (isEnglish) "After correcting the issue, return here and tap the floating capture button to upload a new screenshot. The previous submission remains in your records." else "修正后返回本页，点击悬浮水球重新截图并上传。旧截图记录会保留。",
+                                color = Color(0xFF7C2D12),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
                 Row(
                     Modifier.fillMaxWidth().background(Color(0xFFF3F8F5), RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -788,7 +820,15 @@ private fun TaskExecutionScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text(if (starting) { if (isEnglish) "Opening…" else "正在打开…" } else { if (isEnglish) "Go to WhatsApp" else "前往 WhatsApp" }, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(
+                                when {
+                                    starting -> if (isEnglish) "Opening…" else "正在打开…"
+                                    status == "REJECTED" -> if (isEnglish) "Correct & reopen WhatsApp" else "修改后重新前往 WhatsApp"
+                                    else -> if (isEnglish) "Go to WhatsApp" else "前往 WhatsApp"
+                                },
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
