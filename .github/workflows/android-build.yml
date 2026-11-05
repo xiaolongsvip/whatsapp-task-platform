@@ -2,7 +2,7 @@ name: Android Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/automatic-task-slot-allocation]
     paths:
       - "android/**"
       - ".github/workflows/android-build.yml"
