@@ -531,3 +531,19 @@ Last updated: 2026-11-05
 - [x] Added a server-authoritative default three-minute claim expiry using the existing TaskClaim.expiresAt field. The expiry is returned by both claim and my-claims responses and is displayed as a countdown in the app. Task end time, if earlier, takes precedence.
 - [ ] Confirm Android Build and CI workflows complete successfully for the latest commit.
 - [ ] Verify countdown/expiry, abandon confirmation, contact release, floating overlay while WhatsApp is foreground, screenshot upload, and review status on a physical Android device.
+
+### Task card details, explicit WhatsApp start, abandon fix and blue evidence orb (2026-11-05)
+
+**Implementation committed to main; CI and Android device acceptance are pending.**
+
+- [x] In the In Progress and Rejected task cards, added separate **查看详情** and **前往 WhatsApp** actions. View details opens the task execution screen; the WhatsApp action starts the task and opens the WhatsApp conversation directly.
+- [x] Added authenticated POST /api/v1/tasks/claims/:claimId/start. The server changes the claim to IN_PROGRESS and starts the three-minute expiry only on the user's explicit WhatsApp-start action. Reading the detail screen no longer consumes the task timer.
+- [x] Updated the Android client to call the start endpoint before launching the prefilled WhatsApp conversation. The user must still inspect the recipient/message and manually press Send; the app does not auto-send.
+- [x] Fixed the abandon control: it is no longer disabled when the countdown reaches 00:00. Expired/cancelled claims are handled idempotently by the cancellation API; active cancellation releases the assigned number only if its consent remains GRANTED.
+- [x] Added visible error feedback for failed cancellation and separate start/cancel progress states.
+- [x] Replaced the grey screenshot control with a circular blue radial-gradient “已发送 / 提交任务” orb. It is displayed only when an active claim is selected, overlay permission is granted, and a user-authorized MediaProjection session is running.
+- [x] Tapping the orb explicitly captures the current screen and automatically uploads it to the selected task's evidence endpoint. Successful upload removes the orb and clears the active claim; failed upload retains the claim and restores the orb for retry.
+- [x] Opening task details hides any previously selected task's orb, preventing evidence from being attached to the wrong claim.
+- [ ] Verify the latest Android Build and CI workflows complete successfully.
+- [ ] Physical-device acceptance: test direct WhatsApp launch, message prefill, timer starting at first launch, abandon after 00:00, overlay on top of WhatsApp, screenshot capture, upload retry, and submission status.
+- [ ] The user must first grant Android overlay permission and MediaProjection screen-capture consent from Home > Device & permissions. Android requires explicit system consent; the app cannot silently grant screen capture.
