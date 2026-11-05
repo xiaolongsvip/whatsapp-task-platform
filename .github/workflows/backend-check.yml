@@ -47,3 +47,5 @@ jobs:
         run: pnpm --filter @wtp/database db:generate
       - name: Typecheck API
         run: pnpm --filter @wtp/api typecheck
+      - name: Run API source contract tests
+        run: pnpm --filter @wtp/api test
