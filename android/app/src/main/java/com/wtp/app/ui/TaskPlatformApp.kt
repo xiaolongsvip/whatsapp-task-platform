@@ -642,6 +642,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
     var error by remember { mutableStateOf<String?>(null) }
     var detail by remember { mutableStateOf("") }
     var supportDialog by remember { mutableStateOf(false) }
+    var showQrDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val inviteUrl = data?.optString("inviteUrl").orEmpty()
     val inviteCode = data?.optString("referralCode").orEmpty()
@@ -727,7 +728,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
                         }
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (inviteUrl.isNotBlank()) PromotionQrCode(inviteUrl, Modifier.size(88.dp))
+                        if (inviteUrl.isNotBlank()) PromotionQrCode(inviteUrl, Modifier.size(88.dp), onClick = { showQrDialog = true })
                         else Surface(Modifier.size(88.dp), color = Color(0xFFF5F8F6), shape = RoundedCornerShape(12.dp)) {}
                         Text(if (isEnglish) "QR code" else "邀请二维码", color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
                     }
@@ -814,6 +815,30 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
                 confirmButton = { TextButton(onClick = { detail = "" }) { Text(if (isEnglish) "OK" else "知道了") } }
             )
         }
+        if (showQrDialog && inviteUrl.isNotBlank()) {
+            AlertDialog(
+                onDismissRequest = { showQrDialog = false },
+                title = { Text(if (isEnglish) "Invitation QR code" else "邀请二维码") },
+                text = {
+                    Column(
+                        Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        PromotionQrCode(inviteUrl, Modifier.size(240.dp))
+                        Text(if (isEnglish) "Scan to open your registration link" else "扫码即可打开你的专属注册链接", color = Color(0xFF667085))
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { copyText(inviteUrl, "Invitation link"); showQrDialog = false }) {
+                        Text(if (isEnglish) "Copy link" else "复制链接")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showQrDialog = false }) { Text(if (isEnglish) "Close" else "关闭") }
+                }
+            )
+        }
         if (supportDialog) {
             AlertDialog(
                 onDismissRequest = { supportDialog = false },
@@ -826,7 +851,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
 }
 
 @Composable
-private fun PromotionQrCode(value: String, modifier: Modifier = Modifier) {
+private fun PromotionQrCode(value: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val bitmap = remember(value) {
         runCatching {
             val hints = mapOf(com.google.zxing.EncodeHintType.MARGIN to 1)
@@ -844,7 +869,7 @@ private fun PromotionQrCode(value: String, modifier: Modifier = Modifier) {
         androidx.compose.foundation.Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = "Invitation QR code",
-            modifier = modifier.clip(RoundedCornerShape(12.dp)).background(Color.White)
+            modifier = modifier.clip(RoundedCornerShape(12.dp)).background(Color.White).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
         )
     } else {
         Surface(modifier, color = Color(0xFFF5F8F6), shape = RoundedCornerShape(12.dp)) {
