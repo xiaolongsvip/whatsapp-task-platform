@@ -210,6 +210,67 @@ export class DashboardService {
     };
   }
 
+  async getCommissionRecords(userId: string) {
+    const rows = await prisma.referralReward.findMany({
+      where: { beneficiaryId: userId },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { id: true, sourceUserId: true, depth: true, amountMinor: true, currency: true, createdAt: true, idempotencyKey: true },
+    });
+    // The reward table has no settlement status. Confirm credit from the actual ledger,
+    // rather than treating every created reward as paid.
+    const keys = rows.map((row) => row.idempotencyKey);
+    const credits = keys.length ? await prisma.ledgerEntry.findMany({
+      where: { idempotencyKey: { in: keys }, direction: "CREDIT", wallet: { userId } },
+      select: { idempotencyKey: true },
+    }) : [];
+    const credited = new Set(credits.map((row) => row.idempotencyKey));
+    const totals = (items: typeof rows) => {
+      const result: Record<string, string> = {};
+      for (const row of items) {
+        const currency = row.currency.trim();
+        result[currency] = (BigInt(result[currency] ?? "0") + row.amountMinor).toString();
+      }
+      return result;
+    };
+    const pending = rows.filter((row) => !credited.has(row.idempotencyKey));
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        sourceUserId: row.sourceUserId,
+        depth: row.depth,
+        amountMinor: row.amountMinor.toString(),
+        currency: row.currency.trim(),
+        status: credited.has(row.idempotencyKey) ? "CREDITED" : "PENDING",
+        createdAt: row.createdAt.toISOString(),
+      })),
+      pendingCommissions: totals(pending),
+      // Totals above cover only the 100 returned records; never label them as lifetime totals.
+      hasMore: rows.length === 100,
+    };
+  }
+
+  async getTeamMembers(userId: string) {
+    const rows = await prisma.referralAncestor.findMany({
+      where: { ancestorUserId: userId, depth: { in: [1, 2, 3] } },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+      select: { descendantUserId: true, depth: true, createdAt: true },
+    });
+    const counts = await Promise.all([1, 2, 3].map((depth) =>
+      prisma.referralAncestor.count({ where: { ancestorUserId: userId, depth } })
+    ));
+    return {
+      counts: { level1: counts[0], level2: counts[1], level3: counts[2] },
+      items: rows.map((row) => ({
+        userId: row.descendantUserId,
+        depth: row.depth,
+        invitedAt: row.createdAt.toISOString(),
+      })),
+      hasMore: rows.length === 300,
+    };
+  }
+
   async getWithdrawalHistory(userId: string, limit = 50) {
     const rows = await prisma.withdrawalRequest.findMany({
       where: { wallet: { userId } },
