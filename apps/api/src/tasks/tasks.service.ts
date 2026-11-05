@@ -649,6 +649,12 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           return idempotent;
         }
 
+        // The evidence object is uploaded before this transaction. Recheck the
+        // deadline after acquiring the claim row lock so an upload that finishes
+        // after expiry cannot submit evidence or keep an expired number assigned.
+        if (lockedClaim.expiresAt && lockedClaim.expiresAt.getTime() <= Date.now()) {
+          throw new ConflictException("该任务领取已过期，不能再提交证据。");
+        }
         if (!["CLAIMED", "IN_PROGRESS"].includes(lockedClaim.status)) {
           throw new ConflictException("任务状态已变化，请刷新后重试。");
         }
