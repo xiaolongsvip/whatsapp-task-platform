@@ -439,7 +439,7 @@ Last updated: 2026-11-05
 
 ## Module 1.3 — Task creation and publishing
 
-**Status: implementation committed; GitHub CI and local schema sync/runtime acceptance are pending.**
+**Status: implementation committed; GitHub CI passed. Local schema sync, UI/runtime testing, and user acceptance are pending.**
 
 ### Confirmed scope
 
@@ -471,6 +471,7 @@ Last updated: 2026-11-05
 - [ ] Current admin import supports CSV/TXT, not native XLSX.
 - [ ] The preview title/description/image fields are stored and returned as app metadata. WhatsApp's actual rich-link card still depends on Open Graph metadata at the destination URL and WhatsApp's cache; these fields alone do not force a WhatsApp card.
 - [ ] No task is auto-created. Admin must create and publish a real task before it appears in the mobile task hall.
+- [x] GitHub Actions passed on commit `1f78c4dafbcacf065032dc45ff084617c3c27e24`: Prisma Client generation, Prisma schema validation, TypeScript checks (web/admin/api), ESLint, and production builds.
 - [ ] Local Prisma schema sync, generated-client refresh, task creation/publish UI test, and client/Android task list verification are pending.
 - [ ] Android Kotlin compile/emulator test remains separate from repository CI.
 
