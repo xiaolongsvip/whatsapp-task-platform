@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 type Summary = {
   total: number;
@@ -258,7 +259,7 @@ export default function AdminHomePage() {
         </div>
         <div className="action-row" style={{ marginTop: 0 }}>
           <span className="muted">{adminEmail}</span>
-          <a className="secondary-btn" href="/tasks" style={{ textDecoration: "none" }}>任务管理</a>
+          <Link className="secondary-btn" href="/tasks" style={{ textDecoration: "none" }}>任务管理</Link>
           <button className="secondary-btn" onClick={logout}>退出登录</button>
         </div>
       </header>
