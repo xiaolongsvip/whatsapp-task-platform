@@ -537,21 +537,6 @@ export class TasksService {
           where: { id: claimId },
           data: { status: "SUBMITTED" },
         });
-        const assignment = await tx.contactAssignment.findUnique({ where: { claimId } });
-        if (assignment?.status === "ASSIGNED") {
-          await tx.contactAssignment.update({
-            where: { id: assignment.id },
-            data: { status: "COMPLETED", completedAt: new Date() },
-          });
-          await tx.contactNumber.updateMany({
-            where: { id: assignment.contactNumberId, status: "ASSIGNED" },
-            data: { status: "USED" },
-          });
-          await tx.taskSlot.updateMany({
-            where: { claimId, status: "ASSIGNED" },
-            data: { status: "USED", usedAt: new Date() },
-          });
-        }
         return created;
       });
       // A concurrent retry with the same idempotency key may have created the
