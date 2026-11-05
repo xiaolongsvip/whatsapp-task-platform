@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.Image
@@ -20,6 +21,10 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
+import android.view.Gravity
+import android.view.MotionEvent
+import android.widget.TextView
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
@@ -46,6 +51,9 @@ class ScreenCaptureService : Service() {
     private var workerHandler: Handler? = null
     private val captureRequested = AtomicBoolean(false)
     private var sessionStopped = false
+    private var floatingAction: TextView? = null
+    private var floatingParams: WindowManager.LayoutParams? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -122,7 +130,8 @@ class ScreenCaptureService : Service() {
             sessionStopped = false
             CaptureSessionState.setError(null)
             CaptureSessionState.setActive(true)
-            updateNotification("截图会话运行中；切换到任务应用后点通知中的“截图”")
+            updateNotification("截图会话运行中；可使用悬浮按钮提交当前任务截图")
+            mainHandler.post { showFloatingAction() }
         } catch (security: SecurityException) {
             CaptureSessionState.setError("Android 拒绝启动截图会话：${security.message ?: "权限已失效"}")
             stopSession(stopProjection = true)
@@ -209,21 +218,114 @@ class ScreenCaptureService : Service() {
                     )
                     CaptureSessionState.markLastCaptureUploaded("截图已自动上传并提交审核")
                     updateNotification("截图已自动上传到当前任务审核；会话仍在运行")
+                    mainHandler.postDelayed({ showFloatingAction() }, 700)
                 } catch (uploadError: Exception) {
                     CaptureSessionState.clearActiveClaim()
                     CaptureSessionState.setError("自动上传失败，截图已保存在本机，可回到任务页重试：${uploadError.message ?: "网络或存储错误"}")
                     updateNotification("上传失败；截图已保存在本机，返回任务页重试")
+                    mainHandler.postDelayed({ showFloatingAction() }, 700)
                 }
             } else {
                 updateNotification("截图已保存：${file.name}；选择当前任务后可提交审核")
+                mainHandler.postDelayed({ showFloatingAction() }, 700)
             }
         } catch (error: Exception) {
             CaptureSessionState.setError("保存截图失败：${error.message ?: "未知错误"}")
             updateNotification("截图保存失败；截图会话仍在运行")
+            mainHandler.postDelayed({ showFloatingAction() }, 700)
         } finally {
             captureRequested.set(false)
             image.close()
         }
+    }
+
+    private fun showFloatingAction() {
+        if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) return
+        if (floatingAction != null) return
+        val manager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        val button = TextView(this).apply {
+            text = "已发送并截图上传"
+            textSize = 13f
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(14), 0, dp(14), 0)
+            background = GradientDrawable().apply {
+                setColor(android.graphics.Color.rgb(22, 107, 138))
+                cornerRadius = dp(28).toFloat()
+                setStroke(dp(1), android.graphics.Color.rgb(210, 235, 247))
+            }
+            elevation = dp(8).toFloat()
+        }
+        val windowType = if (Build.VERSION.SDK_INT >= 26) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val params = WindowManager.LayoutParams(
+            dp(184),
+            dp(50),
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            x = dp(16)
+            y = dp(210)
+        }
+        var downX = 0f
+        var downY = 0f
+        var startX = 0
+        var startY = 0
+        var dragged = false
+        button.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    downY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    dragged = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = (event.rawX - downX).toInt()
+                    val dy = (event.rawY - downY).toInt()
+                    if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > dp(6)) dragged = true
+                    params.x = (startX - dx).coerceAtLeast(0)
+                    params.y = (startY - dy).coerceAtLeast(0)
+                    runCatching { manager.updateViewLayout(button, params) }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!dragged) {
+                        removeFloatingAction()
+                        mainHandler.postDelayed({ requestCapture() }, 300)
+                    }
+                    true
+                }
+                else -> true
+            }
+        }
+        try {
+            manager.addView(button, params)
+            floatingAction = button
+            floatingParams = params
+        } catch (_: Exception) {
+            floatingAction = null
+            floatingParams = null
+        }
+    }
+
+    private fun removeFloatingAction() {
+        val view = floatingAction ?: return
+        floatingAction = null
+        floatingParams = null
+        val manager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        runCatching { manager.removeView(view) }
     }
 
     private fun saveImage(image: Image): File {
@@ -340,6 +442,7 @@ class ScreenCaptureService : Service() {
         imageReader?.close()
         imageReader = null
 
+        mainHandler.post { removeFloatingAction() }
         CaptureSessionState.setActive(false)
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else {
             @Suppress("DEPRECATION")
@@ -349,6 +452,7 @@ class ScreenCaptureService : Service() {
     }
 
     override fun onDestroy() {
+        removeFloatingAction()
         if (!sessionStopped) stopSession(stopProjection = true)
         workerThread?.quitSafely()
         workerThread = null
