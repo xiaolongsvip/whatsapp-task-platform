@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Patch, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AuthService } from "../auth/auth.service";
 import { UpdateProfileDto } from "./update-profile.dto";
 import { DashboardService } from "./dashboard.service";
+import { PayoutAccountsService } from "./payout-accounts.service";
+import { CreatePayoutAccountDto } from "./create-payout-account.dto";
 
 function sessionToken(request: Request): string | undefined {
   const header = request.headers.cookie;
@@ -13,7 +15,7 @@ function sessionToken(request: Request): string | undefined {
 
 @Controller("users")
 export class UsersController {
-  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService) {}
+  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService, private readonly payoutAccounts: PayoutAccountsService) {}
 
   @Get("dashboard")
   async getDashboard(@Req() request: Request) {
@@ -25,6 +27,24 @@ export class UsersController {
   async getWithdrawals(@Req() request: Request) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
     return this.dashboard.getWithdrawalHistory(user.id);
+  }
+
+  @Get("payout-accounts")
+  async getPayoutAccounts(@Req() request: Request) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.payoutAccounts.list(user.id);
+  }
+
+  @Post("payout-accounts")
+  async createPayoutAccount(@Req() request: Request, @Body() body: CreatePayoutAccountDto) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.payoutAccounts.create(user.id, body);
+  }
+
+  @Delete("payout-accounts/:id")
+  async deletePayoutAccount(@Req() request: Request, @Param("id") id: string) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.payoutAccounts.remove(user.id, id);
   }
 
   @Get("promotion")
