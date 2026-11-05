@@ -97,6 +97,11 @@ export class TasksService {
           claimedCount: true,
           startsAt: true,
           endsAt: true,
+          messageTemplate: true,
+          linkUrl: true,
+          previewTitle: true,
+          previewDescription: true,
+          previewImageUrl: true,
         },
       }),
       prisma.taskClaim.findMany({
@@ -136,6 +141,11 @@ export class TasksService {
             category: true,
             rewardMinor: true,
             currency: true,
+            messageTemplate: true,
+            linkUrl: true,
+            previewTitle: true,
+            previewDescription: true,
+            previewImageUrl: true,
           },
         },
         contactAssignment: {
@@ -532,7 +542,17 @@ export class TasksService {
     userId: string;
     status: string;
     claimedAt: Date;
-    task: { id: string; title: string; rewardMinor: bigint; currency: string };
+    task: {
+      id: string;
+      title: string;
+      rewardMinor: bigint;
+      currency: string;
+      messageTemplate?: string | null;
+      linkUrl?: string | null;
+      previewTitle?: string | null;
+      previewDescription?: string | null;
+      previewImageUrl?: string | null;
+    };
     contactAssignment?: { contactNumber: { phoneE164: string } } | null;
   }) {
     return {
@@ -546,6 +566,11 @@ export class TasksService {
         title: claim.task.title,
         rewardMinor: claim.task.rewardMinor.toString(),
         currency: claim.task.currency.trim(),
+        messageTemplate: claim.task.messageTemplate ?? null,
+        linkUrl: claim.task.linkUrl ?? null,
+        previewTitle: claim.task.previewTitle ?? null,
+        previewDescription: claim.task.previewDescription ?? null,
+        previewImageUrl: claim.task.previewImageUrl ?? null,
       },
     };
   }
