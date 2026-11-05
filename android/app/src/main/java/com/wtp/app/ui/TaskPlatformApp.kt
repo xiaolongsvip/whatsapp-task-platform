@@ -742,7 +742,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
                         Icon(Icons.Default.Link, null, tint = Color(0xFF218365), modifier = Modifier.padding(10.dp))
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(if (isEnglish) "My registration link" else "我的注册链接", color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
+                        Text(if (isEnglish) "My invitation link" else "我的邀请链接", color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
                         Text(inviteUrl.ifBlank { if (loading) "…" else "—" }, color = Color(0xFF17243A), style = MaterialTheme.typography.bodySmall)
                     }
                     OutlinedButton(
