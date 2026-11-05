@@ -962,13 +962,13 @@ private fun WalletScreen(
                 }
                 Text(if (balanceVisible) balance else "••••••", color = Color(0xFF123E56), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
                 Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending (USD)" else "提现待释放 (USD)", "—", Color(0xFF80C91A))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending" else "提现待释放", "—", Color(0xFF80C91A))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Frozen (USD)" else "风险冻结 (USD)", "—", Color(0xFFFF7A1A))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Frozen" else "风险冻结", "—", Color(0xFFFF7A1A))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Processing (USD)" else "提现中 (USD)", "—", Color(0xFF4388FF))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Processing" else "提现中", "—", Color(0xFF4388FF))
                 }
-                Text((if (isEnglish) "Total income: " else "累计收入：") + "— $currency", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                Text((if (isEnglish) "Total income: " else "累计收入：") + "—", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
