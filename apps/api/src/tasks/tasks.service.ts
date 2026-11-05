@@ -19,6 +19,13 @@ type EvidenceFile = {
   buffer: Buffer;
 };
 
+function maskPhoneMiddleFour(value: string): string {
+  const chars = Array.from(value);
+  if (chars.length <= 4) return "*".repeat(chars.length);
+  const start = Math.floor((chars.length - 4) / 2);
+  return chars.slice(0, start).join("") + "****" + chars.slice(start + 4).join("");
+}
+
 function idempotencyKey(value: string): string {
   const key = value.trim();
   if (key.length < 8 || key.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(key)) {
@@ -119,7 +126,7 @@ export class TasksService {
         previewTitle: slot.task.previewTitle,
         previewDescription: slot.task.previewDescription,
         previewImageUrl: slot.task.previewImageUrl,
-        maskedPhoneNumber: "******" + slot.contactNumber.phoneE164.slice(-6),
+        maskedPhoneNumber: maskPhoneMiddleFour(slot.contactNumber.phoneE164),
         remainingCapacity: 1,
       })),
     };
