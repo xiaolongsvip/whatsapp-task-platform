@@ -117,12 +117,98 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
                     onLanguageChanged = onLanguageChanged
                 )
             }
-            else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(if (language == "en") "My account" else "我的账户", style = MaterialTheme.typography.headlineSmall)
-                Text((if (language == "en") "Phone: " else "登录手机号：") + phone)
-                Button(onClick = { scope.launch { onLogout() } }) { Text(if (language == "en") "Log out" else "退出登录") }
+            else -> MyProfileScreen(Modifier.padding(padding), phone, language, onInvite = { tab = 2 }, onPayoutAccounts = { tab = 3; walletPage = "accounts" }, onLogout = { scope.launch { onLogout() } })
+        }
+    }
+}
+
+@Composable
+private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, language: String, onInvite: () -> Unit, onPayoutAccounts: () -> Unit, onLogout: () -> Unit) {
+    val context = LocalContext.current
+    val en = language == "en"
+    var user by remember { mutableStateOf<JSONObject?>(null) }
+    var dialog by remember { mutableStateOf("") }
+    val overlay = Settings.canDrawOverlays(context)
+    LaunchedEffect(Unit) { user = withContext(Dispatchers.IO) { runCatching { AuthRepository.currentUser() }.getOrNull() } }
+    val id = user?.optString("id")?.takeIf { it.isNotBlank() && it != "null" } ?: user?.optString("userId")?.takeIf { it.isNotBlank() && it != "null" }
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFFB5E7D0), Color(0xFFE8F7EF)))).padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text(if (en) "Withdraw  0.000" else "提现  0.000", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF278666), fontWeight = FontWeight.Bold) }
+                Spacer(Modifier.weight(1f)); Text(if (en) "My" else "我的", color = Color(0xFF315D4D), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Spacer(Modifier.weight(1f))
+                Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF638579)); Spacer(Modifier.width(14.dp)); Icon(Icons.Default.Language, null, tint = Color(0xFF638579))
+            }
+            Row(Modifier.fillMaxWidth().clickable { dialog = "security" }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color(0xFFE9F8F0), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)) { Icon(Icons.Default.Person, null, tint = Color(0xFF278666), modifier = Modifier.size(68.dp).padding(17.dp)) }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Text(phone, color = Color(0xFF17243A), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge); Surface(color = Color(0xFFDDF4E8), shape = RoundedCornerShape(20.dp)) { Text(if (en) "Verified" else "已认证", Modifier.padding(horizontal = 9.dp, vertical = 4.dp), color = Color(0xFF278666), style = MaterialTheme.typography.labelSmall) } }
+                    if (id != null) Text("ID: $id", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+                }
+                Surface(color = Color.White, shape = RoundedCornerShape(50)) { Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF667085), modifier = Modifier.padding(8.dp)) }
             }
         }
+        Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onInvite), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color(0xFFE5F6ED), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFF278666), modifier = Modifier.padding(12.dp)) }
+                Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(if (en) "Invite friends and earn commission" else "邀请好友赚佣金", fontWeight = FontWeight.Bold, color = Color(0xFF17243A)); Text(if (en) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外佣金奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall) }
+                Button(onClick = onInvite, shape = RoundedCornerShape(24.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666))) { Text(if (en) "Invite  ›" else "去邀请  ›") }
+            }
+        }
+        Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(if (en) "My assets" else "我的资产", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17243A))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    ProfileAsset(Icons.Default.Wallet, if (en) "Available balance" else "可提现余额", "0.000", Color(0xFF278666), Modifier.weight(1f), onPayoutAccounts)
+                    Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFE8EDF0)))
+                    ProfileAsset(Icons.Default.AccountBalanceWallet, if (en) "Pending rewards" else "待审核奖励", "—", Color(0xFFFF8A22), Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFE8EDF0)))
+                    ProfileAsset(Icons.Default.Paid, if (en) "Total earnings" else "累计收益", "0.000", Color(0xFF278666), Modifier.weight(1f))
+                }
+            }
+        }
+        Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text(if (en) "Account & security" else "账户与安全", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17243A))
+                ProfileMenuRow(Icons.Default.AccountBalanceWallet, if (en) "Payout account" else "收款账户", if (en) "Manage payout accounts" else "管理我的收款账户", onPayoutAccounts)
+                ProfileMenuRow(Icons.Default.Settings, if (en) "Account security" else "账号与安全", if (en) "Account and system settings" else "账号与系统设置", { dialog = "security" })
+                ProfileMenuRow(Icons.Default.Shield, if (en) "Permissions" else "权限状态", if (overlay) { if (en) "Overlay permission enabled" else "已开启悬浮窗权限" } else { if (en) "Permission required" else "尚未开启悬浮窗权限" }, { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName))) }, overlay, false)
+            }
+        }
+        Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text(if (en) "More services" else "更多服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17243A))
+                ProfileMenuRow(Icons.Default.SupportAgent, if (en) "Customer support" else "联系客服", if (en) "Online support" else "在线支持", { dialog = "support" })
+                ProfileMenuRow(Icons.Default.MenuBook, if (en) "Task tutorial" else "任务使用教程", if (en) "Task rules and instructions" else "了解任务规则、流程与注意事项", { dialog = "tutorial" })
+                ProfileMenuRow(Icons.Default.SystemUpdate, if (en) "Check for updates" else "检查更新", if (en) "Current version 1.4.5" else "当前版本 1.4.5", { dialog = "update" }, showDivider = false)
+            }
+        }
+        Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onLogout), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) { Box(Modifier.fillMaxWidth().padding(vertical = 17.dp), contentAlignment = Alignment.Center) { Text(if (en) "Log out" else "退出登录", color = Color(0xFFE53935), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) } }
+        Text(if (en) "Version 1.4.5" else "版本 1.4.5", modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
+    }
+    val title = when (dialog) { "support" -> if (en) "Customer support" else "联系客服"; "security" -> if (en) "Account security" else "账号与安全"; "tutorial" -> if (en) "Task tutorial" else "任务使用教程"; else -> if (en) "Check for updates" else "检查更新" }
+    if (dialog.isNotEmpty()) AlertDialog(onDismissRequest = { dialog = "" }, title = { Text(title) }, text = { Text(when (dialog) { "support" -> if (en) "Please contact platform support." else "如需帮助，请联系平台客服。"; "security" -> if (en) "Account security settings will be available in a later release." else "账号安全设置功能将在后续版本接入。"; "tutorial" -> if (en) "Follow task instructions and submit valid evidence." else "请按照任务说明完成操作，并提交真实有效的任务凭证供平台审核。"; else -> if (en) "Current version: 1.4.5" else "当前已是版本 1.4.5。" }) }, confirmButton = { TextButton(onClick = { dialog = "" }) { Text(if (en) "OK" else "知道了") } })
+}
+
+@Composable
+private fun ProfileAsset(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
+    Column(modifier.clickable(onClick = onClick).padding(horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Surface(color = Color(0xFFF0F7F3), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = tint, modifier = Modifier.padding(10.dp).size(22.dp)) }
+        Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text(value, color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ProfileMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit, status: Boolean? = null, showDivider: Boolean = true) {
+    Column {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color(0xFFF0F7F3), shape = RoundedCornerShape(10.dp)) { Icon(icon, null, tint = Color(0xFF347B62), modifier = Modifier.padding(10.dp).size(22.dp)) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(title, color = Color(0xFF17243A), fontWeight = FontWeight.SemiBold); Text(subtitle, color = if (status == true) Color(0xFF278666) else Color(0xFF718096), style = MaterialTheme.typography.bodySmall) }
+            Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF667085))
+        }
+        if (showDivider) HorizontalDivider(color = Color(0xFFE8EDF0))
     }
 }
 
