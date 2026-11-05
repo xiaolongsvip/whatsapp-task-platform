@@ -954,6 +954,7 @@ private fun WalletScreen(
     val available = total("availableMinor")
     val pending = total("pendingWithdrawalMinor")
     val processing = total("processingWithdrawalMinor")
+    val frozen = total("frozenMinor")
     val income = total("incomeMinor")
     val recentItems = recent?.optJSONArray("items")
     fun transactionTitle(item: JSONObject): String = when (item.optString("sourceType")) {
@@ -994,7 +995,7 @@ private fun WalletScreen(
                 Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 12.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     WalletMiniMetric(Modifier.weight(1f), if (en) "Pending" else "待处理提现", pending, Color(0xFF319CCB))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
-                    WalletMiniMetric(Modifier.weight(1f), if (en) "Frozen" else "风险冻结", "—", Color(0xFF319CCB))
+                    WalletMiniMetric(Modifier.weight(1f), if (en) "Frozen" else "风险冻结", frozen, Color(0xFF319CCB))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
                     WalletMiniMetric(Modifier.weight(1f), if (en) "Processing" else "提现处理中", processing, Color(0xFF319CCB))
                 }
