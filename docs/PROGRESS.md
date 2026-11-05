@@ -386,3 +386,46 @@ Last updated: 2026-11-04
 - [x] Task Hall refreshes claim/submission statuses when the user returns to it.
 - [x] Logout stops the foreground capture service and clears current-task and pending-local-screenshot pointers.
 - [ ] Need verify R2/S3 upload using the user's own private bucket credentials; do not send credentials in chat or commit them.
+
+
+## Module 1.2 — Consent-aware contact number pool and FIFO assignment
+
+**Status: implementation in progress; CI, local database sync, and user acceptance are still pending.**
+
+### Confirmed business rules
+
+- [x] Numbers are imported in a deterministic database order.
+- [x] A number can be assigned only when its consent status is GRANTED and its pool status is AVAILABLE.
+- [x] One task claim receives one number; the assignment is stored as a historical record.
+- [x] Assignment locks the number inside the same database transaction as task claiming. Concurrent claim requests use row locking with SKIP LOCKED to avoid duplicate assignment.
+- [x] When a user cancels an unfinished claim before evidence is pending review, the assignment is released. A number returns to AVAILABLE only while consent remains GRANTED; revoked/blocked numbers stay unavailable.
+- [x] Admin import endpoints require an administrator session; first-admin bootstrap is one-time and protected by ADMIN_BOOTSTRAP_TOKEN.
+- [x] Number records retain consent source, consent time, import batch, import order, and consent event history.
+
+### Implemented files and behavior
+
+- `packages/database/prisma/schema.prisma` — contact import batches, contact numbers, consent events, assignments, admin sessions, and relations.
+- `apps/api/src/admin-auth/*` — administrator login, session, logout, and one-time first-admin bootstrap.
+- `apps/api/src/contact-numbers/*` — consent-aware import, pool summary/list, and block operation.
+- `apps/api/src/tasks/tasks.service.ts` — FIFO selection and atomic assignment during task claim; assigned phone returned in claim response; cancellation release.
+- `apps/api/src/tasks/tasks.controller.ts` — user task cancellation endpoint.
+- `apps/admin/src/app/page.tsx` and `globals.css` — initial number-pool console, admin login/bootstrap, CSV/TXT import, statistics, number listing and block action.
+- `apps/admin/next.config.ts` — same-origin API proxy for the admin console.
+- `.env.example` — ADMIN_BOOTSTRAP_TOKEN and API_INTERNAL_URL placeholders.
+
+### Not yet completed / acceptance blockers
+
+- [ ] XLSX direct import; current admin screen accepts CSV/TXT. Excel workbooks must currently be saved/exported as CSV.
+- [ ] Completion hook that changes a number from ASSIGNED to USED after final task approval. This will be wired into the review/approval module; that module is not yet implemented.
+- [ ] Automatic expiration worker that marks overdue claims EXPIRED and releases their numbers. Claim expiry currently follows the task end time when one exists; user cancellation is implemented.
+- [ ] Display of the assigned WhatsApp number in the Android task flow.
+- [ ] Local `pnpm db:push` and Prisma Client regeneration after syncing the updated schema.
+- [ ] CI validation and runtime tests, including simultaneous claims, FIFO order, duplicate imports, cancellation release, and revoked-consent protection.
+- [ ] Initial administrator bootstrap and user acceptance in the local admin console.
+
+### Latest interaction decision for the Android phase
+
+- [x] When the APP launches WhatsApp, show one compact overlay action: **“已发送并截图上传”**.
+- [x] The user manually sends the message in WhatsApp, then taps that one action once.
+- [ ] After that tap, the APP will capture the current screen and upload the evidence to the current claim automatically. No second screenshot/upload action should be required.
+- [ ] Android overlay, capture sequencing, and real-device validation are pending.
