@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 type ReviewJob = {
   id: string;
@@ -185,10 +186,13 @@ export default function AiReviewsPage() {
             <div style={{ gridColumn: "1 / -1" }}>
               <strong>原始提交截图</strong>
               <div style={{ marginTop: 10 }}>
-                <img
+                <Image
                   src={`/api/v1/admin/task-submissions/${selected.submission.id}/evidence`}
                   alt="任务提交证据"
-                  style={{ display: "block", maxWidth: "100%", maxHeight: 560, objectFit: "contain", border: "1px solid #ddd", borderRadius: 8 }}
+                  width={1200}
+                  height={900}
+                  unoptimized
+                  style={{ display: "block", width: "auto", maxWidth: "100%", height: "auto", maxHeight: 560, objectFit: "contain", border: "1px solid #ddd", borderRadius: 8 }}
                 />
               </div>
             </div>
