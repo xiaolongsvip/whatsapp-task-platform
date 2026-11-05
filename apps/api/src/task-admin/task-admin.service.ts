@@ -7,8 +7,6 @@ import {
 import { prisma } from "@wtp/database";
 import type { CreateAdminTaskDto, UpdateAdminTaskDto } from "./task-admin.dto";
 
-type TaskInput = CreateAdminTaskDto | UpdateAdminTaskDto;
-
 function toMinorUnits(value: string): bigint {
   const normalized = value.trim();
   if (!/^\d{1,8}(?:\.\d{1,2})?$/.test(normalized)) {
