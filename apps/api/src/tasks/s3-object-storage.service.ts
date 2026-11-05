@@ -69,6 +69,18 @@ export class S3ObjectStorageService {
     };
   }
 
+  async testConnection(): Promise<{ success: true; message: string }> {
+    const probeKey = `task-evidence/.connection-test/${Date.now()}-${createHash("sha256").update(String(Math.random())).digest("hex").slice(0, 12)}.txt`;
+    const payload = Buffer.from("WTP object storage connection test", "utf8");
+    await this.putObject(probeKey, payload, "text/plain");
+    try {
+      await this.deleteObject(probeKey);
+    } catch {
+      throw new ServiceUnavailableException("存储桶可以写入测试文件，但无法删除测试文件。请检查 DeleteObject 权限后清理该测试文件。");
+    }
+    return { success: true, message: "对象存储连接成功，临时测试文件已删除。" };
+  }
+
   async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
     await this.send("PUT", key, body, contentType);
   }
