@@ -234,14 +234,14 @@ fun TaskHallScreen(
             val claimId = claim.optString("id")
             val task = claim.optJSONObject("task") ?: JSONObject()
             val submission = claim.optJSONObject("latestSubmission")
-            val claimStatus = claim.optString("status")
-            val canSubmit = claimStatus in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+            val claimStatusValue = claim.optString("status")
+            val canSubmit = claimStatusValue in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
                 (submission == null || submission.optString("status") == "REJECTED")
             Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(task.optString("title"), fontWeight = FontWeight.Bold)
                     Text(
-                        (if (isEnglish) "Status: " else "任务状态：") + claimStatus(claimStatus, isEnglish),
+                        (if (isEnglish) "Status: " else "任务状态：") + claimStatus(claimStatusValue, isEnglish),
                         color = Color(0xFF1685B8)
                     )
                     if (submission != null) {
