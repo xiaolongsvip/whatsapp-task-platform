@@ -195,6 +195,10 @@ object AuthRepository {
 
     fun promotionSummary(): JSONObject = request("GET", "users/promotion")
 
+    fun commissionRecords(): JSONObject = request("GET", "users/commission-records")
+
+    fun teamMembers(): JSONObject = request("GET", "users/team")
+
     fun withdrawalHistory(): JSONObject = request("GET", "users/withdrawals")
 
     fun createWithdrawal(payoutAccountId: String, amountMinor: String): JSONObject =
