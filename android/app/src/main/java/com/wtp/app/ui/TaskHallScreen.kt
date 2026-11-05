@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.wtp.app.capture.CaptureSessionState
 import com.wtp.app.data.AuthRepository
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -88,6 +90,7 @@ fun TaskHallScreen(
     }
 
     LaunchedEffect(Unit) { refresh() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
     val claimByTaskId = claims.associateBy { it.optString("taskId") }
 
