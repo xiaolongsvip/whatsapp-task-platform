@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -107,9 +116,9 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
         Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Color.White, shape = RoundedCornerShape(28.dp)) {
                 Row(Modifier.padding(end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("提现", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.background(sky, RoundedCornerShape(28.dp)).padding(horizontal = 14.dp, vertical = 9.dp))
+                    Text("提现", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF0879B9), Color(0xFF48C5F1))), RoundedCornerShape(28.dp)).padding(horizontal = 14.dp, vertical = 9.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(formatMoney(firstBalance(data), firstCurrency(data)), color = ink, fontWeight = FontWeight.Bold)
+                    Text(formatBalance(firstBalance(data), firstCurrency(data)), color = ink, fontWeight = FontWeight.Bold)
                 }
             }
             Text("首页", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -141,41 +150,76 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
         }
 
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 11.dp, horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Metric("今日已结算", data?.optJSONObject("stats")?.optInt("settledToday")?.toString() ?: if (loading) "…" else "0")
-                VerticalDivider(Modifier.height(42.dp), color = Color(0xFFE6ECF1))
+                VerticalDivider(Modifier.height(34.dp), color = Color(0xFFE6ECF1))
                 Metric("待审核", data?.optJSONObject("stats")?.optInt("pendingReview")?.toString() ?: if (loading) "…" else "0")
-                VerticalDivider(Modifier.height(42.dp), color = Color(0xFFE6ECF1))
-                Metric("可提现", formatMoney(firstBalance(data), firstCurrency(data)))
+                VerticalDivider(Modifier.height(34.dp), color = Color(0xFFE6ECF1))
+                Metric("可提现(${currencySymbol(firstCurrency(data))})", formatAmount(firstBalance(data), firstCurrency(data)))
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
-            Text("推广奖励以平台规则和真实审核结果为准", Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp), color = sky, fontWeight = FontWeight.Medium)
-        }
+        AnnouncementTicker(dataAnnouncements(data))
+
+        val taskArray = data?.optJSONArray("tasks")
+        val featuredTask = taskArray?.optJSONObject(0)
+        val stats = data?.optJSONObject("stats")
+        val claimedToday = stats?.optInt("claimedToday", 0) ?: 0
+        val dailyLimit = data?.optInt("dailyTaskLimit", 20) ?: 20
+        val hasTaskCapacity = featuredTask != null && (featuredTask.isNull("capacity") || featuredTask.optInt("claimedCount") < featuredTask.optInt("capacity"))
+        val canClaimToday = claimedToday < dailyLimit
 
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("任务推荐", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                val tasks = data?.optJSONArray("tasks")
-                if (loading && tasks == null) CircularProgressIndicator(color = sky)
-                else if (tasks == null || tasks.length() == 0) Text("目前没有可展示的已发布任务", color = muted)
-                else for (i in 0 until tasks.length()) {
-                    val item = tasks.optJSONObject(i) ?: continue
-                    Surface(color = Color(0xFFF5FAFD), shape = RoundedCornerShape(12.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(item.optString("title"), color = ink, fontWeight = FontWeight.Bold)
-                            Text(item.optString("description"), color = muted)
-                            Text("单次奖励：${formatMoney(item.optString("rewardMinor"), item.optString("currency"))}", color = sky)
-                            Text("已领取：${item.optInt("claimedCount")} / ${item.optInt("capacity")}", color = muted)
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                Text(
+                    "警告：做任务之前请进入查看教程",
+                    color = Color(0xFFE53945),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { showTutorial = true }
+                )
+                Surface(
+                    color = Color(0xFFF0F9FE),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD9EFFB))
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("单次奖励", color = muted, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                if (featuredTask != null) formatAmount(featuredTask.optString("rewardMinor"), featuredTask.optString("currency")) else "—",
+                                color = ink,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        VerticalDivider(Modifier.height(38.dp), color = Color(0xFFDDE8EF))
+                        Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("今日任务", color = muted, style = MaterialTheme.typography.bodySmall)
+                            Text("$claimedToday/$dailyLimit", color = ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
+                if (featuredTask != null) {
+                    Text(featuredTask.optString("title"), color = ink, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                } else if (!loading) {
+                    Text("目前没有可领取的已发布任务", color = muted, style = MaterialTheme.typography.bodySmall)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = paleSky, shape = RoundedCornerShape(10.dp)) { Text("● 可查看", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF1685B8)) }
-                    Button(onClick = { onNavigate(1) }, colors = ButtonDefaults.buttonColors(containerColor = sky), shape = RoundedCornerShape(12.dp)) {
-                        Text("开始任务  ▷", color = Color.White)
+                    val statusText = when {
+                        loading -> "正在读取"
+                        !hasTaskCapacity -> "暂无可领取"
+                        !canClaimToday -> "今日已达上限"
+                        else -> "可领取"
                     }
+                    Surface(color = paleSky, shape = RoundedCornerShape(10.dp)) {
+                        Text("● $statusText", Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = Color(0xFF1685B8), style = MaterialTheme.typography.labelLarge)
+                    }
+                    Button(
+                        onClick = { onNavigate(1) },
+                        colors = ButtonDefaults.buttonColors(containerColor = sky),
+                        shape = RoundedCornerShape(11.dp)
+                    ) { Text("开始任务  ▷", color = Color.White) }
                 }
             }
         }
@@ -240,6 +284,54 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
 }
 
 @Composable
+private fun AnnouncementTicker(messages: List<String>) {
+    val text = messages.joinToString("     •     ").ifBlank { "暂无公告" }
+    var containerWidth by remember { mutableIntStateOf(0) }
+    var textWidth by remember { mutableIntStateOf(0) }
+    val tickerOffset = remember { Animatable(0f) }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .onSizeChanged { containerWidth = it.width }
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            text = text,
+            color = Color(0xFFE53945),
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .offset { IntOffset(tickerOffset.value.roundToInt(), 0) }
+                .onSizeChanged { textWidth = it.width }
+        )
+    }
+
+    LaunchedEffect(text, containerWidth, textWidth) {
+        if (containerWidth > 0 && textWidth > 0) {
+            val start = containerWidth.toFloat()
+            val end = -textWidth.toFloat()
+            val duration = (((containerWidth + textWidth) / 42f) * 1000f).roundToInt().coerceAtLeast(5000)
+            tickerOffset.snapTo(start)
+            while (true) {
+                tickerOffset.animateTo(end, animationSpec = tween(durationMillis = duration, easing = LinearEasing))
+                tickerOffset.snapTo(start)
+            }
+        }
+    }
+}
+
+private fun dataAnnouncements(data: JSONObject?): List<String> {
+    val values = data?.optJSONArray("announcements") ?: return emptyList()
+    return (0 until values.length()).map { values.optString(it).trim() }.filter { it.isNotBlank() }
+}
+
+@Composable
 private fun PermissionTile(title: String, status: String, granted: Boolean, modifier: Modifier = Modifier) {
     Surface(modifier = modifier, color = Color(0xFFF2F7FB), shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -260,11 +352,13 @@ private fun PermissionLine(label: String, status: String, granted: Boolean) {
 }
 private fun firstBalance(data: JSONObject?): String = data?.optJSONArray("balances")?.optJSONObject(0)?.optString("amountMinor") ?: "0"
 private fun firstCurrency(data: JSONObject?): String = data?.optJSONArray("balances")?.optJSONObject(0)?.optString("currency") ?: "USD"
-private fun formatMoney(minor: String, currency: String): String {
+private fun currencySymbol(currency: String): String = runCatching { java.util.Currency.getInstance(currency).getSymbol(java.util.Locale.US) }.getOrDefault("$")
+private fun formatAmount(minor: String, currency: String): String {
     val digits = runCatching { java.util.Currency.getInstance(currency).defaultFractionDigits }.getOrDefault(2).coerceAtLeast(0)
     val amount = runCatching { java.math.BigDecimal(minor).movePointLeft(digits).setScale(digits, java.math.RoundingMode.DOWN).toPlainString() }.getOrDefault("0")
-    return "$currency $amount"
+    return "${currencySymbol(currency)}$amount"
 }
+private fun formatBalance(minor: String, currency: String): String = formatAmount(minor, currency)
 
 @Composable
 private fun SimpleScreen(title: String, description: String, modifier: Modifier = Modifier) {
