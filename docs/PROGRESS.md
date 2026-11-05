@@ -290,3 +290,17 @@ Last updated: 2026-11-04
 - [ ] Tasks, Promote, and Wallet destination screens are still placeholders; their real API-backed modules must be implemented before those actions are considered complete.
 - [ ] No referral percentage is shown until an authoritative admin-configured reward policy endpoint exists.
 - [ ] Verify currency fraction formatting and response mapping with actual account data on emulator.
+
+
+### Android home dashboard refinement — user visual feedback
+
+- [x] Header withdraw chip now uses a vertical dark-to-light sky-blue gradient.
+- [x] Summary card vertical padding reduced to make it more compact.
+- [x] Withdrawable balance display removes the ISO currency code and shows a currency symbol; the withdrawable metric label includes the matching symbol (USD displays $).
+- [x] Replaced the static blue promotion sentence with a red, right-to-left continuously looping announcement ticker.
+- [x] Ticker content is returned by the dashboard API from `WTP_HOME_ANNOUNCEMENTS`, with up to 10 messages separated by `||`.
+- [x] Task preview follows the requested card structure: red tutorial warning, light-blue reward/daily-count panel, status chip and task-hall action.
+- [x] Daily task limit is returned by the API from `DASHBOARD_DAILY_TASK_LIMIT` (defaults to 20).
+- [ ] The admin portal currently has no authenticated announcement-management module. Announcement text is configurable through the API server environment for this iteration; a protected admin editor requires completing admin authentication before exposing write endpoints.
+- [ ] Android compile, API restart/response, ticker motion, and amount display still require local verification.
+- [ ] Task-claim action remains a navigation to the Task tab; actual claim workflow is not implemented yet.
