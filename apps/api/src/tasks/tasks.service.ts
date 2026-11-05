@@ -352,6 +352,11 @@ export class TasksService {
         });
         return created;
       });
+      // A concurrent retry with the same idempotency key may have created the
+      // database row first. Remove this request's duplicate object in that case.
+      if (submission.objectKey !== objectKey) {
+        await this.storage.deleteObject(objectKey).catch(() => undefined);
+      }
       return publicSubmission(submission);
     } catch (error) {
       await this.storage.deleteObject(objectKey).catch(() => undefined);
