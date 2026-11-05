@@ -338,3 +338,20 @@ Last updated: 2026-11-04
 - [x] Changed the home header itself to a deep-blue-to-pale-sky gradient; title, support and language icons are white for readability.
 - [x] Increased announcement ticker speed from about 110 px/sec to about 275 px/sec (2.5× the prior speed); minimum loop duration is 1 second.
 - [ ] Compile and visually verify on the user's Android emulator, especially Android 15+ edge-to-edge status bar rendering and whether the faster ticker remains readable.
+
+
+### Android continuous screenshot session — implementation started
+
+- [x] Added `ScreenCaptureService` as a visible `mediaProjection` foreground service with Android 14+ required service type declarations.
+- [x] Added `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, and `POST_NOTIFICATIONS` manifest permissions; request notification permission on Android 13+ so persistent notification controls can be shown.
+- [x] User starts the session from the signed-in APP after Android system consent; service starts foreground before calling `getMediaProjection()`.
+- [x] Creates exactly one `VirtualDisplay` per MediaProjection session and reuses that capture stream for multiple manual screenshot requests. Content resize updates the existing virtual display/surface rather than creating a second display.
+- [x] Added ongoing notification actions for “截图当前屏幕” and “停止服务”; the user can switch to another task app and trigger capture from the notification.
+- [x] ImageReader frames are drained to avoid buffer buildup, but an image is encoded/saved only after the user explicitly taps Capture.
+- [x] Screenshots are saved locally in app-private `filesDir/task-evidence/`; they are not automatically uploaded, sent, or shared.
+- [x] Home permission card reflects the live session, shows the most recent local filename, and provides capture/stop controls.
+- [x] Logout stops the capture foreground service.
+- [x] Registered projection lifecycle callback and resource cleanup; stop, lock, system revocation, process death, or another projection can end the session.
+- [ ] Android Studio Gradle sync, Kotlin compilation, and emulator behavior are not yet verified by the user.
+- [ ] Evidence upload/API workflow and task submission integration remain a separate follow-up; the current implementation only saves local JPEG evidence.
+- [ ] Floating overlay UI is not part of this change; the visible notification action is the current cross-app manual capture control.
