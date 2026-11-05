@@ -19,12 +19,12 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.wtp.app.MainActivity
-import com.wtp.app.R
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
@@ -101,7 +101,7 @@ class ScreenCaptureService : Service() {
             val mediaProjection = manager.getMediaProjection(resultCode, resultData)
                 ?: throw IllegalStateException("Android 没有返回屏幕捕获会话。")
             projection = mediaProjection
-            mediaProjection.registerCallback(projectionCallback, workerHandler)
+            mediaProjection.registerCallback(projectionCallback, Handler(Looper.getMainLooper()))
 
             val (width, height) = initialDisplaySize()
             val density = resources.displayMetrics.densityDpi
