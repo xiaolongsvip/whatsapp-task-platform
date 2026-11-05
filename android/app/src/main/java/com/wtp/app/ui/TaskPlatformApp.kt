@@ -643,6 +643,7 @@ private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
     val isEnglish = language == "en"
     var summary by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var balanceVisible by rememberSaveable { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }
             .onSuccess { summary = it }
@@ -661,35 +662,56 @@ private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD5F77A)), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (isEnglish) "Available balance ($currency)" else "可提现余额 ($currency)", color = Color(0xFF52633A))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Surface(color = Color(0xFFEAF8B9), shape = RoundedCornerShape(20.dp)) {
+                            Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (isEnglish) "Available balance ($currency)" else "可提现余额 ($currency)", color = Color(0xFF52633A), style = MaterialTheme.typography.labelMedium)
+                                IconButton(onClick = { balanceVisible = !balanceVisible }, modifier = Modifier.size(22.dp)) {
+                                    Icon(if (balanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = Color(0xFF52633A), modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
                     Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF24351D))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
                 }
-                Text("$" + balance, color = Color(0xFF1F2C17), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
-                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    WalletMiniMetric(if (isEnglish) "Pending" else "提现待释放", "0.000")
-                    WalletMiniMetric(if (isEnglish) "Frozen" else "风险冻结", "0.000")
-                    WalletMiniMetric(if (isEnglish) "Processing" else "提现中", "0.000")
+                Text(if (balanceVisible) "$" + balance else "••••••", color = Color(0xFF1F2C17), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
+                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending (USD)" else "提现待释放 (USD)", "0.000", Color(0xFF80C91A))
+                    Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFE8EDF0)))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Frozen (USD)" else "风险冻结 (USD)", "0.000", Color(0xFFFF7A1A))
+                    Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFE8EDF0)))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Processing (USD)" else "提现中 (USD)", "0.000", Color(0xFF4388FF))
                 }
                 Text((if (isEnglish) "Total income: " else "累计收入：") + "0.000 $currency", color = Color(0xFF73834E), style = MaterialTheme.typography.bodySmall)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(if (isEnglish) "All details  ›" else "全部明细  ›", color = Color(0xFF397A32))
                 }
-                Text(error ?: if (isEnglish) "No wallet transactions yet." else "目前暂无钱包记录", color = Color(0xFF718096))
+                Column(
+                    Modifier.fillMaxWidth().height(164.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text(if (isEnglish) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(error ?: if (isEnglish) "Approved rewards will appear here" else "审核通过的奖励会显示在这里", color = Color(0xFF789087), style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (isEnglish) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置")
+                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFEAF7CE), Color(0xFF4F7D2B))
                 HorizontalDivider(color = Color(0xFFEEF1F3))
-                WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史")
+                WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史", Color(0xFFE7F1FF), Color(0xFF2584F4))
                 HorizontalDivider(color = Color(0xFFEEF1F3))
-                WalletServiceRow(Icons.Default.Schedule, if (isEnglish) "Withdrawal guide" else "提现说明", if (isEnglish) "Rules and instructions" else "了解提现规则与说明")
+                WalletServiceRow(Icons.Default.Schedule, if (isEnglish) "Withdrawal guide" else "提现说明", if (isEnglish) "Rules and instructions" else "了解提现规则与说明", Color(0xFFFFF0E1), Color(0xFFFF8A22))
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF3FBE5)), shape = RoundedCornerShape(16.dp)) {
@@ -706,17 +728,18 @@ private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
 }
 
 @Composable
-private fun WalletMiniMetric(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
+private fun WalletMiniMetric(modifier: Modifier, label: String, value: String, accent: Color) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall, maxLines = 1)
         Text(value, color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+        Box(Modifier.width(28.dp).height(4.dp).background(accent, RoundedCornerShape(4.dp)))
     }
 }
 
 @Composable
-private fun WalletServiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
+private fun WalletServiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, background: Color, tint: Color) {
     Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Surface(color = Color(0xFFEAF5D5), shape = RoundedCornerShape(10.dp)) { Icon(icon, null, tint = Color(0xFF56802D), modifier = Modifier.padding(10.dp)) }
+        Surface(color = background, shape = RoundedCornerShape(10.dp)) { Icon(icon, null, tint = tint, modifier = Modifier.padding(10.dp)) }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.SemiBold, color = Color(0xFF17243A))
