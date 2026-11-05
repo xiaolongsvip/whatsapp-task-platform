@@ -199,14 +199,15 @@ class ScreenCaptureService : Service() {
         val retryClaimId = CaptureSessionState.activeClaimId.value
         val retryKey = CaptureSessionState.pendingIdempotencyKey.value
         if (!retryPath.isNullOrBlank() && !retryClaimId.isNullOrBlank() && !retryKey.isNullOrBlank()) {
-            if (!captureRequested.compareAndSet(false, true)) {
-                updateNotification("正在处理上一张截图，请稍候")
-                return
-            }
             CaptureSessionState.setError(null)
             setFloatingStatus("重传中…")
             updateNotification("正在重传上次失败的截图…")
-            workerHandler?.post { uploadEvidence(retryClaimId, retryPath, retryKey) }
+            val queued = workerHandler?.post { uploadEvidence(retryClaimId, retryPath, retryKey) } == true
+            if (!queued) {
+                captureRequested.set(false)
+                CaptureSessionState.setError("重传任务启动失败，请稍后再次点击水球。")
+                setFloatingStatus("重传失败\\n点击重试")
+            }
             return
         }
 
