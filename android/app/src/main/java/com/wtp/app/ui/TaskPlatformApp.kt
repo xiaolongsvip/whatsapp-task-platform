@@ -1163,6 +1163,25 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
     }
     LaunchedEffect(Unit) { reload() }
 
+    fun confirmDelete() {
+        val target = accountToDelete ?: return
+        if (deleting) return
+        scope.launch {
+            deleting = true
+            error = null
+            runCatching {
+                withContext(Dispatchers.IO) { AuthRepository.deletePayoutAccount(target.first) }
+            }.onSuccess {
+                accountToDelete = null
+                reload()
+            }.onFailure {
+                error = it.message ?: if (isEnglish) "Unable to delete account" else "删除收款账户失败"
+            }
+            deleting = false
+        }
+    }
+
+
     if (accountToDelete != null) {
         AlertDialog(
             onDismissRequest = { if (!deleting) accountToDelete = null },
@@ -1186,24 +1205,6 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
                 }
             }
         )
-    }
-
-    fun confirmDelete() {
-        val target = accountToDelete ?: return
-        if (deleting) return
-        scope.launch {
-            deleting = true
-            error = null
-            runCatching {
-                withContext(Dispatchers.IO) { AuthRepository.deletePayoutAccount(target.first) }
-            }.onSuccess {
-                accountToDelete = null
-                reload()
-            }.onFailure {
-                error = it.message ?: if (isEnglish) "Unable to delete account" else "删除收款账户失败"
-            }
-            deleting = false
-        }
     }
 
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
