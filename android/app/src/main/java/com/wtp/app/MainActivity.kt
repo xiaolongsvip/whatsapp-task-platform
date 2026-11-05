@@ -19,14 +19,14 @@ class MainActivity : ComponentActivity() {
         AuthRepository.initialize(applicationContext)
         // Use a deep blue status-bar surface with light system icons so the
         // time, signal and battery indicators remain readable.
-        window.statusBarColor = android.graphics.Color.rgb(8, 105, 169)
+        window.statusBarColor = android.graphics.Color.rgb(230, 243, 250)
         window.decorView.systemUiVisibility =
-            window.decorView.systemUiVisibility and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+            window.decorView.systemUiVisibility or android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         setContent {
             TaskPlatformTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0869A9)
+                    color = Color(0xFFF0F7FB)
                 ) {
                     TaskPlatformApp()
                 }
