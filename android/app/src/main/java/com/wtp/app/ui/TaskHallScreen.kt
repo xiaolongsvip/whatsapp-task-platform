@@ -214,6 +214,7 @@ fun TaskHallScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
     val inProgressClaims = claims.filter { it.optString("status") in IN_PROGRESS_STATUSES }
+    val hasUnfinishedTask = claims.any { it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW") }
     val expiredClaims = claims.filter { it.optString("status") in setOf("EXPIRED", "CANCELLED") }
     val rejectedClaims = claims.filter { it.optString("status") == "REJECTED" }
     val settledClaims = claims.filter { it.optString("status") == "APPROVED" }
@@ -469,6 +470,21 @@ fun TaskHallScreen(
                                 (if (isEnglish) "Available" else "可领取") to availableTasks.size.toString()
                             )
                         )
+                        if (hasUnfinishedTask) {
+                            Surface(
+                                color = WtpSky,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                            ) {
+                                Text(
+                                    if (isEnglish) "Finish your current task before claiming another one." else "请先完成当前任务，再领取下一个任务。",
+                                    Modifier.padding(12.dp),
+                                    color = Color(0xFF176B9A),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                         if (loading && tasks.isEmpty()) {
                             LoadingState()
                         } else if (availableTasks.isEmpty()) {
@@ -481,7 +497,7 @@ fun TaskHallScreen(
                                 AvailableTaskCard(
                                     task = task,
                                     isEnglish = isEnglish,
-                                    busy = busyId == task.optString("id") || busyId != null,
+                                    busy = busyId == task.optString("id") || busyId != null || hasUnfinishedTask,
                                     onStart = {
                                         val taskId = task.optString("taskId")
                                         val slotId = task.optString("slotId")
