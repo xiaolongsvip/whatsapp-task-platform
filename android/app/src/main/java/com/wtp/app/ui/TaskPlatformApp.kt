@@ -396,7 +396,7 @@ private fun dataAnnouncements(data: JSONObject?): List<String> {
 private fun PermissionTile(title: String, status: String, granted: Boolean, modifier: Modifier = Modifier) {
     Surface(modifier = modifier, color = Color(0xFFF2F7FB), shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(if (title.contains("悬浮")) Icons.Default.PictureInPictureAlt else Icons.Default.ScreenshotMonitor, contentDescription = null, tint = Color(0xFF1685B8), modifier = Modifier.size(25.dp))
+            Icon(if (title.contains("悬浮") || title.contains("Overlay")) Icons.Default.PictureInPictureAlt else Icons.Default.ScreenshotMonitor, contentDescription = null, tint = Color(0xFF1685B8), modifier = Modifier.size(25.dp))
             Text(title, color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
             Text(status, color = if (granted) Color(0xFF1685B8) else Color(0xFFB54708), style = MaterialTheme.typography.bodySmall)
         }
