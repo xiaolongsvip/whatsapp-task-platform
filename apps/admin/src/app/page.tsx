@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, ScanEye, Send, ShieldCheck, UserRound, WalletCards, Zap } from "lucide-react";
 
 type Summary = {
   total: number;
@@ -85,6 +86,7 @@ export default function AdminHomePage() {
   const [consentSource, setConsentSource] = useState("");
   const [consentedAt, setConsentedAt] = useState(localDateTimeValue);
   const [search, setSearch] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const refresh = useCallback(async () => {
     const [nextSummary, nextNumbers] = await Promise.all([
@@ -207,44 +209,94 @@ export default function AdminHomePage() {
 
   if (!isAdmin) {
     return (
-      <main className="admin-shell">
-        <header className="admin-header">
-          <div>
-            <div className="admin-brand">WTP 管理后台</div>
-            <div className="admin-subtitle">号码池管理 · FIFO 自动分配 · 授权记录</div>
+      <main className="login-layout">
+        <section className="login-showcase">
+          <div className="showcase-brand">
+            <div className="showcase-logo"><Zap size={25} strokeWidth={2.8} /></div>
+            <span>EasyEarn</span>
+            <span className="brand-tag">后台管理</span>
           </div>
-        </header>
-        <section className="panel" style={{ maxWidth: 520, margin: "40px auto" }}>
-          <h2>{mode === "bootstrap" ? "首次初始化管理员" : "管理员登录"}</h2>
-          <p className="muted">
-            {mode === "bootstrap"
-              ? "只有尚未创建任何管理员时，才能使用一次性初始化密钥开通第一个管理员。"
-              : "请使用管理员邮箱和密码登录。普通用户账号不能访问号码管理接口。"}
-          </p>
-          <form onSubmit={submitAuth}>
-            <div className="field">
-              <label>管理员邮箱</label>
-              <input type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} required autoComplete="username" />
-            </div>
-            <div className="field" style={{ marginTop: 13 }}>
-              <label>密码（至少 10 位）</label>
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={mode === "bootstrap" ? 10 : 1} maxLength={128} required autoComplete={mode === "bootstrap" ? "new-password" : "current-password"} />
-            </div>
-            {mode === "bootstrap" && (
-              <div className="field" style={{ marginTop: 13 }}>
-                <label>首次初始化密钥</label>
-                <input type="password" value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} minLength={16} required autoComplete="off" />
+
+          <div className="showcase-content">
+            <p className="showcase-eyebrow">TASK OPERATIONS PLATFORM</p>
+            <h1>企业级运营管理控制台</h1>
+            <p className="showcase-description">平台管理员后台，用于任务发布、审核、风控和财务结算流程管理。</p>
+
+            <div className="showcase-features">
+              <div className="showcase-feature">
+                <div className="feature-icon feature-blue"><Send size={21} /></div>
+                <div><strong>任务发布与智能调度</strong><span>任务库存管理与 WhatsApp 业务精准匹配分发</span></div>
               </div>
-            )}
-            <div className="action-row">
-              <button className="primary-btn" disabled={busy}>{busy ? "处理中…" : mode === "bootstrap" ? "初始化管理员" : "登录后台"}</button>
-              <button type="button" className="secondary-btn" onClick={() => setMode(mode === "login" ? "bootstrap" : "login")}>
-                {mode === "login" ? "首次初始化" : "返回登录"}
-              </button>
+              <div className="showcase-feature">
+                <div className="feature-icon feature-purple"><ScanEye size={21} /></div>
+                <div><strong>AI 视觉与风险防护</strong><span>多维度 AI 视觉审核与防伪风险实时拦截引擎</span></div>
+              </div>
+              <div className="showcase-feature">
+                <div className="feature-icon feature-green"><WalletCards size={21} /></div>
+                <div><strong>财务结算与精细化风控</strong><span>全链路钱包对账、提现审核与代理佣金实时清算</span></div>
+              </div>
             </div>
-          </form>
-          {error && <div className="notice error">{error}</div>}
-          {message && <div className="notice">{message}</div>}
+          </div>
+
+          <footer className="showcase-footer">
+            <span><ShieldCheck size={15} /> 256 位传输加密 · 多重安全管控</span>
+            <span className="footer-note">© EasyEarn · 管理平台仅限授权运营、审核、风控及财务管理人员使用</span>
+          </footer>
+        </section>
+
+        <section className="login-panel">
+          <div className="login-language">简体中文</div>
+          <div className="login-card">
+            <div className="login-card-heading">
+              <div className="login-card-mark"><LockKeyhole size={21} /></div>
+              <h2>{mode === "bootstrap" ? "初始化管理员" : "欢迎回来"}</h2>
+              <p>{mode === "bootstrap" ? "创建首位平台管理员账户" : "请输入您的凭据以登录管理控制台"}</p>
+            </div>
+
+            <form onSubmit={submitAuth} className="login-form">
+              <div className="field login-field">
+                <label htmlFor="admin-email">账号或邮箱</label>
+                <div className="login-input-wrap">
+                  <UserRound size={17} />
+                  <input id="admin-email" type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="请输入账号或邮箱" required autoComplete="username" />
+                </div>
+              </div>
+
+              <div className="field login-field">
+                <label htmlFor="admin-password">密码</label>
+                <div className="login-input-wrap">
+                  <LockKeyhole size={17} />
+                  <input id="admin-password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="请输入密码" minLength={mode === "bootstrap" ? 10 : 1} maxLength={128} required autoComplete={mode === "bootstrap" ? "new-password" : "current-password"} />
+                  <button type="button" className="password-toggle" aria-label={showPassword ? "隐藏密码" : "显示密码"} onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+              </div>
+
+              {mode === "bootstrap" && (
+                <div className="field login-field">
+                  <label htmlFor="bootstrap-token">首次初始化密钥</label>
+                  <div className="login-input-wrap">
+                    <LockKeyhole size={17} />
+                    <input id="bootstrap-token" type="password" value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} minLength={16} required autoComplete="off" placeholder="请输入一次性初始化密钥" />
+                  </div>
+                </div>
+              )}
+
+              <button className="login-submit" disabled={busy}>
+                {busy ? "正在处理…" : mode === "bootstrap" ? "初始化管理员" : "登录"}
+                {!busy && <ArrowRight size={17} />}
+              </button>
+            </form>
+
+            {error && <div className="notice error login-notice">{error}</div>}
+            {message && <div className="notice login-notice">{message}</div>}
+
+            <button type="button" className="bootstrap-toggle" onClick={() => { setMode(mode === "login" ? "bootstrap" : "login"); setError(""); setMessage(""); }}>
+              {mode === "login" ? "首次初始化管理员" : "返回管理员登录"}
+            </button>
+            <p className="login-security"><ShieldCheck size={14} /> 安全加密连接 · 未授权访问将被拒绝</p>
+          </div>
         </section>
       </main>
     );
