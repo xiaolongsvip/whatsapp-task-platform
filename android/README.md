@@ -41,3 +41,17 @@ Native Android application built with Kotlin and Jetpack Compose.
 - The notification and in-app control can stop the session. Logout stops the service as well.
 - Android may end a projection when the user stops it, the device locks, another projection begins, or the app process is killed. A new projection session then requires fresh Android consent; the app never persists or reuses the one-time consent token.
 - If tasks only use WhatsApp, choose WhatsApp in Android's app-sharing picker. Choose **Share entire screen** only when a task genuinely requires capturing transitions across multiple apps.
+
+
+## Task screenshot evidence submission
+
+1. In the Task Hall, claim a published task.
+2. In **My tasks**, select the task as the current task.
+3. Start the user-authorized screenshot session from the Home page if it is not already running.
+4. Switch to the task app (for example, WhatsApp) and tap **Capture current screen** in the ongoing Android notification.
+5. When a current task is selected, that one manually requested screenshot is uploaded to the authenticated task-submission endpoint and recorded as pending review. If no task is selected, the screenshot remains in app-private storage until the user chooses a task and submits it.
+6. If upload fails, the JPEG remains locally available for manual retry from the Task Hall.
+
+The API requires a private S3-compatible bucket. Set `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, and `STORAGE_REGION` in the API environment. Cloudflare R2 uses an S3-compatible endpoint and typically `STORAGE_REGION=auto`. Never put production credentials in source control.
+
+After pulling database schema changes, run `pnpm db:push` and `pnpm db:generate` before starting the API.
