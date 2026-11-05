@@ -6,10 +6,11 @@ import { AiReviewWorker } from "./ai-review.worker";
 import { StorageConfigModule } from "../storage-config/storage-config.module";
 import { AiReviewAdminController } from "./ai-review-admin.controller";
 import { AiReviewAdminService } from "./ai-review-admin.service";
+import { TaskSubmissionAdminController } from "./task-submission-admin.controller";
 
 @Module({
   imports: [AdminAuthModule, StorageConfigModule],
-  controllers: [AiConfigController, AiReviewAdminController],
+  controllers: [AiConfigController, AiReviewAdminController, TaskSubmissionAdminController],
   providers: [AiConfigService, AiReviewWorker, AiReviewAdminService],
 })
 export class AiConfigModule {}
