@@ -178,16 +178,21 @@ model TaskClaim {
 }
 
 model TaskSubmission {
-  id          String           @id @default(uuid()) @db.Uuid
-  claimId     String           @map("claim_id") @db.Uuid
-  objectKey   String           @map("object_key")
-  note        String?          @db.Text
-  status      SubmissionStatus @default(SUBMITTED)
-  submittedAt DateTime         @default(now()) @map("submitted_at")
-  claim       TaskClaim        @relation(fields: [claimId], references: [id], onDelete: Restrict)
-  reviews     TaskReview[]
+  id             String           @id @default(uuid()) @db.Uuid
+  claimId        String           @map("claim_id") @db.Uuid
+  objectKey      String           @map("object_key")
+  note           String?          @db.Text
+  status         SubmissionStatus @default(SUBMITTED)
+  idempotencyKey String?          @unique @map("idempotency_key")
+  mimeType       String?          @map("mime_type")
+  sizeBytes      Int?             @map("size_bytes")
+  originalName   String?          @map("original_name")
+  submittedAt    DateTime         @default(now()) @map("submitted_at")
+  claim          TaskClaim        @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  reviews        TaskReview[]
 
   @@index([status, submittedAt])
+  @@index([claimId, submittedAt])
   @@map("task_submissions")
 }
 
