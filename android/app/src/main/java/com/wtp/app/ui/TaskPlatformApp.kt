@@ -103,7 +103,16 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
             3 -> when (walletPage) {
                 "accounts" -> PayoutAccountsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" }, onAdd = { walletPage = "add-account" })
                 "add-account" -> AddPayoutAccountScreen(Modifier.padding(padding), language, onBack = { walletPage = "accounts" }, onSaved = { walletPage = "accounts" })
-                else -> WalletScreen(Modifier.padding(padding), language, onApplyWithdraw = { walletPage = "accounts" }, onPayoutAccounts = { walletPage = "accounts" })
+                "withdrawals" -> WithdrawalHistoryScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
+                "guide" -> WithdrawalGuideScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
+                else -> WalletScreen(
+                    Modifier.padding(padding), language,
+                    onApplyWithdraw = { walletPage = "accounts" },
+                    onPayoutAccounts = { walletPage = "accounts" },
+                    onWithdrawalHistory = { walletPage = "withdrawals" },
+                    onWithdrawalGuide = { walletPage = "guide" },
+                    onInviteFriends = { tab = 2 }
+                )
             }
             else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if (language == "en") "My account" else "我的账户", style = MaterialTheme.typography.headlineSmall)
@@ -644,7 +653,15 @@ private fun SimpleScreen(title: String, description: String, modifier: Modifier 
 
 
 @Composable
-private fun WalletScreen(modifier: Modifier = Modifier, language: String, onApplyWithdraw: () -> Unit, onPayoutAccounts: () -> Unit) {
+private fun WalletScreen(
+    modifier: Modifier = Modifier,
+    language: String,
+    onApplyWithdraw: () -> Unit,
+    onPayoutAccounts: () -> Unit,
+    onWithdrawalHistory: () -> Unit,
+    onWithdrawalGuide: () -> Unit,
+    onInviteFriends: () -> Unit
+) {
     val isEnglish = language == "en"
     var summary by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -714,19 +731,69 @@ private fun WalletScreen(modifier: Modifier = Modifier, language: String, onAppl
                 Text(if (isEnglish) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFEAF7CE), Color(0xFF4F7D2B), onClick = onPayoutAccounts)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
-                WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史", Color(0xFFE7F1FF), Color(0xFF2584F4))
+                WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史", Color(0xFFE7F1FF), Color(0xFF2584F4), onClick = onWithdrawalHistory)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
-                WalletServiceRow(Icons.Default.Schedule, if (isEnglish) "Withdrawal guide" else "提现说明", if (isEnglish) "Rules and instructions" else "了解提现规则与说明", Color(0xFFFFF0E1), Color(0xFFFF8A22))
+                WalletServiceRow(Icons.Default.Schedule, if (isEnglish) "Withdrawal guide" else "提现说明", if (isEnglish) "Rules and instructions" else "了解提现规则与说明", Color(0xFFFFF0E1), Color(0xFFFF8A22), onClick = onWithdrawalGuide)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF3FBE5)), shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clickable(onClick = onInviteFriends).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Groups, null, tint = Color(0xFF47752B))
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Text(if (isEnglish) "Invite friends to earn" else "邀请好友做任务", fontWeight = FontWeight.Bold)
                     Text(if (isEnglish) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val isEnglish = language == "en"
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (isEnglish) "Withdrawal history" else "提现记录", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+        }
+        Card(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().height(120.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(if (isEnglish) "No withdrawal records" else "暂无提现记录", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text(if (isEnglish) "Submit a withdrawal request to track its progress here" else "提交提现申请后，可在这里查看进度", color = Color(0xFF789087), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WithdrawalGuideScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val isEnglish = language == "en"
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (isEnglish) "Withdrawal guide" else "提现说明", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+        }
+        Card(Modifier.fillMaxWidth().padding(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(if (isEnglish) "Withdrawal instructions" else "提现说明", color = Color(0xFF405A50), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (isEnglish) "1. Add and verify your payout account before requesting a withdrawal.\n\n2. Make sure the payout account details are accurate and belong to you.\n\n3. After submitting a request, check Withdrawal history for its progress.\n\n4. Available balance and withdrawal eligibility are subject to platform review."
+                    else "1. 申请提现前，请先添加并确认收款账户。\n\n2. 请确保收款账户信息准确，并且属于本人。\n\n3. 提交提现申请后，可在「提现记录」中查看处理进度。\n\n4. 实际可提现金额及提现资格以平台审核结果为准。",
+                    color = Color(0xFF667085),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
