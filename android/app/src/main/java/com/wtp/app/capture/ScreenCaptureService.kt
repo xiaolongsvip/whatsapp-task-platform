@@ -248,6 +248,36 @@ class ScreenCaptureService : Service() {
         val manager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
+        val waterBallBase = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                android.graphics.Color.argb(178, 193, 245, 255),
+                android.graphics.Color.argb(145, 49, 177, 245),
+                android.graphics.Color.argb(112, 0, 111, 211),
+                android.graphics.Color.argb(138, 0, 73, 166)
+            )
+        ).apply {
+            shape = GradientDrawable.OVAL
+            setStroke(dp(1), android.graphics.Color.argb(205, 220, 249, 255))
+            setGradientType(GradientDrawable.RADIAL_GRADIENT)
+            setGradientRadius(dp(42).toFloat())
+            setGradientCenter(0.30f, 0.24f)
+        }
+        val waterBallReflection = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                android.graphics.Color.argb(205, 255, 255, 255),
+                android.graphics.Color.argb(92, 226, 249, 255),
+                android.graphics.Color.argb(0, 255, 255, 255)
+            )
+        ).apply {
+            shape = GradientDrawable.OVAL
+        }
+        val glassWaterBall = android.graphics.drawable.LayerDrawable(
+            arrayOf(waterBallBase, waterBallReflection)
+        ).apply {
+            setLayerInset(1, dp(9), dp(5), dp(29), dp(35))
+        }
         val button = TextView(this).apply {
             text = "已发送\n提交任务"
             textSize = 9f
@@ -255,21 +285,8 @@ class ScreenCaptureService : Service() {
             gravity = Gravity.CENTER
             setLineSpacing(0f, 0.92f)
             setPadding(dp(3), dp(3), dp(3), dp(3))
-            contentDescription = "已发送并提交任务，点击后截图并上传审核"
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(
-                    android.graphics.Color.rgb(111, 218, 255),
-                    android.graphics.Color.rgb(20, 151, 235),
-                    android.graphics.Color.rgb(0, 91, 190)
-                )
-            ).apply {
-                shape = GradientDrawable.OVAL
-                setStroke(dp(2), android.graphics.Color.rgb(205, 242, 255))
-                setGradientType(GradientDrawable.RADIAL_GRADIENT)
-                setGradientRadius(dp(42).toFloat())
-                setGradientCenter(0.32f, 0.25f)
-            }
+            contentDescription = "蓝色透明水球：已发送，点击截图并自动上传审核"
+            background = glassWaterBall
             elevation = dp(10).toFloat()
         }
         val windowType = if (Build.VERSION.SDK_INT >= 26) {
