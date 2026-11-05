@@ -36,7 +36,7 @@ export class StorageConfigService {
     if (!row) return { configured: false, enabled: false, endpoint: "", bucket: "", region: "auto", accessKeyMasked: "", secretKeyMasked: "" };
     return {
       configured: true, enabled: row.enabled, endpoint: row.endpoint, bucket: row.bucket,
-      region: row.region, accessKeyMasked: "••••••••", secretKeyMasked: "••••••••",
+      region: row.region, accessKeyMasked: row.accessKeyCiphertext ? "••••••••" : "", secretKeyMasked: row.secretKeyCiphertext ? "••••••••" : "",
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -51,6 +51,10 @@ export class StorageConfigService {
     const existing = await prisma.objectStorageConfig.findUnique({ where: { id: CONFIG_ID } });
     if (Boolean(input.accessKey?.trim()) !== Boolean(input.secretKey?.trim())) {
       throw new BadRequestException("Access Key 和 Secret Key 必须同时填写或同时留空。");
+    }
+    const hasSavedCredentials = Boolean(existing?.accessKeyCiphertext && existing?.secretKeyCiphertext);
+    if (input.enabled === true && !hasSavedCredentials && !input.accessKey?.trim()) {
+      throw new BadRequestException("启用对象存储前，请先配置 Access Key 和 Secret Key。");
     }
     const access = input.accessKey?.trim() ? encrypt(input.accessKey.trim()) : null;
     const secret = input.secretKey?.trim() ? encrypt(input.secretKey.trim()) : null;
