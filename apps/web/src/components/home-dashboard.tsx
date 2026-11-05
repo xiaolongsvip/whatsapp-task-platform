@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Copy,
-  Globe2, Headphones, Home, Image, LoaderCircle, Users, Wallet, UserRound,
+  Globe2, Headphones, Home, Image as ImageIcon, LoaderCircle, Users, Wallet, UserRound,
   ShieldCheck, CircleHelp, MonitorSmartphone,
 } from "lucide-react";
 
@@ -194,9 +194,9 @@ export function HomeDashboard() {
             <button className="home-icon-button" type="button" onClick={() => setMenuOpen((value) => !value)} aria-label={t.language}><Globe2 size={23} /></button>
             {menuOpen && (
               <div className="home-language-menu">
-                <button type="button" onClick={() => { setMenuOpen(false); void changeLanguage("zh-CN"); }}>简体中文</button>
-                <button type="button" onClick={() => { setMenuOpen(false); void changeLanguage("en"); }}>English</button>
-                <button type="button" onClick={() => { setMenuOpen(false); void changeLanguage("ja"); }}>日本語</button>
+                <button type="button" disabled={savingLanguage} onClick={() => { setMenuOpen(false); void changeLanguage("zh-CN"); }}>简体中文</button>
+                <button type="button" disabled={savingLanguage} onClick={() => { setMenuOpen(false); void changeLanguage("en"); }}>English</button>
+                <button type="button" disabled={savingLanguage} onClick={() => { setMenuOpen(false); void changeLanguage("ja"); }}>日本語</button>
               </div>
             )}
           </div>
@@ -230,7 +230,7 @@ export function HomeDashboard() {
         <p>{t.deviceText}</p>
         <div className="home-permission-grid">
           <div><span className="home-permission-icon"><ShieldCheck size={22} /></span><strong>{t.overlay}</strong><small>{t.notApplicable}</small></div>
-          <div><span className="home-permission-icon"><Image size={22} /></span><strong>{t.screenshot}</strong><small>{t.userSelect}</small></div>
+          <div><span className="home-permission-icon"><ImageIcon size={22} /></span><strong>{t.screenshot}</strong><small>{t.userSelect}</small></div>
         </div>
       </section>
 
