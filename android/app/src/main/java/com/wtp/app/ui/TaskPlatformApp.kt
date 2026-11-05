@@ -920,132 +920,139 @@ private fun SimpleScreen(title: String, description: String, modifier: Modifier 
 
 @Composable
 private fun WalletScreen(
-    modifier: Modifier = Modifier,
-    language: String,
-    onApplyWithdraw: () -> Unit,
-    onPayoutAccounts: () -> Unit,
-    onWithdrawalHistory: () -> Unit,
-    onWithdrawalGuide: () -> Unit,
-    onInviteFriends: () -> Unit,
-    onWalletDetails: () -> Unit,
-    onLanguageChanged: (String) -> Unit
+    modifier: Modifier = Modifier, language: String, onApplyWithdraw: () -> Unit,
+    onPayoutAccounts: () -> Unit, onWithdrawalHistory: () -> Unit, onWithdrawalGuide: () -> Unit,
+    onInviteFriends: () -> Unit, onWalletDetails: () -> Unit, onLanguageChanged: (String) -> Unit
 ) {
-    val isEnglish = language == "en"
-    var summary by remember { mutableStateOf<JSONObject?>(null) }
+    val en = language == "en"
+    var overview by remember { mutableStateOf<JSONObject?>(null) }
+    var recent by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(true) }
     var balanceVisible by rememberSaveable { mutableStateOf(true) }
     var languageMenuOpen by remember { mutableStateOf(false) }
+    var refresh by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
-        runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }
-            .onSuccess { summary = it }
-            .onFailure { error = it.message }
+    LaunchedEffect(refresh) {
+        loading = true; error = null
+        val result = withContext(Dispatchers.IO) {
+            Pair(runCatching { AuthRepository.walletOverview() }, runCatching { AuthRepository.walletTransactions(5) })
+        }
+        result.first.onSuccess { overview = it }.onFailure { error = it.message }
+        result.second.onSuccess { recent = it }.onFailure { if (error == null) error = it.message }
+        loading = false
     }
-    val balance = formatAvailableBalances(summary?.optJSONArray("availableBalances"))
-    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    val totals = overview?.optJSONArray("totals")
+    fun total(key: String): String {
+        val values = JSONObject()
+        for (i in 0 until (totals?.length() ?: 0)) {
+            val row = totals?.optJSONObject(i) ?: continue
+            values.put(row.optString("currency"), row.optString(key, "0"))
+        }
+        return if (overview == null) "—" else formatCurrencyTotals(values)
+    }
+    val available = total("availableMinor")
+    val pending = total("pendingWithdrawalMinor")
+    val processing = total("processingWithdrawalMinor")
+    val income = total("incomeMinor")
+    val recentItems = recent?.optJSONArray("items")
+    fun transactionTitle(item: JSONObject): String = when (item.optString("sourceType")) {
+        "TASK_REWARD" -> if (en) "Task reward" else "任务奖励"
+        "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
+        "WITHDRAWAL" -> if (en) "Withdrawal" else "提现"
+        else -> if (item.optString("direction") == "CREDIT") { if (en) "Income" else "收入" } else { if (en) "Expense" else "支出" }
+    }
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB)).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold) }
-            Text(if (isEnglish) "Wallet" else "钱包", color = Color(0xFF26352D), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) {
+                Text((if (en) "Available  " else "可提现  ") + if (balanceVisible) available else "••••••", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold)
+            }
+            Text(if (en) "Wallet" else "钱包", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { }) {
-                    Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Support" else "客服", tint = Color(0xFF667085))
-                }
+                IconButton(onClick = { }) { Icon(Icons.Default.HeadsetMic, contentDescription = if (en) "Support" else "客服", tint = Color(0xFF667085)) }
                 Box {
-                    IconButton(onClick = { languageMenuOpen = true }) {
-                        Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF667085))
-                    }
+                    IconButton(onClick = { languageMenuOpen = true }) { Icon(Icons.Default.Language, contentDescription = if (en) "Language" else "语言", tint = Color(0xFF667085)) }
                     DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
-                        DropdownMenuItem(text = { Text("简体中文") }, onClick = {
-                            languageMenuOpen = false
-                            scope.launch {
-                                runCatching { withContext(Dispatchers.IO) { AuthRepository.updateLocale("zh-CN") } }
-                                onLanguageChanged("zh-CN")
-                            }
-                        })
-                        DropdownMenuItem(text = { Text("English") }, onClick = {
-                            languageMenuOpen = false
-                            scope.launch {
-                                runCatching { withContext(Dispatchers.IO) { AuthRepository.updateLocale("en") } }
-                                onLanguageChanged("en")
-                            }
-                        })
+                        DropdownMenuItem(text = { Text("简体中文") }, onClick = { languageMenuOpen = false; scope.launch { runCatching { withContext(Dispatchers.IO) { AuthRepository.updateLocale("zh-CN") } }; onLanguageChanged("zh-CN") } })
+                        DropdownMenuItem(text = { Text("English") }, onClick = { languageMenuOpen = false; scope.launch { runCatching { withContext(Dispatchers.IO) { AuthRepository.updateLocale("en") } }; onLanguageChanged("en") } })
                     }
                 }
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD5F77A)), shape = RoundedCornerShape(18.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFDDF3FF)), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Surface(color = Color(0xFFEAF8B9), shape = RoundedCornerShape(20.dp)) {
-                            Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (isEnglish) "Available balance" else "可提现余额", color = Color(0xFF123E56), style = MaterialTheme.typography.labelMedium)
-                                IconButton(onClick = { balanceVisible = !balanceVisible }, modifier = Modifier.size(22.dp)) {
-                                    Icon(if (balanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = Color(0xFF123E56), modifier = Modifier.size(16.dp))
-                                }
-                            }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (en) "Available balance" else "可提现余额", color = Color(0xFF123E56), style = MaterialTheme.typography.labelLarge)
+                        IconButton(onClick = { balanceVisible = !balanceVisible }, modifier = Modifier.size(28.dp)) {
+                            Icon(if (balanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = Color(0xFF258BB8), modifier = Modifier.size(18.dp))
                         }
                     }
-                    Button(onClick = onApplyWithdraw, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF123E56))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
+                    Button(onClick = onApplyWithdraw, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), contentColor = Color.White)) { Text(if (en) "Withdraw" else "申请提现") }
                 }
-                Text(if (balanceVisible) balance else "••••••", color = Color(0xFF123E56), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
-                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending" else "提现待释放", "—", Color(0xFF80C91A))
+                Text(if (balanceVisible) available else "••••••", color = Color(0xFF123E56), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
+                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 12.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    WalletMiniMetric(Modifier.weight(1f), if (en) "Pending" else "待处理提现", pending, Color(0xFF319CCB))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Frozen" else "风险冻结", "—", Color(0xFFFF7A1A))
+                    WalletMiniMetric(Modifier.weight(1f), if (en) "Frozen" else "风险冻结", "—", Color(0xFF319CCB))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Processing" else "提现中", "—", Color(0xFF4388FF))
+                    WalletMiniMetric(Modifier.weight(1f), if (en) "Processing" else "提现处理中", processing, Color(0xFF319CCB))
                 }
-                Text((if (isEnglish) "Total income: " else "累计收入：") + "—", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                Text((if (en) "Lifetime income: " else "累计收入：") + income, color = Color(0xFF45677A), style = MaterialTheme.typography.bodySmall)
+                if (error != null) TextButton(onClick = { refresh++ }) { Text((if (en) "Load failed, tap to retry: " else "加载失败，点击重试：") + error.orEmpty(), color = Color(0xFF258BB8)) }
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (isEnglish) "All details  ›" else "全部明细  ›",
-                        color = Color(0xFF0A6FAF),
-                        modifier = Modifier.clickable(onClick = onWalletDetails)
-                    )
+                    Text(if (en) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF123E56))
+                    Text(if (en) "All details  ›" else "全部明细  ›", color = Color(0xFF319CCB), modifier = Modifier.clickable(onClick = onWalletDetails))
                 }
-                Column(
-                    Modifier.fillMaxWidth().height(164.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
-                    Spacer(Modifier.height(12.dp))
-                    Text(if (isEnglish) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Text(error ?: if (isEnglish) "Approved rewards will appear here" else "审核通过的奖励会显示在这里", color = Color(0xFF789087), style = MaterialTheme.typography.bodyMedium)
+                if (loading) Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
+                else if ((recentItems?.length() ?: 0) == 0) {
+                    Column(Modifier.fillMaxWidth().height(110.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF91A4B1), modifier = Modifier.size(30.dp))
+                        Text(if (en) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF667085), fontWeight = FontWeight.Medium)
+                    }
+                } else {
+                    for (i in 0 until minOf(recentItems?.length() ?: 0, 5)) {
+                        val item = recentItems?.optJSONObject(i) ?: continue
+                        val credit = item.optString("direction") == "CREDIT"
+                        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50)) {
+                                Icon(if (credit) Icons.Default.TrendingUp else Icons.Default.TrendingDown, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(9.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(transactionTitle(item), color = Color(0xFF243B4A), fontWeight = FontWeight.SemiBold)
+                                Text(item.optString("createdAt").replace("T", " ").take(16), color = Color(0xFF81919C), style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text((if (credit) "+" else "−") + formatCurrencyTotals(JSONObject().put(item.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF258BB8), fontWeight = FontWeight.Bold)
+                        }
+                        if (i < minOf((recentItems?.length() ?: 0) - 1, 4)) HorizontalDivider(color = Color(0xFFEAF1F5))
+                    }
                 }
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (isEnglish) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFDDF3FF), Color(0xFF0A6FAF), onClick = onPayoutAccounts)
+                Text(if (en) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF123E56))
+                WalletServiceRow(Icons.Default.CreditCard, if (en) "Payout account" else "收款账户", if (en) "Manage payout accounts" else "管理收款账户", Color(0xFFDDF3FF), Color(0xFF319CCB), onClick = onPayoutAccounts)
                 HorizontalDivider(color = Color(0xFFE5EFF5))
-                WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史", Color(0xFFE7F1FF), Color(0xFF2584F4), onClick = onWithdrawalHistory)
-                HorizontalDivider(color = Color(0xFFEEF1F3))
-                WalletServiceRow(Icons.Default.Schedule, if (isEnglish) "Withdrawal guide" else "提现说明", if (isEnglish) "Rules and instructions" else "了解提现规则与说明", Color(0xFFFFF0E1), Color(0xFFFF8A22), onClick = onWithdrawalGuide)
+                WalletServiceRow(Icons.Default.ReceiptLong, if (en) "Withdrawal history" else "提现记录", if (en) "View withdrawal history" else "查看您的提现历史", Color(0xFFDDF3FF), Color(0xFF319CCB), onClick = onWithdrawalHistory)
+                HorizontalDivider(color = Color(0xFFE5EFF5))
+                WalletServiceRow(Icons.Default.Schedule, if (en) "Withdrawal guide" else "提现说明", if (en) "Rules and instructions" else "了解提现规则与说明", Color(0xFFDDF3FF), Color(0xFF319CCB), onClick = onWithdrawalGuide)
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF3FBE5)), shape = RoundedCornerShape(16.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF6FC)), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().clickable(onClick = onInviteFriends).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Groups, null, tint = Color(0xFF0A6FAF))
+                Icon(Icons.Default.Groups, null, tint = Color(0xFF319CCB))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (isEnglish) "Invite friends to earn" else "邀请好友做任务", fontWeight = FontWeight.Bold)
-                    Text(if (isEnglish) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
+                    Text(if (en) "Invite friends to earn" else "邀请好友做任务", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
+                    Text(if (en) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
                 }
-                Surface(color = Color.White, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD9EFFB))) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (isEnglish) "Invite" else "去邀请", color = Color(0xFF0A6FAF), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
-                        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF0A6FAF), modifier = Modifier.size(16.dp))
-                    }
-                }
+                Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF319CCB))
             }
         }
     }
