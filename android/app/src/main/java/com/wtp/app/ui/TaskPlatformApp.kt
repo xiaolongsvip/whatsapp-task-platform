@@ -113,7 +113,8 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
                     onWithdrawalHistory = { walletPage = "withdrawals" },
                     onWithdrawalGuide = { walletPage = "guide" },
                     onInviteFriends = { tab = 2 },
-                    onWalletDetails = { walletPage = "details" }
+                    onWalletDetails = { walletPage = "details" },
+                    onLanguageChanged = onLanguageChanged
                 )
             }
             else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -663,12 +664,15 @@ private fun WalletScreen(
     onWithdrawalHistory: () -> Unit,
     onWithdrawalGuide: () -> Unit,
     onInviteFriends: () -> Unit,
-    onWalletDetails: () -> Unit
+    onWalletDetails: () -> Unit,
+    onLanguageChanged: (String) -> Unit
 ) {
     val isEnglish = language == "en"
     var summary by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var balanceVisible by rememberSaveable { mutableStateOf(true) }
+    var languageMenuOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }
             .onSuccess { summary = it }
@@ -682,7 +686,32 @@ private fun WalletScreen(
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF278666), fontWeight = FontWeight.Bold) }
             Text(if (isEnglish) "Wallet" else "钱包", color = Color(0xFF26352D), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { }) {
+                    Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Support" else "客服", tint = Color(0xFF71877D))
+                }
+                Box {
+                    IconButton(onClick = { languageMenuOpen = true }) {
+                        Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF71877D))
+                    }
+                    DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
+                        DropdownMenuItem(text = { Text("简体中文") }, onClick = {
+                            languageMenuOpen = false
+                            scope.launch {
+                                runCatching { withContext(Dispatchers.IO) { AuthRepository.updateLocale("zh-CN") } }
+                                onLanguageChanged("zh-CN")
+                            }
+                        })
+                        DropdownMenuItem(text = { Text("English") }, onClick = {
+                            languageMenuOpen = false
+                            scope.launch {
+                                runCatching { withContext(Dispatchers.IO) { AuthRepository.updateLocale("en") } }
+                                onLanguageChanged("en")
+                            }
+                        })
+                    }
+                }
+            }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD5F77A)), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
