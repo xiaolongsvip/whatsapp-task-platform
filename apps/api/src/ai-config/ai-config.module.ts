@@ -3,13 +3,13 @@ import { AdminAuthModule } from "../admin-auth/admin-auth.module";
 import { AiConfigController } from "./ai-config.controller";
 import { AiConfigService } from "./ai-config.service";
 import { AiReviewWorker } from "./ai-review.worker";
-import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
+import { StorageConfigModule } from "../storage-config/storage-config.module";
 import { AiReviewAdminController } from "./ai-review-admin.controller";
 import { AiReviewAdminService } from "./ai-review-admin.service";
 
 @Module({
-  imports: [AdminAuthModule],
+  imports: [AdminAuthModule, StorageConfigModule],
   controllers: [AiConfigController, AiReviewAdminController],
-  providers: [AiConfigService, AiReviewWorker, AiReviewAdminService, S3ObjectStorageService],
+  providers: [AiConfigService, AiReviewWorker, AiReviewAdminService],
 })
 export class AiConfigModule {}
