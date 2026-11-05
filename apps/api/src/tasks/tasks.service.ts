@@ -346,6 +346,9 @@ export class TasksService {
         return this.claimResponse(claim);
       }
       const now = new Date();
+      if (claim.task.endsAt && claim.task.endsAt <= now) {
+        throw new ConflictException("任务已结束，无法开始。");
+      }
       const expiresAt = new Date(Math.min(
         now.getTime() + 3 * 60 * 1000,
         claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
