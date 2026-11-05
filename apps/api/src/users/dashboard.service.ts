@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 import { prisma } from "@wtp/database";
 
 type DateParts = { year: number; month: number; day: number; hour: number; minute: number; second: number };
@@ -170,7 +171,32 @@ export class DashboardService {
       const reserved = wallet.withdrawals.reduce((v, item) => v + item.amountMinor, 0n);
       return { currency: wallet.currency.trim(), amountMinor: (credits - debits - reserved > 0n ? credits - debits - reserved : 0n).toString() };
     });
-    const code = user?.referralCode ?? "";
+    let code = user?.referralCode ?? "";
+    // Upgrade legacy long codes when the member opens the promotion page.
+    // Referral edges reference user IDs, so the existing team relationships remain intact.
+    if (code && !/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/.test(code)) {
+      const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const bytes = randomBytes(5);
+        const candidate = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+        const collision = await prisma.user.findUnique({ where: { referralCode: candidate }, select: { id: true } });
+        if (collision) continue;
+        try {
+          const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { referralCode: candidate },
+            select: { referralCode: true },
+          });
+          code = updated.referralCode;
+          break;
+        } catch (error) {
+          if (attempt === 19) throw error;
+        }
+      }
+      if (!/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/.test(code)) {
+        throw new Error("Could not assign a unique five-character referral code.");
+      }
+    }
     return {
       referralCode: code,
       inviteUrl: code && process.env.WEB_ORIGIN?.trim() ? `${process.env.WEB_ORIGIN.trim().replace(/\\/+$/, "")}/r/${encodeURIComponent(code)}` : "",
