@@ -76,9 +76,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
-private val WtpGreen = Color(0xFF27BD68)
+private val WtpGreen = Color(0xFF319CCB)
+private val WtpWhatsAppGreen = Color(0xFF27BD68)
 private val WtpDarkGreen = Color(0xFF176B8A)
-private val WtpPaleGreen = Color(0xFFE4F4EC)
+private val WtpPaleGreen = Color(0xFFDDF3FF)
 private val WtpPage = Color(0xFFF0F7FB)
 private val WtpSky = Color(0xFFE6F3FA)
 private val WtpSkyBorder = Color(0xFFD5E9F4)
@@ -779,7 +780,7 @@ private fun TaskExecutionScreen(
                     }
                 }
                 Row(
-                    Modifier.fillMaxWidth().background(Color(0xFFF3F8F5), RoundedCornerShape(10.dp))
+                    Modifier.fillMaxWidth().background(Color(0xFFF2F7FB), RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
@@ -817,7 +818,7 @@ private fun TaskExecutionScreen(
                             onClick = onGoWhatsApp,
                             enabled = !starting && phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && (!timerStarted || remainingSeconds > 0),
                             modifier = Modifier.height(44.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
+                            colors = ButtonDefaults.buttonColors(containerColor = WtpWhatsAppGreen),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text(
@@ -995,11 +996,11 @@ private fun MainTab(
     ) {
         Text(
             text,
-            color = if (selected) Color(0xFF258765) else WtpMuted,
+            color = if (selected) Color(0xFF319CCB) else WtpMuted,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
         )
         Surface(
-            color = if (selected) Color(0xFF258765) else Color.Transparent,
+            color = if (selected) Color(0xFF319CCB) else Color.Transparent,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(2.dp)
         ) {}
     }
@@ -1066,11 +1067,11 @@ private fun RecordFilterTabs(
             ) {
                 Text(
                     label,
-                    color = if (selected == filter) Color(0xFF258765) else WtpMuted,
+                    color = if (selected == filter) Color(0xFF319CCB) else WtpMuted,
                     fontWeight = if (selected == filter) FontWeight.Bold else FontWeight.Medium
                 )
                 Surface(
-                    color = if (selected == filter) Color(0xFF258765) else Color.Transparent,
+                    color = if (selected == filter) Color(0xFF319CCB) else Color.Transparent,
                     modifier = Modifier.width(48.dp).height(2.dp)
                 ) {}
             }
@@ -1124,9 +1125,9 @@ private fun AvailableTaskCard(
             )
 
             Surface(
-                color = Color(0xFFF6FCF8),
+                color = Color(0xFFF2F7FB),
                 shape = RoundedCornerShape(9.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE1F0E7))
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD8E5EC))
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -1145,7 +1146,7 @@ private fun AvailableTaskCard(
                         )
                     }
                     Box(
-                        Modifier.width(1.dp).height(34.dp).background(Color(0xFFDCEBE3))
+                        Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC))
                     )
                     Column(
                         Modifier.weight(1f).padding(start = 12.dp),
@@ -1351,7 +1352,7 @@ private fun ClaimRecordCard(claim: JSONObject, isEnglish: Boolean) {
         "APPROVED" -> WtpPaleGreen to WtpDarkGreen
         "REJECTED" -> Color(0xFFFFF1E5) to Color(0xFFB45309)
         "EXPIRED", "CANCELLED" -> Color(0xFFF0F2F3) to Color(0xFF6B7280)
-        else -> Color(0xFFEAF4EF) to WtpDarkGreen
+        else -> Color(0xFFDDF3FF) to WtpDarkGreen
     }
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
