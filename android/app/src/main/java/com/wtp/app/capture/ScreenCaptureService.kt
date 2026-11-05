@@ -25,9 +25,11 @@ import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.wtp.app.MainActivity
+import com.wtp.app.data.AuthRepository
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.UUID
 
 /**
  * One foreground MediaProjection session is shared across multiple explicit
@@ -188,15 +190,38 @@ class ScreenCaptureService : Service() {
 
     private fun onImageAvailable(reader: ImageReader) {
         val image = try { reader.acquireLatestImage() } catch (_: Exception) { null } ?: return
+        if (!captureRequested.get()) {
+            image.close()
+            return
+        }
         try {
-            if (!captureRequested.compareAndSet(true, false)) return
             val file = saveImage(image)
             CaptureSessionState.setLastCapture(file.name, file.absolutePath)
-            updateNotification("截图已保存：${file.name}；会话仍在运行")
+
+            val activeClaimId = CaptureSessionState.activeClaimId.value
+            if (!activeClaimId.isNullOrBlank()) {
+                try {
+                    AuthRepository.submitTaskEvidence(
+                        claimId = activeClaimId,
+                        filePath = file.absolutePath,
+                        note = "",
+                        idempotencyKey = UUID.randomUUID().toString()
+                    )
+                    CaptureSessionState.markLastCaptureUploaded("截图已自动上传并提交审核")
+                    updateNotification("截图已自动上传到当前任务审核；会话仍在运行")
+                } catch (uploadError: Exception) {
+                    CaptureSessionState.clearActiveClaim()
+                    CaptureSessionState.setError("自动上传失败，截图已保存在本机，可回到任务页重试：${uploadError.message ?: "网络或存储错误"}")
+                    updateNotification("上传失败；截图已保存在本机，返回任务页重试")
+                }
+            } else {
+                updateNotification("截图已保存：${file.name}；选择当前任务后可提交审核")
+            }
         } catch (error: Exception) {
             CaptureSessionState.setError("保存截图失败：${error.message ?: "未知错误"}")
             updateNotification("截图保存失败；截图会话仍在运行")
         } finally {
+            captureRequested.set(false)
             image.close()
         }
     }
