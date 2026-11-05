@@ -285,10 +285,9 @@ export class TasksService {
             userId,
             status: "CLAIMED",
             idempotencyKey: key,
-            expiresAt: new Date(Math.min(
-              now.getTime() + 3 * 60 * 1000,
-              task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
-            )),
+            // The three-minute execution window starts on the user's first
+            // explicit "Go to WhatsApp" action, not while they are reading details.
+            expiresAt: null,
             contactAssignment: {
               create: {
                 contactNumberId: contactNumber.id,
@@ -318,6 +317,51 @@ export class TasksService {
       }
       throw error;
     }
+  }
+
+  async startClaim(userId: string, claimId: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_claims WHERE id = ${claimId}::uuid FOR UPDATE
+      `;
+      const claim = await tx.taskClaim.findUnique({
+        where: { id: claimId },
+        include: {
+          task: true,
+          contactAssignment: {
+            include: { contactNumber: { select: { phoneE164: true } } },
+          },
+        },
+      });
+      if (!claim || claim.userId !== userId) {
+        throw new NotFoundException("任务领取记录不存在。");
+      }
+      if (![ "CLAIMED", "IN_PROGRESS", "REJECTED" ].includes(claim.status)) {
+        throw new ConflictException("当前任务状态不能开始或继续。");
+      }
+      if (claim.status === "IN_PROGRESS" && claim.expiresAt) {
+        if (claim.expiresAt <= new Date()) {
+          throw new ConflictException("任务时间已结束，请返回任务大厅重新领取。");
+        }
+        return this.claimResponse(claim);
+      }
+      const now = new Date();
+      const expiresAt = new Date(Math.min(
+        now.getTime() + 3 * 60 * 1000,
+        claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
+      ));
+      const started = await tx.taskClaim.update({
+        where: { id: claimId },
+        data: { status: "IN_PROGRESS", expiresAt },
+        include: {
+          task: true,
+          contactAssignment: {
+            include: { contactNumber: { select: { phoneE164: true } } },
+          },
+        },
+      });
+      return this.claimResponse(started);
+    });
   }
 
   async cancelClaim(userId: string, claimId: string) {
