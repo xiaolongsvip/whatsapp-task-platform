@@ -784,7 +784,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "Today's commission" else "今日佣金", amount(data, "todayCommissions"), modifier = Modifier.weight(1f))
                 PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "Total commission" else "累计佣金", amount(data, "totalCommissions"), modifier = Modifier.weight(1f))
-                PromotionMetric(Icons.Default.Wallet, if (isEnglish) "Available balance" else "可用余额", balance)
+                PromotionMetric(Icons.Default.Wallet, if (isEnglish) "Available balance" else "可用余额", balance, modifier = Modifier.weight(1f))
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
