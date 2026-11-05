@@ -179,6 +179,19 @@ export class AiConfigService {
     return this.getPublicConfig();
   }
 
+  async getRuntimeConfig() {
+    const config = await this.getOrCreate();
+    return {
+      enabled: config.enabled,
+      apiKey: decryptApiKey(config),
+      baseUrl: config.baseUrl,
+      model: config.model,
+      approveThreshold: config.approveThreshold,
+      rejectThreshold: config.rejectThreshold,
+      systemPrompt: config.systemPrompt,
+    };
+  }
+
   async testConnection() {
     const config = await this.getOrCreate();
     const apiKey = decryptApiKey(config);
