@@ -83,6 +83,7 @@ fun TaskPlatformApp() {
 private fun MemberShell(phone: String, language: String, onLanguageChanged: (String) -> Unit, onLogout: suspend () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showCommissionHistory by rememberSaveable { mutableStateOf(false) }
+    var walletPage by rememberSaveable { mutableStateOf("home") }
     val scope = rememberCoroutineScope()
     val navLabels = if (language == "en") listOf("Home", "Tasks", "Promote", "Wallet", "Me") else listOf("首页", "任务", "推广", "钱包", "我的")
     val navIcons = listOf(Icons.Default.Home, Icons.Default.Assignment, Icons.Default.Group, Icons.Default.Wallet, Icons.Default.AccountCircle)
@@ -99,7 +100,11 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
             } else {
                 PromotionScreen(Modifier.padding(padding), language, onWalletClick = { tab = 3 }, onCommissionClick = { showCommissionHistory = true })
             }
-            3 -> WalletScreen(Modifier.padding(padding), language)
+            3 -> when (walletPage) {
+                "accounts" -> PayoutAccountsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" }, onAdd = { walletPage = "add-account" })
+                "add-account" -> AddPayoutAccountScreen(Modifier.padding(padding), language, onBack = { walletPage = "accounts" }, onSaved = { walletPage = "accounts" })
+                else -> WalletScreen(Modifier.padding(padding), language, onApplyWithdraw = { walletPage = "accounts" }, onPayoutAccounts = { walletPage = "accounts" })
+            }
             else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if (language == "en") "My account" else "我的账户", style = MaterialTheme.typography.headlineSmall)
                 Text((if (language == "en") "Phone: " else "登录手机号：") + phone)
@@ -639,7 +644,7 @@ private fun SimpleScreen(title: String, description: String, modifier: Modifier 
 
 
 @Composable
-private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
+private fun WalletScreen(modifier: Modifier = Modifier, language: String, onApplyWithdraw: () -> Unit, onPayoutAccounts: () -> Unit) {
     val isEnglish = language == "en"
     var summary by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -672,7 +677,7 @@ private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
                             }
                         }
                     }
-                    Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF24351D))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
+                    Button(onClick = onApplyWithdraw, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF24351D))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
                 }
                 Text(if (balanceVisible) "$" + balance else "••••••", color = Color(0xFF1F2C17), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
                 Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -707,7 +712,7 @@ private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (isEnglish) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFEAF7CE), Color(0xFF4F7D2B))
+                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFEAF7CE), Color(0xFF4F7D2B), onClick = onPayoutAccounts)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
                 WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史", Color(0xFFE7F1FF), Color(0xFF2584F4))
                 HorizontalDivider(color = Color(0xFFEEF1F3))
@@ -728,6 +733,93 @@ private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
 }
 
 @Composable
+private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onAdd: () -> Unit) {
+    val isEnglish = language == "en"
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+        }
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666))) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold)
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                Column(Modifier.fillMaxWidth().height(124.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(if (isEnglish) "No payout accounts" else "暂无收款账户", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(if (isEnglish) "Add a payout account to request withdrawals" else "添加收款账户后即可申请提现", color = Color(0xFF789087))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onSaved: () -> Unit) {
+    val isEnglish = language == "en"
+    var country by rememberSaveable { mutableStateOf("Pakistan · PKR") }
+    var method by rememberSaveable { mutableStateOf("JazzCash") }
+    var account by rememberSaveable { mutableStateOf("") }
+    var holder by rememberSaveable { mutableStateOf("") }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var countryExpanded by remember { mutableStateOf(false) }
+    var methodExpanded by remember { mutableStateOf(false) }
+    val valid = account.matches(Regex("^03[0-9]{9}$"))
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+        }
+        Column(Modifier.fillMaxWidth().padding(18.dp).background(Color.White, RoundedCornerShape(18.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(color = Color(0xFFE2F5ED), shape = RoundedCornerShape(50)) { Icon(Icons.Default.Add, null, tint = Color(0xFF278666), modifier = Modifier.padding(8.dp)) }
+                Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold, color = Color(0xFF405A50), style = MaterialTheme.typography.titleMedium)
+            }
+            Text(if (isEnglish) "Select payout country" else "选择收款国家", color = Color(0xFF71877D), style = MaterialTheme.typography.bodySmall)
+            Box {
+                OutlinedButton(onClick = { countryExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Icon(Icons.Default.Language, null, tint = Color(0xFF278666))
+                    Spacer(Modifier.width(12.dp))
+                    Text(country, modifier = Modifier.weight(1f), color = Color(0xFF52665D))
+                    Icon(Icons.Default.ArrowDropDown, null)
+                }
+                DropdownMenu(expanded = countryExpanded, onDismissRequest = { countryExpanded = false }) {
+                    DropdownMenuItem(text = { Text("Pakistan · PKR") }, onClick = { country = "Pakistan · PKR"; countryExpanded = false })
+                }
+            }
+            Text(if (isEnglish) "Payout method" else "收款方式", color = Color(0xFF71877D), style = MaterialTheme.typography.bodySmall)
+            Box {
+                OutlinedButton(onClick = { methodExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Text(method, modifier = Modifier.weight(1f), color = Color(0xFF52665D))
+                    Icon(Icons.Default.ArrowDropDown, null)
+                }
+                DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
+                    listOf("JazzCash", "EasyPaisa").forEach { item ->
+                        DropdownMenuItem(text = { Text(item) }, onClick = { method = item; methodExpanded = false })
+                    }
+                }
+            }
+            OutlinedTextField(value = account, onValueChange = { account = it.filter(Char::isDigit).take(11) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Payout account number *" else "收款账号 *") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+            Text(if (isEnglish) "11 digits, starts with 03. Example: 03428888900. Enter your own account number." else "仅限 11 位数字（0–9），以 03 开头。示例：03428888900。请填写本人账号。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+            OutlinedTextField(value = holder, onValueChange = { holder = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder (optional)" else "姓名（选填）") })
+            OutlinedTextField(value = phone, onValueChange = { phone = it.filter(Char::isDigit).take(15) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Phone number (optional)" else "手机号（选填）") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone))
+            Button(onClick = onSaved, enabled = valid, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666), disabledContainerColor = Color(0xFFB8D7CC))) {
+                Text(if (isEnglish) "Save account" else "保存账户", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
 private fun WalletMiniMetric(modifier: Modifier, label: String, value: String, accent: Color) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall, maxLines = 1)
@@ -737,8 +829,8 @@ private fun WalletMiniMetric(modifier: Modifier, label: String, value: String, a
 }
 
 @Composable
-private fun WalletServiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, background: Color, tint: Color) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun WalletServiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, background: Color, tint: Color, onClick: () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(color = background, shape = RoundedCornerShape(10.dp)) { Icon(icon, null, tint = tint, modifier = Modifier.padding(10.dp)) }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
