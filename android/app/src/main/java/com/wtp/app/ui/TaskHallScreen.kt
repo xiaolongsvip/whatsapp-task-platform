@@ -393,7 +393,7 @@ fun TaskHallScreen(
                                         val taskId = task.optString("taskId")
                                         val slotId = task.optString("slotId")
                                         scope.launch {
-                                            busyId = taskId
+                                            busyId = slotId
                                             error = null
                                             notice = null
                                             try {
