@@ -278,3 +278,15 @@ Last updated: 2026-11-04
 - [ ] Currency minor-unit formatting and dashboard response semantics must be reviewed against actual API JSON before release.
 - [ ] Screenshot consent is only represented in current app memory; this phase does not start screen capture or background monitoring.
 - [ ] Tutorial, support, referral, payment-account and task-entry destinations remain visual placeholders pending their own modules.
+
+
+### Android home dashboard — real-data and navigation follow-up
+
+- [x] Balance display now interprets API `amountMinor` using the currency's standard fraction digits and shows the currency code.
+- [x] Task preview reward display uses the same minor-unit currency formatting instead of showing the raw integer.
+- [x] Home task actions navigate to the Tasks tab rather than appearing to claim a task without a claim API.
+- [x] Tutorial card opens an in-app safety/instructions dialog.
+- [x] Invite shortcut navigates to Promote; payout-account shortcut navigates to Wallet.
+- [ ] Tasks, Promote, and Wallet destination screens are still placeholders; their real API-backed modules must be implemented before those actions are considered complete.
+- [ ] No referral percentage is shown until an authoritative admin-configured reward policy endpoint exists.
+- [ ] Verify currency fraction formatting and response mapping with actual account data on emulator.
