@@ -681,7 +681,7 @@ private fun TaskExecutionScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text(if (isEnglish) "Open WhatsApp" else "打开 WhatsApp", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(if (isEnglish) "Go to WhatsApp" else "前往 WhatsApp", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
