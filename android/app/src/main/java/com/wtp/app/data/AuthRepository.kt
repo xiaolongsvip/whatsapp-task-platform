@@ -7,6 +7,7 @@ import android.util.Base64
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -83,7 +84,7 @@ object AuthRepository {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
             val json = JSONArray(cipher.doFinal(encrypted).toString(Charsets.UTF_8))
-            val url = HttpUrl.get(com.wtp.app.BuildConfig.API_BASE_URL)
+            val url = com.wtp.app.BuildConfig.API_BASE_URL.toHttpUrl()
             val restored = mutableListOf<Cookie>()
             for (index in 0 until json.length()) {
                 Cookie.parse(url, json.getString(index))?.let { cookie ->
@@ -172,7 +173,7 @@ object AuthRepository {
 
     fun logout() {
         try { request("POST", "auth/logout") } finally {
-            cookieJar.replace(HttpUrl.get(endpoint("")).host, emptyList())
+            cookieJar.replace(endpoint("").toHttpUrl().host, emptyList())
             clearPersistedCookies()
         }
     }
