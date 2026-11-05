@@ -195,6 +195,21 @@ class ScreenCaptureService : Service() {
             updateNotification("正在处理上一张截图，请稍候")
             return
         }
+        val retryPath = CaptureSessionState.lastCapturePath.value
+        val retryClaimId = CaptureSessionState.activeClaimId.value
+        val retryKey = CaptureSessionState.pendingIdempotencyKey.value
+        if (!retryPath.isNullOrBlank() && !retryClaimId.isNullOrBlank() && !retryKey.isNullOrBlank()) {
+            if (!captureRequested.compareAndSet(false, true)) {
+                updateNotification("正在处理上一张截图，请稍候")
+                return
+            }
+            CaptureSessionState.setError(null)
+            setFloatingStatus("重传中…")
+            updateNotification("正在重传上次失败的截图…")
+            workerHandler?.post { uploadEvidence(retryClaimId, retryPath, retryKey) }
+            return
+        }
+
         CaptureSessionState.setError(null)
         setFloatingStatus("截图中…")
         updateNotification("正在截取当前屏幕，请稍候…")
@@ -208,30 +223,15 @@ class ScreenCaptureService : Service() {
         }
         try {
             val file = saveImage(image)
-            CaptureSessionState.setLastCapture(file.name, file.absolutePath)
-
             val activeClaimId = CaptureSessionState.activeClaimId.value
             if (!activeClaimId.isNullOrBlank()) {
-                try {
-                    setFloatingStatus("上传中…")
-                    updateNotification("截图成功，正在上传并提交审核…")
-                    AuthRepository.submitTaskEvidence(
-                        claimId = activeClaimId,
-                        filePath = file.absolutePath,
-                        note = "",
-                        idempotencyKey = UUID.randomUUID().toString()
-                    )
-                    CaptureSessionState.markLastCaptureUploaded("截图已自动上传并提交审核")
-                    updateNotification("截图已自动上传并提交审核")
-                    setFloatingStatus("已提交 ✓")
-                    mainHandler.postDelayed({ removeFloatingAction() }, 2500)
-                } catch (uploadError: Exception) {
-                    CaptureSessionState.setError("自动上传失败，截图已保存在本机，请检查网络后再次点击蓝色水球：${uploadError.message ?: "网络或存储错误"}")
-                    updateNotification("上传失败；截图已保存在本机，点击水球可重试")
-                    setFloatingStatus("上传失败\n点击重试")
-                    mainHandler.postDelayed({ showFloatingAction() }, 700)
-                }
+                val idempotencyKey = UUID.randomUUID().toString()
+                CaptureSessionState.setLastCapture(file.name, file.absolutePath, idempotencyKey)
+                setFloatingStatus("上传中…")
+                updateNotification("截图成功，正在上传并提交审核…")
+                uploadEvidence(activeClaimId, file.absolutePath, idempotencyKey)
             } else {
+                CaptureSessionState.setLastCapture(file.name, file.absolutePath, "")
                 updateNotification("截图已保存：${file.name}；当前没有选定任务，尚未上传")
                 setFloatingStatus("已截图\n未提交")
                 mainHandler.postDelayed({ showFloatingAction() }, 700)
@@ -244,6 +244,30 @@ class ScreenCaptureService : Service() {
         } finally {
             captureRequested.set(false)
             image.close()
+        }
+    }
+
+    private fun uploadEvidence(claimId: String, filePath: String, idempotencyKey: String) {
+        try {
+            AuthRepository.submitTaskEvidence(
+                claimId = claimId,
+                filePath = filePath,
+                note = "",
+                idempotencyKey = idempotencyKey
+            )
+            CaptureSessionState.markLastCaptureUploaded("截图已自动上传并提交审核")
+            updateNotification("截图已自动上传并提交审核")
+            setFloatingStatus("已提交 ✓")
+            mainHandler.postDelayed({ removeFloatingAction() }, 2500)
+        } catch (uploadError: Exception) {
+            CaptureSessionState.setError(
+                "自动上传失败，原截图已保存在本机；再次点击蓝色水球将重传同一张截图：${uploadError.message ?: "网络或存储错误"}"
+            )
+            updateNotification("上传失败；原截图已保留，再次点击水球可重传")
+            setFloatingStatus("上传失败\n点击重传")
+            mainHandler.postDelayed({ showFloatingAction() }, 700)
+        } finally {
+            captureRequested.set(false)
         }
     }
 
