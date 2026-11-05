@@ -627,7 +627,8 @@ fun TaskHallScreen(
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for evidence capture." else "已将该任务设为当前截图提交任务。"
-                                }
+                                },
+                                onCountdownExpired = { refresh() }
                             )
                         }
                     }
@@ -664,7 +665,8 @@ fun TaskHallScreen(
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for resubmission." else "已选择此任务，可返回 WhatsApp 重新处理。"
-                                }
+                                },
+                                onCountdownExpired = { refresh() }
                             )
                         }
                     }
@@ -1092,13 +1094,14 @@ private fun TaskExecutionScreen(
 }
 
 @Composable
-private fun TaskCountdownBadge(expiresAt: String, isEnglish: Boolean) {
+private fun TaskCountdownBadge(expiresAt: String, isEnglish: Boolean, onExpired: () -> Unit) {
     val expiryMillis = remember(expiresAt) {
         runCatching { Instant.parse(expiresAt).toEpochMilli() }.getOrDefault(0L)
     }
     var remainingSeconds by remember(expiryMillis) {
         mutableStateOf(((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0))
     }
+    var expiryNotified by remember(expiryMillis) { mutableStateOf(false) }
 
     LaunchedEffect(expiryMillis) {
         while (expiryMillis > 0L && remainingSeconds > 0L) {
@@ -1106,6 +1109,10 @@ private fun TaskCountdownBadge(expiresAt: String, isEnglish: Boolean) {
             if (remainingSeconds > 0L) delay(1000)
         }
         remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+        if (expiryMillis > 0L && remainingSeconds <= 0L && !expiryNotified) {
+            expiryNotified = true
+            onExpired()
+        }
     }
 
     Surface(
@@ -1440,13 +1447,16 @@ private fun ClaimedTaskCard(
     busy: Boolean,
     onViewDetails: () -> Unit,
     onGoWhatsApp: () -> Unit,
-    onSelect: () -> Unit
+    onSelect: () -> Unit,
+    onCountdownExpired: () -> Unit
 ) {
     val task = claim.optJSONObject("task") ?: JSONObject()
     val status = claim.optString("status")
     val submission = claim.optJSONObject("latestSubmission")
     val phone = claim.optString("assignedPhoneNumber")
-    val canOpen = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+    var countdownExpired by remember(claim.optString("id")) { mutableStateOf(false) }
+    val canOpen = !countdownExpired &&
+        status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
         (submission == null || submission.optString("status") == "REJECTED")
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -1470,7 +1480,16 @@ private fun ClaimedTaskCard(
                     status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
                     expiresAt != null
                 ) {
-                    TaskCountdownBadge(expiresAt = expiresAt, isEnglish = isEnglish)
+                    TaskCountdownBadge(
+                        expiresAt = expiresAt,
+                        isEnglish = isEnglish,
+                        onExpired = {
+                            if (!countdownExpired) {
+                                countdownExpired = true
+                                onCountdownExpired()
+                            }
+                        }
+                    )
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1549,7 +1568,7 @@ private fun ClaimedTaskCard(
                     OutlinedButton(
                         onClick = onViewDetails,
                         modifier = Modifier.weight(1f),
-                        enabled = !busy,
+                        enabled = !busy && !countdownExpired,
                         shape = RoundedCornerShape(9.dp)
                     ) {
                         Text(if (isEnglish) "View details" else "查看详情", color = WtpDarkGreen)
@@ -1560,7 +1579,7 @@ private fun ClaimedTaskCard(
                             onGoWhatsApp()
                         },
                         modifier = Modifier.weight(1.35f),
-                        enabled = !busy && phone.isNotBlank() && phone != "null",
+                        enabled = !busy && !countdownExpired && phone.isNotBlank() && phone != "null",
                         colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
                         shape = RoundedCornerShape(9.dp)
                     ) {
