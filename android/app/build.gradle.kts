@@ -15,7 +15,7 @@ android {
         applicationId = "com.wtp.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
+        versionCode = 145
         versionName = "1.4.5"
         buildConfigField("String", "API_BASE_URL", "\"$configuredApiBaseUrl\"")
     }
