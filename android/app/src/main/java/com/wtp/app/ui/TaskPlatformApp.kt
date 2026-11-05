@@ -1147,6 +1147,20 @@ private fun WithdrawalGuideScreen(modifier: Modifier = Modifier, language: Strin
 @Composable
 private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onAdd: () -> Unit) {
     val isEnglish = language == "en"
+    var items by remember { mutableStateOf<JSONArray?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun reload() {
+        loading = true
+        runCatching { withContext(Dispatchers.IO) { AuthRepository.payoutAccounts() } }
+            .onSuccess { items = it.optJSONArray("items") ?: JSONArray(); error = null }
+            .onFailure { error = it.message ?: if (isEnglish) "Unable to load accounts" else "加载收款账户失败" }
+        loading = false
+    }
+    LaunchedEffect(Unit) { reload() }
+
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
@@ -1155,17 +1169,46 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
             Spacer(Modifier.weight(1f))
             Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
-        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
-                Icon(Icons.Default.Add, null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold)
             }
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
-                Column(Modifier.fillMaxWidth().height(124.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(if (isEnglish) "No payout accounts" else "暂无收款账户", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Text(if (isEnglish) "Add a payout account to request withdrawals" else "添加收款账户后即可申请提现", color = Color(0xFF789087))
+            if (loading) {
+                Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            } else if (error != null) {
+                Text(error.orEmpty(), color = Color(0xFFB42318))
+                TextButton(onClick = { scope.launch { reload() } }) { Text(if (isEnglish) "Retry" else "重试") }
+            } else if (items == null || items!!.length() == 0) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.fillMaxWidth().height(124.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text(if (isEnglish) "No payout accounts" else "暂无收款账户", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(8.dp))
+                        Text(if (isEnglish) "Add a payout account to request withdrawals" else "添加收款账户后即可申请提现", color = Color(0xFF789087))
+                    }
+                }
+            } else {
+                val data = items!!
+                for (index in 0 until data.length()) {
+                    val item = data.optJSONObject(index) ?: continue
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF319CCB), modifier = Modifier.size(30.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(item.optString("methodCode").replaceFirstChar { it.uppercase() }, color = Color(0xFF123E56), fontWeight = FontWeight.Bold)
+                                Text(item.optString("accountHolder") + " · " + item.optString("maskedAccount"), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                                Text(item.optString("countryCode") + " · " + item.optString("currency") + if (item.optBoolean("isDefault")) (if (isEnglish) " · Default" else " · 默认") else "", color = Color(0xFF98A2B3), style = MaterialTheme.typography.labelSmall)
+                            }
+                            IconButton(onClick = {
+                                scope.launch {
+                                    val id = item.optString("id")
+                                    runCatching { withContext(Dispatchers.IO) { AuthRepository.deletePayoutAccount(id) } }
+                                        .onSuccess { reload() }
+                                        .onFailure { error = it.message }
+                                }
+                            }) { Icon(Icons.Default.DeleteOutline, if (isEnglish) "Delete" else "删除", tint = Color(0xFFB42318)) }
+                        }
+                    }
                 }
             }
         }
@@ -1180,15 +1223,16 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
     var account by rememberSaveable { mutableStateOf("") }
     var holder by rememberSaveable { mutableStateOf("") }
     var phone by rememberSaveable { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
     var countryExpanded by remember { mutableStateOf(false) }
     var methodExpanded by remember { mutableStateOf(false) }
-    val valid = account.matches(Regex("^03[0-9]{9}$"))
-    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+    val scope = rememberCoroutineScope()
+    val valid = account.matches(Regex("^03[0-9]{9}$")) && holder.isNotBlank()
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
-            Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f)); Text(if (isEnglish) "Payout accounts" else "收款账户", fontWeight = FontWeight.Bold, color = Color(0xFF123E56)); Spacer(Modifier.weight(1f))
             Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
         }
         Column(Modifier.fillMaxWidth().padding(18.dp).background(Color.White, RoundedCornerShape(18.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1199,10 +1243,7 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
             Text(if (isEnglish) "Select payout country" else "选择收款国家", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             Box {
                 OutlinedButton(onClick = { countryExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Icon(Icons.Default.Language, null, tint = Color(0xFF319CCB))
-                    Spacer(Modifier.width(12.dp))
-                    Text(country, modifier = Modifier.weight(1f), color = Color(0xFF123E56))
-                    Icon(Icons.Default.ArrowDropDown, null)
+                    Icon(Icons.Default.Language, null, tint = Color(0xFF319CCB)); Spacer(Modifier.width(12.dp)); Text(country, modifier = Modifier.weight(1f), color = Color(0xFF123E56)); Icon(Icons.Default.ArrowDropDown, null)
                 }
                 DropdownMenu(expanded = countryExpanded, onDismissRequest = { countryExpanded = false }) {
                     DropdownMenuItem(text = { Text("Pakistan · PKR") }, onClick = { country = "Pakistan · PKR"; countryExpanded = false })
@@ -1211,21 +1252,29 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
             Text(if (isEnglish) "Payout method" else "收款方式", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             Box {
                 OutlinedButton(onClick = { methodExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Text(method, modifier = Modifier.weight(1f), color = Color(0xFF123E56))
-                    Icon(Icons.Default.ArrowDropDown, null)
+                    Text(method, modifier = Modifier.weight(1f), color = Color(0xFF123E56)); Icon(Icons.Default.ArrowDropDown, null)
                 }
                 DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
-                    listOf("JazzCash", "EasyPaisa").forEach { item ->
-                        DropdownMenuItem(text = { Text(item) }, onClick = { method = item; methodExpanded = false })
-                    }
+                    listOf("JazzCash", "EasyPaisa").forEach { item -> DropdownMenuItem(text = { Text(item) }, onClick = { method = item; methodExpanded = false }) }
                 }
             }
             OutlinedTextField(value = account, onValueChange = { account = it.filter(Char::isDigit).take(11) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Payout account number *" else "收款账号 *") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
-            Text(if (isEnglish) "11 digits, starts with 03. Example: 03428888900. Enter your own account number." else "仅限 11 位数字（0–9），以 03 开头。示例：03428888900。请填写本人账号。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
-            OutlinedTextField(value = holder, onValueChange = { holder = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder (optional)" else "姓名（选填）") })
+            Text(if (isEnglish) "11 digits, starts with 03. Enter your own account number." else "仅限 11 位数字，以 03 开头，请填写本人账号。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(value = holder, onValueChange = { holder = it.take(120) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder *" else "账户持有人姓名 *") })
             OutlinedTextField(value = phone, onValueChange = { phone = it.filter(Char::isDigit).take(15) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Phone number (optional)" else "手机号（选填）") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone))
-            Button(onClick = onSaved, enabled = valid, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFB8D7CC))) {
-                Text(if (isEnglish) "Save account" else "保存账户", fontWeight = FontWeight.Bold)
+            if (error != null) Text(error.orEmpty(), color = Color(0xFFB42318), style = MaterialTheme.typography.bodySmall)
+            Button(onClick = {
+                scope.launch {
+                    saving = true; error = null
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            AuthRepository.addPayoutAccount("PK", "PKR", "manual-pk", if (method == "JazzCash") "jazzcash" else "easypaisa", holder, account, phone)
+                        }
+                    }.onSuccess { onSaved() }.onFailure { error = it.message ?: if (isEnglish) "Unable to save account" else "保存失败" }
+                    saving = false
+                }
+            }, enabled = valid && !saving, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFB8D7CC))) {
+                if (saving) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text(if (isEnglish) "Save account" else "保存账户", fontWeight = FontWeight.Bold)
             }
         }
     }
