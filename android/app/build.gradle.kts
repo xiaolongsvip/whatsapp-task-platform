@@ -4,6 +4,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val configuredApiBaseUrl = (project.findProperty("wtpApiBaseUrl") as String?)
+    ?: "http://10.0.2.2:3002/api/v1/"
+
 android {
     namespace = "com.wtp.app"
     compileSdk = 35
@@ -12,8 +15,9 @@ android {
         applicationId = "com.wtp.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+        buildConfigField("String", "API_BASE_URL", "\"$configuredApiBaseUrl\"")
     }
 
     buildFeatures {
@@ -41,6 +45,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

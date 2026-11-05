@@ -242,3 +242,17 @@ Last updated: 2026-11-04
 - [ ] Authentication/API connection is intentionally deferred to the next explicitly approved module.
 - [ ] Overlay permission and MediaProjection capture are intentionally deferred to their own permission modules; no Android permission is requested in this foundation build.
 - [ ] No Gradle wrapper binary is included yet; use Android Studio's Gradle project import/sync or install compatible Gradle locally. Add a verified wrapper in a later build-tooling step.
+
+
+### Android native app — Phase 2 phone authentication (implementation started)
+
+- [x] Added native phone login and registration UI with editable country calling code (default +1), local phone digits, password, confirmation, and optional referral code.
+- [x] Added OkHttp client for the existing API endpoints: `POST /api/v1/auth/login`, `POST /api/v1/auth/register`, `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout`.
+- [x] Uses the existing API's HttpOnly `wtp_session` cookie through an in-memory CookieJar; no second account store or alternate password system was created.
+- [x] Added API base URL BuildConfig setting; Android emulator default is `http://10.0.2.2:3002/api/v1/`. Override with Gradle property `wtpApiBaseUrl` for another environment.
+- [x] Added INTERNET permission; cleartext HTTP is enabled only in the debug manifest for local emulator development.
+- [x] Added an authenticated app gate and account screen with logout; network calls run off the main thread.
+- [ ] Android Gradle sync, Kotlin compilation, emulator UI, and live API integration have not yet been verified after these changes.
+- [ ] The current cookie jar is process-memory only. A secure encrypted persistence implementation is still needed before expecting the app to restore sessions after Android kills the process.
+- [ ] Local API and PostgreSQL must be running for real login/registration. The emulator reaches the host computer's API through `10.0.2.2:3002`; do not use `localhost` inside the emulator.
+- [ ] Phone ownership SMS verification is not implemented in the existing API; this module reuses the current phone/password API without claiming phone verification.
