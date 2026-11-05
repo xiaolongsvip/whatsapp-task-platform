@@ -73,56 +73,54 @@ function publicSubmission(submission: {
 export class TasksService {
   constructor(private readonly storage: S3ObjectStorageService) {}
 
-  async listPublished(userId: string) {
+  async listPublished(_userId: string) {
     const now = new Date();
-    const [tasks, claims] = await Promise.all([
-      prisma.task.findMany({
-        where: {
+    const slots = await prisma.taskSlot.findMany({
+      where: {
+        status: "AVAILABLE",
+        contactNumber: { status: "AVAILABLE", consentStatus: "GRANTED" },
+        task: {
           status: "PUBLISHED",
           AND: [
             { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
             { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
           ],
         },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          category: true,
-          rewardMinor: true,
-          currency: true,
-          capacity: true,
-          claimedCount: true,
-          startsAt: true,
-          endsAt: true,
-          messageTemplate: true,
-          linkUrl: true,
-          previewTitle: true,
-          previewDescription: true,
-          previewImageUrl: true,
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 500,
+      include: {
+        task: {
+          select: {
+            id: true, title: true, description: true, category: true,
+            rewardMinor: true, currency: true, startsAt: true, endsAt: true,
+            messageTemplate: true, linkUrl: true, previewTitle: true,
+            previewDescription: true, previewImageUrl: true,
+          },
         },
-      }),
-      prisma.taskClaim.findMany({
-        where: { userId },
-        select: { id: true, taskId: true, status: true },
-      }),
-    ]);
-    const claimsByTask = new Map(claims.map((claim) => [claim.taskId, claim]));
-
+        contactNumber: { select: { phoneE164: true } },
+      },
+    });
     return {
-      tasks: tasks.map((task) => {
-        const claim = claimsByTask.get(task.id);
-        return {
-          ...task,
-          rewardMinor: task.rewardMinor.toString(),
-          myClaim: claim ? { id: claim.id, status: claim.status } : null,
-          remainingCapacity: task.capacity === null
-            ? null
-            : Math.max(0, task.capacity - task.claimedCount),
-        };
-      }),
+      tasks: slots.map((slot) => ({
+        id: slot.id,
+        slotId: slot.id,
+        taskId: slot.taskId,
+        title: slot.task.title,
+        description: slot.task.description,
+        category: slot.task.category,
+        rewardMinor: slot.task.rewardMinor.toString(),
+        currency: slot.task.currency.trim(),
+        startsAt: slot.task.startsAt?.toISOString() ?? null,
+        endsAt: slot.task.endsAt?.toISOString() ?? null,
+        messageTemplate: slot.task.messageTemplate,
+        linkUrl: slot.task.linkUrl,
+        previewTitle: slot.task.previewTitle,
+        previewDescription: slot.task.previewDescription,
+        previewImageUrl: slot.task.previewImageUrl,
+        maskedPhoneNumber: "******" + slot.contactNumber.phoneE164.slice(-6),
+        remainingCapacity: 1,
+      })),
     };
   }
 
@@ -185,7 +183,7 @@ export class TasksService {
     };
   }
 
-  async claimTask(userId: string, timezone: string, taskId: string, rawKey: string) {
+  async claimTask(userId: string, timezone: string, taskId: string, slotId: string, rawKey: string) {
     const key = idempotencyKey(rawKey);
     await this.expireOverdueClaims(userId);
     const replay = await prisma.taskClaim.findUnique({
@@ -203,26 +201,20 @@ export class TasksService {
     const today = startOfDay(timezone);
     try {
       const claim = await prisma.$transaction(async (tx) => {
-        // Serialize this user's claim counter, so two simultaneous task taps
-        // cannot bypass the daily limit.
-        await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
-
-        const task = await tx.task.findUnique({ where: { id: taskId } });
-        if (!task || task.status !== "PUBLISHED") {
-          throw new NotFoundException("任务不存在或当前未开放。");
-        }
-        if (task.startsAt && task.startsAt > now) {
-          throw new ConflictException("任务尚未开始。");
-        }
-        if (task.endsAt && task.endsAt < now) {
-          throw new ConflictException("任务已结束。");
-        }
-
-        const existingClaim = await tx.taskClaim.findUnique({
-          where: { taskId_userId: { taskId, userId } },
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+        const slot = await tx.taskSlot.findUnique({
+          where: { id: slotId },
+          include: { task: true, contactNumber: true },
         });
-        if (existingClaim) {
-          throw new ConflictException("你已经领取过这个任务，请在“我的任务”中继续处理。");
+        if (!slot || slot.taskId !== taskId || slot.status !== "AVAILABLE") {
+          throw new ConflictException("该号码任务已被领取或不再开放，请刷新任务大厅。");
+        }
+        const task = slot.task;
+        if (task.status !== "PUBLISHED") throw new NotFoundException("任务不存在或当前未开放。");
+        if (task.startsAt && task.startsAt > now) throw new ConflictException("任务尚未开始。");
+        if (task.endsAt && task.endsAt < now) throw new ConflictException("任务已结束。");
+        if (slot.contactNumber.status !== "AVAILABLE" || slot.contactNumber.consentStatus !== "GRANTED") {
+          throw new ConflictException("该号码当前不可分配，请刷新任务大厅。");
         }
 
         const activeClaims = await tx.taskClaim.count({
@@ -231,78 +223,38 @@ export class TasksService {
         if (activeClaims >= 3) {
           throw new ConflictException("最多同时保留 3 个未完成任务，请先完成或放弃一个任务。");
         }
-
-        const claimedToday = await tx.taskClaim.count({
-          where: { userId, claimedAt: { gte: today } },
-        });
+        const claimedToday = await tx.taskClaim.count({ where: { userId, claimedAt: { gte: today } } });
         if (claimedToday >= DAILY_TASK_LIMIT) {
-          throw new ConflictException(`已达到每日领取上限（${DAILY_TASK_LIMIT} 个任务）。`);
+          throw new ConflictException("已达到每日领取上限（" + DAILY_TASK_LIMIT + " 个任务）。");
         }
 
-        // Lock the oldest eligible number. SKIP LOCKED makes concurrent
-        // claim requests move to the next number instead of double-assigning it.
-        const availableNumbers = await tx.$queryRaw<Array<{ id: string; phone_e164: string }>>`
-          SELECT id, phone_e164
-          FROM contact_numbers
-          WHERE status = 'AVAILABLE'::"ContactNumberStatus"
-            AND consent_status = 'GRANTED'::"ContactConsentStatus"
-          ORDER BY import_order ASC
-          LIMIT 1
-          FOR UPDATE SKIP LOCKED
-        `;
-        const contactNumber = availableNumbers[0];
-        if (!contactNumber) {
-          throw new ConflictException("当前没有可分配的已授权号码，请稍后再试。");
-        }
+        const slotReserved = await tx.taskSlot.updateMany({
+          where: { id: slotId, status: "AVAILABLE", claimId: null },
+          data: { status: "ASSIGNED", assignedAt: now, releasedAt: null },
+        });
+        if (slotReserved.count !== 1) throw new ConflictException("该号码任务刚刚被其他用户领取，请刷新后重试。");
 
         const numberReserved = await tx.contactNumber.updateMany({
-          where: {
-            id: contactNumber.id,
-            status: "AVAILABLE",
-            consentStatus: "GRANTED",
-          },
+          where: { id: slot.contactNumberId, status: "AVAILABLE", consentStatus: "GRANTED" },
           data: { status: "ASSIGNED" },
         });
-        if (numberReserved.count !== 1) {
-          throw new ConflictException("号码刚刚被其他任务占用，请重新领取。");
-        }
+        if (numberReserved.count !== 1) throw new ConflictException("号码刚刚被其他用户领取，请刷新后重试。");
 
-        const capacityUpdate = await tx.task.updateMany({
-          where: {
-            id: taskId,
-            status: "PUBLISHED",
-            ...(task.capacity === null ? {} : { claimedCount: { lt: task.capacity } }),
-          },
-          data: { claimedCount: { increment: 1 } },
-        });
-        if (capacityUpdate.count !== 1) {
-          throw new ConflictException("该任务名额已满。");
-        }
-
-        return tx.taskClaim.create({
+        const created = await tx.taskClaim.create({
           data: {
-            taskId,
-            userId,
-            status: "CLAIMED",
-            idempotencyKey: key,
-            // The three-minute execution window starts on the user's first
-            // explicit "Go to WhatsApp" action, not while they are reading details.
-            expiresAt: null,
+            taskId, userId, status: "CLAIMED", idempotencyKey: key, expiresAt: null,
             contactAssignment: {
-              create: {
-                contactNumberId: contactNumber.id,
-                userId,
-                status: "ASSIGNED",
-              },
+              create: { contactNumberId: slot.contactNumberId, userId, status: "ASSIGNED" },
             },
           },
           include: {
             task: true,
-            contactAssignment: {
-              include: { contactNumber: { select: { phoneE164: true } } },
-            },
+            contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
           },
         });
+        await tx.taskSlot.update({ where: { id: slotId }, data: { claimId: created.id } });
+        await tx.task.update({ where: { id: taskId }, data: { claimedCount: { increment: 1 } } });
+        return created;
       });
       return this.claimResponse(claim);
     } catch (error) {
@@ -311,9 +263,7 @@ export class TasksService {
           where: { idempotencyKey: key },
           include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
         });
-        if (existing && existing.userId === userId && existing.taskId === taskId) {
-          return this.claimResponse(existing);
-        }
+        if (existing && existing.userId === userId && existing.taskId === taskId) return this.claimResponse(existing);
       }
       throw error;
     }
