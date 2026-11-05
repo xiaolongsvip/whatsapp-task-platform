@@ -638,6 +638,17 @@ fun TaskHallScreen(
                 abandoning = abandoningId == selectedClaim.optString("id"),
                 starting = busyId == selectedClaim.optString("id"),
                 onGoWhatsApp = { startAndOpenWhatsApp(selectedClaim) },
+                onExpired = {
+                    if (activeClaimId == selectedClaim.optString("id")) {
+                        CaptureSessionState.clearActiveClaim()
+                        context.startService(Intent(context, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_HIDE_FLOATING))
+                    }
+                    selectedClaimId = null
+                    refresh()
+                    mainTab = TaskMainTab.HALL
+                    hallFilter = HallFilter.EXPIRED
+                    notice = if (isEnglish) "Task expired. The assigned number has been released." else "任务已失效，分配号码已释放。"
+                },
                 onAbandon = {
                     val claimId = selectedClaim.optString("id")
                     scope.launch {
@@ -734,145 +745,6 @@ private fun TaskExecutionScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text(if (isEnglish) "WhatsApp task" else "WhatsApp 任务", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(maskPhoneNumber(phone), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Row(Modifier.fillMaxWidth().background(Color(0xFFF2F7FB), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(if (isEnglish) "Single reward" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(reward, color = WtpText, fontWeight = FontWeight.Bold)
-                    }
-                    Surface(Modifier.width(1.dp).height(30.dp), color = WtpSkyBorder) {}
-                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(if (isEnglish) "Time remaining" else "剩余时间", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(String.format(Locale.ROOT, "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60), color = if (remainingSeconds <= 30) Color(0xFFD14343) else WtpText, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(if (isEnglish) "● In progress" else "● 进行中", WtpPaleGreen, WtpDarkGreen)
-                    Button(onClick = onGoWhatsApp, enabled = !starting && phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && remainingSeconds > 0, colors = ButtonDefaults.buttonColors(containerColor = WtpWhatsAppGreen), shape = RoundedCornerShape(9.dp)) {
-                        Text(if (starting) { if (isEnglish) "Opening…" else "正在打开…" } else { if (isEnglish) "Continue task ▷" else "继续任务 ▷" }, color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-                val latestSubmission = claim.optJSONObject("latestSubmission")
-                val reviewReason = latestSubmission?.optString("reviewReason")
-                    ?.takeUnless { it.isNullOrBlank() || it == "null" }
-                if (status == "REJECTED") {
-                    Surface(
-                        color = Color(0xFFFFF4E8),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(
-                                if (isEnglish) "Resubmission required" else "本次审核未通过，请按原因修正后重新提交",
-                                color = Color(0xFF9A3412),
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                if (reviewReason != null) {
-                                    (if (isEnglish) "Reviewer feedback: " else "驳回原因：") + reviewReason
-                                } else {
-                                    if (isEnglish) "No reviewer note was provided. Check the task requirements and submit a clear new screenshot." else "管理员没有填写具体原因，请重新核对任务要求，并提交清晰完整的新截图。"
-                                },
-                                color = Color(0xFF7C2D12),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Text(
-                                if (isEnglish) "After correcting the issue, return here and tap the floating capture button to upload a new screenshot. The previous submission remains in your records." else "修正后返回本页，点击悬浮水球重新截图并上传。旧截图记录会保留。",
-                                color = Color(0xFF7C2D12),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-                Row(
-                    Modifier.fillMaxWidth().background(Color(0xFFF2F7FB), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (isEnglish) "Reward" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(reward, color = WtpDarkGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    }
-                    Surface(Modifier.width(1.dp).height(34.dp), color = WtpSkyBorder) {}
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (isEnglish) "Time remaining" else "剩余时间", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(
-                            String.format(Locale.ROOT, "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60),
-                            color = if (remainingSeconds <= 30) Color(0xFFD14343) else WtpDarkGreen,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                }
-            }
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if (isEnglish) "Task steps" else "任务步骤", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    StepNumber(1)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text(if (isEnglish) "Open WhatsApp" else "打开 WhatsApp", color = WtpText, fontWeight = FontWeight.SemiBold)
-                        Text(if (isEnglish) "Check the assigned contact and prepared message before sending." else "核对后台分配的号码和预设内容，确认无误后再发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Button(
-                            onClick = onGoWhatsApp,
-                            enabled = !starting && phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && (!timerStarted || remainingSeconds > 0),
-                            modifier = Modifier.height(44.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = WtpWhatsAppGreen),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text(
-                                when {
-                                    starting -> if (isEnglish) "Opening…" else "正在打开…"
-                                    status == "REJECTED" -> if (isEnglish) "Correct & reopen WhatsApp" else "修改后重新前往 WhatsApp"
-                                    else -> if (isEnglish) "Go to WhatsApp" else "前往 WhatsApp"
-                                },
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    StepNumber(2)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(if (isEnglish) "Complete the task in WhatsApp" else "在 WhatsApp 中完成任务", color = WtpText, fontWeight = FontWeight.SemiBold)
-                        Text(if (isEnglish) "Review the contact, message and link preview. Send manually only after confirming the recipient has consented to receive the message." else "使用已分配号码和预设内容，检查链接预览；确认收件人同意接收后，由你本人点击发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        if (phone.isNotBlank() && phone != "null") {
-                            Surface(color = WtpSky, shape = RoundedCornerShape(8.dp)) {
-                                Text((if (isEnglish) "Assigned contact: " else "后台分配号码：") + maskPhoneNumber(phone), Modifier.fillMaxWidth().padding(9.dp), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    StepNumber(3)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(if (isEnglish) "Submit screenshot" else "通过悬浮窗提交截图", color = WtpText, fontWeight = FontWeight.SemiBold)
-                        Text(if (isEnglish) "After sending, return to this app and tap the floating capture button. The screenshot will be uploaded to review." else "完成后返回本页，点击右侧悬浮球的截图按钮，系统会自动截图并上传审核。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-
-                Text(
-                    if (isEnglish) "Up to 3 unfinished tasks can be held at once. Default task time limit: 3 minutes." else "最多可保留 3 个未完成任务。默认时限 3 分钟；请以任务页显示的最新状态为准。",
-                    color = WtpMuted,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-
         if (!errorMessage.isNullOrBlank()) {
             Surface(color = Color(0xFFFFEEEE), shape = RoundedCornerShape(9.dp)) {
                 Text(errorMessage, Modifier.fillMaxWidth().padding(11.dp), color = Color(0xFFB42318), style = MaterialTheme.typography.bodySmall)
