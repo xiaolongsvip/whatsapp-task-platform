@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.wtp.app.data.AuthRepository
 import com.wtp.app.ui.TaskPlatformApp
 import com.wtp.app.ui.theme.TaskPlatformTheme
@@ -15,11 +16,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AuthRepository.initialize(applicationContext)
+        // Use a deep blue status-bar surface with light system icons so the
+        // time, signal and battery indicators remain readable.
+        window.statusBarColor = android.graphics.Color.rgb(8, 105, 169)
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility =
+            window.decorView.systemUiVisibility and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
         setContent {
             TaskPlatformTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color(0xFF0869A9)
                 ) {
                     TaskPlatformApp()
                 }
