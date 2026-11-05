@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
-import type { Request } from "express";
+import { Body, Controller, Get, Param, Post, Query, Req, Res } from "@nestjs/common";
+import type { Request, Response } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { AiReviewAdminService } from "./ai-review-admin.service";
 import { ReviewAiSubmissionDto } from "./review-ai-submission.dto";
@@ -44,4 +44,19 @@ export class TaskSubmissionAdminController {
     const admin = await this.auth.getCurrentAdmin(token(request));
     return this.reviews.reviewSubmission(id, admin.id, body.decision, body.reason);
   }
+  @Get(":id/evidence")
+  async evidence(
+    @Req() request: Request,
+    @Param("id") id: string,
+    @Res() response: Response,
+  ) {
+    await this.auth.getCurrentAdmin(token(request));
+    const evidence = await this.reviews.getEvidence(id);
+    response.setHeader("Content-Type", evidence.mimeType);
+    response.setHeader("Content-Length", evidence.buffer.length);
+    response.setHeader("Content-Disposition", "inline");
+    response.setHeader("Cache-Control", "private, no-store");
+    response.send(evidence.buffer);
+  }
+
 }
