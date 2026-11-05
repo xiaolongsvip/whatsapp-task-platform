@@ -443,6 +443,8 @@ model WalletHold {
   updatedAt       DateTime          @updatedAt @map("updated_at")
   wallet          Wallet            @relation(fields: [walletId], references: [id], onDelete: Restrict)
   events          WalletHoldEvent[]
+  createdBy       AdminUser         @relation("WalletHoldCreator", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  resolvedBy      AdminUser?        @relation("WalletHoldResolver", fields: [resolvedByAdminId], references: [id], onDelete: Restrict)
 
   @@index([walletId, status, createdAt])
   @@index([referenceType, referenceId])
@@ -459,6 +461,7 @@ model WalletHoldEvent {
   idempotencyKey String              @unique @map("idempotency_key")
   createdAt      DateTime            @default(now()) @map("created_at")
   hold           WalletHold          @relation(fields: [holdId], references: [id], onDelete: Restrict)
+  admin          AdminUser           @relation(fields: [adminId], references: [id], onDelete: Restrict)
 
   @@index([holdId, createdAt])
   @@map("wallet_hold_events")
@@ -622,6 +625,9 @@ model AdminUser {
   reviews      TaskReview[]
   sessions     AdminSession[]
   importBatches ContactImportBatch[]
+  walletHoldsCreated WalletHold[] @relation("WalletHoldCreator")
+  walletHoldsResolved WalletHold[] @relation("WalletHoldResolver")
+  walletHoldEvents WalletHoldEvent[]
 
   @@map("admin_users")
 }
