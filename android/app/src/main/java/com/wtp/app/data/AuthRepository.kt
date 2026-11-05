@@ -229,9 +229,25 @@ object AuthRepository {
     ): JSONObject {
         val file = File(filePath)
         if (!file.isFile || !file.canRead()) throw IOException("找不到待上传截图，请重新截图。")
+        val header = ByteArray(12)
+        val headerSize = file.inputStream().use { it.read(header) }
+        val mimeType = when {
+            headerSize >= 3 &&
+                (header[0].toInt() and 0xff) == 0xff &&
+                (header[1].toInt() and 0xff) == 0xd8 &&
+                (header[2].toInt() and 0xff) == 0xff -> "image/jpeg"
+            headerSize >= 8 &&
+                header.copyOfRange(0, 8).contentEquals(
+                    byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+                ) -> "image/png"
+            headerSize >= 12 &&
+                String(header, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+                String(header, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
+            else -> throw IOException("截图格式不受支持，请使用 JPEG、PNG 或 WebP。")
+        }
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("file", file.name, file.asRequestBody("image/jpeg".toMediaType()))
+            .addFormDataPart("file", file.name, file.asRequestBody(mimeType.toMediaType()))
             .addFormDataPart("note", note)
             .build()
         val httpRequest = Request.Builder()
