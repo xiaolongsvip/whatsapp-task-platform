@@ -90,6 +90,14 @@ enum AdminStatus {
   DISABLED
 }
 
+enum AiReviewJobStatus {
+  PENDING
+  PROCESSING
+  RETRY
+  COMPLETED
+  NEEDS_REVIEW
+}
+
 model User {
   id                    String                 @id @default(uuid()) @db.Uuid
   phone                 String                 @unique
@@ -312,10 +320,31 @@ model TaskSubmission {
   submittedAt    DateTime         @default(now()) @map("submitted_at")
   claim          TaskClaim        @relation(fields: [claimId], references: [id], onDelete: Restrict)
   reviews        TaskReview[]
+  aiReviewJob    AiReviewJob?
 
   @@index([status, submittedAt])
   @@index([claimId, submittedAt])
   @@map("task_submissions")
+}
+
+model AiReviewJob {
+  id             String           @id @default(uuid()) @db.Uuid
+  submissionId   String           @unique @map("submission_id") @db.Uuid
+  status         AiReviewJobStatus @default(PENDING)
+  attemptCount   Int              @default(0) @map("attempt_count")
+  nextAttemptAt  DateTime         @default(now()) @map("next_attempt_at")
+  lockedAt       DateTime?        @map("locked_at")
+  lastError      String?          @map("last_error") @db.Text
+  decision       String?
+  confidence     Float?
+  reason         String?          @db.Text
+  extractedText  String?          @map("extracted_text") @db.Text
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  submission     TaskSubmission   @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@map("ai_review_jobs")
 }
 
 model TaskReview {
