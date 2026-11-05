@@ -85,124 +85,16 @@ export class AiReviewAdminService {
     };
   }
   async review(jobId: string, adminId: string, decision: "APPROVE" | "REJECT", reason: string) {
-    const cleanReason = reason.trim();
-    if (!cleanReason) throw new BadRequestException("请填写审核理由。");
-
-    return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT id FROM ai_review_jobs WHERE id = ${jobId}::uuid FOR UPDATE
-      `;
-      const job = await tx.aiReviewJob.findUnique({
-        where: { id: jobId },
-        include: {
-          submission: {
-            include: {
-              claim: {
-                include: {
-                  task: true,
-                  contactAssignment: true,
-                  taskSlot: true,
-                },
-              },
-            },
-          },
-        },
-      });
-      if (!job) throw new NotFoundException("审核记录不存在。");
-      if (job.status !== "NEEDS_REVIEW") {
-        throw new ConflictException("只有待人工审核的记录可以执行此操作。");
-      }
-
-      const submission = job.submission;
-      const claim = submission.claim;
-      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
-          !["SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
-        throw new ConflictException("任务或提交状态已变化，不能重复审核。");
-      }
-
-      await tx.taskReview.create({
-        data: {
-          submissionId: submission.id,
-          reviewerAdminId: adminId,
-          decision,
-          reason: cleanReason,
-        },
-      });
-
-      if (decision === "APPROVE") {
-        const wallet = await tx.wallet.upsert({
-          where: { userId_currency: { userId: claim.userId, currency: claim.task.currency } },
-          create: { userId: claim.userId, currency: claim.task.currency },
-          update: {},
-        });
-        await tx.ledgerEntry.createMany({
-          data: [{
-            walletId: wallet.id,
-            sourceType: "TASK_REWARD",
-            sourceId: claim.id,
-            direction: "CREDIT",
-            amountMinor: claim.task.rewardMinor,
-            currency: claim.task.currency,
-            idempotencyKey: `task-reward:${claim.id}`,
-          }],
-          skipDuplicates: true,
-        });
-        await tx.taskSubmission.update({
-          where: { id: submission.id },
-          data: { status: "APPROVED" },
-        });
-        await tx.taskClaim.update({
-          where: { id: claim.id },
-          data: { status: "APPROVED" },
-        });
-        if (claim.contactAssignment) {
-          await tx.contactAssignment.update({
-            where: { id: claim.contactAssignment.id },
-            data: { status: "COMPLETED", completedAt: new Date() },
-          });
-          await tx.contactNumber.updateMany({
-            where: { id: claim.contactAssignment.contactNumberId, status: "ASSIGNED" },
-            data: { status: "USED" },
-          });
-        }
-        if (claim.taskSlot) {
-          await tx.taskSlot.updateMany({
-            where: { id: claim.taskSlot.id, status: "ASSIGNED", claimId: claim.id },
-            data: { status: "USED", usedAt: new Date() },
-          });
-        }
-      } else {
-        await tx.taskSubmission.update({
-          where: { id: submission.id },
-          data: { status: "REJECTED" },
-        });
-        await tx.taskClaim.update({
-          where: { id: claim.id },
-          data: { status: "REJECTED" },
-        });
-      }
-
-      await tx.aiReviewJob.update({
-        where: { id: job.id },
-        data: {
-          status: "COMPLETED",
-          decision,
-          reason: cleanReason,
-          lockedAt: null,
-          lastError: null,
-        },
-      });
-
-      return {
-        success: true,
-        jobId: job.id,
-        submissionId: submission.id,
-        claimId: claim.id,
-        decision,
-        submissionStatus: decision === "APPROVE" ? "APPROVED" : "REJECTED",
-        claimStatus: decision === "APPROVE" ? "APPROVED" : "REJECTED",
-      };
+    const job = await prisma.aiReviewJob.findUnique({
+      where: { id: jobId },
+      select: { submissionId: true },
     });
+    if (!job) throw new NotFoundException("审核记录不存在。");
+
+    // Both admin routes converge on the submission row lock and the same
+    // transactional decision path. This prevents the job route and the
+    // submission route from making competing decisions for one submission.
+    return this.reviewSubmission(job.submissionId, adminId, decision, reason);
   }
 
   async reviewSubmission(submissionId: string, adminId: string, decision: "APPROVE" | "REJECT", reason: string) {
