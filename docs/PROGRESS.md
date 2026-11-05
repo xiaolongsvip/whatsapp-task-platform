@@ -304,3 +304,12 @@ Last updated: 2026-11-04
 - [ ] Announcement management is intentionally deferred until the admin portal and admin authentication are developed; at that point CRUD, ordering, publish/disable state, and the shared API data source will be connected. No temporary environment-variable announcement source is used.
 - [ ] Android compile, API restart/response, ticker motion, and amount display still require local verification.
 - [ ] Task-claim action remains a navigation to the Task tab; actual claim workflow is not implemented yet.
+
+
+### Daily task limit — future admin-managed setting
+
+- [x] Keep the dashboard response field `dailyTaskLimit` stable for both web and Android clients.
+- [x] Remove the server environment-variable override; the current API returns a provisional display default of 20.
+- [ ] During admin settings development, add a persistent configurable daily task claim limit with validation, audit history, and effective-time handling.
+- [ ] Enforce the configured limit in the server-side task-claim transaction using the member's configured timezone; client display values are informational only and must never be trusted for enforcement.
+- [ ] Web and Android dashboard clients will read the same authoritative value from the shared dashboard API.
