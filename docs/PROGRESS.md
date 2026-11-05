@@ -375,3 +375,14 @@ Last updated: 2026-11-04
 - [ ] Current storage adapter supports server-side PUT/DELETE; an authenticated admin evidence-preview/download endpoint remains to be implemented with the admin review module.
 - [ ] Current daily task limit is a provisional server constant of 20; later admin settings must replace it with the shared persistent policy source.
 - [ ] Task review decisions, reviewer UI, reward settlement and payout remain outside this upload module.
+
+
+### Follow-up — active task screenshot auto-upload behavior
+
+- [x] Added in-memory active-claim selection in the Android app; it is never persisted across logout.
+- [x] When the user has selected a current task, each manually requested screenshot from the ongoing Android notification is uploaded to that claim's evidence endpoint automatically.
+- [x] Successful upload creates the task submission and clears the active-claim selection to prevent a later unrelated screenshot from attaching to the same task.
+- [x] If upload fails, the screenshot remains in app-private storage, active claim selection is cleared, and the Task Hall exposes the local image for manual retry.
+- [x] Task Hall refreshes claim/submission statuses when the user returns to it.
+- [x] Logout stops the foreground capture service and clears current-task and pending-local-screenshot pointers.
+- [ ] Need verify R2/S3 upload using the user's own private bucket credentials; do not send credentials in chat or commit them.
