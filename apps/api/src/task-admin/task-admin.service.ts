@@ -30,6 +30,7 @@ function dateValue(value: string | null | undefined): Date | null | undefined {
 
 function cleanOptional(value: string | null | undefined): string | null | undefined {
   if (value === undefined) return undefined;
+  if (value === null) return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 }
