@@ -1737,14 +1737,13 @@ private fun taskExpiryValue(claim: JSONObject): String? {
     return claimedInstant.plusSeconds(180).toString()
 }
 
-private fun isClaimDeadlinePassed(claim: JSONObject): Boolean {
-    if (claim.optString("status") !in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")) {
-        return false
-    }
-    val expiry = taskExpiryValue(claim) ?: return false
-    val expiryMillis = runCatching { Instant.parse(expiry).toEpochMilli() }.getOrDefault(0L)
-    return expiryMillis > 0L && expiryMillis <= System.currentTimeMillis()
-}
+private fun isClaimDeadlinePassed(claim: JSONObject): Boolean =
+    ClaimDeadline.isExpired(
+        status = claim.optString("status"),
+        expiresAt = claim.optString("expiresAt").takeUnless { it == "null" },
+        claimedAt = claim.optString("claimedAt").takeUnless { it == "null" },
+        nowMillis = System.currentTimeMillis()
+    )
 
 private fun formatDate(value: String): String {
     val instant = runCatching { Instant.parse(value) }.getOrNull() ?: return "—"
