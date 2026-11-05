@@ -152,7 +152,7 @@ fun TaskHallScreen(
                     if (existing.optString("id") == claimId) started else existing
                 }
                 CaptureSessionState.setActiveClaim(claimId)
-                if (CaptureSessionState.active.value) {
+                if (CaptureSessionState.active.value && android.provider.Settings.canDrawOverlays(context)) {
                     context.startService(
                         Intent(context, ScreenCaptureService::class.java)
                             .setAction(ScreenCaptureService.ACTION_SHOW_FLOATING)
