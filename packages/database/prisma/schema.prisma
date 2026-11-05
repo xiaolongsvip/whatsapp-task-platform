@@ -394,6 +394,23 @@ model WithdrawalRequest {
   @@map("withdrawal_requests")
 }
 
+model AiReviewConfig {
+  id               String   @id @default("default")
+  apiKeyCiphertext String?  @map("api_key_ciphertext") @db.Text
+  apiKeyIv         String?  @map("api_key_iv")
+  apiKeyTag        String?  @map("api_key_tag")
+  baseUrl          String   @default("https://api.openai.com/v1") @map("base_url")
+  model            String   @default("gpt-4.1")
+  enabled          Boolean  @default(false)
+  approveThreshold Float   @default(0.9) @map("approve_threshold")
+  rejectThreshold  Float   @default(0.9) @map("reject_threshold")
+  systemPrompt     String?  @map("system_prompt") @db.Text
+  updatedByAdminId String?  @map("updated_by_admin_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_review_configs")
+}
 model AdminUser {
   id           String       @id @default(uuid()) @db.Uuid
   userId       String?      @unique @map("user_id") @db.Uuid
