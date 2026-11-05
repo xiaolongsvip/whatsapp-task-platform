@@ -181,8 +181,16 @@ object AuthRepository {
 
     fun myTaskClaims(): JSONObject = request("GET", "tasks/my/claims")
 
-    fun claimTask(taskId: String, slotId: String, idempotencyKey: String): JSONObject =
-        request("POST", "tasks/$taskId/claims", JSONObject().put("slotId", slotId).put("idempotencyKey", idempotencyKey))
+    fun claimTask(taskId: String, slotId: String, idempotencyKey: String): JSONObject {
+        if (taskId.isBlank() || slotId.isBlank()) {
+            throw IOException("任务列表数据不完整：服务器尚未返回任务 ID 或号码槽位 ID，请先更新服务器 API。")
+        }
+        return request(
+            "POST",
+            "tasks/$taskId/claims",
+            JSONObject().put("slotId", slotId).put("idempotencyKey", idempotencyKey)
+        )
+    }
 
     fun startTaskClaim(claimId: String): JSONObject =
         request("POST", "tasks/claims/$claimId/start")
