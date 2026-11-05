@@ -149,7 +149,7 @@ ${taskRequirements}
           role: "user",
           content: [
             { type: "input_text", text: instruction },
-            { type: "input_image", image_url: imageUrl },
+            { type: "input_image", image_url: imageUrl, detail: "high" },
           ],
         }],
         max_output_tokens: 1200,
