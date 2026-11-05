@@ -146,6 +146,22 @@ fun TaskHallScreen(
     }
 
     fun startAndOpenWhatsApp(claim: JSONObject) {
+        // The countdown is a client-side guard only; the API rechecks expiry
+        // under the claim lock before changing the claim to IN_PROGRESS.
+        if (isClaimDeadlinePassed(claim)) {
+            val expiredId = claim.optString("id")
+            locallyExpiredClaimIds = locallyExpiredClaimIds + expiredId
+            if (selectedClaimId == expiredId) selectedClaimId = null
+            error = if (isEnglish) {
+                "This task has expired. Refreshing the task list…"
+            } else {
+                "任务已超时，正在刷新任务列表…"
+            }
+            refresh()
+            mainTab = TaskMainTab.HALL
+            hallFilter = HallFilter.EXPIRED
+            return
+        }
         // Do not start the task or leave the app until both required permissions
         // are ready. The overlay hosts the screenshot control; the active
         // MediaProjection session enables screenshot evidence capture.
