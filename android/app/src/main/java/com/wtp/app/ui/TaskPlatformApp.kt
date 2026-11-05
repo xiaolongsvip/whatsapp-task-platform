@@ -82,6 +82,7 @@ fun TaskPlatformApp() {
 @Composable
 private fun MemberShell(phone: String, language: String, onLanguageChanged: (String) -> Unit, onLogout: suspend () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var showCommissionHistory by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val navLabels = if (language == "en") listOf("Home", "Tasks", "Promote", "Wallet", "Me") else listOf("首页", "任务", "推广", "钱包", "我的")
     val navIcons = listOf(Icons.Default.Home, Icons.Default.Assignment, Icons.Default.Group, Icons.Default.Wallet, Icons.Default.AccountCircle)
@@ -93,8 +94,12 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
         when (tab) {
             0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it }, language = language, onLanguageChanged = onLanguageChanged)
             1 -> TaskHallScreen(Modifier.padding(padding), language, onLanguageChanged)
-            2 -> PromotionScreen(Modifier.padding(padding), language)
-            3 -> SimpleScreen(if (language == "en") "Wallet" else "钱包", if (language == "en") "Wallet balances and statements will be connected in the wallet module." else "钱包余额和账单将在钱包模块接入。", Modifier.padding(padding))
+            2 -> if (showCommissionHistory) {
+                CommissionHistoryScreen(Modifier.padding(padding), language, onBack = { showCommissionHistory = false })
+            } else {
+                PromotionScreen(Modifier.padding(padding), language, onWalletClick = { tab = 3 }, onCommissionClick = { showCommissionHistory = true })
+            }
+            3 -> WalletScreen(Modifier.padding(padding), language)
             else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if (language == "en") "My account" else "我的账户", style = MaterialTheme.typography.headlineSmall)
                 Text((if (language == "en") "Phone: " else "登录手机号：") + phone)
@@ -634,7 +639,152 @@ private fun SimpleScreen(title: String, description: String, modifier: Modifier 
 
 
 @Composable
-private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
+private fun WalletScreen(modifier: Modifier = Modifier, language: String) {
+    val isEnglish = language == "en"
+    var summary by remember { mutableStateOf<JSONObject?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }
+            .onSuccess { summary = it }
+            .onFailure { error = it.message }
+    }
+    val balanceItem = summary?.optJSONArray("availableBalances")?.optJSONObject(0)
+    val currency = balanceItem?.optString("currency", "USD") ?: "USD"
+    val minor = balanceItem?.optString("amountMinor", "0")?.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+    val balance = String.format(java.util.Locale.US, "%.3f", minor.divide(java.math.BigDecimal(100)))
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF278666), fontWeight = FontWeight.Bold) }
+            Text(if (isEnglish) "Wallet" else "钱包", color = Color(0xFF26352D), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD5F77A)), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (isEnglish) "Available balance ($currency)" else "可提现余额 ($currency)", color = Color(0xFF52633A))
+                    Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF24351D))) { Text(if (isEnglish) "Withdraw  ›" else "申请提现  ›") }
+                }
+                Text("$" + balance, color = Color(0xFF1F2C17), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
+                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    WalletMiniMetric(if (isEnglish) "Pending" else "提现待释放", "0.000")
+                    WalletMiniMetric(if (isEnglish) "Frozen" else "风险冻结", "0.000")
+                    WalletMiniMetric(if (isEnglish) "Processing" else "提现中", "0.000")
+                }
+                Text((if (isEnglish) "Total income: " else "累计收入：") + "0.000 $currency", color = Color(0xFF73834E), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(if (isEnglish) "All details  ›" else "全部明细  ›", color = Color(0xFF397A32))
+                }
+                Text(error ?: if (isEnglish) "No wallet transactions yet." else "目前暂无钱包记录", color = Color(0xFF718096))
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (isEnglish) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置")
+                HorizontalDivider(color = Color(0xFFEEF1F3))
+                WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史")
+                HorizontalDivider(color = Color(0xFFEEF1F3))
+                WalletServiceRow(Icons.Default.Schedule, if (isEnglish) "Withdrawal guide" else "提现说明", if (isEnglish) "Rules and instructions" else "了解提现规则与说明")
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF3FBE5)), shape = RoundedCornerShape(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Groups, null, tint = Color(0xFF47752B))
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(if (isEnglish) "Invite friends to earn" else "邀请好友做任务", fontWeight = FontWeight.Bold)
+                    Text(if (isEnglish) "Earn extra rewards when friends complete tasks" else "好友完成任务，您可获得额外奖励", color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WalletMiniMetric(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
+        Text(value, color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun WalletServiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(color = Color(0xFFEAF5D5), shape = RoundedCornerShape(10.dp)) { Icon(icon, null, tint = Color(0xFF56802D), modifier = Modifier.padding(10.dp)) }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold, color = Color(0xFF17243A))
+            Text(subtitle, color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF98A2B3))
+    }
+}
+
+@Composable
+private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val isEnglish = language == "en"
+    var selected by rememberSaveable { mutableIntStateOf(0) }
+    var summary by remember { mutableStateOf<JSONObject?>(null) }
+    LaunchedEffect(Unit) {
+        runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }.onSuccess { summary = it }
+    }
+    fun amount(key: String): String {
+        val totals = summary?.optJSONObject(key) ?: JSONObject()
+        val currency = totals.keys().asSequence().firstOrNull() ?: "USD"
+        val minor = totals.optString(currency, "0").toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+        return String.format(java.util.Locale.US, "%.3f %s", minor.divide(java.math.BigDecimal(100)), currency)
+    }
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (isEnglish) "Commission history" else "佣金记录", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+        }
+        Row(Modifier.fillMaxWidth().background(Color.White), horizontalArrangement = Arrangement.SpaceEvenly) {
+            listOf(if (isEnglish) "All" else "全部", if (isEnglish) "Pending" else "等待处理", if (isEnglish) "Credited" else "已入账").forEachIndexed { index, label ->
+                Column(Modifier.weight(1f).clickable { selected = index }.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(label, color = if (selected == index) Color(0xFF278666) else Color(0xFF667085), fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Normal)
+                    Spacer(Modifier.height(8.dp))
+                    if (selected == index) Box(Modifier.width(54.dp).height(3.dp).background(Color(0xFF278666), RoundedCornerShape(4.dp)))
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "Total commission" else "累计佣金", amount("totalCommissions"), Icons.Default.AccountBalanceWallet)
+            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "This month" else "本月佣金", amount("monthCommissions"), Icons.Default.CalendarMonth)
+            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "Pending" else "历史待处理佣金", "0.000 USD", Icons.Default.Schedule)
+        }
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 34.dp, horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(34.dp))
+                Text(if (isEnglish) "No commission records" else "暂无佣金记录", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(if (isEnglish) "Commissions will appear here after eligible invited tasks are reviewed and settled." else "符合条件的受邀任务审核并结算后，佣金会显示在这里。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommissionSummaryCard(modifier: Modifier, title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Card(modifier, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 5.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(color = Color(0xFFEEF6F2), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = Color(0xFF278666), modifier = Modifier.padding(9.dp).size(20.dp)) }
+            Text(title, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(value, color = Color(0xFF278666), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onWalletClick: () -> Unit, onCommissionClick: () -> Unit) {
     val context = LocalContext.current
     val isEnglish = language == "en"
     var data by remember { mutableStateOf<JSONObject?>(null) }
@@ -784,14 +934,14 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "Today's commission" else "今日佣金", amount(data, "todayCommissions"), modifier = Modifier.weight(1f))
                 PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "Total commission" else "累计佣金", amount(data, "totalCommissions"), modifier = Modifier.weight(1f))
-                PromotionMetric(Icons.Default.Wallet, if (isEnglish) "Available balance" else "可用余额", balance, modifier = Modifier.weight(1f))
+                PromotionMetric(Icons.Default.Wallet, if (isEnglish) "Available balance" else "可用余额", balance, modifier = Modifier.weight(1f), onClick = onWalletClick)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 PromotionMetric(Icons.Default.PersonAdd, if (isEnglish) "Invited" else "邀请人数", data?.optInt("inviteCount", 0)?.toString() ?: "0", modifier = Modifier.weight(1f))
                 PromotionMetric(Icons.Default.Groups, if (isEnglish) "Active users" else "活跃用户", data?.optInt("activeCount", 0)?.toString() ?: "0", modifier = Modifier.weight(1f))
-                PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "This month" else "本月佣金", amount(data, "monthCommissions"), modifier = Modifier.weight(1f))
+                PromotionMetric(Icons.Default.MonetizationOn, if (isEnglish) "This month" else "本月佣金", amount(data, "monthCommissions"), modifier = Modifier.weight(1f), onClick = onCommissionClick)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
@@ -879,9 +1029,9 @@ private fun PromotionQrCode(value: String, modifier: Modifier = Modifier, onClic
 }
 
 @Composable
-private fun PromotionMetric(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, modifier: Modifier = Modifier) {
+private fun PromotionMetric(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Column(
-        modifier.padding(horizontal = 3.dp),
+        modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
