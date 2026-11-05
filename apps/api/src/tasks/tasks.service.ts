@@ -239,11 +239,16 @@ export class TasksService {
           throw new ConflictException("该号码当前不可分配，请刷新任务大厅。");
         }
 
+        // A user may hold only one unfinished task at a time. Keep the lock
+        // on the user row above so concurrent claim requests cannot bypass this.
         const activeClaims = await tx.taskClaim.count({
-          where: { userId, status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] } },
+          where: {
+            userId,
+            status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"] },
+          },
         });
-        if (activeClaims >= 3) {
-          throw new ConflictException("最多同时保留 3 个未完成任务，请先完成或放弃一个任务。");
+        if (activeClaims >= 1) {
+          throw new ConflictException("一次只能领取一个任务，请先完成当前任务后再领取下一个。");
         }
         const claimedToday = await tx.taskClaim.count({ where: { userId, claimedAt: { gte: today } } });
         if (claimedToday >= DAILY_TASK_LIMIT) {
