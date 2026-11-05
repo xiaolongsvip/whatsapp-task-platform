@@ -210,4 +210,30 @@ export class DashboardService {
     };
   }
 
+  async getWithdrawalHistory(userId: string, limit = 50) {
+    const rows = await prisma.withdrawalRequest.findMany({
+      where: { wallet: { userId } },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(Math.max(limit, 1), 100),
+      select: {
+        id: true,
+        amountMinor: true,
+        currency: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        amountMinor: row.amountMinor.toString(),
+        currency: row.currency.trim(),
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+    };
+  }
+
 }
