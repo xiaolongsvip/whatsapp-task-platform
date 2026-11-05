@@ -69,6 +69,8 @@ fun TaskPlatformApp() {
         !authenticated -> AuthScreen { phone = it; authenticated = true }
         else -> MemberShell(phone, language, onLanguageChanged = { language = it }) {
             appContext.stopService(Intent(appContext, ScreenCaptureService::class.java))
+            CaptureSessionState.clearActiveClaim()
+            CaptureSessionState.clearLastCapture()
             withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }
             authenticated = false
             phone = ""
