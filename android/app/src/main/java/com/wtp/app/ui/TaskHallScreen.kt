@@ -273,6 +273,31 @@ fun TaskHallScreen(
                         (if (isEnglish) "Status: " else "任务状态：") + claimStatus(claimStatusValue, isEnglish),
                         color = Color(0xFF1685B8)
                     )
+                    val assignedPhoneNumber = claim.optString("assignedPhoneNumber")
+                    if (assignedPhoneNumber.isNotBlank() && assignedPhoneNumber != "null") {
+                        Surface(color = Color(0xFFE8F5FC), shape = RoundedCornerShape(10.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(if (isEnglish) "Assigned WhatsApp number" else "本任务专属 WhatsApp 号码", color = Color(0xFF126A94), fontWeight = FontWeight.Bold)
+                                Text(assignedPhoneNumber, color = Color(0xFF123B61), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    val messageTemplate = task.optString("messageTemplate")
+                    if (messageTemplate.isNotBlank() && messageTemplate != "null") {
+                        Text(
+                            (if (isEnglish) "Message template: " else "任务消息模板：") + messageTemplate,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    val taskLink = task.optString("linkUrl")
+                    if (taskLink.isNotBlank() && taskLink != "null") {
+                        Text(
+                            (if (isEnglish) "Link: " else "任务链接：") + taskLink,
+                            color = Color(0xFF126A94),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                     if (submission != null) {
                         Text(
                             (if (isEnglish) "Latest submission: " else "最近提交：") +
