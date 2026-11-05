@@ -33,7 +33,7 @@ export class WithdrawalsService {
             throw new BadRequestException("No wallet is available for this payout currency.");
           }
 
-          const [entries, withdrawals] = await Promise.all([
+          const [entries, withdrawals, holds] = await Promise.all([
             tx.ledgerEntry.findMany({
               where: { walletId: wallet.id },
               select: { direction: true, amountMinor: true },
@@ -42,6 +42,7 @@ export class WithdrawalsService {
               where: { walletId: wallet.id, status: { in: [...RESERVED_STATUSES] } },
               select: { amountMinor: true },
             }),
+            tx.walletHold.aggregate({ where: { walletId: wallet.id, status: "ACTIVE" }, _sum: { amountMinor: true } }),
           ]);
 
           const credited = entries
@@ -51,7 +52,8 @@ export class WithdrawalsService {
             .filter((entry) => entry.direction === "DEBIT")
             .reduce((sum, entry) => sum + entry.amountMinor, 0n);
           const reserved = withdrawals.reduce((sum, item) => sum + item.amountMinor, 0n);
-          const available = credited - debited - reserved;
+          const frozen = holds._sum.amountMinor ?? 0n;
+          const available = credited - debited - reserved - frozen;
 
           if (amountMinor > available) {
             throw new BadRequestException("Insufficient available balance.");
