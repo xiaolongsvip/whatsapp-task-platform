@@ -87,9 +87,31 @@ export class TaskAdminService {
     const tasks = await prisma.task.findMany({
       orderBy: [{ createdAt: "desc" }],
       take: 200,
-      include: { _count: { select: { claims: true } } },
+      include: { _count: { select: { claims: true, slots: true } } },
     });
-    return { tasks: tasks.map(publicTask) };
+    const taskIds = tasks.map((task) => task.id);
+    const grouped = taskIds.length
+      ? await prisma.taskSlot.groupBy({
+          by: ["taskId", "status"],
+          where: { taskId: { in: taskIds } },
+          _count: { _all: true },
+        })
+      : [];
+    return {
+      tasks: tasks.map((task) => {
+        const counts = grouped.filter((entry) => entry.taskId === task.id);
+        const count = (status: string) => counts.find((entry) => entry.status === status)?._count._all ?? 0;
+        return {
+          ...publicTask(task),
+          inventory: {
+            total: task._count.slots,
+            available: count("AVAILABLE"),
+            assigned: count("ASSIGNED"),
+            used: count("USED"),
+          },
+        };
+      }),
+    };
   }
 
   async create(input: CreateAdminTaskDto) {
