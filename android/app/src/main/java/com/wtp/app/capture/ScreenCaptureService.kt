@@ -323,8 +323,9 @@ class ScreenCaptureService : Service() {
         }
         val button = TextView(this).apply {
             text = "点击截图\n自动提交"
-            textSize = 9f
-            setTextColor(android.graphics.Color.WHITE)
+            textSize = 11f
+            setTextColor(android.graphics.Color.BLACK)
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
             gravity = Gravity.CENTER
             setLineSpacing(0f, 0.92f)
             setPadding(dp(3), dp(3), dp(3), dp(3))
