@@ -23,7 +23,19 @@ function hashToken(token: string): string {
 }
 
 function createReferralCode(): string {
-  return randomBytes(6).toString("hex").toUpperCase();
+  // Five characters, excluding visually ambiguous 0/O and 1/I.
+  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const bytes = randomBytes(5);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+async function createUniqueReferralCode(): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const code = createReferralCode();
+    const existing = await prisma.user.findUnique({ where: { referralCode: code }, select: { id: true } });
+    if (!existing) return code;
+  }
+  throw new ConflictException("暂时无法生成邀请码，请重试。");
 }
 
 @Injectable()
@@ -52,7 +64,7 @@ export class AuthService {
     if (inviterCode && !inviter) throw new BadRequestException("邀请码无效，请检查后重试。");
 
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
-    const referralCode = createReferralCode();
+    const referralCode = await createUniqueReferralCode();
 
     const user = await prisma.$transaction(async (tx) => {
         const created = await tx.user.create({
