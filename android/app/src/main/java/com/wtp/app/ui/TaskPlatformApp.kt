@@ -118,7 +118,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             loading = true
             error = null
             try { data = withContext(Dispatchers.IO) { AuthRepository.dashboard() } }
-            catch (e: Exception) { error = e.message ?: "首页数据加载失败" }
+            catch (e: Exception) { error = e.message ?: if (isEnglish) "Dashboard failed to load" else "首页数据加载失败" }
             finally { loading = false }
         }
     }
@@ -178,7 +178,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             Column(Modifier.padding(14.dp)) {
                 Text("首页数据加载失败", color = Color(0xFFB42318), fontWeight = FontWeight.Bold)
                 Text(error!!, color = Color(0xFFB42318))
-                TextButton(onClick = { load() }) { Text("重新加载") }
+                TextButton(onClick = { load() }) { Text(if (isEnglish) "Retry" else "重新加载") }
             }
         }
 
@@ -252,10 +252,10 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     val statusText = when {
-                        loading -> "正在读取"
-                        !hasTaskCapacity -> "暂无可领取"
-                        !canClaimToday -> "今日已达上限"
-                        else -> "可领取"
+                        loading -> if (isEnglish) "Loading" else "正在读取"
+                        !hasTaskCapacity -> if (isEnglish) "Unavailable" else "暂无可领取"
+                        !canClaimToday -> if (isEnglish) "Daily limit reached" else "今日已达上限"
+                        else -> if (isEnglish) "Available" else "可领取"
                     }
                     Surface(color = paleSky, shape = RoundedCornerShape(10.dp)) {
                         Text("● $statusText", Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = Color(0xFF1685B8), style = MaterialTheme.typography.labelLarge)
@@ -264,7 +264,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                         onClick = { onNavigate(1) },
                         colors = ButtonDefaults.buttonColors(containerColor = sky),
                         shape = RoundedCornerShape(11.dp)
-                    ) { Text("开始任务  ▷", color = Color.White) }
+                    ) { Text(if (isEnglish) "Start task  ▷" else "开始任务  ▷", color = Color.White) }
                 }
             }
         }
@@ -282,11 +282,11 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(if (isEnglish) "Device & permissions" else "设备与权限状态", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Surface(color = paleSky, shape = RoundedCornerShape(9.dp)) { Text(if (overlay && capture) "✓ 全部正常" else "待完成授权", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF1685B8), fontWeight = FontWeight.Bold) }
+                    Surface(color = paleSky, shape = RoundedCornerShape(9.dp)) { Text(if (overlay && capture) if (isEnglish) "✓ All set" else "✓ 全部正常" else if (isEnglish) "Permission needed" else "待完成授权", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF1685B8), fontWeight = FontWeight.Bold) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PermissionTile(if (isEnglish) "Overlay permission" else "悬浮窗权限", if (overlay) "已开启" else "未开启", overlay, Modifier.weight(1f))
-                    PermissionTile(if (isEnglish) "Screenshot permission" else "截图提交能力", if (capture) "本次已授权" else if (isEnglish) "Authorize when starting a task" else "开始任务时授权", capture, Modifier.weight(1f))
+                    PermissionTile(if (isEnglish) "Overlay permission" else "悬浮窗权限", if (overlay) { if (isEnglish) "Enabled" else "已开启" } else { if (isEnglish) "Not enabled" else "未开启" }, overlay, Modifier.weight(1f))
+                    PermissionTile(if (isEnglish) "Screenshot permission" else "截图提交能力", if (capture) { if (isEnglish) "Authorized this session" else "本次已授权" } else if (isEnglish) "Authorize when starting a task" else "开始任务时授权", capture, Modifier.weight(1f))
                 }
                 Button(onClick = {
                     if (!overlay) {
@@ -294,9 +294,9 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                         context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
                     } else captureLauncher.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
                 }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = sky), shape = RoundedCornerShape(12.dp)) {
-                    Text(if (!overlay) "一键开启权限  (第 1 步)" else "一键开启权限  (截图授权)", color = Color.White)
+                    Text(if (!overlay) if (isEnglish) "Enable permissions (Step 1)" else "一键开启权限  (第 1 步)" else if (isEnglish) "Enable permissions (screen capture)" else "一键开启权限  (截图授权)", color = Color.White)
                 }
-                Text("Android 要求分别确认悬浮窗和屏幕捕获权限。截图授权仅对本次授权会话有效。", color = muted, style = MaterialTheme.typography.bodySmall)
+                Text(if (isEnglish) "Android requires separate consent for overlay and screen capture. Screen-capture consent is valid only for this authorization session." else "Android 要求分别确认悬浮窗和屏幕捕获权限。截图授权仅对本次授权会话有效。", color = muted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
