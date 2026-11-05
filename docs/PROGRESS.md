@@ -256,3 +256,13 @@ Last updated: 2026-11-04
 - [ ] The current cookie jar is process-memory only. A secure encrypted persistence implementation is still needed before expecting the app to restore sessions after Android kills the process.
 - [ ] Local API and PostgreSQL must be running for real login/registration. The emulator reaches the host computer's API through `10.0.2.2:3002`; do not use `localhost` inside the emulator.
 - [ ] Phone ownership SMS verification is not implemented in the existing API; this module reuses the current phone/password API without claiming phone verification.
+
+
+### Android native app — encrypted session persistence
+
+- [x] Added AES-GCM encrypted session-cookie storage backed by an Android Keystore AES key.
+- [x] Restore the encrypted cookie before Compose starts; the app then calls the existing `GET /api/v1/auth/me` endpoint to validate the server session.
+- [x] Persist cookies received from login/register responses; clear the encrypted local session after logout.
+- [x] No password is stored locally.
+- [ ] Must be compiled and tested on the user's emulator, including force-stop/reopen, expired/revoked session, and logout.
+- [ ] Cookie persistence uses the server-issued cookie value encrypted at rest; server-side session validation remains authoritative.
