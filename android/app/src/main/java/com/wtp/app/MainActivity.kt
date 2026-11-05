@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.wtp.app.data.AuthRepository
 import com.wtp.app.ui.TaskPlatformApp
 import com.wtp.app.ui.theme.TaskPlatformTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AuthRepository.initialize(applicationContext)
         setContent {
             TaskPlatformTheme {
                 Surface(
