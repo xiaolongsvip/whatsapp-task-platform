@@ -464,6 +464,11 @@ export class TasksService {
     }
 
     const detected = evidenceType(file.buffer);
+    const aiConfig = await prisma.aiReviewConfig.findUnique({
+      where: { id: "default" },
+      select: { enabled: true, apiKeyCiphertext: true },
+    });
+    const queueForAi = aiConfig?.enabled === true && Boolean(aiConfig.apiKeyCiphertext);
     const replay = await prisma.taskSubmission.findUnique({
       where: { idempotencyKey: key },
       include: { claim: { select: { userId: true, id: true } } },
@@ -534,7 +539,7 @@ export class TasksService {
             claimId,
             objectKey,
             note: note?.trim() || null,
-            status: "SUBMITTED",
+            status: queueForAi ? "UNDER_REVIEW" : "SUBMITTED",
             idempotencyKey: key,
             mimeType: detected.mimeType,
             sizeBytes: file.buffer.length,
@@ -543,8 +548,17 @@ export class TasksService {
         });
         await tx.taskClaim.update({
           where: { id: claimId },
-          data: { status: "SUBMITTED" },
+          data: { status: queueForAi ? "UNDER_REVIEW" : "SUBMITTED" },
         });
+        if (queueForAi) {
+          await tx.aiReviewJob.create({
+            data: {
+              submissionId: created.id,
+              status: "PENDING",
+              nextAttemptAt: new Date(),
+            },
+          });
+        }
         return created;
       });
       // A concurrent retry with the same idempotency key may have created the
