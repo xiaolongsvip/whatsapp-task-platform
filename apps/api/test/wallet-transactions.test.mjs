@@ -24,3 +24,17 @@ test("wallet transaction history includes withdrawal request status without doub
   assert.match(service, /status: withdrawal\.status/);
   assert.match(service, /wallet\.withdrawals/);
 });
+
+test("wallet overview aggregates lifetime ledger totals and separates withdrawal reserves", () => {
+  assert.match(service, /async getWalletOverview\(userId: string\)/);
+  assert.match(service, /prisma\.ledgerEntry\.groupBy/);
+  assert.match(service, /prisma\.withdrawalRequest\.groupBy/);
+  assert.match(service, /pendingWithdrawalMinor: pending\.toString\(\)/);
+  assert.match(service, /processingWithdrawalMinor: processing\.toString\(\)/);
+  assert.match(service, /availableMinor:/);
+});
+
+test("wallet overview endpoint requires the current authenticated user", () => {
+  assert.match(controller, /@Get\("wallet-overview"\)[\s\S]*?getWalletOverview/);
+  assert.match(controller, /getCurrentUser\(sessionToken\(request\)\)[\s\S]*?getWalletOverview\(user\.id\)/);
+});
