@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -91,7 +93,7 @@ fun AuthScreen(onAuthenticated: (String) -> Unit) {
         val compact = maxHeight < 760.dp
         TechBackground()
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = if (compact) 12.dp else 22.dp),
+            modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = if (compact) 12.dp else 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -144,16 +146,18 @@ fun AuthScreen(onAuthenticated: (String) -> Unit) {
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         textStyle = androidx.compose.ui.text.TextStyle(color = Pale, fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                        cursorBrush = SolidColor(Cyan),
                         decorationBox = { inner -> Box { if (callingCode.isEmpty()) Text("+1", color = Muted); inner() } }
                     )
                     Box(Modifier.width(1.dp).height(43.dp).background(Color(0x557FA9DC)))
                     BasicTextField(
                         value = localPhone,
                         onValueChange = { localPhone = it.filter(Char::isDigit).take(15) },
-                        modifier = Modifier.weight(1f).padding(horizontal = 11.dp),
+                        modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 11.dp),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                        cursorBrush = SolidColor(Cyan),
                         decorationBox = { inner -> Box { if (localPhone.isEmpty()) Text("输入手机号码", color = Color(0xFF9FB1D0), fontSize = 13.sp); inner() } }
                     )
                 }
@@ -248,7 +252,15 @@ private fun AuthFieldLabel(label: String, icon: androidx.compose.ui.graphics.vec
 @Composable
 private fun AuthTextInput(value: String, onValueChange: (String) -> Unit, hint: String) {
     Box(Modifier.fillMaxWidth().height(42.dp).clip(RoundedCornerShape(11.dp)).background(FieldFill).border(1.dp, FieldBorder, RoundedCornerShape(11.dp)).padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
-        BasicTextField(value, onValueChange, singleLine = true, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> Box { if (value.isEmpty()) Text(hint, color = Muted, fontSize = 12.sp); inner() } })
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
+            cursorBrush = SolidColor(Cyan),
+            decorationBox = { inner -> Box { if (value.isEmpty()) Text(hint, color = Muted, fontSize = 12.sp); inner() } }
+        )
     }
 }
 
@@ -256,7 +268,17 @@ private fun AuthTextInput(value: String, onValueChange: (String) -> Unit, hint: 
 private fun PasswordInput(value: String, onValueChange: (String) -> Unit, visible: Boolean, onToggle: () -> Unit, hint: String) {
     Row(Modifier.fillMaxWidth().height(42.dp).clip(RoundedCornerShape(11.dp)).background(FieldFill).border(1.dp, FieldBorder, RoundedCornerShape(11.dp)).padding(start = 12.dp, end = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            BasicTextField(value, onValueChange, singleLine = true, visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> Box { if (value.isEmpty()) Text(hint, color = Muted, fontSize = 12.sp); inner() } })
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
+                cursorBrush = SolidColor(Cyan),
+                decorationBox = { inner -> Box { if (value.isEmpty()) Text(hint, color = Muted, fontSize = 12.sp); inner() } }
+            )
         }
         Icon(if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = "切换密码显示", tint = Color(0xFFC4DCFF), modifier = Modifier.size(34.dp).clickable(onClick = onToggle).padding(8.dp))
     }
