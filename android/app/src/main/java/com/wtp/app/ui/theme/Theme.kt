@@ -5,22 +5,15 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val GreenPalette = lightColorScheme(
-    primary = Color(0xFF32866A),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFE2F4EA),
-    onPrimaryContainer = Color(0xFF174B37),
-    secondary = Color(0xFF648A78),
-    background = Color(0xFFF3F6F4),
-    surface = Color.White,
-    onSurface = Color(0xFF1D2939),
-    onSurfaceVariant = Color(0xFF667085)
+private val SkyPalette = lightColorScheme(
+    primary = Color(0xFF319CCB), onPrimary = Color.White,
+    primaryContainer = Color(0xFFDDF3FF), onPrimaryContainer = Color(0xFF123E56),
+    secondary = Color(0xFF5AAED0), background = Color(0xFFF2F7FA),
+    surface = Color.White, onSurface = Color(0xFF1D2939),
+    onSurfaceVariant = Color(0xFF667085), outline = Color(0xFFD8E5EC)
 )
 
 @Composable
 fun TaskPlatformTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = GreenPalette,
-        content = content
-    )
+    MaterialTheme(colorScheme = SkyPalette, content = content)
 }
