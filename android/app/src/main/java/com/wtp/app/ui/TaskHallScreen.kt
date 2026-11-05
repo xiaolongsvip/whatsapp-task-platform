@@ -100,6 +100,7 @@ fun TaskHallScreen(
     val scope = rememberCoroutineScope()
     val activeClaimId by CaptureSessionState.activeClaimId.collectAsState()
     val uploadMessage by CaptureSessionState.uploadMessage.collectAsState()
+    val captureError by CaptureSessionState.error.collectAsState()
 
     var tasks by remember { mutableStateOf(emptyList<JSONObject>()) }
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -197,6 +198,15 @@ fun TaskHallScreen(
     }
 
     LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(uploadMessage) {
+        if (!uploadMessage.isNullOrBlank()) {
+            // A successful evidence upload changes the server-side claim state.
+            // Refresh all task data so the hall and records never keep stale status.
+            refresh()
+            mainTab = TaskMainTab.RECORDS
+            recordFilter = RecordFilter.ALL
+        }
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
     val inProgressClaims = claims.filter { it.optString("status") in IN_PROGRESS_STATUSES }
@@ -348,6 +358,20 @@ fun TaskHallScreen(
                     Modifier.padding(12.dp),
                     color = WtpDarkGreen,
                     fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+        if (!captureError.isNullOrBlank()) {
+            Surface(
+                color = Color(0xFFFFF1E8),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(
+                    captureError.orEmpty(),
+                    Modifier.padding(12.dp),
+                    color = Color(0xFF9A3412),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
