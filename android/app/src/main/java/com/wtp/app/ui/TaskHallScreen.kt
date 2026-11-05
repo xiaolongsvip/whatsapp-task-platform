@@ -250,6 +250,9 @@ fun TaskHallScreen(
         RecordFilter.NEED_ACTION -> rejectedClaims
         RecordFilter.INCOMPLETE -> expiredClaims
     }
+    val evidenceClaim = claims.firstOrNull { it.optString("id") == lastCaptureClaimId }
+    val evidenceTaskTitle = evidenceClaim?.optJSONObject("task")?.optString("title")
+        ?.takeIf { it.isNotBlank() && it != "null" }
 
     Column(
         modifier.fillMaxSize().background(WtpPage).padding(bottom = 2.dp),
