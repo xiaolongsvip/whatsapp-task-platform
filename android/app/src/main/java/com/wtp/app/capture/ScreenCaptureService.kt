@@ -175,6 +175,7 @@ class ScreenCaptureService : Service() {
     private fun requestCapture() {
         if (projection == null || virtualDisplay == null || sessionStopped) {
             CaptureSessionState.setError("截图会话没有运行，请先在 APP 内开启。")
+            stopSelf()
             return
         }
         if (!captureRequested.compareAndSet(false, true)) {
