@@ -943,13 +943,13 @@ private fun WalletScreen(
                 }
                 Text(if (balanceVisible) "$" + balance else "••••••", color = Color(0xFF123E56), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
                 Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending (USD)" else "提现待释放 (USD)", "0.000", Color(0xFF80C91A))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Pending (USD)" else "提现待释放 (USD)", "—", Color(0xFF80C91A))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Frozen (USD)" else "风险冻结 (USD)", "0.000", Color(0xFFFF7A1A))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Frozen (USD)" else "风险冻结 (USD)", "—", Color(0xFFFF7A1A))
                     Box(Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC)))
-                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Processing (USD)" else "提现中 (USD)", "0.000", Color(0xFF4388FF))
+                    WalletMiniMetric(Modifier.weight(1f), if (isEnglish) "Processing (USD)" else "提现中 (USD)", "—", Color(0xFF4388FF))
                 }
-                Text((if (isEnglish) "Total income: " else "累计收入：") + "0.000 $currency", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                Text((if (isEnglish) "Total income: " else "累计收入：") + "— $currency", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
@@ -1222,13 +1222,13 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
         Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "Total commission" else "累计佣金", amount("totalCommissions"), Icons.Default.AccountBalanceWallet)
             CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "This month" else "本月佣金", amount("monthCommissions"), Icons.Default.CalendarMonth)
-            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "Pending" else "历史待处理佣金", "0.000 USD", Icons.Default.Schedule)
+            CommissionSummaryCard(Modifier.weight(1f), if (isEnglish) "Pending" else "历史待处理佣金", "—", Icons.Default.Schedule)
         }
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(vertical = 34.dp, horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(34.dp))
-                Text(if (isEnglish) "No commission records" else "暂无佣金记录", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(if (isEnglish) "Commissions will appear here after eligible invited tasks are reviewed and settled." else "符合条件的受邀任务审核并结算后，佣金会显示在这里。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(if (isEnglish) "Commission details unavailable" else "暂无佣金明细数据", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(if (isEnglish) "The current API provides commission totals only; individual records are not available." else "当前接口仅提供佣金汇总，暂未提供逐笔佣金明细。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
     }
