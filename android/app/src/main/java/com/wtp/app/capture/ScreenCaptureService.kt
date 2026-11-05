@@ -246,15 +246,15 @@ class ScreenCaptureService : Service() {
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
         val button = TextView(this).apply {
-            text = "已发送并截图上传"
-            textSize = 13f
+            text = "⛶"
+            textSize = 29f
             setTextColor(android.graphics.Color.WHITE)
             gravity = Gravity.CENTER
-            setPadding(dp(14), 0, dp(14), 0)
+            contentDescription = "已发送并截图上传"
             background = GradientDrawable().apply {
-                setColor(android.graphics.Color.rgb(22, 107, 138))
-                cornerRadius = dp(28).toFloat()
-                setStroke(dp(1), android.graphics.Color.rgb(210, 235, 247))
+                shape = GradientDrawable.OVAL
+                setColor(android.graphics.Color.rgb(112, 119, 131))
+                setStroke(dp(1), android.graphics.Color.rgb(220, 234, 244))
             }
             elevation = dp(8).toFloat()
         }
@@ -265,8 +265,8 @@ class ScreenCaptureService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
         val params = WindowManager.LayoutParams(
-            dp(184),
-            dp(50),
+            dp(54),
+            dp(54),
             windowType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
