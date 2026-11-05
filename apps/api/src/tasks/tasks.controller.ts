@@ -61,6 +61,15 @@ export class TasksController {
     return this.tasks.claimTask(user.id, user.profile?.timezone ?? "UTC", taskId, body.idempotencyKey);
   }
 
+  @Post("claims/:claimId/start")
+  async startClaim(
+    @Req() request: Request,
+    @Param("claimId") claimId: string,
+  ) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.tasks.startClaim(user.id, claimId);
+  }
+
   @Post("claims/:claimId/cancel")
   async cancelClaim(
     @Req() request: Request,
