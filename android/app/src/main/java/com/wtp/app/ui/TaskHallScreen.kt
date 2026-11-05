@@ -202,48 +202,6 @@ fun TaskHallScreen(
 
     LaunchedEffect(Unit) { refresh() }
     LaunchedEffect(uploadMessage) {
-        if (!lastCaptureName.isNullOrBlank()) {
-            val evidenceClaim = claims.firstOrNull { it.optString("id") == lastCaptureClaimId }
-            val evidenceTaskTitle = evidenceClaim?.optJSONObject("task")?.optString("title")
-                ?.takeIf { it.isNotBlank() && it != "null" }
-            Surface(
-                color = if (lastCapturePath.isNullOrBlank() && !uploadMessage.isNullOrBlank()) WtpPaleGreen else Color(0xFFEAF4FF),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        if (isEnglish) "Latest screenshot evidence" else "最近一次截图凭证",
-                        color = WtpText,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (evidenceTaskTitle != null) {
-                        Text(
-                            (if (isEnglish) "Task: " else "所属任务：") + evidenceTaskTitle,
-                            color = WtpText
-                        )
-                    }
-                    Text(
-                        (if (isEnglish) "File: " else "截图文件：") + lastCaptureName.orEmpty(),
-                        color = WtpMuted,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        when {
-                            !lastCapturePath.isNullOrBlank() && !captureError.isNullOrBlank() ->
-                                if (isEnglish) "Upload failed — original screenshot retained; tap the floating bubble to retry." else "上传失败，原截图已保留；点击悬浮水球可重传。"
-                            !lastCapturePath.isNullOrBlank() ->
-                                if (isEnglish) "Screenshot saved; upload is pending." else "截图已保存，正在等待上传或重传。"
-                            !uploadMessage.isNullOrBlank() ->
-                                if (isEnglish) "Uploaded successfully and submitted for review." else "已上传成功并提交审核。"
-                            else -> if (isEnglish) "Screenshot saved locally." else "截图已保存在本机。"
-                        },
-                        color = if (lastCapturePath.isNullOrBlank() && !uploadMessage.isNullOrBlank()) WtpDarkGreen else WtpMuted,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
         if (!uploadMessage.isNullOrBlank()) {
             // A successful evidence upload changes the server-side claim state.
             // Refresh all task data so the hall and records never keep stale status.
@@ -297,6 +255,45 @@ fun TaskHallScreen(
         modifier.fillMaxSize().background(WtpPage).padding(bottom = 2.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
+        if (!lastCaptureName.isNullOrBlank()) {
+                Surface(
+                    color = if (lastCapturePath.isNullOrBlank() && !uploadMessage.isNullOrBlank()) WtpPaleGreen else Color(0xFFEAF4FF),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            if (isEnglish) "Latest screenshot evidence" else "最近一次截图凭证",
+                            color = WtpText,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (evidenceTaskTitle != null) {
+                            Text(
+                                (if (isEnglish) "Task: " else "所属任务：") + evidenceTaskTitle,
+                                color = WtpText
+                            )
+                        }
+                        Text(
+                            (if (isEnglish) "File: " else "截图文件：") + lastCaptureName.orEmpty(),
+                            color = WtpMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            when {
+                                !lastCapturePath.isNullOrBlank() && !captureError.isNullOrBlank() ->
+                                    if (isEnglish) "Upload failed — original screenshot retained; tap the floating bubble to retry." else "上传失败，原截图已保留；点击悬浮水球可重传。"
+                                !lastCapturePath.isNullOrBlank() ->
+                                    if (isEnglish) "Screenshot saved; upload is pending." else "截图已保存，正在等待上传或重传。"
+                                !uploadMessage.isNullOrBlank() ->
+                                    if (isEnglish) "Uploaded successfully and submitted for review." else "已上传成功并提交审核。"
+                                else -> if (isEnglish) "Screenshot saved locally." else "截图已保存在本机。"
+                            },
+                            color = if (lastCapturePath.isNullOrBlank() && !uploadMessage.isNullOrBlank()) WtpDarkGreen else WtpMuted,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+        }
         Row(
             Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
