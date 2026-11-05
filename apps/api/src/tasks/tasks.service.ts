@@ -3,6 +3,8 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
@@ -82,8 +84,36 @@ function publicSubmission(submission: {
 }
 
 @Injectable()
-export class TasksService {
+export class TasksService implements OnModuleInit, OnModuleDestroy {
+  private expiryTimer: ReturnType<typeof setInterval> | null = null;
+  private expiryRunInProgress = false;
+
   constructor(private readonly storage: S3ObjectStorageService) {}
+
+  onModuleInit() {
+    // Recover expired assignments in the background, even when the member app
+    // is closed and no further API request is made.
+    this.expiryTimer = setInterval(() => {
+      if (this.expiryRunInProgress) return;
+      this.expiryRunInProgress = true;
+      void this.expireOverdueClaims().catch((error: unknown) => {
+        console.error("[tasks] automatic claim expiry failed", error);
+      }).finally(() => {
+        this.expiryRunInProgress = false;
+      });
+    }, 15_000);
+    this.expiryTimer.unref?.();
+
+    // Run once on startup to recover claims left behind by a previous process.
+    void this.expireOverdueClaims().catch((error: unknown) => {
+      console.error("[tasks] startup claim expiry failed", error);
+    });
+  }
+
+  onModuleDestroy() {
+    if (this.expiryTimer) clearInterval(this.expiryTimer);
+    this.expiryTimer = null;
+  }
 
   async listPublished(userId: string) {
     await this.expireOverdueClaims(userId);
@@ -269,7 +299,9 @@ export class TasksService {
 
         const created = await tx.taskClaim.create({
           data: {
-            taskId, userId, status: "CLAIMED", idempotencyKey: key, expiresAt: null,
+            taskId, userId, status: "CLAIMED", idempotencyKey: key,
+            // A claim that is never started must not reserve a phone forever.
+            expiresAt: new Date(now.getTime() + 3 * 60 * 1000),
             contactAssignment: {
               create: { contactNumberId: slot.contactNumberId, userId, status: "ASSIGNED" },
             },
@@ -316,13 +348,13 @@ export class TasksService {
       if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能开始或继续。");
       }
+      const now = new Date();
+      if (claim.expiresAt && claim.expiresAt <= now) {
+        throw new ConflictException("任务领取已过期，请返回任务大厅重新领取。");
+      }
       if (claim.status === "IN_PROGRESS" && claim.expiresAt) {
-        if (claim.expiresAt <= new Date()) {
-          throw new ConflictException("任务时间已结束，请返回任务大厅重新领取。");
-        }
         return this.claimResponse(claim);
       }
-      const now = new Date();
       if (claim.task.endsAt && claim.task.endsAt <= now) {
         throw new ConflictException("任务已结束，无法开始。");
       }
@@ -412,10 +444,11 @@ export class TasksService {
     });
   }
 
-  private async expireOverdueClaims(userId: string) {
+  private async expireOverdueClaims(userId?: string) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
-      const expiredRows = await tx.$queryRaw<Array<{ id: string }>>`
+      const expiredRows = userId
+        ? await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id
         FROM task_claims
         WHERE user_id = ${userId}::uuid
@@ -423,7 +456,17 @@ export class TasksService {
           AND expires_at <= ${now}
           AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
         ORDER BY expires_at ASC
-        LIMIT 100
+        LIMIT 200
+        FOR UPDATE SKIP LOCKED
+      `
+        : await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM task_claims
+        WHERE expires_at IS NOT NULL
+          AND expires_at <= ${now}
+          AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        ORDER BY expires_at ASC
+        LIMIT 200
         FOR UPDATE SKIP LOCKED
       `;
 
