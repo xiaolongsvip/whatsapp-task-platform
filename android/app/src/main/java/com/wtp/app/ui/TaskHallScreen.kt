@@ -266,7 +266,7 @@ fun TaskHallScreen(
         }
 
         if (selectedClaim == null) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 8.dp)) {
             MainTab(
                 text = if (isEnglish) "Task hall" else "任务大厅",
                 selected = mainTab == TaskMainTab.HALL,
