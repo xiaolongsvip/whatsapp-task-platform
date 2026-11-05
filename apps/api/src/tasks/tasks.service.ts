@@ -286,10 +286,22 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
         // A user may hold only one unfinished task at a time. Keep the lock
         // on the user row above so concurrent claim requests cannot bypass this.
+        // Count only claims that are genuinely still active.
+        // Expired/stale CLAIMED, IN_PROGRESS or REJECTED rows must never
+        // permanently block a member from taking another task. Pending
+        // submissions remain blocking until review is completed.
         const activeClaims = await tx.taskClaim.count({
           where: {
             userId,
-            status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"] },
+            OR: [
+              {
+                status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+                expiresAt: { gt: now },
+              },
+              {
+                status: { in: ["SUBMITTED", "UNDER_REVIEW"] },
+              },
+            ],
           },
         });
         if (activeClaims >= 1) {
