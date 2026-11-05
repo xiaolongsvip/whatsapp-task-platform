@@ -1,5 +1,9 @@
 package com.wtp.app.data
 
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -7,16 +11,98 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import java.util.concurrent.TimeUnit
 
 /**
- * Uses the same HttpOnly wtp_session cookie as the web application.
- * Cookies are held in memory for this app process; they are never exposed to UI code.
+ * Shares the server-issued HttpOnly session cookie with the web API.
+ * Persisted cookie data is encrypted with an Android Keystore AES-GCM key.
  */
 object AuthRepository {
+    private const val PREFS = "wtp_secure_session"
+    private const val COOKIE_BLOB = "cookie_blob"
+    private const val KEY_ALIAS = "wtp_session_aes_key"
+    private const val HOST = "10.0.2.2"
     private val mediaType = "application/json; charset=utf-8".toMediaType()
+    @Volatile private var appContext: Context? = null
+
+    fun initialize(context: Context) {
+        appContext = context.applicationContext
+        restoreCookies()
+    }
+
+    private fun key(): SecretKey {
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        generator.init(
+            KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(true)
+                .build()
+        )
+        return generator.generateKey()
+    }
+
+    private fun encryptedPreferences() = requireNotNull(appContext) {
+        "AuthRepository.initialize(context) must be called first"
+    }.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    @Synchronized
+    private fun persistCookies(cookies: List<Cookie>) {
+        val context = appContext ?: return
+        if (cookies.isEmpty()) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(COOKIE_BLOB).apply()
+            return
+        }
+        val plain = JSONArray().apply { cookies.forEach { put(it.toString()) } }.toString().toByteArray(Charsets.UTF_8)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key())
+        val encrypted = cipher.doFinal(plain)
+        val packed = JSONArray().put(Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            .put(Base64.encodeToString(encrypted, Base64.NO_WRAP)).toString()
+        encryptedPreferences().edit().putString(COOKIE_BLOB, packed).apply()
+    }
+
+    @Synchronized
+    private fun restoreCookies() {
+        val context = appContext ?: return
+        val packed = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(COOKIE_BLOB, null) ?: return
+        try {
+            val values = JSONArray(packed)
+            val iv = Base64.decode(values.getString(0), Base64.NO_WRAP)
+            val encrypted = Base64.decode(values.getString(1), Base64.NO_WRAP)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
+            val json = JSONArray(cipher.doFinal(encrypted).toString(Charsets.UTF_8))
+            val url = HttpUrl.get(com.wtp.app.BuildConfig.API_BASE_URL)
+            val restored = mutableListOf<Cookie>()
+            for (index in 0 until json.length()) {
+                Cookie.parse(url, json.getString(index))?.let { cookie ->
+                    if (cookie.expiresAt > System.currentTimeMillis()) restored.add(cookie)
+                }
+            }
+            cookieJar.replace(url.host, restored)
+            if (restored.isEmpty()) clearPersistedCookies()
+        } catch (_: Exception) {
+            clearPersistedCookies()
+            cookieJar.replace(HOST, emptyList())
+        }
+    }
+
+    @Synchronized
+    private fun clearPersistedCookies() {
+        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.remove(COOKIE_BLOB)?.apply()
+    }
+
     private val cookieJar = object : CookieJar {
         private val cookies = mutableMapOf<String, List<Cookie>>()
 
@@ -25,15 +111,20 @@ object AuthRepository {
             val current = cookies[url.host].orEmpty().filterNot { old ->
                 newCookies.any { it.name == old.name && it.domain == old.domain && it.path == old.path }
             }
-            cookies[url.host] = current + newCookies.filterNot { it.expiresAt < System.currentTimeMillis() }
+            val updated = (current + newCookies).filter { it.expiresAt > System.currentTimeMillis() }
+            cookies[url.host] = updated
+            persistCookies(updated)
         }
 
         @Synchronized
         override fun loadForRequest(url: HttpUrl): List<Cookie> {
-            val valid = cookies[url.host].orEmpty().filter { it.expiresAt >= System.currentTimeMillis() }
+            val valid = cookies[url.host].orEmpty().filter { it.expiresAt > System.currentTimeMillis() }
             cookies[url.host] = valid
             return valid
         }
+
+        @Synchronized
+        fun replace(host: String, values: List<Cookie>) { cookies[host] = values }
     }
 
     private val client = OkHttpClient.Builder()
@@ -53,14 +144,13 @@ object AuthRepository {
             "GET" -> builder.get()
             else -> throw IllegalArgumentException("Unsupported method")
         }
-
         client.newCall(builder.build()).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             val json = if (raw.isBlank()) JSONObject() else runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
             if (!response.isSuccessful) {
                 val message = when (val value = json.opt("message")) {
                     is String -> value
-                    is org.json.JSONArray -> (0 until value.length()).joinToString("；") { value.optString(it) }
+                    is JSONArray -> (0 until value.length()).joinToString("；") { value.optString(it) }
                     else -> "请求失败（HTTP ${response.code}），请稍后重试。"
                 }
                 throw IOException(message)
@@ -81,6 +171,9 @@ object AuthRepository {
     fun currentUser(): JSONObject = request("GET", "auth/me")
 
     fun logout() {
-        request("POST", "auth/logout")
+        try { request("POST", "auth/logout") } finally {
+            cookieJar.replace(HttpUrl.get(endpoint("")).host, emptyList())
+            clearPersistedCookies()
+        }
     }
 }
