@@ -786,8 +786,11 @@ private fun TaskExecutionScreen(
     val task = claim.optJSONObject("task") ?: JSONObject()
     val status = claim.optString("status")
     val phone = claim.optString("assignedPhoneNumber")
-    val expiryValue = claim.optString("expiresAt")
-    val timerStarted = expiryValue.isNotBlank() && expiryValue != "null"
+    // Prefer the server deadline. For older claim responses without expiresAt,
+    // derive the same fixed deadline from claimedAt rather than starting a new
+    // three-minute countdown when this screen is opened.
+    val expiryValue = taskExpiryValue(claim).orEmpty()
+    val timerStarted = expiryValue.isNotBlank()
     val expiryMillis = remember(expiryValue) {
         if (timerStarted) runCatching { Instant.parse(expiryValue).toEpochMilli() }.getOrDefault(0L) else 0L
     }
@@ -796,7 +799,7 @@ private fun TaskExecutionScreen(
             if (timerStarted) {
                 ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
             } else {
-                180L
+                0L
             }
         )
     }
@@ -894,12 +897,16 @@ private fun TaskExecutionScreen(
                             style = MaterialTheme.typography.bodySmall
                         )
                         Text(
-                            String.format(
-                                Locale.ROOT,
-                                "%02d:%02d",
-                                remainingSeconds / 60,
-                                remainingSeconds % 60
-                            ),
+                            if (timerStarted) {
+                                String.format(
+                                    Locale.ROOT,
+                                    "%02d:%02d",
+                                    remainingSeconds / 60,
+                                    remainingSeconds % 60
+                                )
+                            } else {
+                                "--:--"
+                            },
                             color = if (remainingSeconds <= 30) Color(0xFFD14343) else Color(0xFF278765),
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleLarge
@@ -1458,10 +1465,10 @@ private fun ClaimedTaskCard(
                     color = WtpText,
                     fontWeight = FontWeight.Bold
                 )
-                val expiresAt = claim.optString("expiresAt")
+                val expiresAt = taskExpiryValue(claim)
                 if (
                     status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
-                    expiresAt.isNotBlank() && expiresAt != "null"
+                    expiresAt != null
                 ) {
                     TaskCountdownBadge(expiresAt = expiresAt, isEnglish = isEnglish)
                 }
@@ -1653,6 +1660,19 @@ private fun JSONObject.isWithinLastSevenDays(): Boolean {
     val value = optString("claimedAt")
     val instant = runCatching { Instant.parse(value) }.getOrNull() ?: return false
     return instant.isAfter(Instant.now().minus(7, ChronoUnit.DAYS))
+}
+
+private fun taskExpiryValue(claim: JSONObject): String? {
+    val serverExpiry = claim.optString("expiresAt")
+    if (serverExpiry.isNotBlank() && serverExpiry != "null") {
+        val parsed = runCatching { Instant.parse(serverExpiry) }.getOrNull()
+        if (parsed != null) return parsed.toString()
+    }
+
+    val claimedAt = claim.optString("claimedAt")
+    if (claimedAt.isBlank() || claimedAt == "null") return null
+    val claimedInstant = runCatching { Instant.parse(claimedAt) }.getOrNull() ?: return null
+    return claimedInstant.plusSeconds(180).toString()
 }
 
 private fun formatDate(value: String): String {
