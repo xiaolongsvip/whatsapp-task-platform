@@ -64,7 +64,7 @@ export class ContactNumbersService {
       duplicateCount += normalized.length - newPhones.length;
 
       if (newPhones.length) {
-        await tx.contactNumber.createMany({
+        const created = await tx.contactNumber.createMany({
           data: newPhones.map((phoneE164) => ({
             phoneE164,
             status: "AVAILABLE",
@@ -75,6 +75,7 @@ export class ContactNumbersService {
           })),
           skipDuplicates: true,
         });
+        duplicateCount += newPhones.length - created.count;
       }
 
       const inserted = newPhones.length
