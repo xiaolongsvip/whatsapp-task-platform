@@ -122,6 +122,7 @@ export class TasksService {
   }
 
   async myClaims(userId: string) {
+    await this.expireOverdueClaims(userId);
     const claims = await prisma.taskClaim.findMany({
       where: { userId },
       orderBy: { claimedAt: "desc" },
@@ -175,6 +176,7 @@ export class TasksService {
 
   async claimTask(userId: string, timezone: string, taskId: string, rawKey: string) {
     const key = idempotencyKey(rawKey);
+    await this.expireOverdueClaims(userId);
     const replay = await prisma.taskClaim.findUnique({
       where: { idempotencyKey: key },
       include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
@@ -327,12 +329,13 @@ export class TasksService {
         data: { status: "CANCELLED" },
       });
 
+      let numberReturnedToPool = false;
       if (claim.contactAssignment?.status === "ASSIGNED") {
         await tx.contactAssignment.update({
           where: { id: claim.contactAssignment.id },
           data: { status: "RELEASED", releasedAt: new Date() },
         });
-        await tx.contactNumber.updateMany({
+        const released = await tx.contactNumber.updateMany({
           where: {
             id: claim.contactAssignment.contactNumberId,
             status: "ASSIGNED",
@@ -340,6 +343,7 @@ export class TasksService {
           },
           data: { status: "AVAILABLE" },
         });
+        numberReturnedToPool = released.count === 1;
       }
 
       await tx.task.updateMany({
@@ -347,7 +351,57 @@ export class TasksService {
         data: { claimedCount: { decrement: 1 } },
       });
 
-      return { claimId, status: "CANCELLED", numberReturnedToPool: claim.contactAssignment?.status === "ASSIGNED" };
+      return { claimId, status: "CANCELLED", numberReturnedToPool };
+    });
+  }
+
+  private async expireOverdueClaims(userId: string) {
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      const expiredRows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM task_claims
+        WHERE user_id = ${userId}::uuid
+          AND expires_at IS NOT NULL
+          AND expires_at <= ${now}
+          AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        ORDER BY expires_at ASC
+        LIMIT 100
+        FOR UPDATE SKIP LOCKED
+      `;
+
+      for (const row of expiredRows) {
+        const claim = await tx.taskClaim.findUnique({
+          where: { id: row.id },
+          include: { contactAssignment: true },
+        });
+        if (!claim || !["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) continue;
+
+        await tx.taskClaim.update({
+          where: { id: claim.id },
+          data: { status: "EXPIRED" },
+        });
+
+        if (claim.contactAssignment?.status === "ASSIGNED") {
+          await tx.contactAssignment.update({
+            where: { id: claim.contactAssignment.id },
+            data: { status: "RELEASED", releasedAt: now },
+          });
+          await tx.contactNumber.updateMany({
+            where: {
+              id: claim.contactAssignment.contactNumberId,
+              status: "ASSIGNED",
+              consentStatus: "GRANTED",
+            },
+            data: { status: "AVAILABLE" },
+          });
+        }
+
+        await tx.task.updateMany({
+          where: { id: claim.taskId, claimedCount: { gt: 0 } },
+          data: { claimedCount: { decrement: 1 } },
+        });
+      }
     });
   }
 
