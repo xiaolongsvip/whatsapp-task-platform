@@ -260,6 +260,7 @@ export default function AdminHomePage() {
         <div className="action-row" style={{ marginTop: 0 }}>
           <span className="muted">{adminEmail}</span>
           <Link className="secondary-btn" href="/tasks" style={{ textDecoration: "none" }}>任务管理</Link>
+          <Link className="secondary-btn" href="/wallet-holds" style={{ textDecoration: "none" }}>冻结资金管理</Link>
           <Link className="secondary-btn" href="/ai-settings" style={{ textDecoration: "none" }}>AI 审核设置</Link>
           <Link className="secondary-btn" href="/storage-settings" style={{ textDecoration: "none" }}>图片存储设置</Link>
           <button className="secondary-btn" onClick={logout}>退出登录</button>
