@@ -62,7 +62,7 @@ export default function StorageSettingsPage() {
     {error && <div className="notice error">{error}</div>}{message && <div className="notice">{message}</div>}
     <form onSubmit={save}>
       <section className="panel"><h2>R2 / S3 兼容存储配置</h2>
-        <p className="muted">当前阶段只保存配置，不会连接存储服务或上传文件。等部署服务器时再填写正式凭据。</p>
+        <p className="muted">可以先保存配置；部署并填写正式凭据后，再启用存储并测试连接。启用后，用户提交的任务截图会保存到此对象存储。</p>
         <div className="form-grid">
           <div className="field"><label>Endpoint</label><input value={config.endpoint} onChange={e => setConfig({...config, endpoint:e.target.value})} placeholder="https://账户标识.r2.cloudflarestorage.com" required /></div>
           <div className="field"><label>Bucket</label><input value={config.bucket} onChange={e => setConfig({...config, bucket:e.target.value})} placeholder="wtp-evidence" required /></div>
