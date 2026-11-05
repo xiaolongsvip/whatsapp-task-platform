@@ -108,6 +108,7 @@ fun TaskHallScreen(
 
     var tasks by remember { mutableStateOf(emptyList<JSONObject>()) }
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var locallyExpiredClaimIds by remember { mutableStateOf(emptySet<String>()) }
     var dashboard by remember { mutableStateOf(JSONObject()) }
     var loading by remember { mutableStateOf(true) }
     var busyId by remember { mutableStateOf<String?>(null) }
@@ -213,10 +214,30 @@ fun TaskHallScreen(
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
-    val inProgressClaims = claims.filter { it.optString("status") in IN_PROGRESS_STATUSES }
-    val hasUnfinishedTask = claims.any { it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW") }
-    val expiredClaims = claims.filter { it.optString("status") in setOf("EXPIRED", "CANCELLED") }
-    val rejectedClaims = claims.filter { it.optString("status") == "REJECTED" }
+    val expirableStatuses = setOf("CLAIMED", "IN_PROGRESS", "REJECTED")
+    val isLocallyExpired: (JSONObject) -> Boolean = { claim ->
+        claim.optString("status") in expirableStatuses &&
+            (claim.optString("id") in locallyExpiredClaimIds || isClaimDeadlinePassed(claim))
+    }
+    val inProgressClaims = claims.filter {
+        it.optString("status") in IN_PROGRESS_STATUSES && !isLocallyExpired(it)
+    }
+    val hasUnfinishedTask = claims.any {
+        it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW") &&
+            !isLocallyExpired(it)
+    }
+    val expiredClaims = claims.filter {
+        it.optString("status") in setOf("EXPIRED", "CANCELLED") || isLocallyExpired(it)
+    }.map { claim ->
+        if (isLocallyExpired(claim)) {
+            JSONObject(claim.toString()).put("status", "EXPIRED")
+        } else {
+            claim
+        }
+    }
+    val rejectedClaims = claims.filter {
+        it.optString("status") == "REJECTED" && !isLocallyExpired(it)
+    }
     val settledClaims = claims.filter { it.optString("status") == "APPROVED" }
     // API supplies one independent card for every available authorized number slot.
     val availableTasks = tasks
@@ -628,7 +649,10 @@ fun TaskHallScreen(
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for evidence capture." else "已将该任务设为当前截图提交任务。"
                                 },
-                                onCountdownExpired = { refresh() }
+                                onCountdownExpired = {
+                                    locallyExpiredClaimIds = locallyExpiredClaimIds + claim.optString("id")
+                                    refresh()
+                                }
                             )
                         }
                     }
@@ -666,7 +690,10 @@ fun TaskHallScreen(
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for resubmission." else "已选择此任务，可返回 WhatsApp 重新处理。"
                                 },
-                                onCountdownExpired = { refresh() }
+                                onCountdownExpired = {
+                                    locallyExpiredClaimIds = locallyExpiredClaimIds + claim.optString("id")
+                                    refresh()
+                                }
                             )
                         }
                     }
@@ -1692,6 +1719,15 @@ private fun taskExpiryValue(claim: JSONObject): String? {
     if (claimedAt.isBlank() || claimedAt == "null") return null
     val claimedInstant = runCatching { Instant.parse(claimedAt) }.getOrNull() ?: return null
     return claimedInstant.plusSeconds(180).toString()
+}
+
+private fun isClaimDeadlinePassed(claim: JSONObject): Boolean {
+    if (claim.optString("status") !in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")) {
+        return false
+    }
+    val expiry = taskExpiryValue(claim) ?: return false
+    val expiryMillis = runCatching { Instant.parse(expiry).toEpochMilli() }.getOrDefault(0L)
+    return expiryMillis > 0L && expiryMillis <= System.currentTimeMillis()
 }
 
 private fun formatDate(value: String): String {
