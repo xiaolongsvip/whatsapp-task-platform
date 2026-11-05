@@ -1922,7 +1922,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 PromotionMenuRow(Icons.Default.PersonAdd, if (isEnglish) "Invite friends" else "邀请好友", if (isEnglish) "Share your invitation link or code" else "分享你的注册链接或邀请码", onInviteClick)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
-                PromotionMenuRow(Icons.Default.ReceiptLong, if (isEnglish) "Commission history" else "佣金记录", if (isEnglish) "View commission amounts and settlement status" else "查看每笔佣金的金额和结算状态") { detail = "commission" }
+                PromotionMenuRow(Icons.Default.ReceiptLong, if (isEnglish) "Commission history" else "佣金记录", if (isEnglish) "View commission amounts and settlement status" else "查看每笔佣金的金额和结算状态", onCommissionClick)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
                 PromotionMenuRow(Icons.Default.Groups, if (isEnglish) "Team data" else "团队数据", if (isEnglish) "View invited users and team levels" else "查看邀请用户和各层级人数", onTeamClick)
             }
