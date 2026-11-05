@@ -266,3 +266,15 @@ Last updated: 2026-11-04
 - [x] No password is stored locally.
 - [ ] Must be compiled and tested on the user's emulator, including force-stop/reopen, expired/revoked session, and logout.
 - [ ] Cookie persistence uses the server-issued cookie value encrypted at rest; server-side session validation remains authoritative.
+
+
+### Android phase 3 — dashboard and permission onboarding (initial implementation)
+
+- [x] Switched native app theme from green to light sky blue.
+- [x] Added Android client call for authenticated `GET /api/v1/users/dashboard`.
+- [x] Replaced the foundation home placeholder with a scrollable dashboard using server summary, balance and published task fields, with loading/error/empty states.
+- [x] Added user-initiated overlay permission settings flow followed by Android MediaProjection consent; overlay status is checked again when the app resumes.
+- [ ] Compile and emulator verification required.
+- [ ] Currency minor-unit formatting and dashboard response semantics must be reviewed against actual API JSON before release.
+- [ ] Screenshot consent is only represented in current app memory; this phase does not start screen capture or background monitoring.
+- [ ] Tutorial, support, referral, payment-account and task-entry destinations remain visual placeholders pending their own modules.
