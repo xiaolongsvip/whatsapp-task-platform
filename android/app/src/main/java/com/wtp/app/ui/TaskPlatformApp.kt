@@ -230,7 +230,10 @@ private fun ChangePasswordScreen(modifier: Modifier = Modifier, language: String
     var showNew by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
-    val valid = current.isNotBlank() && newPassword.length >= 8 && newPassword == confirm
+    var submitting by remember { mutableStateOf(false) }
+    var success by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val valid = current.isNotBlank() && newPassword.length >= 8 && newPassword.length <= 128 && newPassword == confirm && !submitting
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         SubPageHeader(if (en) "Change password" else "修改密码", onBack, language)
         Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
@@ -242,11 +245,32 @@ private fun ChangePasswordScreen(modifier: Modifier = Modifier, language: String
                 passwordField(current, if (en) "Current password" else "当前密码", showCurrent, { showCurrent = !showCurrent }) { current = it; message = "" }
                 passwordField(newPassword, if (en) "New password" else "新密码", showNew, { showNew = !showNew }) { newPassword = it; message = "" }
                 passwordField(confirm, if (en) "Confirm new password" else "确认新密码", showConfirm, { showConfirm = !showConfirm }) { confirm = it; message = "" }
-                Button(onClick = { message = if (newPassword.length < 8) { if (en) "Password must be at least 8 characters" else "新密码至少需要8位" } else if (newPassword != confirm) { if (en) "Passwords do not match" else "两次输入的新密码不一致" } else { if (en) "Password change service is not connected yet" else "密码修改接口尚未接入，暂不能提交" } }, enabled = valid, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFE6ECF1), disabledContentColor = Color(0xFF98A2B3))) {
-                    Text(if (en) "Confirm change" else "确认修改", fontWeight = FontWeight.SemiBold)
+                Button(onClick = {
+                    if (newPassword.length < 8 || newPassword.length > 128) {
+                        message = if (en) "Password must be 8–128 characters" else "新密码长度必须为8至128位"
+                    } else if (newPassword != confirm) {
+                        message = if (en) "Passwords do not match" else "两次输入的新密码不一致"
+                    } else {
+                        scope.launch {
+                            submitting = true
+                            message = ""
+                            try {
+                                withContext(Dispatchers.IO) { AuthRepository.changePassword(current, newPassword) }
+                                success = true
+                                message = if (en) "Password changed successfully. Other devices have been signed out." else "密码修改成功，其他设备的登录会话已失效。"
+                                current = ""; newPassword = ""; confirm = ""
+                            } catch (error: Exception) {
+                                message = error.message ?: if (en) "Could not change password. Please try again." else "密码修改失败，请稍后重试。"
+                            } finally {
+                                submitting = false
+                            }
+                        }
+                    }
+                }, enabled = valid && !success, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFE6ECF1), disabledContentColor = Color(0xFF98A2B3))) {
+                    Text(if (submitting) { if (en) "Submitting…" else "正在提交…" } else if (success) { if (en) "Changed" else "已修改" } else { if (en) "Confirm change" else "确认修改" }, fontWeight = FontWeight.SemiBold)
                 }
-                if (message.isNotBlank()) Text(message, color = Color(0xFFD04444), style = MaterialTheme.typography.bodySmall)
-                Text(if (en) "After changing your password, all login sessions will be invalidated. Please sign in again with your new password." else "密码修改成功后，所有登录会话将失效，需要使用新密码重新登录。", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                if (message.isNotBlank()) Text(message, color = if (success) Color(0xFF16834A) else Color(0xFFD04444), style = MaterialTheme.typography.bodySmall)
+                Text(if (en) "Other devices will be signed out after the password is changed. This device stays signed in." else "修改成功后，其他设备的登录会话将失效，当前设备保持登录。", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
