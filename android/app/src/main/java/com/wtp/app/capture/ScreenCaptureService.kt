@@ -80,6 +80,8 @@ class ScreenCaptureService : Service() {
         when (intent?.action) {
             ACTION_START -> startSession(intent)
             ACTION_CAPTURE -> requestCapture()
+            ACTION_SHOW_FLOATING -> mainHandler.post { showFloatingAction() }
+            ACTION_HIDE_FLOATING -> mainHandler.post { removeFloatingAction() }
             ACTION_STOP -> stopSession(stopProjection = true)
             else -> {
                 if (projection == null) stopSelf(startId)
@@ -217,12 +219,11 @@ class ScreenCaptureService : Service() {
                         idempotencyKey = UUID.randomUUID().toString()
                     )
                     CaptureSessionState.markLastCaptureUploaded("截图已自动上传并提交审核")
-                    updateNotification("截图已自动上传到当前任务审核；会话仍在运行")
-                    mainHandler.postDelayed({ showFloatingAction() }, 700)
+                    updateNotification("截图已自动上传并提交审核")
+                    mainHandler.post { removeFloatingAction() }
                 } catch (uploadError: Exception) {
-                    CaptureSessionState.clearActiveClaim()
-                    CaptureSessionState.setError("自动上传失败，截图已保存在本机，可回到任务页重试：${uploadError.message ?: "网络或存储错误"}")
-                    updateNotification("上传失败；截图已保存在本机，返回任务页重试")
+                    CaptureSessionState.setError("自动上传失败，截图已保存在本机，请检查网络后再次点击蓝色水球：${uploadError.message ?: "网络或存储错误"}")
+                    updateNotification("上传失败；截图已保存在本机，可再次点击水球重试")
                     mainHandler.postDelayed({ showFloatingAction() }, 700)
                 }
             } else {
@@ -241,22 +242,35 @@ class ScreenCaptureService : Service() {
 
     private fun showFloatingAction() {
         if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) return
+        if (projection == null || sessionStopped) return
+        if (CaptureSessionState.activeClaimId.value.isNullOrBlank()) return
         if (floatingAction != null) return
         val manager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
         val button = TextView(this).apply {
-            text = "⛶"
-            textSize = 29f
+            text = "已发送\n提交任务"
+            textSize = 9f
             setTextColor(android.graphics.Color.WHITE)
             gravity = Gravity.CENTER
-            contentDescription = "已发送并截图上传"
-            background = GradientDrawable().apply {
+            setLineSpacing(0f, 0.92f)
+            setPadding(dp(3), dp(3), dp(3), dp(3))
+            contentDescription = "已发送并提交任务，点击后截图并上传审核"
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(
+                    android.graphics.Color.rgb(111, 218, 255),
+                    android.graphics.Color.rgb(20, 151, 235),
+                    android.graphics.Color.rgb(0, 91, 190)
+                )
+            ).apply {
                 shape = GradientDrawable.OVAL
-                setColor(android.graphics.Color.rgb(112, 119, 131))
-                setStroke(dp(1), android.graphics.Color.rgb(220, 234, 244))
+                setStroke(dp(2), android.graphics.Color.rgb(205, 242, 255))
+                setGradientType(GradientDrawable.RADIAL_GRADIENT)
+                setGradientRadius(dp(42).toFloat())
+                setGradientCenter(0.32f, 0.25f)
             }
-            elevation = dp(8).toFloat()
+            elevation = dp(10).toFloat()
         }
         val windowType = if (Build.VERSION.SDK_INT >= 26) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -470,6 +484,8 @@ class ScreenCaptureService : Service() {
     companion object {
         const val ACTION_START = "com.wtp.app.capture.START"
         const val ACTION_CAPTURE = "com.wtp.app.capture.CAPTURE"
+        const val ACTION_SHOW_FLOATING = "com.wtp.app.capture.SHOW_FLOATING"
+        const val ACTION_HIDE_FLOATING = "com.wtp.app.capture.HIDE_FLOATING"
         const val ACTION_STOP = "com.wtp.app.capture.STOP"
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_RESULT_DATA = "projection_result_data"
