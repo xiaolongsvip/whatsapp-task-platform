@@ -979,41 +979,70 @@ private fun AvailableTaskCard(
         shape = RoundedCornerShape(13.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(displayTaskTitle(task.optString("title")), color = WtpText, fontWeight = FontWeight.Bold)
-            Text(task.optString("description"), color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-            Surface(
-                color = Color(0xFFE7F3FA),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
-                    Text(if (isEnglish) "Available WhatsApp number" else "可领取号码", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                    Text(task.optString("maskedPhoneNumber", "******"), color = WtpText, fontWeight = FontWeight.SemiBold)
-                }
-            }
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+            // Match the compact reference card: masked number as the headline.
+            Text(
+                task.optString("maskedPhoneNumber", "******"),
+                color = WtpText,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+
             Surface(
                 color = Color(0xFFF6FCF8),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(9.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE1F0E7))
             ) {
-                Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (isEnglish) "Reward per task" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            if (isEnglish) "Reward per task" else "单次奖励",
+                            color = WtpMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         Text(
                             formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD")),
                             color = WtpText,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Column(Modifier.weight(1f)) {
-                        Text(if (isEnglish) "Available slots" else "剩余名额", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        val capacity = if (task.isNull("remainingCapacity")) -1 else task.optInt("remainingCapacity", -1)
-                        Text(if (capacity < 0) "—" else capacity.toString(), color = WtpText, fontWeight = FontWeight.Bold)
+                    Box(
+                        Modifier.width(1.dp).height(34.dp).background(Color(0xFFDCEBE3))
+                    )
+                    Column(
+                        Modifier.weight(1f).padding(start = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            if (isEnglish) "Task duration" else "任务用时",
+                            color = WtpMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            if (isEnglish) "3 minutes" else "3 分钟",
+                            color = WtpText,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                StatusPill(if (isEnglish) "Available" else "可领取", WtpPaleGreen, WtpDarkGreen)
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StatusPill(
+                    if (isEnglish) "● Available" else "● 可领取",
+                    WtpPaleGreen,
+                    WtpDarkGreen
+                )
                 Button(
                     onClick = onStart,
                     enabled = !busy,
@@ -1021,8 +1050,11 @@ private fun AvailableTaskCard(
                     shape = RoundedCornerShape(9.dp)
                 ) {
                     Text(
-                        if (busy) { if (isEnglish) "Starting…" else "处理中…" }
-                        else { if (isEnglish) "Start task  ▷" else "开始任务  ▷" },
+                        if (busy) {
+                            if (isEnglish) "Starting…" else "处理中…"
+                        } else {
+                            if (isEnglish) "Start task  ▷" else "开始任务  ▷"
+                        },
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
