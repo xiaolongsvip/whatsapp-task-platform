@@ -1,4 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+import { ChangePasswordDto } from "./change-password.dto";
 import type { Request } from "express";
 import { AuthService } from "../auth/auth.service";
 import { UpdateProfileDto } from "./update-profile.dto";
@@ -69,5 +71,11 @@ export class UsersController {
   @Patch("me")
   updateMe(@Req() request: Request, @Body() body: UpdateProfileDto) {
     return this.auth.updateProfile(sessionToken(request), body);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Patch("me/password")
+  changePassword(@Req() request: Request, @Body() body: ChangePasswordDto) {
+    return this.auth.changePassword(sessionToken(request), body.currentPassword, body.newPassword);
   }
 }
