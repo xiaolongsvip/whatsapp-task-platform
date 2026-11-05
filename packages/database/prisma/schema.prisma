@@ -234,11 +234,16 @@ model Task {
   status       TaskStatus  @default(DRAFT)
   rewardMinor  BigInt      @map("reward_minor")
   currency     String      @db.Char(3)
-  capacity     Int?
-  claimedCount Int         @default(0) @map("claimed_count")
-  startsAt     DateTime?   @map("starts_at")
-  endsAt       DateTime?   @map("ends_at")
-  policyVersion Int        @default(1) @map("policy_version")
+  capacity          Int?
+  claimedCount      Int         @default(0) @map("claimed_count")
+  startsAt          DateTime?   @map("starts_at")
+  endsAt            DateTime?   @map("ends_at")
+  messageTemplate   String?     @map("message_template") @db.Text
+  linkUrl           String?     @map("link_url") @db.Text
+  previewTitle      String?     @map("preview_title")
+  previewDescription String?    @map("preview_description") @db.Text
+  previewImageUrl   String?     @map("preview_image_url") @db.Text
+  policyVersion     Int         @default(1) @map("policy_version")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   claims       TaskClaim[]
