@@ -58,7 +58,7 @@ export class TasksController {
     @Body() body: CreateTaskClaimDto,
   ) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.tasks.claimTask(user.id, user.profile?.timezone ?? "UTC", taskId, body.idempotencyKey);
+    return this.tasks.claimTask(user.id, user.profile?.timezone ?? "UTC", taskId, body.slotId, body.idempotencyKey);
   }
 
   @Post("claims/:claimId/start")
