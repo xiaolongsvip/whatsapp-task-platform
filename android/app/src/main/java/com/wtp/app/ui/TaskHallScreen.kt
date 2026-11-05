@@ -60,6 +60,8 @@ fun TaskHallScreen(
     val scope = rememberCoroutineScope()
     val lastCapturePath by CaptureSessionState.lastCapturePath.collectAsState()
     val lastCaptureName by CaptureSessionState.lastCaptureName.collectAsState()
+    val activeClaimId by CaptureSessionState.activeClaimId.collectAsState()
+    val uploadMessage by CaptureSessionState.uploadMessage.collectAsState()
     var tasks by remember { mutableStateOf(emptyList<JSONObject>()) }
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
     var loading by remember { mutableStateOf(true) }
@@ -110,6 +112,16 @@ fun TaskHallScreen(
             }
         }
 
+        if (!uploadMessage.isNullOrBlank()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F8EF))) {
+                Text(
+                    uploadMessage!!,
+                    Modifier.fillMaxWidth().padding(14.dp),
+                    color = Color(0xFF16804A),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
         if (lastCapturePath != null) {
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE9F7FE))) {
                 Row(
@@ -120,13 +132,27 @@ fun TaskHallScreen(
                     Spacer(Modifier.width(10.dp))
                     Column {
                         Text(
-                            if (isEnglish) "Screenshot ready to submit" else "截图已准备好，可以提交",
+                            if (activeClaimId != null) {
+                                if (isEnglish) "Screenshot ready; next capture will auto-submit to the selected task"
+                                else "截图已准备好；下一次截图会自动提交到当前任务"
+                            } else {
+                                if (isEnglish) "Screenshot ready to submit" else "截图已准备好，可以提交"
+                            },
                             color = Color(0xFF126A94),
                             fontWeight = FontWeight.Bold
                         )
                         Text(lastCaptureName.orEmpty(), color = Color(0xFF55758A), style = MaterialTheme.typography.bodySmall)
                     }
                 }
+            }
+        } else if (activeClaimId != null && uploadMessage.isNullOrBlank()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE9F7FE))) {
+                Text(
+                    if (isEnglish) "A task is selected. The next screenshot you explicitly capture from the ongoing notification will upload to that task for review."
+                    else "当前任务已选定。你下一次从持续截图通知栏主动截图后，系统会自动上传到该任务并提交审核。",
+                    Modifier.fillMaxWidth().padding(14.dp),
+                    color = Color(0xFF126A94)
+                )
             }
         } else {
             Text(
@@ -252,7 +278,23 @@ fun TaskHallScreen(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
-                    if (canSubmit) {
+                    if (activeClaimId == claimId) {
+                        Surface(color = Color(0xFFE8F5FC), shape = RoundedCornerShape(10.dp)) {
+                            Text(
+                                if (isEnglish) "Current task: next manual capture will auto-submit here" else "当前任务：下一次主动截图将自动上传到这里",
+                                Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                color = Color(0xFF126A94)
+                            )
+                        }
+                        TextButton(onClick = { CaptureSessionState.clearActiveClaim() }) {
+                            Text(if (isEnglish) "Unselect current task" else "取消当前任务")
+                        }
+                    } else if (canSubmit) {
+                        OutlinedButton(onClick = { CaptureSessionState.setActiveClaim(claimId) }) {
+                            Text(if (isEnglish) "Set as current task" else "设为当前任务")
+                        }
+                    }
+                    if (canSubmit && lastCapturePath != null) {
                         Button(
                             onClick = {
                                 val path = lastCapturePath
@@ -270,7 +312,8 @@ fun TaskHallScreen(
                                                     idempotencyKey = UUID.randomUUID().toString()
                                                 )
                                             }
-                                            CaptureSessionState.clearLastCapture()
+                                            CaptureSessionState.markLastCaptureUploaded(if (isEnglish) "Evidence uploaded and submitted for review." else "截图已上传，任务证据已提交审核。")
+                                            CaptureSessionState.clearActiveClaim()
                                             message = if (isEnglish) "Evidence uploaded and submitted for review." else "截图已上传，任务证据已提交审核。"
                                             refresh()
                                         } catch (e: Exception) {
