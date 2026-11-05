@@ -134,14 +134,22 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
     val context = LocalContext.current
     val en = language == "en"
     var user by remember { mutableStateOf<JSONObject?>(null) }
+    var dashboard by remember { mutableStateOf<JSONObject?>(null) }
     var dialog by remember { mutableStateOf("") }
     val overlay = Settings.canDrawOverlays(context)
-    LaunchedEffect(Unit) { user = withContext(Dispatchers.IO) { runCatching { AuthRepository.currentUser() }.getOrNull() } }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            user = runCatching { AuthRepository.currentUser() }.getOrNull()
+            dashboard = runCatching { AuthRepository.dashboard() }.getOrNull()
+        }
+    }
+    val balanceCurrency = firstCurrency(dashboard)
+    val availableBalance = formatAmount(firstBalance(dashboard), balanceCurrency)
     val id = user?.optString("id")?.takeIf { it.isNotBlank() && it != "null" } ?: user?.optString("userId")?.takeIf { it.isNotBlank() && it != "null" }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFFB9E8FC), Color(0xFFF2F7FB)))).padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text(if (en) "Withdraw  0.000" else "提现  0.000", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold) }
+                Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (en) "Withdraw  " else "提现  ") + availableBalance, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold) }
                 Spacer(Modifier.weight(1f)); Text(if (en) "My" else "我的", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Spacer(Modifier.weight(1f))
                 Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF5AAED0)); Spacer(Modifier.width(14.dp)); Icon(Icons.Default.Language, null, tint = Color(0xFF5AAED0))
             }
@@ -166,11 +174,11 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if (en) "My assets" else "我的资产", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17243A))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    ProfileAsset(Icons.Default.Wallet, if (en) "Available balance" else "可提现余额", "0.000", Color(0xFF319CCB), Modifier.weight(1f), onPayoutAccounts)
+                    ProfileAsset(Icons.Default.Wallet, if (en) "Available balance" else "可提现余额", availableBalance, Color(0xFF319CCB), Modifier.weight(1f), onPayoutAccounts)
                     Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFD8E5EC)))
                     ProfileAsset(Icons.Default.AccountBalanceWallet, if (en) "Pending rewards" else "待审核奖励", "—", Color(0xFFFF8A22), Modifier.weight(1f))
                     Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFD8E5EC)))
-                    ProfileAsset(Icons.Default.Paid, if (en) "Total earnings" else "累计收益", "0.000", Color(0xFF319CCB), Modifier.weight(1f))
+                    ProfileAsset(Icons.Default.Paid, if (en) "Total earnings" else "累计收益", "—", Color(0xFF319CCB), Modifier.weight(1f))
                 }
             }
         }
