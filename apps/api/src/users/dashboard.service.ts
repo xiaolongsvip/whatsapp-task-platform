@@ -210,6 +210,59 @@ export class DashboardService {
     };
   }
 
+  async getWalletTransactions(userId: string, limit = 100) {
+    const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 100, 1), 100);
+    const wallets = await prisma.wallet.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        currency: true,
+        entries: {
+          orderBy: { createdAt: "desc" },
+          take,
+          select: { id: true, sourceType: true, sourceId: true, direction: true, amountMinor: true, currency: true, createdAt: true },
+        },
+        withdrawals: {
+          orderBy: { createdAt: "desc" },
+          take,
+          select: { id: true, amountMinor: true, currency: true, status: true, createdAt: true, updatedAt: true },
+        },
+      },
+    });
+    const items = wallets.flatMap((wallet) => [
+      ...wallet.entries.map((entry) => ({
+        id: entry.id,
+        type: entry.direction === "CREDIT" ? "INCOME" : "EXPENSE",
+        sourceType: entry.sourceType,
+        sourceId: entry.sourceId,
+        direction: entry.direction,
+        amountMinor: entry.amountMinor.toString(),
+        currency: entry.currency.trim(),
+        status: "POSTED",
+        createdAt: entry.createdAt.toISOString(),
+      })),
+      ...wallet.withdrawals.map((withdrawal) => ({
+        id: withdrawal.id,
+        type: "WITHDRAWAL",
+        sourceType: "WITHDRAWAL",
+        sourceId: withdrawal.id,
+        direction: "DEBIT",
+        amountMinor: withdrawal.amountMinor.toString(),
+        currency: withdrawal.currency.trim(),
+        status: withdrawal.status,
+        createdAt: withdrawal.createdAt.toISOString(),
+      })),
+    ]).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, take);
+    const totals: Record<string, { incomeMinor: string; expenseMinor: string }> = {};
+    for (const wallet of wallets) {
+      const currency = wallet.currency.trim();
+      const income = wallet.entries.filter((entry) => entry.direction === "CREDIT").reduce((sum, entry) => sum + entry.amountMinor, 0n);
+      const expense = wallet.entries.filter((entry) => entry.direction === "DEBIT").reduce((sum, entry) => sum + entry.amountMinor, 0n);
+      totals[currency] = { incomeMinor: income.toString(), expenseMinor: expense.toString() };
+    }
+    return { items, totals, hasMore: wallets.some((wallet) => wallet.entries.length === take || wallet.withdrawals.length === take) };
+  }
+
   async getCommissionRecords(userId: string) {
     const rows = await prisma.referralReward.findMany({
       where: { beneficiaryId: userId },
