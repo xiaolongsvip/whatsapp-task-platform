@@ -43,4 +43,4 @@ jobs:
           gradle-version: "8.9"
 
       - name: Build debug APK
-        run: gradle -p android --no-daemon assembleDebug
+        run: gradle -p android --no-daemon testDebugUnitTest assembleDebug
