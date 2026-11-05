@@ -103,6 +103,7 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
             3 -> when (walletPage) {
                 "accounts" -> PayoutAccountsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" }, onAdd = { walletPage = "add-account" })
                 "add-account" -> AddPayoutAccountScreen(Modifier.padding(padding), language, onBack = { walletPage = "accounts" }, onSaved = { walletPage = "accounts" })
+                "details" -> WalletDetailsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
                 "withdrawals" -> WithdrawalHistoryScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
                 "guide" -> WithdrawalGuideScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" })
                 else -> WalletScreen(
@@ -711,7 +712,11 @@ private fun WalletScreen(
             Column(Modifier.fillMaxWidth().padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(if (isEnglish) "All details  ›" else "全部明细  ›", color = Color(0xFF397A32))
+                    Text(
+                        if (isEnglish) "All details  ›" else "全部明细  ›",
+                        color = Color(0xFF397A32),
+                        modifier = Modifier.clickable { walletPage = "details" }
+                    )
                 }
                 Column(
                     Modifier.fillMaxWidth().height(164.dp),
@@ -750,6 +755,31 @@ private fun WalletScreen(
                         Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF47752B), modifier = Modifier.size(16.dp))
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val isEnglish = language == "en"
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, color = Color(0xFF405A50))
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D))
+        }
+        Card(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().height(122.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(if (isEnglish) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text(if (isEnglish) "Approved rewards will appear here" else "审核通过的奖励会显示在这里", color = Color(0xFF789087), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
