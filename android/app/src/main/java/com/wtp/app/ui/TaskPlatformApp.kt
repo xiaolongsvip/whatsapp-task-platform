@@ -1026,6 +1026,31 @@ private fun WalletScreen(
 @Composable
 private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
     val isEnglish = language == "en"
+    if (accountToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) accountToDelete = null },
+            title = { Text(if (isEnglish) "Delete payout account?" else "确认删除收款账户？") },
+            text = {
+                Text(
+                    (if (isEnglish) "Are you sure you want to delete this payout account?\n" else "确定要删除以下收款账户吗？\n") +
+                        accountToDelete!!.second +
+                        (if (isEnglish) "\nThis action cannot be undone." else "\n删除后该账户将从列表中移除。")
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete() }, enabled = !deleting) {
+                    if (deleting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text(if (isEnglish) "Delete" else "确认删除", color = Color(0xFFB42318))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { accountToDelete = null }, enabled = !deleting) {
+                    Text(if (isEnglish) "Cancel" else "取消")
+                }
+            }
+        )
+    }
+
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
@@ -1150,6 +1175,8 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
     var items by remember { mutableStateOf<JSONArray?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var accountToDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     suspend fun reload() {
@@ -1160,6 +1187,24 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
         loading = false
     }
     LaunchedEffect(Unit) { reload() }
+
+    fun confirmDelete() {
+        val target = accountToDelete ?: return
+        if (deleting) return
+        scope.launch {
+            deleting = true
+            error = null
+            runCatching {
+                withContext(Dispatchers.IO) { AuthRepository.deletePayoutAccount(target.first) }
+            }.onSuccess {
+                accountToDelete = null
+                reload()
+            }.onFailure {
+                error = it.message ?: if (isEnglish) "Unable to delete account" else "删除收款账户失败"
+            }
+            deleting = false
+        }
+    }
 
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1199,14 +1244,15 @@ private fun PayoutAccountsScreen(modifier: Modifier = Modifier, language: String
                                 Text(item.optString("accountHolder") + " · " + item.optString("maskedAccount"), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
                                 Text(item.optString("countryCode") + " · " + item.optString("currency") + if (item.optBoolean("isDefault")) (if (isEnglish) " · Default" else " · 默认") else "", color = Color(0xFF98A2B3), style = MaterialTheme.typography.labelSmall)
                             }
-                            IconButton(onClick = {
-                                scope.launch {
+                            IconButton(
+                                onClick = {
                                     val id = item.optString("id")
-                                    runCatching { withContext(Dispatchers.IO) { AuthRepository.deletePayoutAccount(id) } }
-                                        .onSuccess { reload() }
-                                        .onFailure { error = it.message }
-                                }
-                            }) { Icon(Icons.Default.DeleteOutline, if (isEnglish) "Delete" else "删除", tint = Color(0xFFB42318)) }
+                                    val label = item.optString("methodCode").replaceFirstChar { it.uppercase() } +
+                                        " · " + item.optString("maskedAccount")
+                                    if (id.isNotBlank()) accountToDelete = id to label
+                                },
+                                enabled = !deleting
+                            ) { Icon(Icons.Default.DeleteOutline, if (isEnglish) "Delete" else "删除", tint = Color(0xFFB42318)) }
                         }
                     }
                 }
