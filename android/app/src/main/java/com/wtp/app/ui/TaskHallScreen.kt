@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -57,6 +58,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.wtp.app.capture.CaptureSessionState
 import com.wtp.app.data.AuthRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -68,6 +70,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 private val WtpGreen = Color(0xFF27BD68)
 private val WtpDarkGreen = Color(0xFF176B8A)
@@ -491,6 +494,26 @@ fun TaskHallScreen(
                 onGoWhatsApp = {
                     CaptureSessionState.setActiveClaim(selectedClaim.optString("id"))
                     openWhatsApp(context, selectedClaim, isEnglish)
+                },
+                onAbandon = {
+                    val claimId = selectedClaim.optString("id")
+                    scope.launch {
+                        busyId = claimId
+                        error = null
+                        try {
+                            withContext(Dispatchers.IO) { AuthRepository.cancelTaskClaim(claimId) }
+                            if (activeClaimId == claimId) CaptureSessionState.clearActiveClaim()
+                            selectedClaimId = null
+                            mainTab = TaskMainTab.HALL
+                            hallFilter = HallFilter.IN_PROGRESS
+                            notice = if (isEnglish) "Task abandoned. The assigned contact has been returned to the pool." else "任务已放弃，分配的号码已按规则释放。"
+                            refresh()
+                        } catch (e: Exception) {
+                            error = e.message ?: if (isEnglish) "Could not abandon this task." else "放弃任务失败，请重试。"
+                        } finally {
+                            busyId = null
+                        }
+                    }
                 }
             )
         }
@@ -502,7 +525,8 @@ private fun TaskExecutionScreen(
     claim: JSONObject,
     isEnglish: Boolean,
     activeClaimId: String?,
-    onGoWhatsApp: () -> Unit
+    onGoWhatsApp: () -> Unit,
+    onAbandon: () -> Unit
 ) {
     val task = claim.optJSONObject("task") ?: JSONObject()
     val status = claim.optString("status")
@@ -512,6 +536,29 @@ private fun TaskExecutionScreen(
     val previewImageUrl = task.optString("previewImageUrl").takeUnless { it == "null" }.orEmpty()
     val link = task.optString("linkUrl").takeUnless { it == "null" }.orEmpty()
     val message = task.optString("messageTemplate").takeUnless { it == "null" }.orEmpty()
+    val expiryMillis = remember(claim.optString("expiresAt"), claim.optString("claimedAt")) {
+        runCatching {
+            val expires = claim.optString("expiresAt")
+            if (expires.isNotBlank() && expires != "null") {
+                Instant.parse(expires).toEpochMilli()
+            } else {
+                Instant.parse(claim.optString("claimedAt")).plus(3, ChronoUnit.MINUTES).toEpochMilli()
+            }
+        }.getOrDefault(System.currentTimeMillis())
+    }
+    var remainingSeconds by remember(expiryMillis) {
+        mutableStateOf(((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0))
+    }
+    var showAbandonDialog by remember { mutableStateOf(false) }
+    val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")
+    val reward = formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD"))
+
+    LaunchedEffect(expiryMillis) {
+        while (remainingSeconds > 0) {
+            remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            if (remainingSeconds > 0) delay(1000)
+        }
+    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
@@ -522,33 +569,38 @@ private fun TaskExecutionScreen(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(task.optString("title"), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text(if (isEnglish) "WhatsApp private message task" else "WhatsApp 私信任务", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatusPill(claimStatus(status, isEnglish), WtpPaleGreen, WtpDarkGreen)
+                    StatusPill("WhatsApp", WtpSky, WtpDarkGreen)
                     if (activeClaimId == claim.optString("id")) {
-                        Text(if (isEnglish) "Evidence task selected" else "当前截图任务", color = WtpDarkGreen, style = MaterialTheme.typography.labelSmall)
+                        Text(if (isEnglish) "Evidence task" else "截图任务", color = WtpDarkGreen, style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                if (phone.isNotBlank() && phone != "null") {
-                    Surface(color = WtpSky, shape = RoundedCornerShape(9.dp), border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(if (isEnglish) "Assigned WhatsApp contact" else "后台分配的 WhatsApp 号码", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                            Text(maskPhoneNumber(phone), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-                }
+                Text(
+                    if (isEnglish) "Manually send the specified message, then submit a screenshot for review." else "手动发送指定信息，提交截图审核",
+                    color = WtpMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
                 Row(
-                    Modifier.fillMaxWidth().background(WtpSky, RoundedCornerShape(9.dp)).padding(12.dp),
+                    Modifier.fillMaxWidth().background(Color(0xFFF3F8F5), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(if (isEnglish) "Reward" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD")), color = WtpDarkGreen, fontWeight = FontWeight.Bold)
+                        Text(reward, color = WtpDarkGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (isEnglish) "Task status" else "任务状态", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.Bold)
+                    Surface(Modifier.width(1.dp).height(34.dp), color = WtpSkyBorder) {}
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (isEnglish) "Time remaining" else "剩余时间", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            String.format(Locale.ROOT, "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60),
+                            color = if (remainingSeconds <= 30) Color(0xFFD14343) else WtpDarkGreen,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
                     }
                 }
             }
@@ -559,11 +611,43 @@ private fun TaskExecutionScreen(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(if (isEnglish) "Task steps" else "任务步骤", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                TaskStep(1, if (isEnglish) "Open WhatsApp" else "打开 WhatsApp", if (isEnglish) "Review the assigned contact and the prepared message before sending." else "核对后台分配的号码和预设内容，确认无误后再发送。")
-                TaskStep(2, if (isEnglish) "Review the link preview" else "检查链接预览", if (isEnglish) "WhatsApp creates the preview from the destination page metadata. Confirm the destination is expected." else "WhatsApp 会根据目标网页的元数据生成预览，请确认链接和图片与任务说明一致。")
-                TaskStep(3, if (isEnglish) "Send and submit evidence" else "发送并提交截图", if (isEnglish) "Send manually in WhatsApp, return here, then use the authorized capture action to submit the screenshot." else "在 WhatsApp 中手动发送，返回本页后使用已授权的截图操作提交证据。")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    StepNumber(1)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text(if (isEnglish) "Open WhatsApp" else "打开 WhatsApp", color = WtpText, fontWeight = FontWeight.SemiBold)
+                        Text(if (isEnglish) "Check the assigned contact and prepared message before sending." else "核对后台分配的号码和预设内容，确认无误后再发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = onGoWhatsApp,
+                            enabled = phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && remainingSeconds > 0,
+                            modifier = Modifier.height(44.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(if (isEnglish) "Open WhatsApp" else "打开 WhatsApp", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    StepNumber(2)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(if (isEnglish) "Complete the task in WhatsApp" else "在 WhatsApp 中完成任务", color = WtpText, fontWeight = FontWeight.SemiBold)
+                        Text(if (isEnglish) "Review the contact, message and link preview. Send manually only after confirming the recipient has consented to receive the message." else "使用已分配号码和预设内容，检查链接预览；确认收件人同意接收后，由你本人点击发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        if (phone.isNotBlank() && phone != "null") {
+                            Surface(color = WtpSky, shape = RoundedCornerShape(8.dp)) {
+                                Text((if (isEnglish) "Assigned contact: " else "后台分配号码：") + maskPhoneNumber(phone), Modifier.fillMaxWidth().padding(9.dp), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    StepNumber(3)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(if (isEnglish) "Submit screenshot" else "通过悬浮窗提交截图", color = WtpText, fontWeight = FontWeight.SemiBold)
+                        Text(if (isEnglish) "After sending, return to this app and tap the floating capture button. The screenshot will be uploaded to review." else "完成后返回本页，点击右侧悬浮球的截图按钮，系统会自动截图并上传审核。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
 
                 if (message.isNotBlank()) {
                     Text(if (isEnglish) "Prepared message" else "预设消息内容", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
@@ -571,7 +655,6 @@ private fun TaskExecutionScreen(
                         Text(message, Modifier.fillMaxWidth().padding(12.dp), color = WtpText)
                     }
                 }
-
                 if (link.isNotBlank()) {
                     Text(if (isEnglish) "Link preview" else "链接预览", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
                     Surface(color = WtpSky, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)) {
@@ -579,29 +662,51 @@ private fun TaskExecutionScreen(
                             if (previewTitle.isNotBlank()) Text(previewTitle, color = WtpText, fontWeight = FontWeight.Bold)
                             if (previewDescription.isNotBlank()) Text(previewDescription, color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                             Text(link, color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
-                            if (previewImageUrl.isNotBlank()) {
-                                TaskPreviewImage(previewImageUrl, isEnglish)
-                            }
+                            if (previewImageUrl.isNotBlank()) TaskPreviewImage(previewImageUrl, isEnglish)
                         }
                     }
                 }
-
-                Button(
-                    onClick = onGoWhatsApp,
-                    enabled = phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED"),
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
-                }
                 Text(
-                    if (isEnglish) "The message is not sent automatically. Check the recipient and content, then tap Send in WhatsApp." else "APP 不会自动发送消息。请在 WhatsApp 中核对收件号码和内容，再由你本人点击发送。",
+                    if (isEnglish) "Up to 3 unfinished tasks can be held at once. Default task time limit: 3 minutes." else "最多可保留 3 个未完成任务。默认时限 3 分钟；请以任务页显示的最新状态为准。",
                     color = WtpMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
         }
+
+        if (canAbandon) {
+            TextButton(
+                onClick = { showAbandonDialog = true },
+                enabled = remainingSeconds > 0,
+                modifier = Modifier.fillMaxWidth().height(46.dp)
+            ) {
+                Text(if (isEnglish) "Abandon task" else "放弃任务", color = Color(0xFFD92D20), fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+
+    if (showAbandonDialog) {
+        AlertDialog(
+            onDismissRequest = { showAbandonDialog = false },
+            title = { Text(if (isEnglish) "Abandon this task?" else "确定放弃当前任务？") },
+            text = { Text(if (isEnglish) "The task will be cancelled and its assigned contact may be returned to the available pool." else "放弃后任务将被取消，已分配号码会按后台规则释放，之后需要重新领取。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAbandonDialog = false
+                    onAbandon()
+                }) { Text(if (isEnglish) "Confirm abandon" else "确认放弃", color = Color(0xFFD92D20)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAbandonDialog = false }) { Text(if (isEnglish) "Keep task" else "继续任务") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun StepNumber(number: Int) {
+    Surface(color = WtpSky, shape = RoundedCornerShape(50)) {
+        Text(number.toString(), Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = WtpDarkGreen, fontWeight = FontWeight.Bold)
     }
 }
 
