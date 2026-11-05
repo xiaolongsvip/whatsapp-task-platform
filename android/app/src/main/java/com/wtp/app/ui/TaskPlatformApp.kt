@@ -48,41 +48,49 @@ fun TaskPlatformApp() {
     var checking by remember { mutableStateOf(true) }
     var authenticated by rememberSaveable { mutableStateOf(false) }
     var phone by rememberSaveable { mutableStateOf("") }
+    var language by rememberSaveable { mutableStateOf("zh-CN") }
     LaunchedEffect(Unit) {
-        try { val user = withContext(Dispatchers.IO) { AuthRepository.currentUser() }; phone = user.optString("phone"); authenticated = true }
-        catch (_: Exception) { authenticated = false } finally { checking = false }
+        try {
+            val user = withContext(Dispatchers.IO) { AuthRepository.currentUser() }
+            phone = user.optString("phone")
+            language = user.optJSONObject("profile")?.optString("locale")?.takeIf { it == "en" } ?: "zh-CN"
+            authenticated = true
+        } catch (_: Exception) { authenticated = false } finally { checking = false }
     }
     when {
         checking -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         !authenticated -> AuthScreen { phone = it; authenticated = true }
-        else -> MemberShell(phone) { withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }; authenticated = false; phone = "" }
+        else -> MemberShell(phone, language, onLanguageChanged = { language = it }) { withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }; authenticated = false; phone = "" }
     }
 }
 
 @Composable
-private fun MemberShell(phone: String, onLogout: suspend () -> Unit) {
+private fun MemberShell(phone: String, language: String, onLanguageChanged: (String) -> Unit, onLogout: suspend () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
+    val navLabels = if (language == "en") listOf("Home", "Tasks", "Promote", "Wallet", "Me") else listOf("首页", "任务", "推广", "钱包", "我的")
+    val navIcons = listOf(Icons.Default.Home, Icons.Default.Assignment, Icons.Default.Group, Icons.Default.Wallet, Icons.Default.AccountCircle)
     Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
         NavigationBar(containerColor = Color.White) {
-            navItems.forEachIndexed { i, item -> NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(item.icon, item.label) }, label = { Text(item.label) }) }
+            navLabels.forEachIndexed { i, label -> NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(navIcons[i], label) }, label = { Text(label) }) }
         }
     }) { padding ->
         when (tab) {
-            0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it })
-            1 -> SimpleScreen("任务大厅", "任务列表将在任务模块接入。", Modifier.padding(padding))
-            2 -> SimpleScreen("推广中心", "推广关系和奖励将在推广模块接入。", Modifier.padding(padding))
-            3 -> SimpleScreen("钱包", "钱包余额和账单将在钱包模块接入。", Modifier.padding(padding))
+            0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it }, language = language, onLanguageChanged = onLanguageChanged)
+            1 -> SimpleScreen(if (language == "en") "Task Hall" else "任务大厅", if (language == "en") "Task list will be connected in the task module." else "任务列表将在任务模块接入。", Modifier.padding(padding))
+            2 -> SimpleScreen(if (language == "en") "Promote" else "推广中心", if (language == "en") "Referral relationships and rewards will be connected in the promotion module." else "推广关系和奖励将在推广模块接入。", Modifier.padding(padding))
+            3 -> SimpleScreen(if (language == "en") "Wallet" else "钱包", if (language == "en") "Wallet balances and statements will be connected in the wallet module." else "钱包余额和账单将在钱包模块接入。", Modifier.padding(padding))
             else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("我的账户", style = MaterialTheme.typography.headlineSmall); Text("登录手机号：$phone")
-                Button(onClick = { scope.launch { onLogout() } }) { Text("退出登录") }
+                Text(if (language == "en") "My account" else "我的账户", style = MaterialTheme.typography.headlineSmall)
+                Text((if (language == "en") "Phone: " else "登录手机号：") + phone)
+                Button(onClick = { scope.launch { onLogout() } }) { Text(if (language == "en") "Log out" else "退出登录") }
             }
         }
     }
 }
 
 @Composable
-private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int) -> Unit) {
+private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int) -> Unit, language: String, onLanguageChanged: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var data by remember { mutableStateOf<JSONObject?>(null) }
@@ -92,7 +100,6 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
     var capture by rememberSaveable { mutableStateOf(false) }
     var permissionStep by remember { mutableIntStateOf(0) }
     var showTutorial by remember { mutableStateOf(false) }
-    var language by rememberSaveable { mutableStateOf("zh-CN") }
     var languageMenuOpen by remember { mutableStateOf(false) }
     var supportDialogOpen by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf("") }
@@ -115,20 +122,13 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             finally { loading = false }
         }
     }
-    LaunchedEffect(Unit) {
-        load()
-        runCatching {
-            val currentUser = withContext(Dispatchers.IO) { AuthRepository.currentUser() }
-            val savedLocale = currentUser.optJSONObject("profile")?.optString("locale")
-            if (savedLocale == "en" || savedLocale == "zh-CN") language = savedLocale
-        }
-    }
+    LaunchedEffect(Unit) { load() }
 
     Column(modifier.fillMaxSize().background(Color(0xFFF2F5F8)).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Color.White, shape = RoundedCornerShape(28.dp)) {
                 Row(Modifier.padding(end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("提现", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF0879B9), Color(0xFF48C5F1))), RoundedCornerShape(28.dp)).padding(horizontal = 14.dp, vertical = 9.dp))
+                    Text(if (isEnglish) "Withdraw" else "提现", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF0879B9), Color(0xFF48C5F1))), RoundedCornerShape(28.dp)).padding(horizontal = 14.dp, vertical = 9.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(formatBalance(firstBalance(data), firstCurrency(data)), color = ink, fontWeight = FontWeight.Bold)
                 }
@@ -154,7 +154,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                             scope.launch {
                                 try {
                                     withContext(Dispatchers.IO) { AuthRepository.updateLocale("zh-CN") }
-                                    language = "zh-CN"
+                                    onLanguageChanged("zh-CN")
                                     actionMessage = "语言已切换为简体中文"
                                 } catch (e: Exception) { actionMessage = e.message ?: "语言保存失败" }
                             }
@@ -164,7 +164,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                             scope.launch {
                                 try {
                                     withContext(Dispatchers.IO) { AuthRepository.updateLocale("en") }
-                                    language = "en"
+                                    onLanguageChanged("en")
                                     actionMessage = "Language changed to English"
                                 } catch (e: Exception) { actionMessage = e.message ?: "Could not save language" }
                             }
