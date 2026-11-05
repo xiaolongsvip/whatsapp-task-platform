@@ -481,3 +481,22 @@ Last updated: 2026-11-05
 - Member app fetches it from `GET /api/v1/tasks`.
 - Claiming it atomically locks the earliest eligible consented phone number and returns that assigned number plus task message/link configuration.
 - Member task card displays the assigned number and message configuration. WhatsApp launch and the single-action overlay capture/upload workflow remain in the next Android execution module.
+
+
+### Android task hall and task records redesign — reference-based UI
+
+**Status: source updated; Android Studio/Kotlin compile and device acceptance remain pending.**
+
+- [x] Replaced the single stacked task page with two top-level tabs: Task Hall and Task Records.
+- [x] Task Hall now has status filters: Available, In progress, Expired, Rejected, Settled.
+- [x] Task Records now has filters: All, In progress, Completed, Need action, Unfinished.
+- [x] Added the allowance summary based on the real dashboard `claimedToday` and `dailyTaskLimit`; remaining count is derived from those API values.
+- [x] Added last-seven-day claimed/approved/rejected counts computed from the user's real claim records.
+- [x] Added task cards with real reward, capacity, status, description, and task-record timestamps.
+- [x] Added **Go to WhatsApp / 前往 WhatsApp** on eligible active/rejected task cards. It uses the actual assigned number returned by the claim API and opens a `wa.me` conversation with the configured message template and task link prefilled.
+- [x] Claiming a task now selects that claim as the current evidence target; tapping Go to WhatsApp also selects it before leaving the app.
+- [x] Handles unlimited task capacity (API null value) without incorrectly treating it as zero remaining slots.
+- [x] Balance display uses each wallet currency's configured fraction digits and presents three display decimals.
+- [ ] Android Studio Gradle sync and Kotlin compile are not verified by current GitHub CI.
+- [ ] Real-device test is required for WhatsApp regular/business app routing, message prefill, filters, empty states, and returning to the app.
+- [ ] The single floating action button requested for “已发送并截图上传” is not implemented in this UI change; current screenshot service still has its existing explicit notification action until the overlay service is developed and tested. Do not describe the end-to-end floating-button capture flow as available yet.
