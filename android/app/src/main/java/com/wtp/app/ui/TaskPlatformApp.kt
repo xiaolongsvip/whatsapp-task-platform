@@ -84,6 +84,7 @@ fun TaskPlatformApp() {
 private fun MemberShell(phone: String, language: String, onLanguageChanged: (String) -> Unit, onLogout: suspend () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showCommissionHistory by rememberSaveable { mutableStateOf(false) }
+    var showInvitePage by rememberSaveable { mutableStateOf(false) }
     var walletPage by rememberSaveable { mutableStateOf("home") }
     var profilePage by rememberSaveable { mutableStateOf("home") }
     val scope = rememberCoroutineScope()
@@ -97,10 +98,10 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
         when (tab) {
             0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it }, language = language, onLanguageChanged = onLanguageChanged)
             1 -> TaskHallScreen(Modifier.padding(padding), language, onLanguageChanged)
-            2 -> if (showCommissionHistory) {
-                CommissionHistoryScreen(Modifier.padding(padding), language, onBack = { showCommissionHistory = false })
-            } else {
-                PromotionScreen(Modifier.padding(padding), language, onWalletClick = { tab = 3 }, onCommissionClick = { showCommissionHistory = true })
+            2 -> when {
+                showInvitePage -> InviteFriendsScreen(Modifier.padding(padding), language, onBack = { showInvitePage = false })
+                showCommissionHistory -> CommissionHistoryScreen(Modifier.padding(padding), language, onBack = { showCommissionHistory = false })
+                else -> PromotionScreen(Modifier.padding(padding), language, onWalletClick = { tab = 3 }, onCommissionClick = { showCommissionHistory = true }, onInviteClick = { showInvitePage = true })
             }
             3 -> when (walletPage) {
                 "accounts" -> PayoutAccountsScreen(Modifier.padding(padding), language, onBack = { walletPage = "home" }, onAdd = { walletPage = "add-account" })
@@ -1023,7 +1024,7 @@ private fun WalletScreen(
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (isEnglish) "Withdrawal services" else "提现服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 WalletServiceRow(Icons.Default.CreditCard, if (isEnglish) "Payout account" else "收款账户", if (isEnglish) "Not set" else "未设置", Color(0xFFDDF3FF), Color(0xFF0A6FAF), onClick = onPayoutAccounts)
-                HorizontalDivider(color = Color(0xFFEEF1F3))
+                HorizontalDivider(color = Color(0xFFE5EFF5))
                 WalletServiceRow(Icons.Default.ReceiptLong, if (isEnglish) "Withdrawal history" else "提现记录", if (isEnglish) "View withdrawal history" else "查看您的提现历史", Color(0xFFE7F1FF), Color(0xFF2584F4), onClick = onWithdrawalHistory)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
                 WalletServiceRow(Icons.Default.Schedule, if (isEnglish) "Withdrawal guide" else "提现说明", if (isEnglish) "Rules and instructions" else "了解提现规则与说明", Color(0xFFFFF0E1), Color(0xFFFF8A22), onClick = onWithdrawalGuide)
@@ -1051,7 +1052,7 @@ private fun WalletScreen(
 @Composable
 private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
     val isEnglish = language == "en"
-    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
@@ -1502,6 +1503,101 @@ private fun WalletServiceRow(icon: androidx.compose.ui.graphics.vector.ImageVect
 }
 
 @Composable
+private fun InviteFriendsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val en = language == "en"
+    var data by remember { mutableStateOf<JSONObject?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var showQr by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val code = data?.optString("referralCode").orEmpty()
+    val url = data?.optString("inviteUrl").orEmpty()
+    LaunchedEffect(Unit) {
+        try { data = withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }
+        catch (e: Exception) { error = e.message ?: if (en) "Unable to load invitation details" else "邀请信息加载失败" }
+        finally { loading = false }
+    }
+    fun copy(value: String, label: String) {
+        if (value.isBlank()) return
+        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+        android.widget.Toast.makeText(context, if (en) "Copied" else "已复制", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    fun share() {
+        if (url.isBlank()) return
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, if (en) "Join me" else "邀请你加入")
+            .putExtra(Intent.EXTRA_TEXT, url)
+        context.startActivity(Intent.createChooser(send, if (en) "Share invitation" else "邀请好友"))
+    }
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB)).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
+            Spacer(Modifier.weight(1f))
+            Text(if (en) "Invite friends" else "邀请好友", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF5AAED0), modifier = Modifier.padding(end = 10.dp))
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFDDF3FF)), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFB9E5F8))) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(if (en) "Share your invitation link or code" else "分享你的注册链接或邀请码", color = Color(0xFF287FA5), fontWeight = FontWeight.SemiBold)
+                    Text(if (en) "Invite friends to complete eligible tasks" else "邀请好友完成符合条件的任务并审核、结算后，你可获得佣金。", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(if (en) "Commission is calculated according to the platform rules." else "佣金按平台任务规则和实际结算结果计算。", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                }
+                Icon(Icons.Default.PersonAddAlt1, null, tint = Color(0xFF319CCB), modifier = Modifier.size(42.dp))
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD6EAF5))) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(if (en) "My invitation code" else "我的邀请码", color = Color(0xFF667085), fontWeight = FontWeight.SemiBold)
+                Text(code.ifBlank { if (loading) "…" else "—" }, color = Color(0xFF236F91), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineLarge)
+                Button(onClick = { copy(code, "Invitation code") }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB)), shape = RoundedCornerShape(14.dp)) {
+                    Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text(if (en) "Copy invitation code" else "复制邀请码", fontWeight = FontWeight.Bold)
+                }
+                HorizontalDivider(color = Color(0xFFE5EFF5))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50)) { Icon(Icons.Default.Link, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(9.dp)) }
+                    Spacer(Modifier.width(9.dp)); Text(if (en) "My invitation link" else "我的邀请链接", color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+                }
+                Surface(color = Color(0xFFF2F8FC), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE1EDF4))) {
+                    Text(url.ifBlank { if (loading) "…" else "—" }, Modifier.fillMaxWidth().padding(13.dp), color = Color(0xFF344054), style = MaterialTheme.typography.bodyMedium)
+                }
+                OutlinedButton(onClick = { copy(url, "Invitation link") }, enabled = url.isNotBlank(), modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF319CCB))) {
+                    Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text(if (en) "Copy invitation link" else "复制邀请链接", fontWeight = FontWeight.Bold)
+                }
+                HorizontalDivider(color = Color(0xFFE5EFF5))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50)) { Icon(Icons.Default.QrCode2, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(9.dp)) }
+                    Spacer(Modifier.width(9.dp)); Text(if (en) "Invitation QR code" else "邀请二维码", color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f)); Text(if (en) "Tap to enlarge" else "点击放大", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    if (url.isNotBlank()) PromotionQrCode(url, Modifier.size(180.dp), onClick = { showQr = true })
+                    else Box(Modifier.size(180.dp), contentAlignment = Alignment.Center) { if (loading) CircularProgressIndicator(color = Color(0xFF319CCB)) else Text("—", color = Color(0xFF667085)) }
+                }
+            }
+        }
+        Button(onClick = { share() }, enabled = url.isNotBlank(), modifier = Modifier.fillMaxWidth().height(58.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB)), shape = RoundedCornerShape(14.dp)) {
+            Icon(Icons.Default.Share, null); Spacer(Modifier.width(9.dp)); Text(if (en) "Share now" else "立即分享", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F6FD)), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBEAF8))) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.Info, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(top = 2.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(if (en) "Commission rules" else "佣金说明", color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+                    Text(if (en) "Commission is generated only after eligible invited-user tasks pass review and settlement. The applicable rate is determined by the task rules." else "符合条件的受邀任务经审核并结算后生成佣金；佣金比例按任务开始时的规则确定。", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        if (error != null) Text(error.orEmpty(), Modifier.fillMaxWidth().clickable { scope.launch { loading = true; error = null; runCatching { withContext(Dispatchers.IO) { AuthRepository.promotionSummary() } }.onSuccess { data = it }.onFailure { error = it.message }; loading = false } }.padding(8.dp), color = Color(0xFFB42318))
+    }
+    if (showQr && url.isNotBlank()) AlertDialog(onDismissRequest = { showQr = false }, title = { Text(if (en) "Invitation QR code" else "邀请二维码") }, text = { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { PromotionQrCode(url, Modifier.size(240.dp)) } }, confirmButton = { TextButton(onClick = { copy(url, "Invitation link"); showQr = false }) { Text(if (en) "Copy link" else "复制链接") } }, dismissButton = { TextButton(onClick = { showQr = false }) { Text(if (en) "Close" else "关闭") } })
+}
+
+@Composable
 private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
     val isEnglish = language == "en"
     var selected by rememberSaveable { mutableIntStateOf(0) }
@@ -1547,7 +1643,7 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
 private fun CommissionSummaryCard(modifier: Modifier, title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Card(modifier, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 5.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Surface(color = Color(0xFFEEF6F2), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(9.dp).size(20.dp)) }
+            Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50)) { Icon(icon, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(9.dp).size(20.dp)) }
             Text(title, color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Text(value, color = Color(0xFF319CCB), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
@@ -1555,7 +1651,7 @@ private fun CommissionSummaryCard(modifier: Modifier, title: String, value: Stri
 }
 
 @Composable
-private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onWalletClick: () -> Unit, onCommissionClick: () -> Unit) {
+private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onWalletClick: () -> Unit, onCommissionClick: () -> Unit, onInviteClick: () -> Unit) {
     val context = LocalContext.current
     val isEnglish = language == "en"
     var data by remember { mutableStateOf<JSONObject?>(null) }
@@ -1594,11 +1690,11 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
         context.startActivity(Intent.createChooser(send, if (isEnglish) "Share invitation" else "邀请好友"))
     }
     Column(
-        modifier.fillMaxSize().background(Color(0xFFF2F5F4)).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.fillMaxSize().background(Color(0xFFF2F7FB)).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
-            Modifier.fillMaxWidth().background(Color(0xFFB8E6D2), RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().background(Color(0xFFDDF3FF), RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1622,7 +1718,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDCEDE5))
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD6EAF5))
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1647,7 +1743,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
                     }
                 }
                 Row(
-                    Modifier.fillMaxWidth().background(Color(0xFFF5FAF7), RoundedCornerShape(12.dp)).padding(10.dp),
+                    Modifier.fillMaxWidth().background(Color(0xFFF2F8FC), RoundedCornerShape(12.dp)).padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
@@ -1709,7 +1805,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String, onW
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                PromotionMenuRow(Icons.Default.PersonAdd, if (isEnglish) "Invite friends" else "邀请好友", if (isEnglish) "Share your invitation link or code" else "分享你的注册链接或邀请码") { detail = "invite" }
+                PromotionMenuRow(Icons.Default.PersonAdd, if (isEnglish) "Invite friends" else "邀请好友", if (isEnglish) "Share your invitation link or code" else "分享你的注册链接或邀请码", onInviteClick)
                 HorizontalDivider(color = Color(0xFFEEF1F3))
                 PromotionMenuRow(Icons.Default.ReceiptLong, if (isEnglish) "Commission history" else "佣金记录", if (isEnglish) "View commission amounts and settlement status" else "查看每笔佣金的金额和结算状态") { detail = "commission" }
                 HorizontalDivider(color = Color(0xFFEEF1F3))
