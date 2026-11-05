@@ -48,15 +48,25 @@ export class StorageConfigService {
     if (endpoint.protocol !== "https:" && !(process.env.NODE_ENV !== "production" && localHttp)) {
       throw new BadRequestException("对象存储 Endpoint 必须使用 HTTPS。");
     }
-    const access = encrypt(input.accessKey.trim());
-    const secret = encrypt(input.secretKey.trim());
+    const existing = await prisma.objectStorageConfig.findUnique({ where: { id: CONFIG_ID } });
+    if (!existing && (!input.accessKey?.trim() || !input.secretKey?.trim())) {
+      throw new BadRequestException("首次配置必须填写 Access Key 和 Secret Key。");
+    }
+    if (Boolean(input.accessKey?.trim()) !== Boolean(input.secretKey?.trim())) {
+      throw new BadRequestException("Access Key 和 Secret Key 必须同时填写或同时留空。");
+    }
+    const access = input.accessKey?.trim() ? encrypt(input.accessKey.trim()) : null;
+    const secret = input.secretKey?.trim() ? encrypt(input.secretKey.trim()) : null;
+    const credentials = access && secret ? {
+      accessKeyCiphertext: access.ciphertext, accessKeyIv: access.iv, accessKeyTag: access.tag,
+      secretKeyCiphertext: secret.ciphertext, secretKeyIv: secret.iv, secretKeyTag: secret.tag,
+    } : {};
     await prisma.objectStorageConfig.upsert({
       where: { id: CONFIG_ID },
       create: {
         id: CONFIG_ID, endpoint: input.endpoint.trim().replace(/\/+$/, ""), bucket: input.bucket.trim(),
         region: input.region?.trim() || "auto",
-        accessKeyCiphertext: access.ciphertext, accessKeyIv: access.iv, accessKeyTag: access.tag,
-        secretKeyCiphertext: secret.ciphertext, secretKeyIv: secret.iv, secretKeyTag: secret.tag,
+        ...credentials,
         enabled: input.enabled ?? false, updatedByAdminId: adminId,
       },
       update: {
