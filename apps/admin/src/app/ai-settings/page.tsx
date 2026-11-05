@@ -174,7 +174,7 @@ export default function AiSettingsPage() {
           <h2>自动审核策略</h2>
           <div className="action-row" style={{ marginTop: 0, marginBottom: 16 }}>
             <label><input type="checkbox" checked={config.enabled} onChange={(e) => update("enabled", e.target.checked)} /> 启用 AI 自动审核</label>
-            <span className="muted">启用后，新提交会进入持久化 AI 审核队列；OCR 判定与奖励结算工作器尚在开发，当前不会自动发放奖励。</span>
+            <span className="muted">启用后，新提交会进入持久化 AI 审核队列，由后台工作器识别截图并按置信度处理。部署前必须先执行数据库迁移、生成 Prisma Client 并配置稳定的加密密钥。</span>
           </div>
           <div className="form-grid">
             <div className="field">
