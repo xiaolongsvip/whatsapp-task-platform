@@ -84,6 +84,7 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showCommissionHistory by rememberSaveable { mutableStateOf(false) }
     var walletPage by rememberSaveable { mutableStateOf("home") }
+    var profilePage by rememberSaveable { mutableStateOf("home") }
     val scope = rememberCoroutineScope()
     val navLabels = if (language == "en") listOf("Home", "Tasks", "Promote", "Wallet", "Me") else listOf("首页", "任务", "推广", "钱包", "我的")
     val navIcons = listOf(Icons.Default.Home, Icons.Default.Assignment, Icons.Default.Group, Icons.Default.Wallet, Icons.Default.AccountCircle)
@@ -117,13 +118,17 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
                     onLanguageChanged = onLanguageChanged
                 )
             }
-            else -> MyProfileScreen(Modifier.padding(padding), phone, language, onInvite = { tab = 2 }, onPayoutAccounts = { tab = 3; walletPage = "accounts" }, onLogout = { scope.launch { onLogout() } })
+            else -> when (profilePage) {
+                "security" -> AccountSecurityScreen(Modifier.padding(padding), language, onBack = { profilePage = "home" }, onLanguageChanged = onLanguageChanged)
+                "permissions" -> PermissionStatusScreen(Modifier.padding(padding), language, onBack = { profilePage = "home" })
+                else -> MyProfileScreen(Modifier.padding(padding), phone, language, onInvite = { tab = 2 }, onPayoutAccounts = { tab = 3; walletPage = "accounts" }, onAccountSecurity = { profilePage = "security" }, onPermissions = { profilePage = "permissions" }, onLogout = { scope.launch { onLogout() } })
+            }
         }
     }
 }
 
 @Composable
-private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, language: String, onInvite: () -> Unit, onPayoutAccounts: () -> Unit, onLogout: () -> Unit) {
+private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, language: String, onInvite: () -> Unit, onPayoutAccounts: () -> Unit, onAccountSecurity: () -> Unit, onPermissions: () -> Unit, onLogout: () -> Unit) {
     val context = LocalContext.current
     val en = language == "en"
     var user by remember { mutableStateOf<JSONObject?>(null) }
@@ -171,8 +176,8 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text(if (en) "Account & security" else "账户与安全", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17243A))
                 ProfileMenuRow(Icons.Default.AccountBalanceWallet, if (en) "Payout account" else "收款账户", if (en) "Manage payout accounts" else "管理我的收款账户", onPayoutAccounts)
-                ProfileMenuRow(Icons.Default.Settings, if (en) "Account security" else "账号与安全", if (en) "Account and system settings" else "账号与系统设置", { dialog = "security" })
-                ProfileMenuRow(Icons.Default.Shield, if (en) "Permissions" else "权限状态", if (overlay) { if (en) "Overlay permission enabled" else "已开启悬浮窗权限" } else { if (en) "Permission required" else "尚未开启悬浮窗权限" }, { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName))) }, overlay, false)
+                ProfileMenuRow(Icons.Default.Settings, if (en) "Account security" else "账号与安全", if (en) "Account and system settings" else "账号与系统设置", onAccountSecurity)
+                ProfileMenuRow(Icons.Default.Shield, if (en) "Permissions" else "权限状态", if (overlay) { if (en) "Overlay permission enabled" else "已开启悬浮窗权限" } else { if (en) "Permission required" else "尚未开启悬浮窗权限" }, onPermissions, overlay, false)
             }
         }
         Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
@@ -188,6 +193,101 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
     }
     val title = when (dialog) { "support" -> if (en) "Customer support" else "联系客服"; "security" -> if (en) "Account security" else "账号与安全"; "tutorial" -> if (en) "Task tutorial" else "任务使用教程"; else -> if (en) "Check for updates" else "检查更新" }
     if (dialog.isNotEmpty()) AlertDialog(onDismissRequest = { dialog = "" }, title = { Text(title) }, text = { Text(when (dialog) { "support" -> if (en) "Please contact platform support." else "如需帮助，请联系平台客服。"; "security" -> if (en) "Account security settings will be available in a later release." else "账号安全设置功能将在后续版本接入。"; "tutorial" -> if (en) "Follow task instructions and submit valid evidence." else "请按照任务说明完成操作，并提交真实有效的任务凭证供平台审核。"; else -> if (en) "Current version: 1.4.5" else "当前已是版本 1.4.5。" }) }, confirmButton = { TextButton(onClick = { dialog = "" }) { Text(if (en) "OK" else "知道了") } })
+}
+
+@Composable
+private fun AccountSecurityScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onLanguageChanged: (String) -> Unit) {
+    val en = language == "en"
+    var page by remember { mutableStateOf("") }
+    var languageMenu by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        SubPageHeader(if (en) "Account security" else "账号与安全", onBack, language)
+        Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                ProfileMenuRow(Icons.Default.Email, if (en) "Bind email" else "绑定邮箱", if (en) "For security verification and important notices" else "用于安全验证与重要通知\n未绑定", { page = "email" })
+                ProfileMenuRow(Icons.Default.Lock, if (en) "Change password" else "修改密码", if (en) "Change your password regularly to protect account security" else "定期修改密码保护账号安全", { page = "password" })
+                Box {
+                    ProfileMenuRow(Icons.Default.Language, if (en) "Language settings" else "语言设置", if (en) "Language" else "语言", { languageMenu = true }, showDivider = false)
+                    DropdownMenu(expanded = languageMenu, onDismissRequest = { languageMenu = false }) {
+                        DropdownMenuItem(text = { Text("简体中文") }, onClick = { languageMenu = false; onLanguageChanged("zh-CN") })
+                        DropdownMenuItem(text = { Text("English") }, onClick = { languageMenu = false; onLanguageChanged("en") })
+                    }
+                }
+            }
+        }
+    }
+    if (page == "email" || page == "password") {
+        AlertDialog(onDismissRequest = { page = ""; message = "" },
+            title = { Text(if (page == "email") { if (en) "Bind email" else "绑定邮箱" } else { if (en) "Change password" else "修改密码" }) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (page == "email") OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text(if (en) "Email address" else "邮箱地址") }, singleLine = true)
+                    else {
+                        OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text(if (en) "New password" else "新密码") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                        OutlinedTextField(value = confirm, onValueChange = { confirm = it }, label = { Text(if (en) "Confirm password" else "确认新密码") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                    }
+                    if (message.isNotBlank()) Text(message, color = Color(0xFFD04444))
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                message = if (page == "email") {
+                    if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) { if (en) "Enter a valid email address" else "请输入有效的邮箱地址" }
+                    else { if (en) "Email verification API is not connected yet" else "邮箱验证接口尚未接入，暂不能保存" }
+                } else if (password.length < 8) { if (en) "Password must be at least 8 characters" else "密码至少需要8位" }
+                else if (password != confirm) { if (en) "Passwords do not match" else "两次输入的密码不一致" }
+                else { if (en) "Password update API is not connected yet" else "密码修改接口尚未接入，暂不能保存" }
+            }) { Text(if (en) "Submit" else "提交") } },
+            dismissButton = { TextButton(onClick = { page = ""; message = "" }) { Text(if (en) "Close" else "关闭") } })
+    }
+}
+
+@Composable
+private fun PermissionStatusScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val en = language == "en"
+    val overlay = Settings.canDrawOverlays(context)
+    val captureAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        SubPageHeader(if (en) "Permission status" else "权限状态", onBack, language)
+        Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PermissionLine(if (en) "Floating window permission" else "悬浮窗权限", if (overlay) { if (en) "Enabled" else "已开启" } else { if (en) "Not enabled" else "未开启" }, overlay)
+                PermissionLine(if (en) "Screen capture session" else "屏幕截图会话", if (en) "Granted when starting a task" else "开始任务时授权", null)
+                PermissionLine(if (en) "Task claiming" else "任务领取", if (en) "Available" else "可用", true)
+                PermissionLine(if (en) "Screenshot submission" else "截图提交能力", if (captureAvailable) { if (en) "Can submit screenshots" else "可提交截图" } else { if (en) "Unavailable" else "不可用" }, captureAvailable)
+                PermissionLine(if (en) "Withdrawal application" else "提现申请", if (en) "Restricted" else "受限", false)
+                Spacer(Modifier.height(2.dp))
+                Text(if (en) "Screen capture permission is not permanent. It can be reused during the same task session; after the session ends, authorization is required again." else "屏幕截图不是长期权限，同一任务截图会话内可复用授权；会话停止后需要重新授权", color = Color(0xFF71877D), style = MaterialTheme.typography.bodyMedium)
+                if (!overlay) {
+                    Button(onClick = { context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + context.packageName))) }, modifier = Modifier.fillMaxWidth()) { Text(if (en) "Enable floating window permission" else "开启悬浮窗权限") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubPageHeader(title: String, onBack: () -> Unit, language: String) {
+    Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF52665D)) }
+        Spacer(Modifier.weight(1f))
+        Text(title, color = Color(0xFF405A50), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.weight(1f))
+        Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF71877D), modifier = Modifier.padding(horizontal = 8.dp))
+        Icon(Icons.Default.Language, null, tint = Color(0xFF71877D), modifier = Modifier.padding(horizontal = 8.dp))
+    }
+}
+
+@Composable
+private fun PermissionLine(label: String, value: String, enabled: Boolean?) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label, color = Color(0xFF71877D), style = MaterialTheme.typography.bodyLarge)
+        Text(value, color = if (enabled == false) Color(0xFFB36B32) else Color(0xFF405A50), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+    }
 }
 
 @Composable
