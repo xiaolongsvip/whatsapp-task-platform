@@ -17,6 +17,10 @@ function hashToken(token: string): string {
 @Injectable()
 export class AdminAuthService {
   async bootstrap(bootstrapToken: string, emailInput: string, password: string) {
+    if (password.length < 10 || password.length > 128) {
+      throw new UnauthorizedException("首次管理员密码必须为 10–128 个字符。");
+    }
+
     const configuredToken = process.env.ADMIN_BOOTSTRAP_TOKEN;
     if (!configuredToken) {
       throw new ServiceUnavailableException("尚未配置 ADMIN_BOOTSTRAP_TOKEN，暂不能初始化管理员。");
