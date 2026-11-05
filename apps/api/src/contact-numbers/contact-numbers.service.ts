@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import type { ImportContactNumbersDto } from "./contact-numbers.dto";
+import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
 
 function normalizePhone(input: string): string | null {
   const value = input.trim();
@@ -104,13 +105,18 @@ export class ContactNumbersService {
         },
       });
 
+      // Newly imported numbers immediately join the oldest published task.
+      const allocation = await allocateAvailableNumbersToOldestPublishedTask(tx);
+
       return {
         batchId: finalBatch.id,
         totalRows: finalBatch.totalRows,
         importedCount: finalBatch.importedCount,
         duplicateCount: finalBatch.duplicateCount,
         invalidCount: finalBatch.invalidCount,
-        message: "导入完成；只有记录为已获得接收同意的号码会进入可分配号码池。",
+        allocatedCount: allocation.allocatedCount + allocation.reassignedCount,
+        allocatedTaskId: allocation.taskId,
+        message: "导入完成；已授权号码已自动分配给最早发布且仍有效的任务（如有）。",
       };
     });
   }
