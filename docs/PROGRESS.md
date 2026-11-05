@@ -516,3 +516,18 @@ Last updated: 2026-11-05
 - [ ] Add a server-configurable task duration/countdown; the current task model exposes task start/end dates but does not define the 3-minute per-claim timer shown in the reference.
 - [ ] Android Kotlin compile, GitHub Android Build workflow, and visual comparison against the supplied references are pending.
 - [ ] Actual WhatsApp preview image must be tested against a published HTTPS destination with correct Open Graph tags; the app cannot force WhatsApp to display a preview when the destination page or WhatsApp cache does not provide one.
+
+### Android task execution screen — reference images 3 and 4 (2026-11-05)
+
+**Source implementation committed; CI and physical-device verification pending.**
+
+- [x] Reworked the claimed-task detail page to match the supplied reference: compact WhatsApp private-message task status card, reward and remaining-time metrics, and three numbered task steps.
+- [x] Kept the project pale sky-blue visual theme with green WhatsApp action buttons.
+- [x] Kept the assigned contact masked in the task detail; the full assigned number is used only to construct the WhatsApp deep link.
+- [x] Preserved the prepared message and link-preview title, description, URL, and image in the task detail.
+- [x] Added a confirmation dialog and red “放弃任务” action, wired to the existing authenticated POST /tasks/claims/:claimId/cancel endpoint. Successful cancellation clears the selected evidence claim and returns the user to the task list.
+- [x] Restyled the screenshot overlay as a small circular right-side floating control. Tapping it explicitly requests a MediaProjection screenshot and submits it against the selected claim through the existing evidence API.
+- [x] Enforced a maximum of three active unfinished claims per user on the server.
+- [x] Added a server-authoritative default three-minute claim expiry using the existing TaskClaim.expiresAt field. The expiry is returned by both claim and my-claims responses and is displayed as a countdown in the app. Task end time, if earlier, takes precedence.
+- [ ] Confirm Android Build and CI workflows complete successfully for the latest commit.
+- [ ] Verify countdown/expiry, abandon confirmation, contact release, floating overlay while WhatsApp is foreground, screenshot upload, and review status on a physical Android device.
