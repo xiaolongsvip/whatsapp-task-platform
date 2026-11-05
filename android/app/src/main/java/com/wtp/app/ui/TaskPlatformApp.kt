@@ -82,13 +82,18 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
     var capture by rememberSaveable { mutableStateOf(false) }
     var permissionStep by remember { mutableIntStateOf(0) }
 
+    val sky = Color(0xFF20A9E5)
+    val paleSky = Color(0xFFE4F5FD)
+    val ink = Color(0xFF17243A)
+    val muted = Color(0xFF718096)
     val captureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         capture = result.resultCode == Activity.RESULT_OK && result.data != null
         permissionStep = 0
     }
     fun load() {
         scope.launch {
-            loading = true; error = null
+            loading = true
+            error = null
             try { data = withContext(Dispatchers.IO) { AuthRepository.dashboard() } }
             catch (e: Exception) { error = e.message ?: "首页数据加载失败" }
             finally { loading = false }
@@ -96,72 +101,129 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
     }
     LaunchedEffect(Unit) { load() }
 
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color.White, shape = RoundedCornerShape(30.dp)) {
-                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("提现", color = Color.White, modifier = Modifier.background(Color(0xFF35A9DF), RoundedCornerShape(20.dp)).padding(horizontal = 12.dp, vertical = 5.dp))
-                    Spacer(Modifier.width(8.dp)); Text(formatMoney(firstBalance(data)), fontWeight = FontWeight.Bold)
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F5F8)).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color.White, shape = RoundedCornerShape(28.dp)) {
+                Row(Modifier.padding(end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("提现", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.background(sky, RoundedCornerShape(28.dp)).padding(horizontal = 14.dp, vertical = 9.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(formatMoney(firstBalance(data)), color = ink, fontWeight = FontWeight.Bold)
                 }
             }
-            Text("首页", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("客服  ◎", color = MaterialTheme.colorScheme.primary)
+            Text("首页", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.HeadsetMic, contentDescription = "客服", tint = muted)
+                Spacer(Modifier.width(18.dp))
+                Icon(Icons.Default.Language, contentDescription = "语言", tint = muted)
+            }
         }
-        if (error != null) Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F0))) {
-            Column(Modifier.padding(14.dp)) { Text("首页数据暂时无法加载", color = Color(0xFFB42318), fontWeight = FontWeight.Bold); Text(error!!, color = Color(0xFFB42318)); TextButton(onClick = { load() }) { Text("重新加载") } }
+
+        if (error != null) Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3F2)), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(14.dp)) {
+                Text("首页数据加载失败", color = Color(0xFFB42318), fontWeight = FontWeight.Bold)
+                Text(error!!, color = Color(0xFFB42318))
+                TextButton(onClick = { load() }) { Text("重新加载") }
+            }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF7FD))) {
-            Column(Modifier.padding(16.dp)) { Text("重要提醒", color = Color(0xFF187CA8), fontWeight = FontWeight.Bold); Spacer(Modifier.height(6.dp)); Text("请遵守 WhatsApp 使用规则，仅向已同意接收消息的用户开展任务。禁止骚扰信息、伪造任务证据或规避平台规则。", color = Color(0xFF24627D)) }
+
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7F7)), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB9C1))) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFE53945))
+                    Spacer(Modifier.width(8.dp))
+                    Text("重要提醒", color = Color(0xFFE53945), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("为保障 WhatsApp 账号安全，请遵守 WhatsApp 使用规则，仅向已同意接收消息的用户开展任务。禁止骚扰信息、伪造任务证据或规避平台规则。", color = Color(0xFFD93640), style = MaterialTheme.typography.bodyMedium)
+            }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Metric("今日已结算", data?.optJSONObject("stats")?.optInt("settledToday")?.toString() ?: "—")
-                Metric("待审核", data?.optJSONObject("stats")?.optInt("pendingReview")?.toString() ?: "—")
+
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Metric("今日已结算", data?.optJSONObject("stats")?.optInt("settledToday")?.toString() ?: if (loading) "…" else "0")
+                VerticalDivider(Modifier.height(42.dp), color = Color(0xFFE6ECF1))
+                Metric("待审核", data?.optJSONObject("stats")?.optInt("pendingReview")?.toString() ?: if (loading) "…" else "0")
+                VerticalDivider(Modifier.height(42.dp), color = Color(0xFFE6ECF1))
                 Metric("可提现", formatMoney(firstBalance(data)))
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Text("推广奖励以平台规则和真实审核结果为准", Modifier.padding(18.dp), color = Color(0xFF1685B8)) }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("任务推荐", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                if (loading) CircularProgressIndicator()
+
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+            Text("推广奖励以平台规则和真实审核结果为准", Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp), color = sky, fontWeight = FontWeight.Medium)
+        }
+
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("任务推荐", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 val tasks = data?.optJSONArray("tasks")
-                if (tasks == null || tasks.length() == 0) Text(if (loading) "正在加载任务…" else "目前没有可展示的已发布任务", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (loading && tasks == null) CircularProgressIndicator(color = sky)
+                else if (tasks == null || tasks.length() == 0) Text("目前没有可展示的已发布任务", color = muted)
                 else for (i in 0 until tasks.length()) {
                     val item = tasks.optJSONObject(i) ?: continue
-                    HorizontalDivider()
-                    Text(item.optString("title"), fontWeight = FontWeight.Bold)
-                    Text(item.optString("description"), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("奖励：${item.optString("currency")} ${item.optString("rewardMinor")}（最小货币单位）", color = MaterialTheme.colorScheme.primary)
-                    Text("已领取：${item.optInt("claimedCount")} / ${item.optInt("capacity")}")
+                    Surface(color = Color(0xFFF5FAFD), shape = RoundedCornerShape(12.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(item.optString("title"), color = ink, fontWeight = FontWeight.Bold)
+                            Text(item.optString("description"), color = muted)
+                            Text("奖励：${item.optString("currency")} ${item.optString("rewardMinor")}（最小货币单位）", color = sky)
+                            Text("已领取：${item.optInt("claimedCount")} / ${item.optInt("capacity")}", color = muted)
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = paleSky, shape = RoundedCornerShape(10.dp)) { Text("● 可查看", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF1685B8)) }
+                    Button(onClick = { /* Task claiming is intentionally implemented in the task module. */ }, colors = ButtonDefaults.buttonColors(containerColor = sky), shape = RoundedCornerShape(12.dp)) {
+                        Text("开始任务  ▷", color = Color.White)
+                    }
                 }
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) { Text("▣", color = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(12.dp)); Column { Text("任务使用教程", fontWeight = FontWeight.Bold); Text("了解任务规则、流程与注意事项", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = paleSky, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.Assignment, null, tint = sky, modifier = Modifier.padding(13.dp).size(28.dp)) }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) { Text("任务使用教程", color = ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text("了解任务规则、流程与注意事项", color = muted) }
+                Icon(Icons.Default.ChevronRight, null, tint = muted)
+            }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
+
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("设备与权限状态", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                PermissionLine("悬浮窗权限", if (overlay) "已开启" else "未开启", overlay)
-                PermissionLine("屏幕截图授权", if (capture) "本次已授权" else "尚未授权", capture)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("设备与权限状态", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Surface(color = paleSky, shape = RoundedCornerShape(9.dp)) { Text(if (overlay && capture) "✓ 全部正常" else "待完成授权", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF1685B8), fontWeight = FontWeight.Bold) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PermissionTile("悬浮窗权限", if (overlay) "已开启" else "未开启", overlay, Modifier.weight(1f))
+                    PermissionTile("截图提交能力", if (capture) "本次已授权" else "开始任务时授权", capture, Modifier.weight(1f))
+                }
                 Button(onClick = {
                     if (!overlay) {
                         permissionStep = 1
                         context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
-                    } else {
-                        val manager = context.getSystemService(MediaProjectionManager::class.java)
-                        captureLauncher.launch(manager.createScreenCaptureIntent())
-                    }
-                }, modifier = Modifier.fillMaxWidth()) { Text(if (!overlay) "一键开启权限（第 1 步）" else "一键开启权限（截图授权）") }
-                Text("Android 要求分别确认悬浮窗和屏幕捕获权限。截图授权仅对本次授权会话有效。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else captureLauncher.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
+                }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = sky), shape = RoundedCornerShape(12.dp)) {
+                    Text(if (!overlay) "一键开启权限  (第 1 步)" else "一键开启权限  (截图授权)", color = Color.White)
+                }
+                Text("Android 要求分别确认悬浮窗和屏幕捕获权限。截图授权仅对本次授权会话有效。", color = muted, style = MaterialTheme.typography.bodySmall)
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.SpaceEvenly) { Text("邀请好友", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold); Text("收款账户", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
+
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFFFF8A24), modifier = Modifier.size(30.dp)); Text("邀请好友", color = ink, fontWeight = FontWeight.Bold); Text("赚取更多奖励", color = muted) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF1685B8), modifier = Modifier.size(30.dp)); Text("收款账户", color = ink, fontWeight = FontWeight.Bold); Text("管理账户", color = muted) }
+            }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) { Text("立即开始任务", Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold) }
-        TextButton(onClick = { load() }, modifier = Modifier.fillMaxWidth()) { Text("刷新首页数据") }
+        Card(colors = CardDefaults.cardColors(containerColor = paleSky), shape = RoundedCornerShape(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color.White, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.CardGiftcard, null, tint = sky, modifier = Modifier.padding(12.dp).size(28.dp)) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) { Text("立即开始任务", color = Color(0xFF1685B8), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("快速开始，完成任务赚取收益", color = muted) }
+                Surface(color = sky, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.padding(12.dp).size(28.dp)) }
+            }
+        }
+        TextButton(onClick = { load() }, modifier = Modifier.fillMaxWidth()) { Text("刷新首页数据", color = sky) }
     }
 
     LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
@@ -169,6 +231,17 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
         if (permissionStep == 1 && overlay) {
             permissionStep = 2
             captureLauncher.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
+        }
+    }
+}
+
+@Composable
+private fun PermissionTile(title: String, status: String, granted: Boolean, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, color = Color(0xFFF2F7FB), shape = RoundedCornerShape(12.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(if (title.contains("悬浮")) Icons.Default.PictureInPictureAlt else Icons.Default.ScreenshotMonitor, contentDescription = null, tint = Color(0xFF1685B8), modifier = Modifier.size(25.dp))
+            Text(title, color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+            Text(status, color = if (granted) Color(0xFF1685B8) else Color(0xFFB54708), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
