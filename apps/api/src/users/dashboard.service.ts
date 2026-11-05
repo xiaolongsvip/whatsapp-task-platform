@@ -117,8 +117,9 @@ export class DashboardService {
       };
     });
 
-    const configuredDailyLimit = Number.parseInt(process.env.DASHBOARD_DAILY_TASK_LIMIT ?? "20", 10);
-    const dailyTaskLimit = Number.isSafeInteger(configuredDailyLimit) && configuredDailyLimit > 0 ? configuredDailyLimit : 20;
+    // Stable dashboard contract. The admin-managed persistent setting will
+    // replace this provisional display default when the admin settings module is implemented.
+    const dailyTaskLimit = 20;
     // Reserved dashboard contract. The protected admin announcement module
     // will populate this from shared persistent storage in a later phase.
     const announcements: string[] = [];
