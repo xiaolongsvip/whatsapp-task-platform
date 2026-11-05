@@ -446,7 +446,18 @@ fun TaskHallScreen(
                                 isEnglish = isEnglish,
                                 activeClaimId = activeClaimId,
                                 busy = busyId != null,
-                                onViewDetails = { selectedClaimId = claim.optString("id") },
+                                onViewDetails = {
+                                    if (activeClaimId != null) {
+                                        CaptureSessionState.clearActiveClaim()
+                                        if (CaptureSessionState.active.value) {
+                                            context.startService(
+                                                Intent(context, ScreenCaptureService::class.java)
+                                                    .setAction(ScreenCaptureService.ACTION_HIDE_FLOATING)
+                                            )
+                                        }
+                                    }
+                                    selectedClaimId = claim.optString("id")
+                                },
                                 onGoWhatsApp = { startAndOpenWhatsApp(claim) },
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
@@ -534,6 +545,7 @@ fun TaskHallScreen(
                 activeClaimId = activeClaimId,
                 errorMessage = error,
                 abandoning = busyId == selectedClaim.optString("id"),
+                starting = busyId == selectedClaim.optString("id"),
                 onGoWhatsApp = { startAndOpenWhatsApp(selectedClaim) },
                 onAbandon = {
                     val claimId = selectedClaim.optString("id")
@@ -588,6 +600,7 @@ private fun TaskExecutionScreen(
     activeClaimId: String?,
     errorMessage: String?,
     abandoning: Boolean,
+    starting: Boolean,
     onGoWhatsApp: () -> Unit,
     onAbandon: () -> Unit
 ) {
@@ -678,12 +691,12 @@ private fun TaskExecutionScreen(
                         Text(if (isEnglish) "Check the assigned contact and prepared message before sending." else "核对后台分配的号码和预设内容，确认无误后再发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                         Button(
                             onClick = onGoWhatsApp,
-                            enabled = phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && (!timerStarted || remainingSeconds > 0),
+                            enabled = !starting && phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && (!timerStarted || remainingSeconds > 0),
                             modifier = Modifier.height(44.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text(if (isEnglish) "Go to WhatsApp" else "前往 WhatsApp", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(if (starting) { if (isEnglish) "Opening…" else "正在打开…" } else { if (isEnglish) "Go to WhatsApp" else "前往 WhatsApp" }, color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
