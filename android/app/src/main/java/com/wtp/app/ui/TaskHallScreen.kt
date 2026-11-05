@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.wtp.app.capture.CaptureSessionState
+import com.wtp.app.capture.ScreenCaptureService
 import com.wtp.app.data.AuthRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -133,6 +134,40 @@ fun TaskHallScreen(
                 error = e.message ?: if (isEnglish) "Could not load tasks." else "任务加载失败。"
             } finally {
                 loading = false
+            }
+        }
+    }
+
+    fun startAndOpenWhatsApp(claim: JSONObject) {
+        val claimId = claim.optString("id")
+        scope.launch {
+            busyId = claimId
+            error = null
+            try {
+                val started = withContext(Dispatchers.IO) {
+                    AuthRepository.startTaskClaim(claimId)
+                }
+                claims = claims.map { existing ->
+                    if (existing.optString("id") == claimId) started else existing
+                }
+                CaptureSessionState.setActiveClaim(claimId)
+                if (CaptureSessionState.active.value) {
+                    context.startService(
+                        Intent(context, ScreenCaptureService::class.java)
+                            .setAction(ScreenCaptureService.ACTION_SHOW_FLOATING)
+                    )
+                } else {
+                    Toast.makeText(
+                        context,
+                        if (isEnglish) "Enable the screenshot session and overlay permission on the Home page before starting." else "请先在首页开启悬浮窗权限和截图会话，再开始任务。",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                openWhatsApp(context, started, isEnglish)
+            } catch (e: Exception) {
+                error = e.message ?: if (isEnglish) "Could not start the task." else "启动任务失败，请重试。"
+            } finally {
+                busyId = null
             }
         }
     }
@@ -411,7 +446,8 @@ fun TaskHallScreen(
                                 isEnglish = isEnglish,
                                 activeClaimId = activeClaimId,
                                 busy = busyId != null,
-                                onGoWhatsApp = { selectedClaimId = claim.optString("id") },
+                                onViewDetails = { selectedClaimId = claim.optString("id") },
+                                onGoWhatsApp = { startAndOpenWhatsApp(claim) },
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for evidence capture." else "已将该任务设为当前截图提交任务。"
@@ -447,7 +483,8 @@ fun TaskHallScreen(
                                 isEnglish = isEnglish,
                                 activeClaimId = activeClaimId,
                                 busy = busyId != null,
-                                onGoWhatsApp = { selectedClaimId = claim.optString("id") },
+                                onViewDetails = { selectedClaimId = claim.optString("id") },
+                                onGoWhatsApp = { startAndOpenWhatsApp(claim) },
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for resubmission." else "已选择此任务，可返回 WhatsApp 重新处理。"
@@ -495,10 +532,9 @@ fun TaskHallScreen(
                 claim = selectedClaim,
                 isEnglish = isEnglish,
                 activeClaimId = activeClaimId,
-                onGoWhatsApp = {
-                    CaptureSessionState.setActiveClaim(selectedClaim.optString("id"))
-                    openWhatsApp(context, selectedClaim, isEnglish)
-                },
+                errorMessage = error,
+                abandoning = busyId == selectedClaim.optString("id"),
+                onGoWhatsApp = { startAndOpenWhatsApp(selectedClaim) },
                 onAbandon = {
                     val claimId = selectedClaim.optString("id")
                     scope.launch {
@@ -506,7 +542,13 @@ fun TaskHallScreen(
                         error = null
                         try {
                             withContext(Dispatchers.IO) { AuthRepository.cancelTaskClaim(claimId) }
-                            if (activeClaimId == claimId) CaptureSessionState.clearActiveClaim()
+                            if (activeClaimId == claimId) {
+                                CaptureSessionState.clearActiveClaim()
+                                context.startService(
+                                    Intent(context, ScreenCaptureService::class.java)
+                                        .setAction(ScreenCaptureService.ACTION_HIDE_FLOATING)
+                                )
+                            }
                             selectedClaimId = null
                             mainTab = TaskMainTab.HALL
                             hallFilter = HallFilter.IN_PROGRESS
@@ -542,6 +584,8 @@ private fun TaskExecutionScreen(
     claim: JSONObject,
     isEnglish: Boolean,
     activeClaimId: String?,
+    errorMessage: String?,
+    abandoning: Boolean,
     onGoWhatsApp: () -> Unit,
     onAbandon: () -> Unit
 ) {
@@ -553,25 +597,20 @@ private fun TaskExecutionScreen(
     val previewImageUrl = task.optString("previewImageUrl").takeUnless { it == "null" }.orEmpty()
     val link = task.optString("linkUrl").takeUnless { it == "null" }.orEmpty()
     val message = task.optString("messageTemplate").takeUnless { it == "null" }.orEmpty()
-    val expiryMillis = remember(claim.optString("expiresAt"), claim.optString("claimedAt")) {
-        runCatching {
-            val expires = claim.optString("expiresAt")
-            if (expires.isNotBlank() && expires != "null") {
-                Instant.parse(expires).toEpochMilli()
-            } else {
-                Instant.parse(claim.optString("claimedAt")).plus(3, ChronoUnit.MINUTES).toEpochMilli()
-            }
-        }.getOrDefault(System.currentTimeMillis())
+    val expiryValue = claim.optString("expiresAt")
+    val timerStarted = expiryValue.isNotBlank() && expiryValue != "null"
+    val expiryMillis = remember(expiryValue) {
+        if (timerStarted) runCatching { Instant.parse(expiryValue).toEpochMilli() }.getOrDefault(0L) else 0L
     }
-    var remainingSeconds by remember(expiryMillis) {
-        mutableStateOf(((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0))
+    var remainingSeconds by remember(expiryMillis, timerStarted) {
+        mutableStateOf(if (timerStarted) ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0) else 180L)
     }
     var showAbandonDialog by remember { mutableStateOf(false) }
     val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")
     val reward = formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD"))
 
-    LaunchedEffect(expiryMillis) {
-        while (remainingSeconds > 0) {
+    LaunchedEffect(expiryMillis, timerStarted) {
+        while (timerStarted && remainingSeconds > 0) {
             remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0) delay(1000)
         }
@@ -637,7 +676,7 @@ private fun TaskExecutionScreen(
                         Text(if (isEnglish) "Check the assigned contact and prepared message before sending." else "核对后台分配的号码和预设内容，确认无误后再发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                         Button(
                             onClick = onGoWhatsApp,
-                            enabled = phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && remainingSeconds > 0,
+                            enabled = phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && (!timerStarted || remainingSeconds > 0),
                             modifier = Modifier.height(44.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
                             shape = RoundedCornerShape(10.dp)
@@ -691,13 +730,18 @@ private fun TaskExecutionScreen(
             }
         }
 
+        if (!errorMessage.isNullOrBlank()) {
+            Surface(color = Color(0xFFFFEEEE), shape = RoundedCornerShape(9.dp)) {
+                Text(errorMessage, Modifier.fillMaxWidth().padding(11.dp), color = Color(0xFFB42318), style = MaterialTheme.typography.bodySmall)
+            }
+        }
         if (canAbandon) {
             TextButton(
                 onClick = { showAbandonDialog = true },
-                enabled = remainingSeconds > 0,
+                enabled = !abandoning,
                 modifier = Modifier.fillMaxWidth().height(46.dp)
             ) {
-                Text(if (isEnglish) "Abandon task" else "放弃任务", color = Color(0xFFD92D20), fontWeight = FontWeight.SemiBold)
+                Text(if (abandoning) { if (isEnglish) "Cancelling…" else "正在放弃…" } else { if (isEnglish) "Abandon task" else "放弃任务" }, color = Color(0xFFD92D20), fontWeight = FontWeight.SemiBold)
             }
         }
     }
