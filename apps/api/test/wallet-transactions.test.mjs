@@ -39,9 +39,25 @@ test("wallet overview endpoint requires the current authenticated user", () => {
   assert.match(controller, /getCurrentUser\(sessionToken\(request\)\)[\s\S]*?getWalletOverview\(user\.id\)/);
 });
 
-test("wallet overview exposes ledger source categories without inventing frozen balances", () => {
+test("wallet overview exposes ledger categories and subtracts active frozen holds", () => {
   assert.match(service, /by: \["walletId", "direction", "sourceType"\]/);
   assert.match(service, /categories,/);
-  assert.match(service, /frozenBalanceAvailable: false/);
-  assert.match(service, /frozenBalances: \[\]/);
+  assert.match(service, /prisma\.walletHold\.groupBy/);
+  assert.match(service, /frozenMinor: frozen\.toString\(\)/);
+  assert.match(service, /frozenBalanceAvailable: true/);
+});
+
+test("admin wallet hold endpoints require an active admin session", () => {
+  const controller = readFileSync(new URL("../src/wallet-holds-admin/wallet-holds-admin.controller.ts", import.meta.url), "utf8");
+  assert.match(controller, /getCurrentAdmin\(sessionToken\(req\)\)/);
+  assert.match(controller, /@Post\(":id\/release"\)/);
+  assert.match(controller, /@Post\(":id\/capture"\)/);
+});
+
+test("wallet hold capture writes a debit ledger entry and immutable event", () => {
+  const holds = readFileSync(new URL("../src/wallet-holds-admin/wallet-holds-admin.service.ts", import.meta.url), "utf8");
+  assert.match(holds, /sourceType: "WALLET_HOLD_CAPTURE"/);
+  assert.match(holds, /direction: "DEBIT"/);
+  assert.match(holds, /walletHoldEvent\.create/);
+  assert.match(holds, /isolationLevel: "Serializable"/);
 });
