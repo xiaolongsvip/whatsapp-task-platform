@@ -1,10 +1,13 @@
 package com.wtp.app.ui
 
 import android.content.ActivityNotFoundException
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,6 +66,8 @@ import java.math.RoundingMode
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import java.net.HttpURLConnection
+import java.net.URL
 
 private val WtpGreen = Color(0xFF27BD68)
 private val WtpDarkGreen = Color(0xFF176B8A)
@@ -572,7 +580,7 @@ private fun TaskExecutionScreen(
                             if (previewDescription.isNotBlank()) Text(previewDescription, color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                             Text(link, color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
                             if (previewImageUrl.isNotBlank()) {
-                                Text(if (isEnglish) "Preview image configured" else "已配置链接预览图片", color = WtpDarkGreen, style = MaterialTheme.typography.labelSmall)
+                                TaskPreviewImage(previewImageUrl, isEnglish)
                             }
                         }
                     }
@@ -594,6 +602,45 @@ private fun TaskExecutionScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TaskPreviewImage(url: String, isEnglish: Boolean) {
+    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = url) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val parsed = URL(url)
+                require(parsed.protocol == "https") { "Only HTTPS preview images are allowed" }
+                val connection = parsed.openConnection() as HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.instanceFollowRedirects = true
+                try {
+                    connection.connect()
+                    require(connection.responseCode in 200..299)
+                    val bytes = connection.inputStream.use { it.readBytes() }
+                    require(bytes.isNotEmpty() && bytes.size <= 3 * 1024 * 1024)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                } finally {
+                    connection.disconnect()
+                }
+            }.getOrNull()
+        }
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!.asImageBitmap(),
+            contentDescription = if (isEnglish) "Configured link preview image" else "链接预览图片",
+            modifier = Modifier.fillMaxWidth().height(148.dp),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Text(
+            if (isEnglish) "Link preview image will be loaded by WhatsApp when available." else "预览图会在 WhatsApp 根据目标网页信息生成；如果未显示，请检查网页分享元数据。",
+            color = WtpMuted,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
