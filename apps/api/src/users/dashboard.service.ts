@@ -25,7 +25,7 @@ function zonedParts(date: Date, timezone: string): DateParts {
   };
 }
 
-function startOfDay(timezone: string): Date {
+export function startOfDay(timezone: string): Date {
   const now = new Date();
   try {
     const local = zonedParts(now, timezone);
