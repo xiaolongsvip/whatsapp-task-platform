@@ -61,3 +61,13 @@ test("wallet hold capture writes a debit ledger entry and immutable event", () =
   assert.match(holds, /walletHoldEvent\.create/);
   assert.match(holds, /isolationLevel: "Serializable"/);
 });
+
+test("wallet overview returns the same response collections when the user has no wallets", () => {
+  assert.match(service, /if \(!walletIds\.length\) return \{ items: \[\], totals: \[\], categories: \[\], frozenBalances: \[\], frozenBalanceAvailable: true \};/);
+});
+
+test("Android wallet screen displays the frozen amount returned by the wallet overview API", () => {
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(app, /val frozen = total\("frozenMinor"\)/);
+  assert.match(app, /"Frozen" else "风险冻结", frozen,/);
+});
