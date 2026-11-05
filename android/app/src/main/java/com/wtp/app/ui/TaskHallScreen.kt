@@ -745,6 +745,77 @@ private fun TaskExecutionScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(task.optString("title", if (isEnglish) "WhatsApp task" else "WhatsApp 任务"), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatusPill(claimStatus(status, isEnglish), WtpSky, Color(0xFF176B9A))
+                    if (activeClaimId == claim.optString("id")) {
+                        StatusPill(if (isEnglish) "Current task" else "当前任务", WtpPaleGreen, WtpDarkGreen)
+                    }
+                }
+                if (phone.isNotBlank() && phone != "null") {
+                    Surface(color = WtpSky, shape = RoundedCornerShape(9.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(if (isEnglish) "Assigned WhatsApp number" else "本任务专属号码", color = Color(0xFF176B9A), style = MaterialTheme.typography.bodySmall)
+                            Text(maskPhoneNumber(phone), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().background(Color(0xFFF2F7FB), RoundedCornerShape(10.dp)).padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (isEnglish) "Single reward" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(reward, color = WtpText, fontWeight = FontWeight.Bold)
+                    }
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (isEnglish) "Time remaining" else "剩余时间", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            String.format(Locale.ROOT, "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60),
+                            color = if (remainingSeconds <= 30) Color(0xFFD14343) else WtpText,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                }
+                Button(
+                    onClick = onGoWhatsApp,
+                    enabled = !starting && phone.isNotBlank() && phone != "null" &&
+                        status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                        (!timerStarted || remainingSeconds > 0),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = WtpWhatsAppGreen),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        when {
+                            starting -> if (isEnglish) "Opening…" else "正在打开…"
+                            status == "REJECTED" -> if (isEnglish) "Resubmit in WhatsApp ▷" else "重新处理并前往 WhatsApp ▷"
+                            else -> if (isEnglish) "Go to WhatsApp ▷" else "前往 WhatsApp ▷"
+                        },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                if (status == "REJECTED") {
+                    val submission = claim.optJSONObject("latestSubmission")
+                    val reason = submission?.optString("reviewReason")?.takeUnless { it.isNullOrBlank() || it == "null" }
+                    Surface(color = Color(0xFFFFF4E8), shape = RoundedCornerShape(9.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(if (isEnglish) "Resubmission required" else "审核未通过，请重新提交", color = Color(0xFF9A3412), fontWeight = FontWeight.Bold)
+                            Text(reason ?: if (isEnglish) "Review the task and submit new evidence." else "请检查任务要求后重新提交截图凭证。", color = Color(0xFF7C2D12), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
         if (!errorMessage.isNullOrBlank()) {
             Surface(color = Color(0xFFFFEEEE), shape = RoundedCornerShape(9.dp)) {
                 Text(errorMessage, Modifier.fillMaxWidth().padding(11.dp), color = Color(0xFFB42318), style = MaterialTheme.typography.bodySmall)
@@ -1098,24 +1169,6 @@ private fun ClaimedTaskCard(
                         Text(maskPhoneNumber(phone), color = WtpText, fontWeight = FontWeight.Bold)
                     }
                 }
-            }
-            val messageTemplate = task.optString("messageTemplate")
-            if (messageTemplate.isNotBlank() && messageTemplate != "null") {
-                Text(
-                    (if (isEnglish) "Message: " else "消息模板：") + messageTemplate,
-                    color = WtpMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 3
-                )
-            }
-            val link = task.optString("linkUrl")
-            if (link.isNotBlank() && link != "null") {
-                Text(
-                    (if (isEnglish) "Link: " else "任务链接：") + link,
-                    color = WtpDarkGreen,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1
-                )
             }
             if (submission != null) {
                 Row(
