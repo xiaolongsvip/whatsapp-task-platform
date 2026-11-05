@@ -325,3 +325,8 @@ Last updated: 2026-11-04
 - [x] English selection updates the dashboard and bottom navigation labels; saved preference is restored from the account profile on app launch.
 - [ ] Android compile and emulator review still required, including language persistence after app restart, support URL behavior once configured, blue ticker contrast and ticker speed.
 - [ ] The support URL and supported-language list will be managed from the protected admin settings module later; no separate settings backend has been created.
+
+
+- [x] English mode also translates the bottom navigation, major dashboard headings, task card labels/status, permission labels, tutorial and support-not-configured dialog.
+- [x] Language preference is restored from the authenticated user's saved profile locale; only locales advertised by the current client contract (Chinese and English) are offered in this iteration.
+- [ ] User must sync and run the updated Android project; compilation and persistence have not been locally verified after these changes.
