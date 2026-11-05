@@ -233,7 +233,7 @@ private fun ChangePasswordScreen(modifier: Modifier = Modifier, language: String
     var submitting by remember { mutableStateOf(false) }
     var success by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val valid = current.isNotBlank() && newPassword.length >= 8 && newPassword.length <= 128 && newPassword == confirm && !submitting
+    val valid = current.isNotBlank() && newPassword.length >= 6 && newPassword.length <= 128 && newPassword == confirm && !submitting
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         SubPageHeader(if (en) "Change password" else "修改密码", onBack, language)
         Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
@@ -246,8 +246,8 @@ private fun ChangePasswordScreen(modifier: Modifier = Modifier, language: String
                 passwordField(newPassword, if (en) "New password" else "新密码", showNew, { showNew = !showNew }) { newPassword = it; message = "" }
                 passwordField(confirm, if (en) "Confirm new password" else "确认新密码", showConfirm, { showConfirm = !showConfirm }) { confirm = it; message = "" }
                 Button(onClick = {
-                    if (newPassword.length < 8 || newPassword.length > 128) {
-                        message = if (en) "Password must be 8–128 characters" else "新密码长度必须为8至128位"
+                    if (newPassword.length < 6 || newPassword.length > 128) {
+                        message = if (en) "Password must be 6–128 characters" else "新密码长度必须为6至128位"
                     } else if (newPassword != confirm) {
                         message = if (en) "Passwords do not match" else "两次输入的新密码不一致"
                     } else {
