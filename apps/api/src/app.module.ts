@@ -9,6 +9,7 @@ import { AdminAuthModule } from "./admin-auth/admin-auth.module";
 import { ContactNumbersModule } from "./contact-numbers/contact-numbers.module";
 import { AiConfigModule } from "./ai-config/ai-config.module";
 import { StorageConfigModule } from "./storage-config/storage-config.module";
+import { WalletHoldsAdminModule } from "./wallet-holds-admin/wallet-holds-admin.module";
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { StorageConfigModule } from "./storage-config/storage-config.module";
     ContactNumbersModule,
     AiConfigModule,
     StorageConfigModule,
+    WalletHoldsAdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
