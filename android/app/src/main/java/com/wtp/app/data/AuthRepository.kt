@@ -142,6 +142,7 @@ object AuthRepository {
         val builder = Request.Builder().url(endpoint(path))
         when (method) {
             "POST" -> builder.post((body ?: JSONObject()).toString().toRequestBody(mediaType))
+            "PATCH" -> builder.patch((body ?: JSONObject()).toString().toRequestBody(mediaType))
             "GET" -> builder.get()
             else -> throw IllegalArgumentException("Unsupported method")
         }
@@ -172,6 +173,9 @@ object AuthRepository {
     fun currentUser(): JSONObject = request("GET", "auth/me")
 
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
+
+    fun updateLocale(locale: String): JSONObject =
+        request("PATCH", "users/me", JSONObject().put("locale", locale))
 
     fun logout() {
         try { request("POST", "auth/logout") } finally {
