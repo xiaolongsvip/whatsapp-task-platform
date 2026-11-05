@@ -1004,6 +1004,33 @@ private fun WalletScreen(
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(if (en) "Fund breakdown" else "资金分类统计", fontWeight = FontWeight.Bold, color = Color(0xFF123E56), style = MaterialTheme.typography.titleMedium)
+                val categoryRows = overview?.optJSONArray("categories")
+                var shown = 0
+                for (i in 0 until (categoryRows?.length() ?: 0)) {
+                    val walletCategory = categoryRows?.optJSONObject(i) ?: continue
+                    val entries = walletCategory.optJSONArray("items") ?: continue
+                    for (j in 0 until entries.length()) {
+                        val item = entries.optJSONObject(j) ?: continue
+                        val source = item.optString("sourceType")
+                        val title = when (source) {
+                            "TASK_REWARD" -> if (en) "Task rewards" else "任务奖励"
+                            "REFERRAL_REWARD" -> if (en) "Referral commissions" else "邀请佣金"
+                            else -> if (item.optString("direction") == "CREDIT") { if (en) "Other income" else "其他收入" } else { if (en) "Other expenses" else "其他支出" }
+                        }
+                        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(title, Modifier.weight(1f), color = Color(0xFF45677A))
+                            Text(formatCurrencyTotals(JSONObject().put(walletCategory.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF258BB8), fontWeight = FontWeight.SemiBold)
+                        }
+                        shown++
+                    }
+                }
+                if (shown == 0) Text(if (en) "No posted ledger entries yet" else "暂无已入账分类数据", color = Color(0xFF81919C), style = MaterialTheme.typography.bodySmall)
+                Text(if (en) "Frozen balance is not configured for this wallet yet." else "当前账本尚未启用独立冻结资金功能。", color = Color(0xFF81919C), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(if (en) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF123E56))
                     Text(if (en) "All details  ›" else "全部明细  ›", color = Color(0xFF319CCB), modifier = Modifier.clickable(onClick = onWalletDetails))
