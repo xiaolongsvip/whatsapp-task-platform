@@ -144,4 +144,44 @@ export class DashboardService {
       generatedAt: now.toISOString(),
     };
   }
+  async getPromotionSummary(userId: string, timezone = "UTC") {
+    const now = new Date();
+    const today = startOfDay(timezone);
+    const local = zonedParts(now, timezone);
+    const monthStart = new Date(Date.UTC(local.year, local.month - 1, 1));
+    const [user, directInvites, activeInvites, teamCount, rewards, todayRewards, monthRewards, wallets] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { referralCode: true } }),
+      prisma.referralEdge.count({ where: { inviterUserId: userId } }),
+      prisma.referralEdge.count({ where: { inviterUserId: userId, invitee: { status: "ACTIVE" } } }),
+      prisma.referralAncestor.count({ where: { ancestorUserId: userId } }),
+      prisma.referralReward.findMany({ where: { beneficiaryId: userId }, select: { amountMinor: true, currency: true } }),
+      prisma.referralReward.findMany({ where: { beneficiaryId: userId, createdAt: { gte: today } }, select: { amountMinor: true, currency: true } }),
+      prisma.referralReward.findMany({ where: { beneficiaryId: userId, createdAt: { gte: monthStart } }, select: { amountMinor: true, currency: true } }),
+      prisma.wallet.findMany({ where: { userId }, include: { entries: { select: { direction: true, amountMinor: true } }, withdrawals: { where: { status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] } }, select: { amountMinor: true } } } }),
+    ]);
+    const sum = (rows: Array<{ amountMinor: bigint; currency: string }>) => {
+      const totals: Record<string, string> = {};
+      for (const row of rows) totals[row.currency.trim()] = ((BigInt(totals[row.currency.trim()] ?? "0") + row.amountMinor)).toString();
+      return totals;
+    };
+    const available = wallets.map((wallet) => {
+      const credits = wallet.entries.filter((entry) => entry.direction === "CREDIT").reduce((v, entry) => v + entry.amountMinor, 0n);
+      const debits = wallet.entries.filter((entry) => entry.direction === "DEBIT").reduce((v, entry) => v + entry.amountMinor, 0n);
+      const reserved = wallet.withdrawals.reduce((v, item) => v + item.amountMinor, 0n);
+      return { currency: wallet.currency.trim(), amountMinor: (credits - debits - reserved > 0n ? credits - debits - reserved : 0n).toString() };
+    });
+    const code = user?.referralCode ?? "";
+    return {
+      referralCode: code,
+      inviteUrl: code ? `https://www.ee8686.com/r/${encodeURIComponent(code)}` : "",
+      inviteCount: directInvites,
+      activeCount: activeInvites,
+      teamCount,
+      todayCommissions: sum(todayRewards),
+      totalCommissions: sum(rewards),
+      monthCommissions: sum(monthRewards),
+      availableBalances: available,
+    };
+  }
+
 }
