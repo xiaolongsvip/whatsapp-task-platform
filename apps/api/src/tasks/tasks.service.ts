@@ -73,7 +73,8 @@ function publicSubmission(submission: {
 export class TasksService {
   constructor(private readonly storage: S3ObjectStorageService) {}
 
-  async listPublished(_userId: string) {
+  async listPublished(userId: string) {
+    await this.expireOverdueClaims(userId);
     const now = new Date();
     const slots = await prisma.taskSlot.findMany({
       where: {
