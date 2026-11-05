@@ -9,3 +9,9 @@ export class AdminLoginDto {
   @Length(1, 128)
   password!: string;
 }
+
+export class AdminBootstrapDto extends AdminLoginDto {
+  @IsString()
+  @Length(16, 256)
+  bootstrapToken!: string;
+}
