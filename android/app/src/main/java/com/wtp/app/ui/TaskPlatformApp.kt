@@ -92,6 +92,11 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
     var capture by rememberSaveable { mutableStateOf(false) }
     var permissionStep by remember { mutableIntStateOf(0) }
     var showTutorial by remember { mutableStateOf(false) }
+    var language by rememberSaveable { mutableStateOf("zh-CN") }
+    var languageMenuOpen by remember { mutableStateOf(false) }
+    var supportDialogOpen by remember { mutableStateOf(false) }
+    var actionMessage by remember { mutableStateOf("") }
+    val isEnglish = language == "en"
 
     val sky = Color(0xFF20A9E5)
     val paleSky = Color(0xFFE4F5FD)
@@ -110,7 +115,14 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             finally { loading = false }
         }
     }
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) {
+        load()
+        runCatching {
+            val currentUser = withContext(Dispatchers.IO) { AuthRepository.currentUser() }
+            val savedLocale = currentUser.optJSONObject("profile")?.optString("locale")
+            if (savedLocale == "en" || savedLocale == "zh-CN") language = savedLocale
+        }
+    }
 
     Column(modifier.fillMaxSize().background(Color(0xFFF2F5F8)).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -121,11 +133,44 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                     Text(formatBalance(firstBalance(data), firstCurrency(data)), color = ink, fontWeight = FontWeight.Bold)
                 }
             }
-            Text("首页", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(if (isEnglish) "Home" else "首页", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.HeadsetMic, contentDescription = "客服", tint = muted)
-                Spacer(Modifier.width(18.dp))
-                Icon(Icons.Default.Language, contentDescription = "语言", tint = muted)
+                IconButton(onClick = {
+                    val supportUrl = data?.optString("supportUrl")?.takeIf { it.isNotBlank() && it != "null" }
+                    if (supportUrl == null) supportDialogOpen = true
+                    else runCatching {
+                        val uri = Uri.parse(supportUrl)
+                        require(uri.scheme == "https" || uri.scheme == "http")
+                        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    }.onFailure { supportDialogOpen = true }
+                }) { Icon(Icons.Default.HeadsetMic, contentDescription = if (isEnglish) "Support" else "客服", tint = muted) }
+                Box {
+                    IconButton(onClick = { languageMenuOpen = true }) {
+                        Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = muted)
+                    }
+                    DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
+                        DropdownMenuItem(text = { Text("简体中文") }, onClick = {
+                            languageMenuOpen = false
+                            scope.launch {
+                                try {
+                                    withContext(Dispatchers.IO) { AuthRepository.updateLocale("zh-CN") }
+                                    language = "zh-CN"
+                                    actionMessage = "语言已切换为简体中文"
+                                } catch (e: Exception) { actionMessage = e.message ?: "语言保存失败" }
+                            }
+                        })
+                        DropdownMenuItem(text = { Text("English") }, onClick = {
+                            languageMenuOpen = false
+                            scope.launch {
+                                try {
+                                    withContext(Dispatchers.IO) { AuthRepository.updateLocale("en") }
+                                    language = "en"
+                                    actionMessage = "Language changed to English"
+                                } catch (e: Exception) { actionMessage = e.message ?: "Could not save language" }
+                            }
+                        })
+                    }
+                }
             }
         }
 
@@ -142,24 +187,24 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFE53945))
                     Spacer(Modifier.width(8.dp))
-                    Text("重要提醒", color = Color(0xFFE53945), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(if (isEnglish) "Important notice" else "重要提醒", color = Color(0xFFE53945), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("为保障 WhatsApp 账号安全，请遵守 WhatsApp 使用规则，仅向已同意接收消息的用户开展任务。禁止骚扰信息、伪造任务证据或规避平台规则。", color = Color(0xFFD93640), style = MaterialTheme.typography.bodyMedium)
+                Text(if (isEnglish) "Follow WhatsApp rules and work only with people who agreed to receive messages. Harassment, forged evidence and attempts to bypass platform rules are prohibited." else "为保障 WhatsApp 账号安全，请遵守 WhatsApp 使用规则，仅向已同意接收消息的用户开展任务。禁止骚扰信息、伪造任务证据或规避平台规则.", color = Color(0xFFD93640), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 11.dp, horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Metric("今日已结算", data?.optJSONObject("stats")?.optInt("settledToday")?.toString() ?: if (loading) "…" else "0")
+                Metric(if (isEnglish) "Settled today" else "今日已结算", data?.optJSONObject("stats")?.optInt("settledToday")?.toString() ?: if (loading) "…" else "0")
                 VerticalDivider(Modifier.height(34.dp), color = Color(0xFFE6ECF1))
-                Metric("待审核", data?.optJSONObject("stats")?.optInt("pendingReview")?.toString() ?: if (loading) "…" else "0")
+                Metric(if (isEnglish) "Pending review" else "待审核", data?.optJSONObject("stats")?.optInt("pendingReview")?.toString() ?: if (loading) "…" else "0")
                 VerticalDivider(Modifier.height(34.dp), color = Color(0xFFE6ECF1))
-                Metric("可提现(${currencySymbol(firstCurrency(data))})", formatAmount(firstBalance(data), firstCurrency(data)))
+                Metric(if (isEnglish) "Withdrawable (${currencySymbol(firstCurrency(data))})" else "可提现(${currencySymbol(firstCurrency(data))})", formatAmount(firstBalance(data), firstCurrency(data)))
             }
         }
 
-        AnnouncementTicker(dataAnnouncements(data))
+        AnnouncementTicker(dataAnnouncements(data), if (isEnglish) "No announcements yet" else "暂无公告")
 
         val taskArray = data?.optJSONArray("tasks")
         val featuredTask = taskArray?.optJSONObject(0)
@@ -172,7 +217,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 Text(
-                    "警告：做任务之前请进入查看教程",
+                    if (isEnglish) "Warning: Read the task guide before starting" else "警告：做任务之前请进入查看教程",
                     color = Color(0xFFE53945),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
@@ -185,7 +230,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                 ) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("单次奖励", color = muted, style = MaterialTheme.typography.bodySmall)
+                            Text(if (isEnglish) "Reward per task" else "单次奖励", color = muted, style = MaterialTheme.typography.bodySmall)
                             Text(
                                 if (featuredTask != null) formatAmount(featuredTask.optString("rewardMinor"), featuredTask.optString("currency")) else "—",
                                 color = ink,
@@ -195,7 +240,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                         }
                         VerticalDivider(Modifier.height(38.dp), color = Color(0xFFDDE8EF))
                         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("今日任务", color = muted, style = MaterialTheme.typography.bodySmall)
+                            Text(if (isEnglish) "Tasks today" else "今日任务", color = muted, style = MaterialTheme.typography.bodySmall)
                             Text("$claimedToday/$dailyLimit", color = ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -203,7 +248,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
                 if (featuredTask != null) {
                     Text(featuredTask.optString("title"), color = ink, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                 } else if (!loading) {
-                    Text("目前没有可领取的已发布任务", color = muted, style = MaterialTheme.typography.bodySmall)
+                    Text(if (isEnglish) "No published tasks are available right now" else "目前没有可领取的已发布任务", color = muted, style = MaterialTheme.typography.bodySmall)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     val statusText = when {
@@ -228,7 +273,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             Row(Modifier.fillMaxWidth().padding(18.dp).clickable { showTutorial = true }, verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = paleSky, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.Assignment, null, tint = sky, modifier = Modifier.padding(13.dp).size(28.dp)) }
                 Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) { Text("任务使用教程", color = ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text("了解任务规则、流程与注意事项", color = muted) }
+                Column(Modifier.weight(1f)) { Text(if (isEnglish) "Task guide" else "任务使用教程", color = ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text(if (isEnglish) "Learn task rules, steps and safety notes" else "了解任务规则、流程与注意事项", color = muted) }
                 Icon(Icons.Default.ChevronRight, null, tint = muted)
             }
         }
@@ -236,12 +281,12 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("设备与权限状态", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(if (isEnglish) "Device & permissions" else "设备与权限状态", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Surface(color = paleSky, shape = RoundedCornerShape(9.dp)) { Text(if (overlay && capture) "✓ 全部正常" else "待完成授权", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF1685B8), fontWeight = FontWeight.Bold) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PermissionTile("悬浮窗权限", if (overlay) "已开启" else "未开启", overlay, Modifier.weight(1f))
-                    PermissionTile("截图提交能力", if (capture) "本次已授权" else "开始任务时授权", capture, Modifier.weight(1f))
+                    PermissionTile(if (isEnglish) "Overlay permission" else "悬浮窗权限", if (overlay) "已开启" else "未开启", overlay, Modifier.weight(1f))
+                    PermissionTile(if (isEnglish) "Screenshot permission" else "截图提交能力", if (capture) "本次已授权" else if (isEnglish) "Authorize when starting a task" else "开始任务时授权", capture, Modifier.weight(1f))
                 }
                 Button(onClick = {
                     if (!overlay) {
@@ -257,22 +302,38 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
 
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Column(Modifier.clickable { onNavigate(2) }, horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFFFF8A24), modifier = Modifier.size(30.dp)); Text("邀请好友", color = ink, fontWeight = FontWeight.Bold); Text("赚取更多奖励", color = muted) }
-                Column(Modifier.clickable { onNavigate(3) }, horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF1685B8), modifier = Modifier.size(30.dp)); Text("收款账户", color = ink, fontWeight = FontWeight.Bold); Text("管理账户", color = muted) }
+                Column(Modifier.clickable { onNavigate(2) }, horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFFFF8A24), modifier = Modifier.size(30.dp)); Text(if (isEnglish) "Invite friends" else "邀请好友", color = ink, fontWeight = FontWeight.Bold); Text(if (isEnglish) "Earn more rewards" else "赚取更多奖励", color = muted) }
+                Column(Modifier.clickable { onNavigate(3) }, horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF1685B8), modifier = Modifier.size(30.dp)); Text(if (isEnglish) "Payout account" else "收款账户", color = ink, fontWeight = FontWeight.Bold); Text(if (isEnglish) "Manage account" else "管理账户", color = muted) }
             }
         }
         Card(onClick = { onNavigate(1) }, colors = CardDefaults.cardColors(containerColor = paleSky), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color.White, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.CardGiftcard, null, tint = sky, modifier = Modifier.padding(12.dp).size(28.dp)) }
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) { Text("立即开始任务", color = Color(0xFF1685B8), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("快速开始，完成任务赚取收益", color = muted) }
+                Column(Modifier.weight(1f)) { Text(if (isEnglish) "Start earning" else "立即开始任务", color = Color(0xFF1685B8), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(if (isEnglish) "Complete tasks and earn rewards" else "快速开始，完成任务赚取收益", color = muted) }
                 Surface(color = sky, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.padding(12.dp).size(28.dp)) }
             }
         }
-        TextButton(onClick = { load() }, modifier = Modifier.fillMaxWidth()) { Text("刷新首页数据", color = sky) }
+        TextButton(onClick = { load() }, modifier = Modifier.fillMaxWidth()) { Text(if (isEnglish) "Refresh dashboard" else "刷新首页数据", color = sky) }
     }
 
-    if (showTutorial) AlertDialog(onDismissRequest = { showTutorial = false }, title = { Text("任务使用教程") }, text = { Text("请先阅读任务要求，确认适用规则后再开始；仅向已同意接收消息的用户开展任务，提交真实证据等待审核。禁止伪造截图、骚扰他人或规避平台规则。") }, confirmButton = { TextButton(onClick = { showTutorial = false }) { Text("我知道了") } })
+    if (actionMessage.isNotBlank()) AlertDialog(
+        onDismissRequest = { actionMessage = "" },
+        text = { Text(actionMessage) },
+        confirmButton = { TextButton(onClick = { actionMessage = "" }) { Text(if (isEnglish) "OK" else "确定") } }
+    )
+    if (supportDialogOpen) AlertDialog(
+        onDismissRequest = { supportDialogOpen = false },
+        title = { Text(if (isEnglish) "Support" else "客服") },
+        text = { Text(if (isEnglish) "Support has not been configured yet. Its URL will be managed from the admin portal." else "客服入口暂未配置，后续将由管理后台统一设置，APP 会读取同一个接口。") },
+        confirmButton = { TextButton(onClick = { supportDialogOpen = false }) { Text(if (isEnglish) "OK" else "确定") } }
+    )
+    if (showTutorial) AlertDialog(
+        onDismissRequest = { showTutorial = false },
+        title = { Text(if (isEnglish) "Task guide" else "任务使用教程") },
+        text = { Text(if (isEnglish) "Read the task requirements first. Work only with consenting users, submit genuine evidence, and follow platform rules. Do not spam, forge screenshots, or bypass safeguards." else "请先阅读任务要求，确认适用规则后再开始；仅向已同意接收消息的用户开展任务，提交真实证据等待审核。禁止伪造截图、骚扰他人或规避平台规则。") },
+        confirmButton = { TextButton(onClick = { showTutorial = false }) { Text(if (isEnglish) "Got it" else "我知道了") } }
+    )
 
     LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
         overlay = Settings.canDrawOverlays(context)
@@ -284,8 +345,8 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
 }
 
 @Composable
-private fun AnnouncementTicker(messages: List<String>) {
-    val text = messages.joinToString("     •     ").ifBlank { "暂无公告" }
+private fun AnnouncementTicker(messages: List<String>, emptyText: String) {
+    val text = messages.joinToString("     •     ").ifBlank { emptyText }
     var containerWidth by remember { mutableIntStateOf(0) }
     var textWidth by remember { mutableIntStateOf(0) }
     val tickerOffset = remember { Animatable(0f) }
@@ -295,7 +356,7 @@ private fun AnnouncementTicker(messages: List<String>) {
             .fillMaxWidth()
             .height(48.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(Color.White)
+            .background(Brush.verticalGradient(listOf(Color(0xFFB9E8FC), Color(0xFFE5F6FE))))
             .onSizeChanged { containerWidth = it.width }
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.CenterStart
@@ -316,7 +377,7 @@ private fun AnnouncementTicker(messages: List<String>) {
         if (containerWidth > 0 && textWidth > 0) {
             val start = containerWidth.toFloat()
             val end = -textWidth.toFloat()
-            val duration = (((containerWidth + textWidth) / 42f) * 1000f).roundToInt().coerceAtLeast(5000)
+            val duration = (((containerWidth + textWidth) / 110f) * 1000f).roundToInt().coerceAtLeast(2500)
             tickerOffset.snapTo(start)
             while (true) {
                 tickerOffset.animateTo(end, animationSpec = tween(durationMillis = duration, easing = LinearEasing))
