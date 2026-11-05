@@ -64,31 +64,73 @@ export class PayoutAccountsService {
     }
     const details = JSON.stringify({ accountNumber, phoneNumber: input.phoneNumber?.trim() || null });
     const encrypted = encrypt(details);
-    const existing = await prisma.payoutAccount.count({ where: { userId, status: "ACTIVE" } });
-    const row = await prisma.payoutAccount.create({
-      data: {
-        userId, countryCode, currency, providerCode, methodCode, accountHolder,
-        ...encrypted,
-        maskedAccount: accountNumber.length <= 4 ? "••••" : "••••" + accountNumber.slice(-4),
-        isDefault: existing === 0,
-      },
-      select: {
-        id: true, countryCode: true, currency: true, providerCode: true,
-        methodCode: true, accountHolder: true, maskedAccount: true,
-        isDefault: true, createdAt: true,
-      },
-    });
-    return { ...row, countryCode: row.countryCode.trim(), currency: row.currency.trim(), createdAt: row.createdAt.toISOString() };
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const row = await prisma.$transaction(async (tx) => {
+          const existing = await tx.payoutAccount.count({ where: { userId, status: "ACTIVE" } });
+          return tx.payoutAccount.create({
+            data: {
+              userId, countryCode, currency, providerCode, methodCode, accountHolder,
+              ...encrypted,
+              maskedAccount: accountNumber.length <= 4 ? "••••" : "••••" + accountNumber.slice(-4),
+              isDefault: existing === 0,
+            },
+            select: {
+              id: true, countryCode: true, currency: true, providerCode: true,
+              methodCode: true, accountHolder: true, maskedAccount: true,
+              isDefault: true, createdAt: true,
+            },
+          });
+        }, { isolationLevel: "Serializable" });
+        return { ...row, countryCode: row.countryCode.trim(), currency: row.currency.trim(), createdAt: row.createdAt.toISOString() };
+      } catch (error) {
+        const code = typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "";
+        if (code === "P2034" && attempt < 2) continue;
+        throw error;
+      }
+    }
+    throw new BadRequestException("Unable to save payout account. Please try again.");
   }
 
   async remove(userId: string, accountId: string) {
-    const account = await prisma.payoutAccount.findFirst({ where: { id: accountId, userId, status: "ACTIVE" } });
-    if (!account) throw new BadRequestException("Payout account not found.");
-    const linked = await prisma.withdrawalRequest.count({ where: { payoutAccountId: accountId, status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] } } });
-    if (linked > 0) throw new BadRequestException("This payout account is linked to a pending withdrawal.");
-    await prisma.payoutAccount.update({ where: { id: accountId }, data: { status: "DISABLED", isDefault: false } });
-    const replacement = await prisma.payoutAccount.findFirst({ where: { userId, status: "ACTIVE" }, orderBy: { createdAt: "desc" } });
-    if (replacement) await prisma.payoutAccount.update({ where: { id: replacement.id }, data: { isDefault: true } });
-    return { success: true };
+    return prisma.$transaction(async (tx) => {
+      const account = await tx.payoutAccount.findFirst({
+        where: { id: accountId, userId, status: "ACTIVE" },
+      });
+      if (!account) throw new BadRequestException("Payout account not found.");
+
+      const linked = await tx.withdrawalRequest.count({
+        where: {
+          payoutAccountId: accountId,
+          status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] },
+        },
+      });
+      if (linked > 0) {
+        throw new BadRequestException("This payout account is linked to a pending withdrawal.");
+      }
+
+      await tx.payoutAccount.update({
+        where: { id: accountId },
+        data: { status: "DISABLED", isDefault: false },
+      });
+
+      // Only replace the default when the removed account was the default.
+      // Removing a secondary account must not create a second default.
+      if (account.isDefault) {
+        const replacement = await tx.payoutAccount.findFirst({
+          where: { userId, status: "ACTIVE" },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        });
+        if (replacement) {
+          await tx.payoutAccount.update({
+            where: { id: replacement.id },
+            data: { isDefault: true },
+          });
+        }
+      }
+      return { success: true };
+    }, { isolationLevel: "Serializable" });
   }
 }
