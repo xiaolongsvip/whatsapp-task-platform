@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -472,7 +473,7 @@ private fun MainTab(
         )
         Surface(
             color = if (selected) WtpDarkGreen else Color.Transparent,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).heightLine()
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(2.dp)
         ) {}
     }
 }
@@ -543,7 +544,7 @@ private fun RecordFilterTabs(
                 )
                 Surface(
                     color = if (selected == filter) WtpDarkGreen else Color.Transparent,
-                    modifier = Modifier.width(48.dp).heightLine()
+                    modifier = Modifier.width(48.dp).height(2.dp)
                 ) {}
             }
         }
@@ -791,7 +792,7 @@ private fun LoadingState() {
     }
 }
 
-private fun Modifier.heightLine(): Modifier = this.then(
+private fun Modifier.height(2.dp): Modifier = this.then(
     Modifier.padding(top = 0.dp)
 ).let { modifier ->
     androidx.compose.foundation.layout.height(2.dp).let { heightModifier ->
