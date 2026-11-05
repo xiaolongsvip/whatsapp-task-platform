@@ -35,7 +35,10 @@ export class AdminAuthService {
     const email = emailInput.trim().toLowerCase();
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const admin = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw<Array<{ locked: number }>>`SELECT pg_advisory_xact_lock(9137, 2401) AS locked`;
+      const lock = await tx.$queryRaw<Array<{ locked: boolean }>>`SELECT pg_try_advisory_xact_lock(9137, 2401) AS locked`;
+      if (!lock[0]?.locked) {
+        throw new ConflictException("管理员初始化正在进行，请稍后重试。");
+      }
       const count = await tx.adminUser.count();
       if (count > 0) {
         throw new ConflictException("管理员已经初始化，首次开通入口已关闭。");
