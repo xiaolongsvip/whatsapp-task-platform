@@ -17,6 +17,7 @@
     "db:migrate": "dotenv -e .env -- pnpm --filter @wtp/database db:migrate",
     "db:push": "dotenv -e .env -- pnpm --filter @wtp/database db:push",
     "db:studio": "dotenv -e .env -- pnpm --filter @wtp/database db:studio",
+    "referral:shorten-codes": "dotenv -e .env -- pnpm --filter @wtp/database exec node scripts/shorten-referral-codes.cjs",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down"
   },
