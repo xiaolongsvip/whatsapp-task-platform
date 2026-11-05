@@ -44,8 +44,14 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
       const claimed = await prisma.$queryRaw<Array<{ id: string }>>`
         WITH candidate AS (
           SELECT id FROM ai_review_jobs
-          WHERE status IN ('PENDING', 'RETRY')
-            AND next_attempt_at <= NOW()
+          WHERE (
+              status IN ('PENDING', 'RETRY')
+              AND next_attempt_at <= NOW()
+            )
+            OR (
+              status = 'PROCESSING'
+              AND locked_at < NOW() - INTERVAL '10 minutes'
+            )
           ORDER BY next_attempt_at ASC, created_at ASC
           FOR UPDATE SKIP LOCKED
           LIMIT 1
