@@ -15,15 +15,17 @@ export class UpdateStorageConfigDto {
   @MaxLength(100)
   region?: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(500)
-  accessKey!: string;
+  accessKey?: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(500)
-  secretKey!: string;
+  secretKey?: string;
 
   @IsOptional()
   @IsBoolean()
