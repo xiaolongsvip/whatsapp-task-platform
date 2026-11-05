@@ -785,6 +785,7 @@ private fun TaskExecutionScreen(
 ) {
     val task = claim.optJSONObject("task") ?: JSONObject()
     val status = claim.optString("status")
+    val phone = claim.optString("assignedPhoneNumber")
     val expiryValue = claim.optString("expiresAt")
     val timerStarted = expiryValue.isNotBlank() && expiryValue != "null"
     val expiryMillis = remember(expiryValue) {
@@ -975,7 +976,7 @@ private fun TaskExecutionScreen(
                         )
                         Button(
                             onClick = onGoWhatsApp,
-                            enabled = !starting &&
+                            enabled = !starting && phone.isNotBlank() && phone != "null" &&
                                 status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
                                 remainingSeconds > 0,
                             modifier = Modifier.width(162.dp).height(46.dp),
