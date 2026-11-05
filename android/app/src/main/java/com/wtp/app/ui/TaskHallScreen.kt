@@ -140,6 +140,36 @@ fun TaskHallScreen(
     }
 
     fun startAndOpenWhatsApp(claim: JSONObject) {
+        // Do not start the task or leave the app until both required permissions
+        // are ready. The overlay hosts the screenshot control; the active
+        // MediaProjection session enables screenshot evidence capture.
+        if (!android.provider.Settings.canDrawOverlays(context)) {
+            Toast.makeText(
+                context,
+                if (isEnglish) "Enable overlay permission on the Home page before opening WhatsApp."
+                else "请先在首页开启悬浮窗权限，再前往 WhatsApp。",
+                Toast.LENGTH_LONG
+            ).show()
+            runCatching {
+                context.startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                )
+            }
+            return
+        }
+        if (!CaptureSessionState.active.value) {
+            Toast.makeText(
+                context,
+                if (isEnglish) "Start the screenshot session on the Home page before opening WhatsApp."
+                else "请先在首页开启持续截图会话，再前往 WhatsApp。",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
         val claimId = claim.optString("id")
         scope.launch {
             busyId = claimId
@@ -152,18 +182,11 @@ fun TaskHallScreen(
                     if (existing.optString("id") == claimId) started else existing
                 }
                 CaptureSessionState.setActiveClaim(claimId)
-                if (CaptureSessionState.active.value && android.provider.Settings.canDrawOverlays(context)) {
-                    context.startService(
-                        Intent(context, ScreenCaptureService::class.java)
-                            .setAction(ScreenCaptureService.ACTION_SHOW_FLOATING)
-                    )
-                } else {
-                    Toast.makeText(
-                        context,
-                        if (isEnglish) "Enable the screenshot session and overlay permission on the Home page before starting." else "请先在首页开启悬浮窗权限和截图会话，再开始任务。",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                // Permissions were checked before the claim was started.
+                context.startService(
+                    Intent(context, ScreenCaptureService::class.java)
+                        .setAction(ScreenCaptureService.ACTION_SHOW_FLOATING)
+                )
                 openWhatsApp(context, started, isEnglish)
             } catch (e: Exception) {
                 error = e.message ?: if (isEnglish) "Could not start the task." else "启动任务失败，请重试。"
