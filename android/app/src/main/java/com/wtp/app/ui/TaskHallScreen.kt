@@ -176,16 +176,12 @@ fun TaskHallScreen(
     LaunchedEffect(Unit) { refresh() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
-    val claimsByTask = claims.associateBy { it.optString("taskId") }
     val inProgressClaims = claims.filter { it.optString("status") in IN_PROGRESS_STATUSES }
     val expiredClaims = claims.filter { it.optString("status") in setOf("EXPIRED", "CANCELLED") }
     val rejectedClaims = claims.filter { it.optString("status") == "REJECTED" }
     val settledClaims = claims.filter { it.optString("status") == "APPROVED" }
-    val availableTasks = tasks.filter { task ->
-        val taskId = task.optString("id")
-        val remaining = if (task.isNull("remainingCapacity")) -1 else task.optInt("remainingCapacity", -1)
-        claimsByTask[taskId] == null && (remaining == -1 || remaining > 0)
-    }
+    // API supplies one independent card for every available authorized number slot.
+    val availableTasks = tasks
 
     val selectedClaim = claims.firstOrNull { it.optString("id") == selectedClaimId }
 
@@ -394,14 +390,15 @@ fun TaskHallScreen(
                                     isEnglish = isEnglish,
                                     busy = busyId == task.optString("id") || busyId != null,
                                     onStart = {
-                                        val taskId = task.optString("id")
+                                        val taskId = task.optString("taskId")
+                                        val slotId = task.optString("slotId")
                                         scope.launch {
                                             busyId = taskId
                                             error = null
                                             notice = null
                                             try {
                                                 val result = withContext(Dispatchers.IO) {
-                                                    AuthRepository.claimTask(taskId, UUID.randomUUID().toString())
+                                                    AuthRepository.claimTask(taskId, slotId, UUID.randomUUID().toString())
                                                 }
                                                 val claimId = result.optString("id")
                                                 if (claimId.isNotBlank()) {
@@ -985,6 +982,15 @@ private fun AvailableTaskCard(
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(displayTaskTitle(task.optString("title")), color = WtpText, fontWeight = FontWeight.Bold)
             Text(task.optString("description"), color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+            Surface(
+                color = Color(0xFFE7F3FA),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Text(if (isEnglish) "Available WhatsApp number" else "可领取号码", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(task.optString("maskedPhoneNumber", "******"), color = WtpText, fontWeight = FontWeight.SemiBold)
+                }
+            }
             Surface(
                 color = Color(0xFFF6FCF8),
                 shape = RoundedCornerShape(8.dp),
