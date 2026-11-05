@@ -370,6 +370,10 @@ export class TasksService {
           data: { status: "AVAILABLE" },
         });
         numberReturnedToPool = released.count === 1;
+        await tx.taskSlot.updateMany({
+          where: { claimId, status: "ASSIGNED" },
+          data: { status: "AVAILABLE", claimId: null, assignedAt: null, releasedAt: new Date() },
+        });
       }
 
       await tx.task.updateMany({
@@ -420,6 +424,10 @@ export class TasksService {
               consentStatus: "GRANTED",
             },
             data: { status: "AVAILABLE" },
+          });
+          await tx.taskSlot.updateMany({
+            where: { claimId: claim.id, status: "ASSIGNED" },
+            data: { status: "AVAILABLE", claimId: null, assignedAt: null, releasedAt: now },
           });
         }
 
@@ -529,6 +537,21 @@ export class TasksService {
           where: { id: claimId },
           data: { status: "SUBMITTED" },
         });
+        const assignment = await tx.contactAssignment.findUnique({ where: { claimId } });
+        if (assignment?.status === "ASSIGNED") {
+          await tx.contactAssignment.update({
+            where: { id: assignment.id },
+            data: { status: "COMPLETED", completedAt: new Date() },
+          });
+          await tx.contactNumber.updateMany({
+            where: { id: assignment.contactNumberId, status: "ASSIGNED" },
+            data: { status: "USED" },
+          });
+          await tx.taskSlot.updateMany({
+            where: { claimId, status: "ASSIGNED" },
+            data: { status: "USED", usedAt: new Date() },
+          });
+        }
         return created;
       });
       // A concurrent retry with the same idempotency key may have created the
