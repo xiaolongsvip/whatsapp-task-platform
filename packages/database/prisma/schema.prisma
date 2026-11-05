@@ -350,12 +350,12 @@ model AiReviewJob {
 model TaskReview {
   id                String         @id @default(uuid()) @db.Uuid
   submissionId      String         @map("submission_id") @db.Uuid
-  reviewerAdminId   String         @map("reviewer_admin_id") @db.Uuid
+  reviewerAdminId   String?        @map("reviewer_admin_id") @db.Uuid
   decision          ReviewDecision
   reason            String?        @db.Text
   reviewedAt        DateTime       @default(now()) @map("reviewed_at")
   submission        TaskSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
-  reviewer          AdminUser      @relation(fields: [reviewerAdminId], references: [id], onDelete: Restrict)
+  reviewer          AdminUser?     @relation(fields: [reviewerAdminId], references: [id], onDelete: Restrict)
 
   @@index([submissionId, reviewedAt])
   @@map("task_reviews")
