@@ -18,6 +18,9 @@ object CaptureSessionState {
     private val _lastCapturePath = MutableStateFlow<String?>(null)
     val lastCapturePath = _lastCapturePath.asStateFlow()
 
+    private val _pendingIdempotencyKey = MutableStateFlow<String?>(null)
+    val pendingIdempotencyKey = _pendingIdempotencyKey.asStateFlow()
+
     private val _activeClaimId = MutableStateFlow<String?>(null)
     val activeClaimId = _activeClaimId.asStateFlow()
 
@@ -31,9 +34,10 @@ object CaptureSessionState {
         _active.value = value
     }
 
-    internal fun setLastCapture(name: String, path: String) {
+    internal fun setLastCapture(name: String, path: String, idempotencyKey: String) {
         _lastCaptureName.value = name
         _lastCapturePath.value = path
+        _pendingIdempotencyKey.value = idempotencyKey
         _uploadMessage.value = null
         _error.value = null
     }
@@ -50,6 +54,7 @@ object CaptureSessionState {
 
     fun markLastCaptureUploaded(message: String) {
         _lastCapturePath.value = null
+        _pendingIdempotencyKey.value = null
         _uploadMessage.value = message
         _error.value = null
         _activeClaimId.value = null
@@ -58,6 +63,7 @@ object CaptureSessionState {
     fun clearLastCapture() {
         _lastCaptureName.value = null
         _lastCapturePath.value = null
+        _pendingIdempotencyKey.value = null
         _uploadMessage.value = null
     }
 
