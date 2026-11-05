@@ -171,6 +171,8 @@ object AuthRepository {
 
     fun currentUser(): JSONObject = request("GET", "auth/me")
 
+    fun dashboard(): JSONObject = request("GET", "users/dashboard")
+
     fun logout() {
         try { request("POST", "auth/logout") } finally {
             cookieJar.replace(endpoint("").toHttpUrl().host, emptyList())
