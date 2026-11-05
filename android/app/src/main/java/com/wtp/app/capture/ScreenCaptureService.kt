@@ -50,6 +50,7 @@ class ScreenCaptureService : Service() {
     private var workerThread: HandlerThread? = null
     private var workerHandler: Handler? = null
     private val captureRequested = AtomicBoolean(false)
+    private var captureTimeout: Runnable? = null
     private var sessionStopped = false
     private var floatingAction: TextView? = null
     private var floatingParams: WindowManager.LayoutParams? = null
@@ -214,10 +215,20 @@ class ScreenCaptureService : Service() {
         CaptureSessionState.setError(null)
         setFloatingStatus("截图中…")
         updateNotification("正在截取当前屏幕，请稍候…")
+        captureTimeout?.let(mainHandler::removeCallbacks)
+        captureTimeout = Runnable {
+            if (captureRequested.compareAndSet(true, false)) {
+                CaptureSessionState.setError("等待系统截图超时，请确认屏幕仍可正常显示后再次点击水球。")
+                updateNotification("截图等待超时；请再次点击水球重试")
+                setFloatingStatus("截图超时\\n点击重试")
+            }
+        }.also { mainHandler.postDelayed(it, CAPTURE_TIMEOUT_MS) }
     }
 
     private fun onImageAvailable(reader: ImageReader) {
         val image = try { reader.acquireLatestImage() } catch (_: Exception) { null } ?: return
+        captureTimeout?.let(mainHandler::removeCallbacks)
+        captureTimeout = null
         if (!captureRequested.get()) {
             image.close()
             return
@@ -501,6 +512,8 @@ class ScreenCaptureService : Service() {
         }
         sessionStopped = true
         captureRequested.set(false)
+        captureTimeout?.let(mainHandler::removeCallbacks)
+        captureTimeout = null
 
         val currentProjection = projection
         projection = null
@@ -551,6 +564,7 @@ class ScreenCaptureService : Service() {
 
         private const val CHANNEL_ID = "wtp_screen_capture"
         private const val NOTIFICATION_ID = 7401
+        private const val CAPTURE_TIMEOUT_MS = 12_000L
         private const val REQUEST_OPEN_APP = 7402
         private const val REQUEST_CAPTURE = 7403
         private const val REQUEST_STOP = 7404
