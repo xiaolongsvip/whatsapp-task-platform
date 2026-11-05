@@ -146,6 +146,7 @@ object AuthRepository {
         when (method) {
             "POST" -> builder.post((body ?: JSONObject()).toString().toRequestBody(mediaType))
             "PATCH" -> builder.patch((body ?: JSONObject()).toString().toRequestBody(mediaType))
+            "DELETE" -> builder.delete()
             "GET" -> builder.get()
             else -> throw IllegalArgumentException("Unsupported method")
         }
@@ -180,6 +181,19 @@ object AuthRepository {
     fun promotionSummary(): JSONObject = request("GET", "users/promotion")
 
     fun withdrawalHistory(): JSONObject = request("GET", "users/withdrawals")
+
+    fun payoutAccounts(): JSONObject = request("GET", "users/payout-accounts")
+
+    fun addPayoutAccount(
+        countryCode: String, currency: String, providerCode: String, methodCode: String,
+        accountHolder: String, accountNumber: String, phoneNumber: String
+    ): JSONObject = request("POST", "users/payout-accounts", JSONObject()
+        .put("countryCode", countryCode).put("currency", currency)
+        .put("providerCode", providerCode).put("methodCode", methodCode)
+        .put("accountHolder", accountHolder).put("accountNumber", accountNumber)
+        .put("phoneNumber", phoneNumber))
+
+    fun deletePayoutAccount(id: String): JSONObject = request("DELETE", "users/payout-accounts/$id")
 
     fun publishedTasks(): JSONObject = request("GET", "tasks")
 
