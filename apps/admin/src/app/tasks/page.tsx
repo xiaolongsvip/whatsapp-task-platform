@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED";
 
@@ -241,7 +242,7 @@ export default function AdminTasksPage() {
         <section className="panel">
           <h2>尚未登录管理后台</h2>
           <p className="muted">任务管理需要管理员会话，请先登录。</p>
-          <a href="/" className="primary-btn" style={{ display: "inline-block", textDecoration: "none" }}>前往管理员登录</a>
+          <Link href="/" className="primary-btn" style={{ display: "inline-block", textDecoration: "none" }}>前往管理员登录</Link>
         </section>
       </main>
     );
@@ -256,7 +257,7 @@ export default function AdminTasksPage() {
         </div>
         <div className="action-row" style={{ marginTop: 0 }}>
           <span className="muted">{adminEmail}</span>
-          <a className="secondary-btn" href="/" style={{ textDecoration: "none" }}>号码池管理</a>
+          <Link className="secondary-btn" href="/" style={{ textDecoration: "none" }}>号码池管理</Link>
           <button className="secondary-btn" onClick={logout}>退出登录</button>
         </div>
       </header>
