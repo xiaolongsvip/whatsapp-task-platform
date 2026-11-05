@@ -1053,24 +1053,119 @@ private fun WalletScreen(
 
 @Composable
 private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
-    val isEnglish = language == "en"
+    val en = language == "en"
+    var selected by rememberSaveable { mutableIntStateOf(0) }
+    var data by remember { mutableStateOf<JSONObject?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(refresh) {
+        loading = true
+        error = null
+        runCatching { withContext(Dispatchers.IO) { AuthRepository.walletTransactions() } }
+            .onSuccess { data = it }
+            .onFailure { error = it.message ?: if (en) "Unable to load wallet transactions" else "钱包流水加载失败" }
+        loading = false
+    }
+    val items = data?.optJSONArray("items")
+    val filtered = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter { item ->
+        when (selected) {
+            1 -> item.optString("type") == "INCOME"
+            2 -> item.optString("type") == "EXPENSE"
+            3 -> item.optString("type") == "WITHDRAWAL"
+            else -> true
+        }
+    }
+    fun label(item: JSONObject): String {
+        return when (item.optString("sourceType")) {
+            "TASK_REWARD" -> if (en) "Task reward" else "任务奖励"
+            "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
+            "WITHDRAWAL" -> if (en) "Withdrawal" else "提现"
+            else -> if (item.optString("direction") == "CREDIT") { if (en) "Income" else "收入" } else { if (en) "Expense" else "支出" }
+        }
+    }
+    fun status(value: String): String = when (value) {
+        "POSTED" -> if (en) "Completed" else "已入账"
+        "REQUESTED" -> if (en) "Pending" else "待处理"
+        "UNDER_REVIEW" -> if (en) "Under review" else "审核中"
+        "APPROVED" -> if (en) "Approved" else "已批准"
+        "PROCESSING" -> if (en) "Processing" else "处理中"
+        "PAID" -> if (en) "Paid" else "已支付"
+        "REJECTED" -> if (en) "Rejected" else "已拒绝"
+        "FAILED" -> if (en) "Failed" else "失败"
+        "CANCELLED" -> if (en) "Cancelled" else "已取消"
+        else -> value
+    }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB))) {
-        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
             Spacer(Modifier.weight(1f))
-            Text(if (isEnglish) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
+            Text(if (en) "Wallet details" else "钱包明细", fontWeight = FontWeight.Bold, color = Color(0xFF123E56))
             Spacer(Modifier.weight(1f))
             Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF667085))
+            Spacer(Modifier.width(12.dp))
+            Icon(Icons.Default.Language, null, tint = Color(0xFF667085))
+            Spacer(Modifier.width(8.dp))
         }
-        Card(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(Modifier.fillMaxWidth().height(122.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text(if (isEnglish) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF455B52), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                Text(if (isEnglish) "Approved rewards will appear here" else "审核通过的奖励会显示在这里", color = Color(0xFF789087), style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth().background(Color.White)) {
+            listOf(if (en) "All" else "全部", if (en) "Income" else "收入", if (en) "Expense" else "支出", if (en) "Withdrawals" else "提现").forEachIndexed { index, title ->
+                Column(Modifier.weight(1f).clickable { selected = index }.padding(top = 13.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(title, color = if (selected == index) Color(0xFF319CCB) else Color(0xFF667085), fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(10.dp))
+                    Box(Modifier.fillMaxWidth().height(3.dp).background(if (selected == index) Color(0xFF319CCB) else Color.Transparent))
+                }
+            }
+        }
+        val totals = data?.optJSONObject("totals")
+        if (totals != null) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val income = JSONObject()
+                val expense = JSONObject()
+                val keys = totals.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val value = totals.optJSONObject(key) ?: continue
+                    income.put(key, value.optString("incomeMinor", "0"))
+                    expense.put(key, value.optString("expenseMinor", "0"))
+                }
+                CommissionSummaryCard(Modifier.weight(1f), if (en) "Total income" else "累计收入", formatCurrencyTotals(income), Icons.Default.TrendingUp)
+                CommissionSummaryCard(Modifier.weight(1f), if (en) "Total expense" else "累计支出", formatCurrencyTotals(expense), Icons.Default.TrendingDown)
+            }
+        }
+        if (loading) {
+            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
+        } else if (error != null) {
+            TextButton(onClick = { refresh++ }, modifier = Modifier.fillMaxWidth().padding(12.dp).background(Color(0xFFEAF6FC), RoundedCornerShape(10.dp))) {
+                Text((if (en) "Load failed, tap to retry: " else "加载失败，点击重试：") + error.orEmpty(), color = Color(0xFF258BB8))
+            }
+        } else if (filtered.isEmpty()) {
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
+                    Text(if (en) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(if (en) "Task rewards, commissions and wallet changes will appear here." else "任务奖励、邀请佣金及钱包资金变动会显示在这里。", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                filtered.forEach { item ->
+                    val income = item.optString("direction") == "CREDIT"
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50)) {
+                                Icon(if (income) Icons.Default.TrendingUp else Icons.Default.TrendingDown, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(10.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(label(item), color = Color(0xFF17243A), fontWeight = FontWeight.Bold)
+                                Text(item.optString("createdAt").replace("T", " ").take(16), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                                Text(status(item.optString("status")), color = Color(0xFF319CCB), style = MaterialTheme.typography.labelSmall)
+                            }
+                            Text((if (income) "+" else "−") + formatCurrencyTotals(JSONObject().put(item.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF258BB8), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                if (data?.optBoolean("hasMore") == true) Text(if (en) "Showing the latest records" else "当前展示最近流水记录", color = Color(0xFF667085), modifier = Modifier.padding(8.dp))
             }
         }
     }
