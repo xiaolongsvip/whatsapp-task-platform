@@ -197,7 +197,9 @@ class ScreenCaptureService : Service() {
             return
         }
         val retryPath = CaptureSessionState.lastCapturePath.value
-        val retryClaimId = CaptureSessionState.activeClaimId.value
+        // A failed upload must always be retried against the claim captured with
+        // that exact image, never whichever task happens to be selected now.
+        val retryClaimId = CaptureSessionState.lastCaptureClaimId.value
         val retryKey = CaptureSessionState.pendingIdempotencyKey.value
         if (!retryPath.isNullOrBlank() && !retryClaimId.isNullOrBlank() && !retryKey.isNullOrBlank()) {
             CaptureSessionState.setError(null)
