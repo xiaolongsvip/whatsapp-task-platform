@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.wtp.app.data.AuthRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -163,7 +164,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
         TextButton(onClick = { load() }, modifier = Modifier.fillMaxWidth()) { Text("刷新首页数据") }
     }
 
-    androidx.lifecycle.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+    LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
         overlay = Settings.canDrawOverlays(context)
         if (permissionStep == 1 && overlay) {
             permissionStep = 2
