@@ -1085,6 +1085,52 @@ private fun TaskExecutionScreen(
 }
 
 @Composable
+private fun TaskCountdownBadge(expiresAt: String, isEnglish: Boolean) {
+    val expiryMillis = remember(expiresAt) {
+        runCatching { Instant.parse(expiresAt).toEpochMilli() }.getOrDefault(0L)
+    }
+    var remainingSeconds by remember(expiryMillis) {
+        mutableStateOf(((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0))
+    }
+
+    LaunchedEffect(expiryMillis) {
+        while (expiryMillis > 0L && remainingSeconds > 0L) {
+            remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            if (remainingSeconds > 0L) delay(1000)
+        }
+        remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+    }
+
+    Surface(
+        color = if (remainingSeconds <= 30) Color(0xFFFFF1E5) else Color(0xFFE1F5EC),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                if (isEnglish) "Time left" else "剩余时间",
+                color = WtpMuted,
+                style = MaterialTheme.typography.labelSmall
+            )
+            Text(
+                String.format(
+                    Locale.ROOT,
+                    "%02d:%02d",
+                    remainingSeconds / 60,
+                    remainingSeconds % 60
+                ),
+                color = if (remainingSeconds <= 30) Color(0xFFD14343) else Color(0xFF278765),
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+@Composable
 private fun StepNumber(number: Int) {
     Surface(
         modifier = Modifier.width(40.dp).height(40.dp),
@@ -1402,9 +1448,22 @@ private fun ClaimedTaskCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(task.optString("title"), color = WtpText, fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (isEnglish) "Status: " else "状态：", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (isEnglish) "Status: " else "状态：", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold)
+                }
+                val expiresAt = claim.optString("expiresAt")
+                if (
+                    status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                    expiresAt.isNotBlank() && expiresAt != "null"
+                ) {
+                    TaskCountdownBadge(expiresAt = expiresAt, isEnglish = isEnglish)
+                }
             }
             if (phone.isNotBlank() && phone != "null") {
                 Surface(color = WtpPaleGreen, shape = RoundedCornerShape(9.dp)) {
