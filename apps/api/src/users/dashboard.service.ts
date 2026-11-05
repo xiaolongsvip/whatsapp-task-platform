@@ -217,11 +217,17 @@ export class DashboardService {
     });
     const walletIds = wallets.map((wallet) => wallet.id);
     if (!walletIds.length) return { items: [], totals: [], frozenBalances: [] };
-    const [ledger, withdrawals] = await Promise.all([
+    const [ledger, bySource, withdrawals] = await Promise.all([
       prisma.ledgerEntry.groupBy({
         by: ["walletId", "direction"],
         where: { walletId: { in: walletIds } },
         _sum: { amountMinor: true },
+      }),
+      prisma.ledgerEntry.groupBy({
+        by: ["walletId", "direction", "sourceType"],
+        where: { walletId: { in: walletIds } },
+        _sum: { amountMinor: true },
+        _count: { _all: true },
       }),
       prisma.withdrawalRequest.groupBy({
         by: ["walletId", "status"],
@@ -253,7 +259,16 @@ export class DashboardService {
         frozenMinor: "0",
       };
     });
-    return { totals, frozenBalances: [] };
+    const categories = wallets.map((wallet) => ({
+      currency: wallet.currency.trim(),
+      items: bySource.filter((row) => row.walletId === wallet.id).map((row) => ({
+        sourceType: row.sourceType,
+        direction: row.direction,
+        amountMinor: (row._sum.amountMinor ?? 0n).toString(),
+        count: row._count._all,
+      })),
+    }));
+    return { totals, categories, frozenBalances: [], frozenBalanceAvailable: false };
   }
 
   async getWalletTransactions(userId: string, limit = 100) {
