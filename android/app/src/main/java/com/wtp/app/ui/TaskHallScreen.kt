@@ -803,11 +803,11 @@ private fun MainTab(
     ) {
         Text(
             text,
-            color = if (selected) WtpDarkGreen else WtpMuted,
+            color = if (selected) Color(0xFF258765) else WtpMuted,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
         )
         Surface(
-            color = if (selected) WtpDarkGreen else Color.Transparent,
+            color = if (selected) Color(0xFF258765) else Color.Transparent,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(2.dp)
         ) {}
     }
@@ -874,11 +874,11 @@ private fun RecordFilterTabs(
             ) {
                 Text(
                     label,
-                    color = if (selected == filter) WtpDarkGreen else WtpMuted,
+                    color = if (selected == filter) Color(0xFF258765) else WtpMuted,
                     fontWeight = if (selected == filter) FontWeight.Bold else FontWeight.Medium
                 )
                 Surface(
-                    color = if (selected == filter) WtpDarkGreen else Color.Transparent,
+                    color = if (selected == filter) Color(0xFF258765) else Color.Transparent,
                     modifier = Modifier.width(48.dp).height(2.dp)
                 ) {}
             }
