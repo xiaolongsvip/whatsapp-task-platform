@@ -119,7 +119,9 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
                 )
             }
             else -> when (profilePage) {
-                "security" -> AccountSecurityScreen(Modifier.padding(padding), language, onBack = { profilePage = "home" }, onLanguageChanged = onLanguageChanged)
+                "security" -> AccountSecurityScreen(Modifier.padding(padding), language, onBack = { profilePage = "home" }, onPassword = { profilePage = "password" }, onLanguage = { profilePage = "language" })
+                "password" -> ChangePasswordScreen(Modifier.padding(padding), language, onBack = { profilePage = "security" })
+                "language" -> LanguageSettingsScreen(Modifier.padding(padding), language, onBack = { profilePage = "security" }, onLanguageChanged = onLanguageChanged)
                 "permissions" -> PermissionStatusScreen(Modifier.padding(padding), language, onBack = { profilePage = "home" })
                 else -> MyProfileScreen(Modifier.padding(padding), phone, language, onInvite = { tab = 2 }, onPayoutAccounts = { tab = 3; walletPage = "accounts" }, onAccountSecurity = { profilePage = "security" }, onPermissions = { profilePage = "permissions" }, onLogout = { scope.launch { onLogout() } })
             }
@@ -196,52 +198,69 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
 }
 
 @Composable
-private fun AccountSecurityScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onLanguageChanged: (String) -> Unit) {
+private fun AccountSecurityScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onPassword: () -> Unit, onLanguage: () -> Unit) {
     val en = language == "en"
-    var page by remember { mutableStateOf("") }
-    var languageMenu by remember { mutableStateOf(false) }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         SubPageHeader(if (en) "Account security" else "账号与安全", onBack, language)
         Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                ProfileMenuRow(Icons.Default.Email, if (en) "Bind email" else "绑定邮箱", if (en) "For security verification and important notices" else "用于安全验证与重要通知\n未绑定", { page = "email" })
-                ProfileMenuRow(Icons.Default.Lock, if (en) "Change password" else "修改密码", if (en) "Change your password regularly to protect account security" else "定期修改密码保护账号安全", { page = "password" })
-                Box {
-                    ProfileMenuRow(Icons.Default.Language, if (en) "Language settings" else "语言设置", if (en) "Language" else "语言", { languageMenu = true }, showDivider = false)
-                    DropdownMenu(expanded = languageMenu, onDismissRequest = { languageMenu = false }) {
-                        DropdownMenuItem(text = { Text("简体中文") }, onClick = { languageMenu = false; onLanguageChanged("zh-CN") })
-                        DropdownMenuItem(text = { Text("English") }, onClick = { languageMenu = false; onLanguageChanged("en") })
+                ProfileMenuRow(Icons.Default.Lock, if (en) "Change password" else "修改密码", if (en) "Change your password regularly to protect account security" else "定期修改密码保护账号安全", onPassword)
+                ProfileMenuRow(Icons.Default.Language, if (en) "Language settings" else "语言设置", if (en) "Language" else "语言", onLanguage, showDivider = false)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChangePasswordScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
+    val en = language == "en"
+    var current by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var showCurrent by remember { mutableStateOf(false) }
+    var showNew by remember { mutableStateOf(false) }
+    var showConfirm by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    val valid = current.isNotBlank() && newPassword.length >= 8 && newPassword == confirm
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        SubPageHeader(if (en) "Change password" else "修改密码", onBack, language)
+        Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                Text(if (en) "Change password" else "修改密码", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                @Composable fun passwordField(value: String, label: String, visible: Boolean, onVisible: () -> Unit, onValue: (String) -> Unit) {
+                    OutlinedTextField(value = value, onValueChange = onValue, modifier = Modifier.fillMaxWidth(), placeholder = { Text(label, color = Color(0xFF71877D)) }, singleLine = true, shape = RoundedCornerShape(5.dp), visualTransformation = if (visible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(), trailingIcon = { IconButton(onClick = onVisible) { Icon(if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (en) "Show password" else "显示密码", tint = Color(0xFF71877D)) } }, colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color(0xFFE1EAE5), focusedBorderColor = Color(0xFF8BB9A6)))
+                }
+                passwordField(current, if (en) "Current password" else "当前密码", showCurrent, { showCurrent = !showCurrent }) { current = it; message = "" }
+                passwordField(newPassword, if (en) "New password" else "新密码", showNew, { showNew = !showNew }) { newPassword = it; message = "" }
+                passwordField(confirm, if (en) "Confirm new password" else "确认新密码", showConfirm, { showConfirm = !showConfirm }) { confirm = it; message = "" }
+                Button(onClick = { message = if (newPassword.length < 8) { if (en) "Password must be at least 8 characters" else "新密码至少需要8位" } else if (newPassword != confirm) { if (en) "Passwords do not match" else "两次输入的新密码不一致" } else { if (en) "Password change service is not connected yet" else "密码修改接口尚未接入，暂不能提交" } }, enabled = valid, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666), disabledContainerColor = Color(0xFFE9ECEB), disabledContentColor = Color(0xFFB5C1BC))) {
+                    Text(if (en) "Confirm change" else "确认修改", fontWeight = FontWeight.SemiBold)
+                }
+                if (message.isNotBlank()) Text(message, color = Color(0xFFD04444), style = MaterialTheme.typography.bodySmall)
+                Text(if (en) "After changing your password, all login sessions will be invalidated. Please sign in again with your new password." else "密码修改成功后，所有登录会话将失效，需要使用新密码重新登录。", color = Color(0xFF71877D), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageSettingsScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onLanguageChanged: (String) -> Unit) {
+    val en = language == "en"
+    var selected by remember(language) { mutableStateOf(language) }
+    Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
+        SubPageHeader(if (en) "Language settings" else "语言设置", onBack, language)
+        Text(if (en) "Language settings" else "语言设置", modifier = Modifier.padding(start = 18.dp, top = 18.dp, bottom = 12.dp), color = Color(0xFF405A50), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
+                listOf("system" to if (en) "Follow system" else "跟随系统", "zh-CN" to "简体中文", "en" to "English").forEach { (value, label) ->
+                    Row(Modifier.fillMaxWidth().clickable { selected = value; onLanguageChanged(value) }.padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selected == value, onClick = { selected = value; onLanguageChanged(value) }, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF278666), unselectedColor = Color(0xFF71877D)))
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, color = Color(0xFF405A50), style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
         }
-    }
-    if (page == "email" || page == "password") {
-        AlertDialog(onDismissRequest = { page = ""; message = "" },
-            title = { Text(if (page == "email") { if (en) "Bind email" else "绑定邮箱" } else { if (en) "Change password" else "修改密码" }) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (page == "email") OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text(if (en) "Email address" else "邮箱地址") }, singleLine = true)
-                    else {
-                        OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text(if (en) "New password" else "新密码") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
-                        OutlinedTextField(value = confirm, onValueChange = { confirm = it }, label = { Text(if (en) "Confirm password" else "确认新密码") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
-                    }
-                    if (message.isNotBlank()) Text(message, color = Color(0xFFD04444))
-                }
-            },
-            confirmButton = { TextButton(onClick = {
-                message = if (page == "email") {
-                    if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) { if (en) "Enter a valid email address" else "请输入有效的邮箱地址" }
-                    else { if (en) "Email verification API is not connected yet" else "邮箱验证接口尚未接入，暂不能保存" }
-                } else if (password.length < 8) { if (en) "Password must be at least 8 characters" else "密码至少需要8位" }
-                else if (password != confirm) { if (en) "Passwords do not match" else "两次输入的密码不一致" }
-                else { if (en) "Password update API is not connected yet" else "密码修改接口尚未接入，暂不能保存" }
-            }) { Text(if (en) "Submit" else "提交") } },
-            dismissButton = { TextButton(onClick = { page = ""; message = "" }) { Text(if (en) "Close" else "关闭") } })
     }
 }
 
