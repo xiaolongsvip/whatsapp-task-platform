@@ -252,6 +252,7 @@ export default function AdminTasksPage() {
         <div className="action-row" style={{ marginTop: 0 }}>
           <span className="muted">{adminEmail}</span>
           <Link className="secondary-btn" href="/" style={{ textDecoration: "none" }}>号码池管理</Link>
+          <Link className="secondary-btn" href="/ai-settings" style={{ textDecoration: "none" }}>AI 审核设置</Link>
           <button className="secondary-btn" onClick={logout}>退出登录</button>
         </div>
       </header>
