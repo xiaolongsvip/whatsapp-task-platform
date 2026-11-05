@@ -183,7 +183,6 @@ export class ContactNumbersService {
           assignments: {
             where: { status: "ASSIGNED" },
             orderBy: { assignedAt: "desc" },
-            take: 1,
             include: {
               claim: {
                 include: {
@@ -201,15 +200,16 @@ export class ContactNumbersService {
       });
       if (!number) throw new NotFoundException("号码记录不存在。");
 
-      const assignment = number.assignments[0];
-      if (assignment?.claim.submissions.length) {
+      const assignments = number.assignments;
+      if (assignments.some((assignment) => assignment.claim.submissions.length > 0)) {
         throw new ConflictException("该号码关联的任务正在审核中，请先完成审核，再封禁号码。");
       }
 
       const now = new Date();
-      if (assignment) {
+      const cancelledClaimIds: string[] = [];
+      for (const assignment of assignments) {
         const claim = assignment.claim;
-        if (["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+        if (["CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
           await tx.taskClaim.update({
             where: { id: claim.id },
             data: { status: "CANCELLED" },
@@ -218,6 +218,7 @@ export class ContactNumbersService {
             where: { id: claim.taskId, claimedCount: { gt: 0 } },
             data: { claimedCount: { decrement: 1 } },
           });
+          cancelledClaimIds.push(claim.id);
         }
 
         await tx.contactAssignment.update({
@@ -260,9 +261,7 @@ export class ContactNumbersService {
         phoneE164: updated.phoneE164,
         status: updated.status,
         consentStatus: updated.consentStatus,
-        cancelledClaimId: assignment && ["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(assignment.claim.status)
-          ? assignment.claim.id
-          : null,
+        cancelledClaimIds,
       };
     });
   }
