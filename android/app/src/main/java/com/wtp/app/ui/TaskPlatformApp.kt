@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,7 +60,7 @@ private fun MemberShell(phone: String, onLogout: suspend () -> Unit) {
         }
     }) { padding ->
         when (tab) {
-            0 -> HomeDashboardScreen(Modifier.padding(padding))
+            0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it })
             1 -> SimpleScreen("任务大厅", "任务列表将在任务模块接入。", Modifier.padding(padding))
             2 -> SimpleScreen("推广中心", "推广关系和奖励将在推广模块接入。", Modifier.padding(padding))
             3 -> SimpleScreen("钱包", "钱包余额和账单将在钱包模块接入。", Modifier.padding(padding))
@@ -72,7 +73,7 @@ private fun MemberShell(phone: String, onLogout: suspend () -> Unit) {
 }
 
 @Composable
-private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
+private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var data by remember { mutableStateOf<JSONObject?>(null) }
@@ -81,6 +82,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
     var overlay by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var capture by rememberSaveable { mutableStateOf(false) }
     var permissionStep by remember { mutableIntStateOf(0) }
+    var showTutorial by remember { mutableStateOf(false) }
 
     val sky = Color(0xFF20A9E5)
     val paleSky = Color(0xFFE4F5FD)
@@ -107,7 +109,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
                 Row(Modifier.padding(end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("提现", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.background(sky, RoundedCornerShape(28.dp)).padding(horizontal = 14.dp, vertical = 9.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(formatMoney(firstBalance(data)), color = ink, fontWeight = FontWeight.Bold)
+                    Text(formatMoney(firstBalance(data), firstCurrency(data)), color = ink, fontWeight = FontWeight.Bold)
                 }
             }
             Text("首页", color = ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -144,7 +146,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
                 VerticalDivider(Modifier.height(42.dp), color = Color(0xFFE6ECF1))
                 Metric("待审核", data?.optJSONObject("stats")?.optInt("pendingReview")?.toString() ?: if (loading) "…" else "0")
                 VerticalDivider(Modifier.height(42.dp), color = Color(0xFFE6ECF1))
-                Metric("可提现", formatMoney(firstBalance(data)))
+                Metric("可提现", formatMoney(firstBalance(data), firstCurrency(data)))
             }
         }
 
@@ -164,14 +166,14 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(item.optString("title"), color = ink, fontWeight = FontWeight.Bold)
                             Text(item.optString("description"), color = muted)
-                            Text("奖励：${item.optString("currency")} ${item.optString("rewardMinor")}（最小货币单位）", color = sky)
+                            Text("单次奖励：${formatMoney(item.optString("rewardMinor"), item.optString("currency"))}", color = sky)
                             Text("已领取：${item.optInt("claimedCount")} / ${item.optInt("capacity")}", color = muted)
                         }
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Surface(color = paleSky, shape = RoundedCornerShape(10.dp)) { Text("● 可查看", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF1685B8)) }
-                    Button(onClick = { /* Task claiming is intentionally implemented in the task module. */ }, colors = ButtonDefaults.buttonColors(containerColor = sky), shape = RoundedCornerShape(12.dp)) {
+                    Button(onClick = { onNavigate(1) }, colors = ButtonDefaults.buttonColors(containerColor = sky), shape = RoundedCornerShape(12.dp)) {
                         Text("开始任务  ▷", color = Color.White)
                     }
                 }
@@ -179,7 +181,7 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
         }
 
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(18.dp).clickable { showTutorial = true }, verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = paleSky, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.Assignment, null, tint = sky, modifier = Modifier.padding(13.dp).size(28.dp)) }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) { Text("任务使用教程", color = ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text("了解任务规则、流程与注意事项", color = muted) }
@@ -211,11 +213,11 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
 
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFFFF8A24), modifier = Modifier.size(30.dp)); Text("邀请好友", color = ink, fontWeight = FontWeight.Bold); Text("赚取更多奖励", color = muted) }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF1685B8), modifier = Modifier.size(30.dp)); Text("收款账户", color = ink, fontWeight = FontWeight.Bold); Text("管理账户", color = muted) }
+                Column(Modifier.clickable { onNavigate(2) }, horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PersonAdd, null, tint = Color(0xFFFF8A24), modifier = Modifier.size(30.dp)); Text("邀请好友", color = ink, fontWeight = FontWeight.Bold); Text("赚取更多奖励", color = muted) }
+                Column(Modifier.clickable { onNavigate(3) }, horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF1685B8), modifier = Modifier.size(30.dp)); Text("收款账户", color = ink, fontWeight = FontWeight.Bold); Text("管理账户", color = muted) }
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = paleSky), shape = RoundedCornerShape(16.dp)) {
+        Card(onClick = { onNavigate(1) }, colors = CardDefaults.cardColors(containerColor = paleSky), shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color.White, shape = RoundedCornerShape(40.dp)) { Icon(Icons.Default.CardGiftcard, null, tint = sky, modifier = Modifier.padding(12.dp).size(28.dp)) }
                 Spacer(Modifier.width(12.dp))
@@ -225,6 +227,8 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier) {
         }
         TextButton(onClick = { load() }, modifier = Modifier.fillMaxWidth()) { Text("刷新首页数据", color = sky) }
     }
+
+    if (showTutorial) AlertDialog(onDismissRequest = { showTutorial = false }, title = { Text("任务使用教程") }, text = { Text("请先阅读任务要求，确认适用规则后再开始；仅向已同意接收消息的用户开展任务，提交真实证据等待审核。禁止伪造截图、骚扰他人或规避平台规则。") }, confirmButton = { TextButton(onClick = { showTutorial = false }) { Text("我知道了") } })
 
     LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
         overlay = Settings.canDrawOverlays(context)
@@ -255,7 +259,12 @@ private fun PermissionLine(label: String, status: String, granted: Boolean) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(label); Text(status, color = if (granted) Color(0xFF1685B8) else Color(0xFFB54708)) }
 }
 private fun firstBalance(data: JSONObject?): String = data?.optJSONArray("balances")?.optJSONObject(0)?.optString("amountMinor") ?: "0"
-private fun formatMoney(minor: String): String = minor
+private fun firstCurrency(data: JSONObject?): String = data?.optJSONArray("balances")?.optJSONObject(0)?.optString("currency") ?: "USD"
+private fun formatMoney(minor: String, currency: String): String {
+    val digits = runCatching { java.util.Currency.getInstance(currency).defaultFractionDigits }.getOrDefault(2).coerceAtLeast(0)
+    val amount = runCatching { java.math.BigDecimal(minor).movePointLeft(digits).setScale(digits, java.math.RoundingMode.DOWN).toPlainString() }.getOrDefault("0")
+    return "$currency $amount"
+}
 
 @Composable
 private fun SimpleScreen(title: String, description: String, modifier: Modifier = Modifier) {
