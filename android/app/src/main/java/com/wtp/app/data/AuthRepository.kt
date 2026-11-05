@@ -184,6 +184,9 @@ object AuthRepository {
     fun claimTask(taskId: String, idempotencyKey: String): JSONObject =
         request("POST", "tasks/$taskId/claims", JSONObject().put("idempotencyKey", idempotencyKey))
 
+    fun cancelTaskClaim(claimId: String): JSONObject =
+        request("POST", "tasks/claims/$claimId/cancel")
+
     fun submitTaskEvidence(
         claimId: String,
         filePath: String,
