@@ -18,14 +18,16 @@ Native Android application built with Kotlin and Jetpack Compose.
 4. Connect an Android phone with USB debugging enabled, or create an emulator.
 5. Select the `app` run configuration and press **Run**.
 
-## Current scope (0.1.0)
+## Current scope (0.3.0)
 
-- Native Activity and Jetpack Compose setup
-- Green Material 3 theme
+- Kotlin + Jetpack Compose native member app
+- Phone login with the shared platform account and encrypted session-cookie storage
+- Sky-blue member dashboard connected to the shared dashboard API
 - Five-tab navigation shell
-- Home screen foundation and module placeholders
-
-Authentication, API integration, screenshot capture, overlay permission, and task workflows are intentionally not implemented in this foundation stage.
+- User-authorized MediaProjection foreground session with multiple manual screenshot captures per active session
+- Ongoing notification actions for capture and stop
+- Overlay permission status check (the floating overlay UI itself remains a separate module)
+- Screenshots stored in app-private local storage; server evidence upload and task submission are not implemented yet
 
 
 ## User-authorized continuous screenshot session
