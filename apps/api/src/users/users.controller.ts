@@ -21,6 +21,12 @@ export class UsersController {
     return this.dashboard.getSummary(user.id, user.profile?.timezone ?? "UTC");
   }
 
+  @Get("withdrawals")
+  async getWithdrawals(@Req() request: Request) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.dashboard.getWithdrawalHistory(user.id);
+  }
+
   @Get("promotion")
   async getPromotion(@Req() request: Request) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
