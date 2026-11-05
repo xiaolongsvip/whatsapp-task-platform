@@ -197,7 +197,7 @@ object AuthRepository {
 
     fun commissionRecords(): JSONObject = request("GET", "users/commission-records")
 
-    fun walletTransactions(limit: Int = 100): JSONObject = request("GET", "users/wallet-transactions?limit=$limit")
+    fun walletTransactions(limit: Int = 100): JSONObject = request("GET", "users/wallet-transactions?limit=$limit")\n\n    fun walletOverview(): JSONObject = request("GET", "users/wallet-overview")
 
     fun teamMembers(): JSONObject = request("GET", "users/team")
 
