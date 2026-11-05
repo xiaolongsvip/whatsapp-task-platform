@@ -181,8 +181,8 @@ object AuthRepository {
 
     fun myTaskClaims(): JSONObject = request("GET", "tasks/my/claims")
 
-    fun claimTask(taskId: String, idempotencyKey: String): JSONObject =
-        request("POST", "tasks/$taskId/claims", JSONObject().put("idempotencyKey", idempotencyKey))
+    fun claimTask(taskId: String, slotId: String, idempotencyKey: String): JSONObject =
+        request("POST", "tasks/$taskId/claims", JSONObject().put("slotId", slotId).put("idempotencyKey", idempotencyKey))
 
     fun startTaskClaim(claimId: String): JSONObject =
         request("POST", "tasks/claims/$claimId/start")
