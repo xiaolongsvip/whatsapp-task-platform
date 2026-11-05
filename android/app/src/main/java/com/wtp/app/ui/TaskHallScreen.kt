@@ -106,6 +106,7 @@ fun TaskHallScreen(
     var dashboard by remember { mutableStateOf(JSONObject()) }
     var loading by remember { mutableStateOf(true) }
     var busyId by remember { mutableStateOf<String?>(null) }
+    var abandoningId by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var mainTab by remember { mutableStateOf(TaskMainTab.HALL) }
@@ -544,13 +545,14 @@ fun TaskHallScreen(
                 isEnglish = isEnglish,
                 activeClaimId = activeClaimId,
                 errorMessage = error,
-                abandoning = busyId == selectedClaim.optString("id"),
+                abandoning = abandoningId == selectedClaim.optString("id"),
                 starting = busyId == selectedClaim.optString("id"),
                 onGoWhatsApp = { startAndOpenWhatsApp(selectedClaim) },
                 onAbandon = {
                     val claimId = selectedClaim.optString("id")
                     scope.launch {
                         busyId = claimId
+                        abandoningId = claimId
                         error = null
                         try {
                             withContext(Dispatchers.IO) { AuthRepository.cancelTaskClaim(claimId) }
@@ -572,6 +574,7 @@ fun TaskHallScreen(
                             error = e.message ?: if (isEnglish) "Could not abandon this task." else "放弃任务失败，请重试。"
                         } finally {
                             busyId = null
+                            abandoningId = null
                         }
                     }
                 }
