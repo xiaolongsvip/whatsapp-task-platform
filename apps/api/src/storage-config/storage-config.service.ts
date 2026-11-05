@@ -72,8 +72,7 @@ export class StorageConfigService {
       update: {
         endpoint: input.endpoint.trim().replace(/\/+$/, ""), bucket: input.bucket.trim(),
         region: input.region?.trim() || "auto",
-        accessKeyCiphertext: access.ciphertext, accessKeyIv: access.iv, accessKeyTag: access.tag,
-        secretKeyCiphertext: secret.ciphertext, secretKeyIv: secret.iv, secretKeyTag: secret.tag,
+        ...credentials,
         enabled: input.enabled ?? false, updatedByAdminId: adminId,
       },
     });
