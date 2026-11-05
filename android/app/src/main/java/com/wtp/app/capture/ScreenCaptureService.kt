@@ -238,12 +238,12 @@ class ScreenCaptureService : Service() {
             val activeClaimId = CaptureSessionState.activeClaimId.value
             if (!activeClaimId.isNullOrBlank()) {
                 val idempotencyKey = UUID.randomUUID().toString()
-                CaptureSessionState.setLastCapture(file.name, file.absolutePath, idempotencyKey)
+                CaptureSessionState.setLastCapture(file.name, file.absolutePath, idempotencyKey, activeClaimId)
                 setFloatingStatus("上传中…")
                 updateNotification("截图成功，正在上传并提交审核…")
                 uploadEvidence(activeClaimId, file.absolutePath, idempotencyKey)
             } else {
-                CaptureSessionState.setLastCapture(file.name, file.absolutePath, "")
+                CaptureSessionState.setLastCapture(file.name, file.absolutePath, "", null)
                 updateNotification("截图已保存：${file.name}；当前没有选定任务，尚未上传")
                 setFloatingStatus("已截图\n未提交")
                 mainHandler.postDelayed({ showFloatingAction() }, 700)
