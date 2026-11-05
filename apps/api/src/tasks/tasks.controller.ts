@@ -61,6 +61,15 @@ export class TasksController {
     return this.tasks.claimTask(user.id, user.profile?.timezone ?? "UTC", taskId, body.idempotencyKey);
   }
 
+  @Post("claims/:claimId/cancel")
+  async cancelClaim(
+    @Req() request: Request,
+    @Param("claimId") claimId: string,
+  ) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.tasks.cancelClaim(user.id, claimId);
+  }
+
   @Post("claims/:claimId/submissions")
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor("file", {
