@@ -63,16 +63,22 @@ export class S3ObjectStorageService {
     await this.send("PUT", key, body, contentType);
   }
 
+  async getObjectBuffer(key: string): Promise<Buffer> {
+    const result = await this.send("GET", key);
+    if (!result) throw new ServiceUnavailableException("证据存储未返回文件内容。");
+    return result;
+  }
+
   async deleteObject(key: string): Promise<void> {
     await this.send("DELETE", key);
   }
 
   private async send(
-    method: "PUT" | "DELETE",
+    method: "PUT" | "GET" | "DELETE",
     key: string,
     body: Buffer = Buffer.alloc(0),
     contentType?: string,
-  ): Promise<void> {
+  ): Promise<Buffer | void> {
     const config = this.config();
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
@@ -135,6 +141,13 @@ export class S3ObjectStorageService {
       throw new ServiceUnavailableException(
         `证据存储请求失败（HTTP ${response.status}）。请检查桶名称、区域和访问密钥权限。`,
       );
+    }
+    if (method === "GET") {
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length > 8 * 1024 * 1024) {
+        throw new ServiceUnavailableException("证据图片超过审核读取大小限制。");
+      }
+      return bytes;
     }
   }
 }
