@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Put, Req } from "@nestjs/common";
+import { Body, Controller, Get, Post, Put, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { StorageConfigService } from "./storage-config.service";
 import { UpdateStorageConfigDto } from "./storage-config.dto";
+import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 
 const COOKIE = "wtp_admin_session";
 function token(request: Request): string | undefined {
@@ -12,11 +13,16 @@ function token(request: Request): string | undefined {
 
 @Controller("admin/storage-config")
 export class StorageConfigController {
-  constructor(private readonly auth: AdminAuthService, private readonly storage: StorageConfigService) {}
+  constructor(private readonly auth: AdminAuthService, private readonly storage: StorageConfigService, private readonly objectStorage: S3ObjectStorageService) {}
   @Get()
   async get(@Req() request: Request) {
     await this.auth.getCurrentAdmin(token(request));
     return this.storage.getPublicConfig();
+  }
+  @Post("test")
+  async test(@Req() request: Request) {
+    await this.auth.getCurrentAdmin(token(request));
+    return this.objectStorage.testConnection();
   }
   @Put()
   async update(@Req() request: Request, @Body() body: UpdateStorageConfigDto) {
