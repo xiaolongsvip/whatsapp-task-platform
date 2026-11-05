@@ -258,6 +258,7 @@ export default function AdminHomePage() {
         </div>
         <div className="action-row" style={{ marginTop: 0 }}>
           <span className="muted">{adminEmail}</span>
+          <a className="secondary-btn" href="/tasks" style={{ textDecoration: "none" }}>任务管理</a>
           <button className="secondary-btn" onClick={logout}>退出登录</button>
         </div>
       </header>
