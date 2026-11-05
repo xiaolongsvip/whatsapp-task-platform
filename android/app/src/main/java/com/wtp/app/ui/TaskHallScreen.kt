@@ -124,7 +124,7 @@ fun TaskHallScreen(
     val settledClaims = claims.filter { it.optString("status") == "APPROVED" }
     val availableTasks = tasks.filter { task ->
         val taskId = task.optString("id")
-        val remaining = task.optInt("remainingCapacity", -1)
+        val remaining = if (task.isNull("remainingCapacity")) -1 else task.optInt("remainingCapacity", -1)
         claimsByTask[taskId] == null && (remaining == -1 || remaining > 0)
     }
 
@@ -602,7 +602,7 @@ private fun AvailableTaskCard(
                     }
                     Column(Modifier.weight(1f)) {
                         Text(if (isEnglish) "Available slots" else "剩余名额", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        val capacity = task.optInt("remainingCapacity", -1)
+                        val capacity = if (task.isNull("remainingCapacity")) -1 else task.optInt("remainingCapacity", -1)
                         Text(if (capacity < 0) "—" else capacity.toString(), color = WtpText, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -827,10 +827,11 @@ private fun formatTaskReward(minor: String, currency: String): String {
 }
 
 private fun formatCompactBalance(minor: String, currency: String): String {
-    val amount = runCatching {
-        BigDecimal(minor).movePointLeft(2).setScale(3, RoundingMode.DOWN).toPlainString()
+    val digits = runCatching { java.util.Currency.getInstance(currency).defaultFractionDigits }
+        .getOrDefault(2).coerceAtLeast(0)
+    return runCatching {
+        BigDecimal(minor).movePointLeft(digits).setScale(3, RoundingMode.DOWN).toPlainString()
     }.getOrDefault("0.000")
-    return amount
 }
 
 private fun openWhatsApp(context: android.content.Context, claim: JSONObject, isEnglish: Boolean) {
