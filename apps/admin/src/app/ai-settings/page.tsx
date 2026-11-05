@@ -133,6 +133,7 @@ export default function AiSettingsPage() {
           <span className="muted">{adminEmail}</span>
           <Link className="secondary-btn" href="/">号码池管理</Link>
           <Link className="secondary-btn" href="/tasks">任务管理</Link>
+          <Link className="secondary-btn" href="/ai-reviews">AI 审核记录</Link>
           <button className="secondary-btn" onClick={logout}>退出登录</button>
         </div>
       </header>
