@@ -219,7 +219,7 @@ export class DashboardService {
       select: { id: true, currency: true },
     });
     const walletIds = wallets.map((wallet) => wallet.id);
-    if (!walletIds.length) return { items: [], totals: [], frozenBalances: [] };
+    if (!walletIds.length) return { items: [], totals: [], categories: [], frozenBalances: [], frozenBalanceAvailable: true };
     const [ledger, bySource, withdrawals] = await Promise.all([
       prisma.ledgerEntry.groupBy({
         by: ["walletId", "direction"],
