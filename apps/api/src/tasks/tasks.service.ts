@@ -298,7 +298,7 @@ export class TasksService {
     if (pending) throw new ConflictException("该任务已有一份待审核提交，请勿重复提交。");
 
     const safeName = file.originalname
-      .replace(/[\\/\\x00-\\x1f\\x7f]/g, "_")
+      .replace(/[^A-Za-z0-9._-]/g, "_")
       .slice(-120);
     const objectKey = `task-evidence/${userId}/${claimId}/${randomUUID()}.${detected.extension}`;
 
