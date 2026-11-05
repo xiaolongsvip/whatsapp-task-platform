@@ -112,7 +112,8 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
                     onPayoutAccounts = { walletPage = "accounts" },
                     onWithdrawalHistory = { walletPage = "withdrawals" },
                     onWithdrawalGuide = { walletPage = "guide" },
-                    onInviteFriends = { tab = 2 }
+                    onInviteFriends = { tab = 2 },
+                    onWalletDetails = { walletPage = "details" }
                 )
             }
             else -> Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -661,7 +662,8 @@ private fun WalletScreen(
     onPayoutAccounts: () -> Unit,
     onWithdrawalHistory: () -> Unit,
     onWithdrawalGuide: () -> Unit,
-    onInviteFriends: () -> Unit
+    onInviteFriends: () -> Unit,
+    onWalletDetails: () -> Unit
 ) {
     val isEnglish = language == "en"
     var summary by remember { mutableStateOf<JSONObject?>(null) }
@@ -715,7 +717,7 @@ private fun WalletScreen(
                     Text(
                         if (isEnglish) "All details  ›" else "全部明细  ›",
                         color = Color(0xFF397A32),
-                        modifier = Modifier.clickable { walletPage = "details" }
+                        modifier = Modifier.clickable(onClick = onWalletDetails)
                     )
                 }
                 Column(
