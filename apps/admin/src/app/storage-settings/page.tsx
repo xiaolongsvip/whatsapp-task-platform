@@ -20,6 +20,7 @@ export default function StorageSettingsPage() {
   const [secretKey, setSecretKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   useEffect(() => {
@@ -44,6 +45,14 @@ export default function StorageSettingsPage() {
     } catch (e) { setError(e instanceof Error ? e.message : "保存失败。"); }
     finally { setBusy(false); }
   }
+  async function testConnection() {
+    setTesting(true); setError(""); setMessage("");
+    try {
+      const result = await api<{ success: boolean; message: string }>("/api/v1/admin/storage-config/test", { method: "POST" });
+      setMessage(result.message);
+    } catch (e) { setError(e instanceof Error ? e.message : "连接测试失败。"); }
+    finally { setTesting(false); }
+  }
   if (loading) return <main className="admin-shell"><section className="panel">正在读取配置…</section></main>;
   if (!config) return <main className="admin-shell"><section className="panel"><h2>无法读取存储配置</h2><div className="notice error">{error}</div><Link href="/">返回管理后台</Link></section></main>;
   return <main className="admin-shell">
@@ -62,7 +71,7 @@ export default function StorageSettingsPage() {
           <div className="field"><label>Secret Access Key {config.configured ? "（留空保持原值）" : ""}</label><input type="password" autoComplete="new-password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder={config.configured ? config.secretKeyMasked : "部署时填写"} /></div>
         </div>
         <div className="action-row"><label><input type="checkbox" checked={config.enabled} onChange={e => setConfig({...config, enabled:e.target.checked})} /> 启用对象存储配置</label></div>
-        <div className="action-row"><button className="primary-btn" disabled={busy}>{busy ? "正在保存…" : "保存配置"}</button><span className="muted">密钥使用 AES-256-GCM 加密后存入数据库。</span></div>
+        <div className="action-row"><button className="primary-btn" disabled={busy}>{busy ? "正在保存…" : "保存配置"}</button><button type="button" className="secondary-btn" disabled={testing || !config.configured || !config.enabled} onClick={testConnection}>{testing ? "正在测试…" : "测试存储连接"}</button><span className="muted">密钥使用 AES-256-GCM 加密后存入数据库。</span></div>
       </section>
     </form>
   </main>;
