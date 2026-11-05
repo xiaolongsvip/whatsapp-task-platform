@@ -13,13 +13,13 @@ import com.wtp.app.ui.TaskPlatformApp
 import com.wtp.app.ui.theme.TaskPlatformTheme
 
 class MainActivity : ComponentActivity() {
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AuthRepository.initialize(applicationContext)
         // Use a deep blue status-bar surface with light system icons so the
         // time, signal and battery indicators remain readable.
         window.statusBarColor = android.graphics.Color.rgb(8, 105, 169)
-        @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility =
             window.decorView.systemUiVisibility and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
         setContent {
