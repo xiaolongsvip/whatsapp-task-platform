@@ -345,7 +345,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       if (!claim || claim.userId !== userId) {
         throw new NotFoundException("任务领取记录不存在。");
       }
-      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能开始或继续。");
       }
       const now = new Date();
@@ -397,7 +397,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           alreadyClosed: true,
         };
       }
-      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能取消。");
       }
 
@@ -585,7 +585,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           return idempotent;
         }
 
-        if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(lockedClaim.status)) {
+        if (!["CLAIMED", "IN_PROGRESS"].includes(lockedClaim.status)) {
           throw new ConflictException("任务状态已变化，请刷新后重试。");
         }
         const alreadyPending = await tx.taskSubmission.findFirst({
