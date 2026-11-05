@@ -173,23 +173,45 @@ export class TaskAdminService {
     if (task.startsAt && task.endsAt && task.startsAt >= task.endsAt) {
       throw new BadRequestException("任务结束时间必须晚于开始时间。");
     }
-    if (task.capacity !== null && task.claimedCount >= task.capacity) {
-      throw new ConflictException("任务名额已满，不能发布。");
-    }
 
-    const availableNumbers = await prisma.contactNumber.count({
-      where: { status: "AVAILABLE", consentStatus: "GRANTED" },
-    });
-    if (availableNumbers < 1) {
-      throw new ConflictException("号码池没有可分配的已授权号码，请先导入号码。");
-    }
+    return prisma.$transaction(async (tx) => {
+      const availableNumbers = await tx.contactNumber.findMany({
+        where: {
+          status: "AVAILABLE",
+          consentStatus: "GRANTED",
+          taskSlots: { none: {} },
+        },
+        select: { id: true },
+        orderBy: { importOrder: "asc" },
+      });
+      if (availableNumbers.length === 0) {
+        const existingSlots = await tx.taskSlot.count({
+          where: { taskId, status: "AVAILABLE" },
+        });
+        if (existingSlots === 0) {
+          throw new ConflictException("号码池没有可分配的已授权号码，请先导入号码后再发布任务。");
+        }
+      } else {
+        await tx.taskSlot.createMany({
+          data: availableNumbers.map((number) => ({ taskId, contactNumberId: number.id })),
+          skipDuplicates: true,
+        });
+      }
 
-    const updated = await prisma.task.update({
-      where: { id: taskId },
-      data: { status: "PUBLISHED" },
-      include: { _count: { select: { claims: true } } },
+      const updated = await tx.task.update({
+        where: { id: taskId },
+        data: { status: "PUBLISHED" },
+        include: { _count: { select: { claims: true, slots: true } } },
+      });
+      return {
+        ...publicTask(updated),
+        inventory: await tx.taskSlot.groupBy({
+          by: ["status"],
+          where: { taskId },
+          _count: { _all: true },
+        }),
+      };
     });
-    return publicTask(updated);
   }
 
   async pause(taskId: string) {
