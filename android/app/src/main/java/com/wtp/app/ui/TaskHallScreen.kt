@@ -695,6 +695,7 @@ private fun TaskExecutionScreen(
     abandoning: Boolean,
     starting: Boolean,
     onGoWhatsApp: () -> Unit,
+    onExpired: () -> Unit,
     onAbandon: () -> Unit
 ) {
     val task = claim.optJSONObject("task") ?: JSONObject()
@@ -722,6 +723,11 @@ private fun TaskExecutionScreen(
             remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0) delay(1000)
         }
+        if (timerStarted && remainingSeconds <= 0 && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")) {
+            // Refreshing claims invokes the server expiry handler, which releases
+            // the assigned number and returns its task slot to the pool.
+            onExpired()
+        }
     }
 
     Column(
@@ -734,19 +740,25 @@ private fun TaskExecutionScreen(
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text(if (isEnglish) "WhatsApp private message task" else "WhatsApp 私信任务", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatusPill(claimStatus(status, isEnglish), WtpPaleGreen, WtpDarkGreen)
-                    StatusPill("WhatsApp", WtpSky, WtpDarkGreen)
-                    if (activeClaimId == claim.optString("id")) {
-                        Text(if (isEnglish) "Evidence task" else "截图任务", color = WtpDarkGreen, style = MaterialTheme.typography.labelSmall)
+                Text(if (isEnglish) "WhatsApp task" else "WhatsApp 任务", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(maskPhoneNumber(phone), color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.fillMaxWidth().background(Color(0xFFF2F7FB), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(if (isEnglish) "Single reward" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(reward, color = WtpText, fontWeight = FontWeight.Bold)
+                    }
+                    Surface(Modifier.width(1.dp).height(30.dp), color = WtpSkyBorder) {}
+                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(if (isEnglish) "Time remaining" else "剩余时间", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(String.format(Locale.ROOT, "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60), color = if (remainingSeconds <= 30) Color(0xFFD14343) else WtpText, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text(
-                    if (isEnglish) "Manually send the specified message, then submit a screenshot for review." else "手动发送指定信息，提交截图审核",
-                    color = WtpMuted,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    StatusPill(if (isEnglish) "● In progress" else "● 进行中", WtpPaleGreen, WtpDarkGreen)
+                    Button(onClick = onGoWhatsApp, enabled = !starting && phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && remainingSeconds > 0, colors = ButtonDefaults.buttonColors(containerColor = WtpWhatsAppGreen), shape = RoundedCornerShape(9.dp)) {
+                        Text(if (starting) { if (isEnglish) "Opening…" else "正在打开…" } else { if (isEnglish) "Continue task ▷" else "继续任务 ▷" }, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
                 val latestSubmission = claim.optJSONObject("latestSubmission")
                 val reviewReason = latestSubmission?.optString("reviewReason")
                     ?.takeUnless { it.isNullOrBlank() || it == "null" }
@@ -853,23 +865,6 @@ private fun TaskExecutionScreen(
                     }
                 }
 
-                if (message.isNotBlank()) {
-                    Text(if (isEnglish) "Prepared message" else "预设消息内容", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
-                    Surface(color = WtpPage, shape = RoundedCornerShape(9.dp)) {
-                        Text(message, Modifier.fillMaxWidth().padding(12.dp), color = WtpText)
-                    }
-                }
-                if (link.isNotBlank()) {
-                    Text(if (isEnglish) "Link preview" else "链接预览", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
-                    Surface(color = WtpSky, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            if (previewTitle.isNotBlank()) Text(previewTitle, color = WtpText, fontWeight = FontWeight.Bold)
-                            if (previewDescription.isNotBlank()) Text(previewDescription, color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                            Text(link, color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
-                            if (previewImageUrl.isNotBlank()) TaskPreviewImage(previewImageUrl, isEnglish)
-                        }
-                    }
-                }
                 Text(
                     if (isEnglish) "Up to 3 unfinished tasks can be held at once. Default task time limit: 3 minutes." else "最多可保留 3 个未完成任务。默认时限 3 分钟；请以任务页显示的最新状态为准。",
                     color = WtpMuted,
