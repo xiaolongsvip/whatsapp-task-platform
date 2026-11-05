@@ -345,6 +345,17 @@ ${taskRequirements}
 
   private async reject(jobId: string, result: AiDecision) {
     await prisma.$transaction(async (tx) => {
+      const target = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        select: { submissionId: true },
+      });
+      if (!target) return;
+
+      // Serialize rejection with manual review and all other AI decisions.
+      // Always lock the submission before reading or changing the job state.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_submissions WHERE id = ${target.submissionId}::uuid FOR UPDATE
+      `;
       const current = await tx.aiReviewJob.findUnique({
         where: { id: jobId },
         include: { submission: { include: { claim: true } } },
@@ -391,14 +402,33 @@ ${taskRequirements}
   private async retryOrEscalate(jobId: string, attemptCount: number, message: string) {
     const terminal = attemptCount >= MAX_ATTEMPTS;
     const delayMinutes = Math.min(60, Math.pow(2, Math.max(0, attemptCount - 1)));
-    await prisma.aiReviewJob.updateMany({
-      where: { id: jobId, status: "PROCESSING" },
-      data: {
-        status: terminal ? "NEEDS_REVIEW" : "RETRY",
-        nextAttemptAt: new Date(Date.now() + delayMinutes * 60_000),
-        lockedAt: null,
-        lastError: message,
-      },
+    await prisma.$transaction(async (tx) => {
+      const target = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        select: { submissionId: true },
+      });
+      if (!target) return;
+
+      // Escalation makes the submission eligible for admin review. Use the
+      // same submission-first lock order as every manual/AI decision path.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_submissions WHERE id = ${target.submissionId}::uuid FOR UPDATE
+      `;
+      const current = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        select: { status: true },
+      });
+      if (!current || current.status !== "PROCESSING") return;
+
+      await tx.aiReviewJob.update({
+        where: { id: jobId },
+        data: {
+          status: terminal ? "NEEDS_REVIEW" : "RETRY",
+          nextAttemptAt: new Date(Date.now() + delayMinutes * 60_000),
+          lockedAt: null,
+          lastError: message,
+        },
+      });
     });
   }
 }
