@@ -25,6 +25,7 @@ type AdminTask = {
   previewDescription: string | null;
   previewImageUrl: string | null;
   claimCount: number;
+  inventory?: { total: number; available: number; assigned: number; used: number };
 };
 
 type TaskList = { tasks: AdminTask[] };
@@ -51,7 +52,7 @@ const emptyForm: TaskForm = {
   category: "WhatsApp",
   rewardAmount: "1.00",
   currency: "USD",
-  capacity: "3",
+  capacity: "",
   startsAt: "",
   endsAt: "",
   messageTemplate: "",
@@ -171,7 +172,7 @@ export default function AdminTasksPage() {
         category: form.category.trim(),
         rewardAmount: form.rewardAmount.trim(),
         currency: form.currency.trim().toUpperCase(),
-        capacity: form.capacity.trim() ? Number(form.capacity) : null,
+        capacity: null,
         startsAt: toIso(form.startsAt),
         endsAt: toIso(form.endsAt),
         messageTemplate: form.messageTemplate,
@@ -180,13 +181,6 @@ export default function AdminTasksPage() {
         previewDescription: form.previewDescription.trim() || null,
         previewImageUrl: form.previewImageUrl.trim() || null,
       };
-      if (!Number.isFinite(body.capacity) && body.capacity !== null) {
-        throw new Error("任务名额必须填写有效的整数。");
-      }
-      if (body.capacity !== null && (!Number.isInteger(body.capacity) || body.capacity < 1)) {
-        throw new Error("任务名额必须是大于 0 的整数；留空表示不限制总名额。");
-      }
-
       await api<AdminTask>(
         editingId ? `/api/v1/admin/tasks/${editingId}` : "/api/v1/admin/tasks",
         {
@@ -277,7 +271,7 @@ export default function AdminTasksPage() {
           <table>
             <thead>
               <tr>
-                <th>任务名称</th><th>分类</th><th>奖励</th><th>领取人数</th><th>任务名额</th><th>状态</th><th>开始时间</th><th>操作</th>
+                <th>任务名称</th><th>分类</th><th>奖励</th><th>领取次数</th><th>号码库存（总数 / 可领取 / 已分配 / 已使用）</th><th>状态</th><th>开始时间</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -287,7 +281,7 @@ export default function AdminTasksPage() {
                   <td>{task.category}</td>
                   <td>{task.currency} {task.rewardAmount}</td>
                   <td>{task.claimedCount}</td>
-                  <td>{task.capacity ?? "不限"}</td>
+                  <td>{task.inventory ? `${task.inventory.total} / ${task.inventory.available} / ${task.inventory.assigned} / ${task.inventory.used}` : "尚未绑定号码"}</td>
                   <td><span className={`pill ${task.status === "PUBLISHED" ? "available" : task.status === "PAUSED" ? "assigned" : task.status === "CLOSED" ? "blocked" : ""}`}>{statusLabel(task.status)}</span></td>
                   <td>{task.startsAt ? new Date(task.startsAt).toLocaleString() : "立即"}</td>
                   <td>
@@ -339,8 +333,8 @@ export default function AdminTasksPage() {
                 <input value={form.currency} onChange={(event) => updateField("currency", event.target.value.toUpperCase())} maxLength={3} minLength={3} required />
               </div>
               <div className="field">
-                <label>任务总名额（留空不限名额）</label>
-                <input type="number" min={1} max={1000000} step={1} value={form.capacity} onChange={(event) => updateField("capacity", event.target.value)} placeholder="例如 3" />
+                <label>任务号码数量</label>
+                <p className="muted" style={{ margin: 0 }}>发布时自动读取号码池中全部已授权、未分配号码；每个号码生成一条独立任务。</p>
               </div>
               <div className="field">
                 <label>开始时间（留空表示立即开放）</label>
