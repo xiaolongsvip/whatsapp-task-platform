@@ -172,6 +172,7 @@ export class TasksService {
         taskId: claim.taskId,
         status: claim.status,
         claimedAt: claim.claimedAt.toISOString(),
+        expiresAt: claim.expiresAt?.toISOString() ?? null,
         assignedPhoneNumber: claim.contactAssignment?.contactNumber.phoneE164 ?? null,
         task: {
           ...claim.task,
@@ -222,6 +223,13 @@ export class TasksService {
         });
         if (existingClaim) {
           throw new ConflictException("你已经领取过这个任务，请在“我的任务”中继续处理。");
+        }
+
+        const activeClaims = await tx.taskClaim.count({
+          where: { userId, status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] } },
+        });
+        if (activeClaims >= 3) {
+          throw new ConflictException("最多同时保留 3 个未完成任务，请先完成或放弃一个任务。");
         }
 
         const claimedToday = await tx.taskClaim.count({
@@ -277,7 +285,10 @@ export class TasksService {
             userId,
             status: "CLAIMED",
             idempotencyKey: key,
-            expiresAt: task.endsAt ?? undefined,
+            expiresAt: new Date(Math.min(
+              now.getTime() + 3 * 60 * 1000,
+              task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
+            )),
             contactAssignment: {
               create: {
                 contactNumberId: contactNumber.id,
@@ -542,6 +553,7 @@ export class TasksService {
     userId: string;
     status: string;
     claimedAt: Date;
+    expiresAt: Date | null;
     task: {
       id: string;
       title: string;
@@ -560,6 +572,7 @@ export class TasksService {
       taskId: claim.taskId,
       status: claim.status,
       claimedAt: claim.claimedAt.toISOString(),
+      expiresAt: claim.expiresAt?.toISOString() ?? null,
       assignedPhoneNumber: claim.contactAssignment?.contactNumber.phoneE164 ?? null,
       task: {
         id: claim.task.id,
