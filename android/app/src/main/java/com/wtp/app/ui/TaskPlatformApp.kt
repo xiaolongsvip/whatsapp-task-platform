@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
@@ -640,8 +641,10 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var detail by remember { mutableStateOf("") }
+    var supportDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val inviteUrl = data?.optString("inviteUrl").orEmpty()
+    val inviteCode = data?.optString("referralCode").orEmpty()
     fun load() {
         scope.launch {
             loading = true
@@ -663,81 +666,128 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
         val minor = it.optString("amountMinor", "0").toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
         String.format(java.util.Locale.US, "%.3f %s", minor.divide(java.math.BigDecimal(100)), it.optString("currency", "USD"))
     } ?: "0.000 USD"
+    fun copyText(value: String, label: String) {
+        if (value.isBlank()) return
+        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+        android.widget.Toast.makeText(context, if (isEnglish) "Copied" else "已复制", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    fun shareInvite() {
+        if (inviteUrl.isBlank()) return
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, if (isEnglish) "Join me" else "邀请你加入")
+            .putExtra(Intent.EXTRA_TEXT, inviteUrl)
+        context.startActivity(Intent.createChooser(send, if (isEnglish) "Share invitation" else "邀请好友"))
+    }
     Column(
-        modifier.fillMaxSize().background(Color(0xFFF3F5F6)).verticalScroll(rememberScrollState()).padding(12.dp),
+        modifier.fillMaxSize().background(Color(0xFFF2F5F4)).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
-            Modifier.fillMaxWidth().background(Color(0xFFB8E6D2), RoundedCornerShape(14.dp)).padding(14.dp),
+            Modifier.fillMaxWidth().background(Color(0xFFB8E6D2), RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) {
-                Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF177A5B), fontWeight = FontWeight.Bold)
+                Text((if (isEnglish) "Withdraw  " else "提现  ") + balance, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFF177A5B), fontWeight = FontWeight.Bold)
             }
-            Text(if (isEnglish) "Promote" else "推广", color = Color(0xFF245C4C), fontWeight = FontWeight.Bold)
-            Icon(Icons.Default.Language, contentDescription = null, tint = Color(0xFF477C6C))
+            Text(if (isEnglish) "Promote" else "推广", color = Color(0xFF245C4C), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { supportDialog = true }) { Icon(Icons.Default.HeadsetMic, contentDescription = "Support", tint = Color(0xFF477C6C)) }
+                Icon(Icons.Default.Language, contentDescription = if (isEnglish) "Language" else "语言", tint = Color(0xFF477C6C))
+            }
         }
         if (loading && data == null) {
-            Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF278666)) }
         }
         if (error != null) {
             Surface(color = Color(0xFFFFEEEE), shape = RoundedCornerShape(10.dp)) {
                 Text(error.orEmpty(), Modifier.fillMaxWidth().clickable { load() }.padding(12.dp), color = Color(0xFFB42318))
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Surface(color = Color(0xFFE5F4EE), shape = RoundedCornerShape(30.dp)) {
-                        Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF218365), modifier = Modifier.padding(10.dp))
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(if (isEnglish) "My invitation link" else "我的邀请链接", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
-                        Text(inviteUrl.ifBlank { if (isEnglish) "Loading…" else "正在加载…" }, color = Color(0xFF17243A), style = MaterialTheme.typography.bodyMedium)
-                    }
-                    OutlinedButton(onClick = {
-                        if (inviteUrl.isNotBlank()) {
-                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Invitation link", inviteUrl))
-                            android.widget.Toast.makeText(context, if (isEnglish) "Copied" else "已复制", android.widget.Toast.LENGTH_SHORT).show()
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDCEDE5))
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (isEnglish) "My invitation code" else "我的邀请码", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+                        Text(inviteCode.ifBlank { if (loading) "…" else "—" }, color = Color(0xFF216D54), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineMedium)
+                        OutlinedButton(
+                            onClick = { copyText(inviteCode, "Invitation code") },
+                            enabled = inviteCode.isNotBlank(),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF278666))
+                        ) {
+                            Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(if (isEnglish) "Copy code" else "复制邀请码")
                         }
-                    }, enabled = inviteUrl.isNotBlank()) { Icon(Icons.Default.ContentCopy, null); Text(if (isEnglish) "Copy" else "复制") }
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (inviteUrl.isNotBlank()) PromotionQrCode(inviteUrl, Modifier.size(88.dp))
+                        else Surface(Modifier.size(88.dp), color = Color(0xFFF5F8F6), shape = RoundedCornerShape(12.dp)) {}
+                        Text(if (isEnglish) "QR code" else "邀请二维码", color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().background(Color(0xFFF5FAF7), RoundedCornerShape(12.dp)).padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    Surface(color = Color(0xFFE3F3EC), shape = RoundedCornerShape(30.dp)) {
+                        Icon(Icons.Default.Link, null, tint = Color(0xFF218365), modifier = Modifier.padding(10.dp))
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(if (isEnglish) "My registration link" else "我的注册链接", color = Color(0xFF667085), style = MaterialTheme.typography.labelSmall)
+                        Text(inviteUrl.ifBlank { if (loading) "…" else "—" }, color = Color(0xFF17243A), style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedButton(
+                        onClick = { copyText(inviteUrl, "Invitation link") },
+                        enabled = inviteUrl.isNotBlank(),
+                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp)
+                    ) {
+                        Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(15.dp))
+                        Text(if (isEnglish) "Copy" else "复制")
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
-                        onClick = {
-                            if (inviteUrl.isNotBlank()) {
-                                val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                                    .putExtra(Intent.EXTRA_TEXT, inviteUrl)
-                                context.startActivity(Intent.createChooser(send, if (isEnglish) "Share invitation" else "邀请好友"))
-                            }
-                        },
+                        onClick = { shareInvite() },
                         enabled = inviteUrl.isNotBlank(),
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666))
-                    ) { Icon(Icons.Default.PersonAdd, null); Spacer(Modifier.width(6.dp)); Text(if (isEnglish) "Invite friends" else "邀请好友") }
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF278666)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.PersonAdd, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (isEnglish) "Invite friends" else "邀请好友")
+                    }
                     OutlinedButton(
-                        onClick = {
-                            if (inviteUrl.isNotBlank()) {
-                                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, inviteUrl)
-                                context.startActivity(Intent.createChooser(send, if (isEnglish) "Share now" else "立即分享"))
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text(if (isEnglish) "Share now" else "立即分享") }
+                        onClick = { shareInvite() },
+                        enabled = inviteUrl.isNotBlank(),
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF278666))
+                    ) {
+                        Icon(Icons.Default.Share, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (isEnglish) "Share now" else "立即分享")
+                    }
                 }
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 PromotionMetric(if (isEnglish) "Today's commission" else "今日佣金", amount(data, "todayCommissions"))
                 PromotionMetric(if (isEnglish) "Total commission" else "累计佣金", amount(data, "totalCommissions"))
                 PromotionMetric(if (isEnglish) "Available balance" else "可用余额", balance)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 PromotionMetric(if (isEnglish) "Invited" else "邀请人数", data?.optInt("inviteCount", 0)?.toString() ?: "0")
                 PromotionMetric(if (isEnglish) "Active users" else "活跃用户", data?.optInt("activeCount", 0)?.toString() ?: "0")
                 PromotionMetric(if (isEnglish) "This month" else "本月佣金", amount(data, "monthCommissions"))
@@ -745,7 +795,7 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                PromotionMenuRow(Icons.Default.PersonAdd, if (isEnglish) "Invite friends" else "邀请好友", if (isEnglish) "Share your invitation link or code" else "分享你的邀请链接或邀请码") { detail = "invite" }
+                PromotionMenuRow(Icons.Default.PersonAdd, if (isEnglish) "Invite friends" else "邀请好友", if (isEnglish) "Share your invitation link or code" else "分享你的注册链接或邀请码") { detail = "invite" }
                 HorizontalDivider(color = Color(0xFFEEF1F3))
                 PromotionMenuRow(Icons.Default.ReceiptLong, if (isEnglish) "Commission history" else "佣金记录", if (isEnglish) "View commission amounts and settlement status" else "查看每笔佣金的金额和结算状态") { detail = "commission" }
                 HorizontalDivider(color = Color(0xFFEEF1F3))
@@ -757,12 +807,48 @@ private fun PromotionScreen(modifier: Modifier = Modifier, language: String) {
                 onDismissRequest = { detail = "" },
                 title = { Text(when(detail) { "invite" -> if (isEnglish) "Invite friends" else "邀请好友"; "commission" -> if (isEnglish) "Commission history" else "佣金记录"; else -> if (isEnglish) "Team data" else "团队数据" }) },
                 text = { Text(when(detail) {
-                    "invite" -> inviteUrl
-                    "commission" -> if (isEnglish) "No commission records yet." else "目前暂无佣金记录。"
-                    else -> (if (isEnglish) "Direct invites: " else "直属邀请：") + (data?.optInt("inviteCount") ?: 0) + (if (isEnglish) "\\nTeam members: " else "\\n团队人数：") + (data?.optInt("teamCount") ?: 0)
+                    "invite" -> (if (isEnglish) "Invitation code: " else "邀请码：") + inviteCode + "\n" + inviteUrl
+                    "commission" -> if (isEnglish) "No commission records yet." else "目前暂无佣金明细页面。"
+                    else -> (if (isEnglish) "Direct invites: " else "直属邀请：") + (data?.optInt("inviteCount") ?: 0) + (if (isEnglish) "\nTeam members: " else "\n团队人数：") + (data?.optInt("teamCount") ?: 0)
                 }) },
                 confirmButton = { TextButton(onClick = { detail = "" }) { Text(if (isEnglish) "OK" else "知道了") } }
             )
+        }
+        if (supportDialog) {
+            AlertDialog(
+                onDismissRequest = { supportDialog = false },
+                title = { Text(if (isEnglish) "Customer support" else "联系客服") },
+                text = { Text(if (isEnglish) "Support contact has not been configured." else "客服入口暂未配置，请联系管理员。") },
+                confirmButton = { TextButton(onClick = { supportDialog = false }) { Text(if (isEnglish) "OK" else "知道了") } }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PromotionQrCode(value: String, modifier: Modifier = Modifier) {
+    val bitmap = remember(value) {
+        runCatching {
+            val hints = mapOf(com.google.zxing.EncodeHintType.MARGIN to 1)
+            val matrix = com.google.zxing.MultiFormatWriter().encode(
+                value, com.google.zxing.BarcodeFormat.QR_CODE, 320, 320, hints
+            )
+            android.graphics.Bitmap.createBitmap(320, 320, android.graphics.Bitmap.Config.ARGB_8888).also { image ->
+                for (x in 0 until 320) for (y in 0 until 320) {
+                    image.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                }
+            }
+        }.getOrNull()
+    }
+    if (bitmap != null) {
+        androidx.compose.foundation.Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Invitation QR code",
+            modifier = modifier.clip(RoundedCornerShape(12.dp)).background(Color.White)
+        )
+    } else {
+        Surface(modifier, color = Color(0xFFF5F8F6), shape = RoundedCornerShape(12.dp)) {
+            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.QrCode2, null, tint = Color(0xFF278666)) }
         }
     }
 }
