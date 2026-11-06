@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Bell, CircleHelp, ClipboardCheck, Database, Eye, EyeOff, FileClock, Gift, LayoutDashboard, LockKeyhole, LogOut, Menu, Phone, RefreshCw, ScanEye, Search, Send, ShieldCheck, UserRound, Upload, Users, WalletCards, Zap } from "lucide-react";
+import { ArrowRight, Bell, ChevronDown, CircleHelp, ClipboardCheck, Database, Eye, EyeOff, FileClock, Gift, LayoutDashboard, LockKeyhole, LogOut, Menu, Phone, RefreshCw, ScanEye, Search, Send, ShieldCheck, UserRound, Upload, Users, WalletCards, Zap } from "lucide-react";
 
 type Summary = {
   total: number;
@@ -100,6 +100,7 @@ export default function AdminHomePage() {
   const [dashboard, setDashboard] = useState<AdminDashboardSummary | null>(null);
   const [activeSection, setActiveSection] = useState<"dashboard" | "numbers">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState<"review" | "task" | null>(null);
   const [numbers, setNumbers] = useState<ContactNumber[]>([]);
   const [fileName, setFileName] = useState("");
   const [phoneText, setPhoneText] = useState("");
