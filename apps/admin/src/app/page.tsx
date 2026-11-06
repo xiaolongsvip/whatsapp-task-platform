@@ -27,6 +27,7 @@ type ContactNumber = {
 type ContactList = { numbers: ContactNumber[] };
 type AdminTaskSummary = { id: string; title: string; status: "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED"; claimedCount: number; inventory?: { total: number; available: number; assigned: number; used: number } };
 type AdminTaskList = { tasks: AdminTaskSummary[] };
+type AdminDashboardSummary = { cards: any; claimDistribution: any; taskTrend: any[] };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
@@ -83,6 +84,7 @@ export default function AdminHomePage() {
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [tasks, setTasks] = useState<AdminTaskSummary[]>([]);
+  const [dashboard, setDashboard] = useState<AdminDashboardSummary | null>(null);
   const [activeSection, setActiveSection] = useState<"dashboard" | "numbers">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [numbers, setNumbers] = useState<ContactNumber[]>([]);
