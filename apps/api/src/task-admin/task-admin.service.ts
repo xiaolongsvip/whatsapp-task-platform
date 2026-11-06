@@ -134,7 +134,7 @@ export class TaskAdminService {
       contactNumber: { is: { status: { not: "BLOCKED" }, consentStatus: { not: "REVOKED" } } },
     };
     const activeTask: Prisma.TaskSlotWhereInput = {
-      task: { is: { status: { notIn: ["PAUSED", "CLOSED"] } } },
+      task: { is: { status: { notIn: ["DRAFT", "PAUSED", "CLOSED"] } } },
     };
     const statusWhere = (status: string): Prisma.TaskSlotWhereInput => {
       switch (status) {
@@ -151,7 +151,7 @@ export class TaskAdminService {
             notFrozen,
             { NOT: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] },
             { OR: [
-              { task: { is: { status: { in: ["PAUSED", "CLOSED"] } } } },
+              { task: { is: { status: { in: ["DRAFT", "PAUSED", "CLOSED"] } } } },
               { claim: { is: { status: { in: ["REJECTED", "EXPIRED", "CANCELLED"] } } } },
             ] },
           ] };
