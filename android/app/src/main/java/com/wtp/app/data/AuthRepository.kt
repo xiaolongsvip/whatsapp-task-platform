@@ -1,6 +1,8 @@
 package com.wtp.app.data
 
 import android.content.Context
+import android.os.Build
+import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -165,17 +167,37 @@ object AuthRepository {
         }
     }
 
-    fun login(phone: String, password: String): JSONObject =
-        request("POST", "auth/login", JSONObject().put("phone", phone).put("password", password))
+    private fun reportDevice() {
+        val context = appContext ?: return
+        val identifier = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)?.takeIf { it.isNotBlank() } ?: return
+        val model = listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.distinct().joinToString(" ").take(120)
+        runCatching {
+            request("POST", "users/device", JSONObject()
+                .put("deviceIdentifier", identifier)
+                .put("manufacturer", Build.MANUFACTURER.orEmpty())
+                .put("model", model.ifBlank { "Android device" })
+                .put("androidVersion", Build.VERSION.RELEASE.orEmpty())
+                .put("sdkInt", Build.VERSION.SDK_INT)
+                .put("appVersion", BuildConfig.VERSION_NAME))
+        }
+    }
+
+    fun login(phone: String, password: String): JSONObject {
+        val result = request("POST", "auth/login", JSONObject().put("phone", phone).put("password", password))
+        reportDevice()
+        return result
+    }
 
     fun register(phone: String, password: String, inviteCode: String?): JSONObject {
         val body = JSONObject().put("phone", phone).put("password", password)
         if (!inviteCode.isNullOrBlank()) body.put("inviteCode", inviteCode.trim())
-        return request("POST", "auth/register", body)
+        val result = request("POST", "auth/register", body)
+        reportDevice()
+        return result
     }
 
     fun currentUser(): JSONObject {
-        return try {
+        val result = try {
             request("GET", "auth/me")
         } catch (error: IOException) {
             val message = error.message.orEmpty()
@@ -189,6 +211,8 @@ object AuthRepository {
             request("POST", "auth/refresh")
             request("GET", "auth/me")
         }
+        reportDevice()
+        return result
     }
 
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
