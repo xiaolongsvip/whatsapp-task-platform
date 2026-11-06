@@ -27,7 +27,7 @@ type ContactNumber = {
 type ContactList = { numbers: ContactNumber[] };
 type AdminTaskSummary = { id: string; title: string; status: "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED"; claimedCount: number; inventory?: { total: number; available: number; assigned: number; used: number } };
 type AdminTaskList = { tasks: AdminTaskSummary[] };
-type AdminDashboardSummary = { cards: any; claimDistribution: any; taskTrend: any[] };
+type AdminDashboardSummary = { cards: { todayClaims: number; pendingReviews: number; todayApprovals: number; activeUsers: number; pendingWithdrawals: number; todayRewards: { currency: string; amountMinor: string }[] }; claimDistribution: { waiting: number; inProgress: number; pendingReview: number; completed: number; rejected: number }; taskTrend: { day: string; submitted: number; approved: number; rejected: number }[] };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
