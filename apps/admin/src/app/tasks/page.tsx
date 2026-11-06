@@ -347,45 +347,56 @@ export default function AdminTasksPage() {
       {message && <div className="notice">{message}</div>}
       <section className="tasks-management-card">
         <div className="tasks-toolbar">
-          <div className="tasks-search"><span aria-hidden="true">⌕</span><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="任务名称、任务编号或完整号码" aria-label="搜索任务" /></div>
+          <div className="tasks-search"><Search size={15}/><input value={searchTerm} onChange={(event)=>setSearchTerm(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setPage(1);setAppliedSearch(searchTerm);}}} placeholder="任务名称、任务/执行编号或完整号码" aria-label="搜索任务"/></div>
           <div className="tasks-status-tabs" role="group" aria-label="任务状态筛选">
-            {([["ALL","全部"],["PUBLISHED","可领取"],["DRAFT","草稿"],["PAUSED","已暂停"],["CLOSED","已结束"]] as const).map(([value,label]) =>
-              <button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>setStatusFilter(value)}>{label}</button>
-            )}
+            {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
           </div>
-          <button className="tasks-primary-btn tasks-search-btn" type="button">搜索</button>
-          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setStatusFilter("ALL");}}>重置</button>
-          <button className="tasks-outline-btn" type="button" onClick={exportTasks}>⇩ 导出</button>
+          <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setPage(1);}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{
+            const headers=["任务名称","任务号码","任务组","奖励","话术","国家/地区","任务状态","创建时间"];
+            const labels={AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结"};
+            const rows=records.map((item)=>[item.taskName,item.phoneNumber,item.groupName,item.rewardAmount+" "+item.currency,item.messageTemplate,item.countryRegion,labels[item.status],new Date(item.createdAt).toLocaleString("zh-CN")]);
+            const csv=[headers,...rows].map((row)=>row.map((value)=>'"'+String(value).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+            const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="任务管理.csv";link.click();URL.revokeObjectURL(url);
+          }}><Download size={13}/> 导出</button>
         </div>
         <div className="tasks-stat-grid">
-          <article className="tasks-stat-card"><span className="tasks-stat-icon blue">▣</span><div><small>任务总数（当前列表）</small><strong>{tasks.length}</strong></div></article>
-          <article className="tasks-stat-card"><span className="tasks-stat-icon green">♙</span><div><small>可领取任务</small><strong>{publishedCount}</strong></div></article>
-          <article className="tasks-stat-card"><span className="tasks-stat-icon orange">♧</span><div><small>累计领取次数</small><strong>{totalClaims}</strong></div></article>
-          <article className="tasks-stat-card"><span className="tasks-stat-icon red">⊗</span><div><small>已结束任务</small><strong>{closedCount}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon blue"><Phone size={18}/></span><div><small>总任务</small><strong>{recordStats.total.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon green"><UserRound size={18}/></span><div><small>可领取</small><strong>{recordStats.available.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon orange"><Users size={18}/></span><div><small>已领取任务</small><strong>{(recordStats.inProgress+recordStats.review+recordStats.completed).toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon red"><UserRound size={18}/></span><div><small>已作废</small><strong>{(recordStats.closed+recordStats.frozen).toLocaleString()}</strong></div></article>
         </div>
-        <div className="tasks-table-heading"><strong>任务列表</strong><span>共 {filteredTasks.length} 条记录</span><button type="button" className="tasks-outline-btn" onClick={()=>void refresh()} disabled={busy}>刷新数据</button></div>
         <div className="tasks-table-scroll">
           <table className="tasks-management-table">
-            <thead><tr><th>任务名称</th><th>任务编号</th><th>任务分类</th><th>奖励</th><th>领取次数</th><th>号码库存（总数 / 可领取 / 已分配 / 已使用）</th><th>任务状态</th><th>创建时间</th><th>操作</th></tr></thead>
+            <thead><tr>
+              <th><input type="checkbox" aria-label="全选当前页" checked={records.length>0&&records.every((item)=>selectedIds.includes(item.id))} onChange={(event)=>setSelectedIds(event.target.checked?records.map((item)=>item.id):[])}/></th>
+              <th>任务名称</th><th>任务号码</th><th>任务组</th><th>奖励</th><th>话术</th><th>国家/地区</th><th>任务状态</th><th>创建时间</th><th>操作</th>
+            </tr></thead>
             <tbody>
-              {filteredTasks.map((task) => <tr key={task.id}>
-                <td className="tasks-title-cell" title={task.title}>{task.title}</td><td className="tasks-id-cell" title={task.id}>{task.id.slice(0,12)}…</td>
-                <td>{task.category || "未分组"}</td><td>{task.rewardAmount} {task.currency}</td><td>{task.claimedCount}</td>
-                <td>{task.inventory ? `${task.inventory.total} / ${task.inventory.available} / ${task.inventory.assigned} / ${task.inventory.used}` : "尚未绑定号码"}</td>
-                <td><span className={`tasks-status-pill ${task.status.toLowerCase()}`}>{statusLabel(task.status)}</span></td>
-                <td>{task.createdAt ? new Date(task.createdAt).toLocaleString("zh-CN",{hour12:false}) : "—"}</td>
-                <td><div className="tasks-row-actions">
-                  {(task.status==="DRAFT"||task.status==="PAUSED")&&<button type="button" onClick={()=>startEdit(task)} disabled={busy||task.claimedCount>0}>编辑</button>}
-                  {(task.status==="DRAFT"||task.status==="PAUSED")&&<button type="button" onClick={()=>void taskAction(task.id,"publish")} disabled={busy}>发布</button>}
-                  {task.status==="PUBLISHED"&&<button type="button" onClick={()=>void taskAction(task.id,"pause")} disabled={busy}>暂停</button>}
-                  {task.status!=="CLOSED"&&<button className="danger" type="button" onClick={()=>void taskAction(task.id,"close")} disabled={busy}>结束</button>}
-                </div></td>
+              {records.map((record)=><tr key={record.id}>
+                <td><input type="checkbox" aria-label={"选择 "+record.phoneNumber} checked={selectedIds.includes(record.id)} onChange={(event)=>setSelectedIds((current)=>event.target.checked?[...current,record.id]:current.filter((id)=>id!==record.id))}/></td>
+                <td className="tasks-title-cell" title={record.taskName}>{record.taskName}</td>
+                <td>{record.phoneNumber}</td><td>{record.groupName}</td><td>{record.rewardAmount} {record.currency}</td>
+                <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
+                <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[record.status]}</span></td>
+                <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
+                <td><div className="tasks-row-actions"><button type="button" onClick={()=>window.alert("任务名称："+record.taskName+"\n任务号码："+record.phoneNumber+"\n任务编号："+record.taskId+"\n任务状态："+record.status)}>查看</button><button type="button" className="danger" disabled title="单条删除接口尚未实现">删除</button></div></td>
               </tr>)}
-              {filteredTasks.length===0&&<tr><td colSpan={9} className="tasks-empty-row">{tasks.length===0?"目前还没有任务，请点击右上角添加任务。":"没有找到符合条件的任务"}</td></tr>}
+              {records.length===0&&<tr><td colSpan={10} className="tasks-empty-row">没有找到符合条件的任务号码记录</td></tr>}
             </tbody>
           </table>
         </div>
-        <footer className="tasks-table-footer"><span>当前显示 {filteredTasks.length} 条 · 接口最多返回最近 200 条任务</span><button className="tasks-outline-btn" type="button" onClick={()=>void refresh()} disabled={busy}>刷新</button></footer>
+        <footer className="tasks-table-footer">
+          <span>共 {totalRecords.toLocaleString()} 条</span>
+          <div className="tasks-pagination">
+            <button className="tasks-outline-btn" disabled={page<=1} onClick={()=>setPage((value)=>Math.max(1,value-1))}><ChevronLeft size={14}/></button>
+            <span>第 {page} / {totalPages} 页</span>
+            <button className="tasks-outline-btn" disabled={page>=totalPages} onClick={()=>setPage((value)=>Math.min(totalPages,value+1))}><ChevronRight size={14}/></button>
+            <select value={pageSize} onChange={(event)=>{setPageSize(Number(event.target.value));setPage(1);}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select>
+          </div>
+        </footer>
       </section>
       {formOpen && (
         <section className="panel">
