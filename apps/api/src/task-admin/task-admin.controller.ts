@@ -50,6 +50,46 @@ export class TaskAdminController {
     return this.tasks.listRecords({ page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20, keyword, status, groupName, createdFrom, createdTo, countryRegion });
   }
 
+  @Get("message-templates")
+  async listMessageTemplates(
+    @Req() request: Request,
+    @Query("enabled") enabled?: string,
+    @Query("platform") platform?: string,
+    @Query("action") action?: string,
+  ) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.listMessageTemplates({
+      ...(enabled === "true" ? { enabled: true } : enabled === "false" ? { enabled: false } : {}),
+      ...(platform ? { platform } : {}),
+      ...(action ? { action } : {}),
+    });
+  }
+
+  @Post("message-templates")
+  async createMessageTemplate(
+    @Req() request: Request,
+    @Body() body: { name?: string; platform?: string; action?: string; content?: string; enabled?: boolean },
+  ) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.createMessageTemplate(body);
+  }
+
+  @Patch("message-templates/:id")
+  async updateMessageTemplate(
+    @Req() request: Request,
+    @Param("id") id: string,
+    @Body() body: { name?: string; platform?: string; action?: string; content?: string; enabled?: boolean },
+  ) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.updateMessageTemplate(id, body);
+  }
+
+  @Delete("message-templates/:id")
+  async disableMessageTemplate(@Req() request: Request, @Param("id") id: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.disableMessageTemplate(id);
+  }
+
   @Get()
   async list(@Req() request: Request) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
