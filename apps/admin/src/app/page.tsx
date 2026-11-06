@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Bell, CheckCircle2, CircleHelp, ClipboardCheck, Database, Eye, EyeOff, FileText, LayoutDashboard, LockKeyhole, LogOut, Menu, Phone, Plus, RefreshCw, ScanEye, Search, Send, ShieldCheck, UserRound, Upload, Users, WalletCards, Zap } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, CircleHelp, ClipboardCheck, Database, Eye, EyeOff, FileText, Gift, LayoutDashboard, LockKeyhole, LogOut, Menu, Phone, Plus, RefreshCw, ScanEye, Search, Send, ShieldCheck, UserRound, Upload, Users, WalletCards, Zap } from "lucide-react";
 
 type Summary = {
   total: number;
