@@ -33,7 +33,7 @@ type AdminTask = {
 type TaskList = { tasks: AdminTask[] };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
 type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
-type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number } };
+type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
 
 type TaskForm = {
   title: string;
@@ -108,7 +108,7 @@ export default function AdminTasksPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | RecordStatus>("ALL");
   const [records, setRecords] = useState<TaskRecord[]>([]);
-  const [recordStats, setRecordStats] = useState<TaskRecordsResponse["stats"]>({total:0,available:0,inProgress:0,review:0,completed:0,closed:0,frozen:0,voided:0});
+  const [recordStats, setRecordStats] = useState<TaskRecordsResponse["stats"]>({total:0,available:0,inProgress:0,review:0,completed:0,closed:0,frozen:0,voided:0,todayCreated:0,todayCompleted:0,todayVoided:0,successRate:0});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
@@ -119,6 +119,8 @@ export default function AdminTasksPage() {
   const [adminSearch, setAdminSearch] = useState("");
   const [groupFilterOpen, setGroupFilterOpen] = useState(false);
   const [groupFilter, setGroupFilter] = useState("ALL");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
   const [selectedGroup, setSelectedGroup] = useState("");
   const [groupSaving, setGroupSaving] = useState(false);
@@ -129,21 +131,23 @@ export default function AdminTasksPage() {
   }, []);
 
   const loadRecords = useCallback(async () => {
-    const params = new URLSearchParams({page:String(page),pageSize:String(pageSize),keyword:appliedSearch,status:statusFilter});
+    const params = new URLSearchParams({page:String(page),pageSize:String(pageSize),keyword:appliedSearch,status:statusFilter,groupName:groupFilter});
+    if (createdFrom) params.set("createdFrom", new Date(createdFrom + "T00:00:00").toISOString());
+    if (createdTo) params.set("createdTo", new Date(createdTo + "T23:59:59.999").toISOString());
     const result = await api<TaskRecordsResponse>("/api/v1/admin/tasks/records?" + params.toString());
     setRecords(result.items);
     setRecordStats(result.stats);
     setTotalPages(result.pagination.totalPages);
     setTotalRecords(result.pagination.total);
     setSelectedIds([]);
-  }, [page,pageSize,appliedSearch,statusFilter]);
+  }, [page,pageSize,appliedSearch,statusFilter,groupFilter,createdFrom,createdTo]);
 
   useEffect(() => {
     if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
   }, [authenticated,loadRecords]);
 
-  const groupNames = Array.from(new Set(records.map((record) => record.groupName).filter(Boolean)));
-  const visibleRecords = records.filter((record) => groupFilter === "ALL" || record.groupName === groupFilter);
+  const groupNames = Array.from(new Set(tasks.map((task) => task.category).filter(Boolean)));
+  const visibleRecords = records;
   const pageStart = Math.max(1, Math.min(page - 2, totalPages - 4));
   const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, index) => pageStart + index);
 
@@ -371,7 +375,7 @@ export default function AdminTasksPage() {
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
-      {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>setGroupFilter(event.target.value)}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><button type="button" onClick={()=>{setGroupFilter("ALL");setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
+      {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>{setGroupFilter(event.target.value);setPage(1);}}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><label>创建开始</label><input aria-label="创建开始日期" type="date" value={createdFrom} onChange={(event)=>{setCreatedFrom(event.target.value);setPage(1);}}/><label>创建结束</label><input aria-label="创建结束日期" type="date" value={createdTo} onChange={(event)=>{setCreatedTo(event.target.value);setPage(1);}}/><button type="button" onClick={()=>{setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setPage(1);setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
       <section className="tasks-management-card">
@@ -381,7 +385,7 @@ export default function AdminTasksPage() {
             {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"],["VOIDED","已作废"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
           </div>
           <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
-          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setPage(1);}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setPage(1);}}>重置</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}><Filter size={13}/> 更多筛选</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{
@@ -397,6 +401,10 @@ export default function AdminTasksPage() {
           <article className="tasks-stat-card"><span className="tasks-stat-icon green"><UserRound size={18}/></span><div><small>可领取</small><strong>{recordStats.available.toLocaleString()}</strong></div></article>
           <article className="tasks-stat-card"><span className="tasks-stat-icon orange"><Users size={18}/></span><div><small>已领取任务</small><strong>{(recordStats.inProgress+recordStats.review+recordStats.completed).toLocaleString()}</strong></div></article>
           <article className="tasks-stat-card"><span className="tasks-stat-icon red"><UserRound size={18}/></span><div><small>已作废</small><strong>{recordStats.voided.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon blue"><BarChart3 size={18}/></span><div><small>今日新增</small><strong>{recordStats.todayCreated.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon green"><ClipboardCheck size={18}/></span><div><small>今日完成</small><strong>{recordStats.todayCompleted.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon orange"><Trash2 size={18}/></span><div><small>今日作废</small><strong>{recordStats.todayVoided.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon green"><BarChart3 size={18}/></span><div><small>执行成功率</small><strong>{recordStats.successRate.toFixed(2)}%</strong></div></article>
         </div>
         <div className="tasks-table-scroll">
           <table className="tasks-management-table">
