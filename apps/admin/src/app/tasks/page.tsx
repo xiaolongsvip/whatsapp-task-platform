@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, HandCoins, LayoutDashboard, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
 
 type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED";
 
@@ -30,6 +31,9 @@ type AdminTask = {
 };
 
 type TaskList = { tasks: AdminTask[] };
+type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN";
+type TaskRecord = { id: string; taskId: string; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null };
+type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number } };
 
 type TaskForm = {
   title: string;
@@ -111,12 +115,36 @@ export default function AdminTasksPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | TaskStatus>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | RecordStatus>("ALL");
+  const [records, setRecords] = useState<TaskRecord[]>([]);
+  const [recordStats, setRecordStats] = useState<TaskRecordsResponse["stats"]>({total:0,available:0,inProgress:0,review:0,completed:0,closed:0,frozen:0});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [adminSearch, setAdminSearch] = useState("");
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
     setTasks(result.tasks);
   }, []);
+
+  const loadRecords = useCallback(async () => {
+    const params = new URLSearchParams({page:String(page),pageSize:String(pageSize),keyword:appliedSearch,status:statusFilter});
+    const result = await api<TaskRecordsResponse>("/api/v1/admin/tasks/records?" + params.toString());
+    setRecords(result.items);
+    setRecordStats(result.stats);
+    setTotalPages(result.pagination.totalPages);
+    setTotalRecords(result.pagination.total);
+    setSelectedIds([]);
+  }, [page,pageSize,appliedSearch,statusFilter]);
+
+  useEffect(() => {
+    if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
+  }, [authenticated,loadRecords]);
 
   useEffect(() => {
     api<{ id: string; email: string }>("/api/v1/admin-auth/me")
