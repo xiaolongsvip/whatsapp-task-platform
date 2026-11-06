@@ -177,7 +177,7 @@ export default function AdminUsersPage() {
                 :key==="taskCount"?user.taskCount
                 :key==="approvedCount"?user.approvedCount
                 :key==="rejectedCount"?user.rejectedCount:"—"}</td>)}
-              <td>—</td><td><div className="users-row-actions"><button onClick={()=>void openDetail(user)}>详情</button><button onClick={()=>openEdit(user)}>编辑</button><button onClick={()=>void doResetPassword(user)}>重置密码</button><button className={user.status==="SUSPENDED"?"unfreeze":""} onClick={()=>void changeStatus(user)}>{user.status==="SUSPENDED"?"解冻":"冻结"}</button></div></td>
+              <td>—</td><td><div className="users-row-actions"><button onClick={()=>void openDetail(user)}>编辑</button><button onClick={()=>void doResetPassword(user)}>重置密码</button><button className={user.status==="SUSPENDED"?"unfreeze":""} onClick={()=>void changeStatus(user)}>{user.status==="SUSPENDED"?"解冻":"冻结"}</button></div></td>
             </tr>)}
             {!users.length&&<tr><td colSpan={shownColumns.length+2} className="users-empty">{busy?"正在加载用户…":"没有找到符合条件的用户"}</td></tr>}</tbody></table></div>
           <div className="users-pagination"><span>共 {total} 条</span><div><select value={pageSize} onChange={e=>{setPageSize(Number(e.target.value));setPage(1)}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select><button disabled={page<=1||busy} onClick={()=>setPage(p=>p-1)}><ChevronLeft size={15}/></button><b>{page}</b><span>/ {totalPages}</span><button disabled={page>=totalPages||busy} onClick={()=>setPage(p=>p+1)}><ChevronRight size={15}/></button></div></div>
@@ -185,7 +185,7 @@ export default function AdminUsersPage() {
       </section>
     </main>
 
-    {detail&&<div className="users-modal-backdrop"><div className="users-detail-modal">
+    {detail&&<div className="users-modal-backdrop users-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDetail(null)}}><div className="users-detail-modal" role="dialog" aria-modal="true" aria-label="用户详情">
       <header className="users-detail-head"><div><strong>用户详情</strong><span>{detail.basic.status==="ACTIVE"?"正常":detail.basic.status}</span><p>{detail.basic.phone}</p></div><button onClick={()=>setDetail(null)}><X size={17}/></button></header>
       <nav className="users-detail-tabs">{[["basic","基本信息"],["devices","设备信息"],["payout","收款账户"],["tasks","任务记录"],["withdrawals","提现记录"],["risk","风险记录"],["reputation","信誉记录"]].map(([key,label])=><button key={key} className={detailTab===key?"active":""} onClick={()=>setDetailTab(key)}>{label}</button>)}</nav>
       <div className="users-detail-content">
