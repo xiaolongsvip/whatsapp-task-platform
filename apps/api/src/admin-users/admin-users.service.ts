@@ -109,6 +109,17 @@ export class AdminUsersService {
     });
     if (!user) throw new NotFoundException("用户不存在。");
     const audit = await prisma.auditEvent.findMany({ where: { targetType: "USER", targetId: userId }, orderBy: { createdAt: "desc" }, take: 100 });
+    const linkedDeviceRows = user.devices.length ? await prisma.userDevice.findMany({
+      where: { deviceIdentifier: { in: [...new Set(user.devices.map((device) => device.deviceIdentifier))] } },
+      select: { deviceIdentifier: true, user: { select: { id: true, phone: true, status: true } } },
+      orderBy: { lastSeenAt: "desc" },
+    }) : [];
+    const linkedAccounts = new Map<string, { id: string; phone: string; status: string }[]>();
+    for (const row of linkedDeviceRows) {
+      const current = linkedAccounts.get(row.deviceIdentifier) ?? [];
+      if (!current.some((account) => account.id === row.user.id)) current.push(row.user);
+      linkedAccounts.set(row.deviceIdentifier, current);
+    }
     const today = utcStart();
     const [todayClaimed, claimGroups] = await Promise.all([
       prisma.taskClaim.count({ where: { userId, claimedAt: { gte: today } } }),
@@ -130,13 +141,80 @@ export class AdminUsersService {
     const effectiveInterval = user.profile?.minClaimIntervalSeconds ?? 60;
     return {
       basic: { id: user.id, phone: user.phone, referralCode: user.referralCode, inviter: user.invitedBy?.inviter ?? null, status: user.status, createdAt: user.createdAt, displayName: user.profile?.displayName ?? null, email: null, lastLoginAt: user.sessions[0]?.createdAt ?? null, reputationScore: user.profile?.reputationScore ?? 60, balances, todayClaimed, remainingToday: Math.max(0, effectiveDailyLimit - todayClaimed), effectiveDailyLimit, effectiveMinClaimIntervalSeconds: effectiveInterval, dailyTaskLimit: user.profile?.dailyTaskLimit ?? null, minClaimIntervalSeconds: user.profile?.minClaimIntervalSeconds ?? null, taskLimitSource: user.profile?.dailyTaskLimit == null ? "继承系统默认" : "用户自定义", intervalSource: user.profile?.minClaimIntervalSeconds == null ? "继承系统默认" : "用户自定义" },
-      devices: { supported: true, items: user.devices.map((device) => ({ id: device.id, deviceIdentifier: device.deviceIdentifier, manufacturer: device.manufacturer, model: device.model, androidVersion: device.androidVersion, sdkInt: device.sdkInt, appVersion: device.appVersion, firstSeenAt: device.firstSeenAt, lastSeenAt: device.lastSeenAt, events: device.events.map((event) => ({ id: event.id, eventType: event.eventType, manufacturer: event.manufacturer, model: event.model, androidVersion: event.androidVersion, appVersion: event.appVersion, createdAt: event.createdAt })) })) },
+      devices: { supported: true, items: user.devices.map((device) => ({
+        id: device.id, deviceIdentifier: device.deviceIdentifier, manufacturer: device.manufacturer, model: device.model,
+        androidVersion: device.androidVersion, sdkInt: device.sdkInt, appVersion: device.appVersion,
+        firstSeenAt: device.firstSeenAt, lastSeenAt: device.lastSeenAt, status: device.status,
+        isFlagged: device.isFlagged, flagReason: device.flagReason,
+        linkedAccounts: linkedAccounts.get(device.deviceIdentifier) ?? [],
+        events: device.events.map((event) => ({
+          id: event.id, eventType: event.eventType, manufacturer: event.manufacturer, model: event.model,
+          androidVersion: event.androidVersion, sdkInt: event.sdkInt, appVersion: event.appVersion,
+          actorId: event.actorId, reason: event.reason, createdAt: event.createdAt,
+        })),
+      })) },
       payoutAccounts: user.payoutAccounts,
       tasks: { total: allClaimCount, approved, rejected, approvalRate: reviewed ? approved / reviewed : null, items: user.claims.map((x) => ({ id: x.id, taskTitle: x.task.title, category: x.task.category, status: x.status, claimedAt: x.claimedAt, rewardMinor: x.task.rewardMinor.toString(), currency: x.task.currency, submissions: x.submissions.map((s) => ({ id: s.id, status: s.status, submittedAt: s.submittedAt, reviews: s.reviews })) })) },
       withdrawals: { total: withdrawals.length, pending: withdrawals.filter((x) => ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"].includes(x.status)).length, paid: withdrawals.filter((x) => x.status === "PAID").length, items: withdrawals.map((x) => ({ id: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency, status: x.status, createdAt: x.createdAt, payoutReference: x.payoutReference, payoutAccount: x.payoutAccount })) },
       risk: { calculated: reviewed >= 5, label: reviewed >= 5 && rejected / reviewed >= 0.5 ? "需关注" : reviewed >= 5 && rejected / reviewed >= 0.25 ? "中风险" : "低风险", reviewedTasks: reviewed, rejectedTasks: rejected, events: audit.filter((x) => /RISK|FRAUD|SUSPEND/i.test(x.action)).map((x) => ({ id: x.id, type: x.action, metadata: x.metadata, createdAt: x.createdAt })) },
       reputation: { score: user.profile?.reputationScore ?? 60, events: audit.filter((x) => x.action === "USER_REPUTATION_ADJUSTED").map((x) => ({ id: x.id, metadata: x.metadata, createdAt: x.createdAt, actorId: x.actorId })) },
     };
+  }
+
+
+  async deviceHistory(userId: string, deviceId: string, pageInput?: string, pageSizeInput?: string) {
+    const page = Math.max(1, Math.min(10000, Number.parseInt(pageInput ?? "1", 10) || 1));
+    const pageSize = Math.max(10, Math.min(100, Number.parseInt(pageSizeInput ?? "30", 10) || 30));
+    const device = await prisma.userDevice.findFirst({ where: { id: deviceId, userId }, select: { id: true } });
+    if (!device) throw new NotFoundException("设备记录不存在。");
+    const [total, items] = await Promise.all([
+      prisma.userDeviceEvent.count({ where: { deviceId } }),
+      prisma.userDeviceEvent.findMany({ where: { deviceId }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    ]);
+    return { items, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } };
+  }
+
+  async updateDevice(userId: string, deviceId: string, adminId: string, body: { status?: "ACTIVE" | "BLOCKED"; isFlagged?: boolean; reason: string }) {
+    if (body.status !== undefined && body.status !== "ACTIVE" && body.status !== "BLOCKED") throw new BadRequestException("设备状态无效。");
+    if (body.isFlagged !== undefined && typeof body.isFlagged !== "boolean") throw new BadRequestException("设备风险标记无效。");
+    const reason = body.reason?.trim();
+    if (!reason || reason.length > 500) throw new BadRequestException("请填写 1 到 500 个字符的操作原因。");
+    const device = await prisma.userDevice.findFirst({ where: { id: deviceId, userId } });
+    if (!device) throw new NotFoundException("设备记录不存在。");
+    const nextStatus = body.status ?? device.status;
+    const nextFlagged = body.isFlagged ?? device.isFlagged;
+    const statusChanged = nextStatus !== device.status;
+    const flagChanged = nextFlagged !== device.isFlagged;
+    if (!statusChanged && !flagChanged) throw new BadRequestException("设备状态没有变化。");
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.userDevice.update({
+        where: { id: deviceId },
+        data: {
+          status: nextStatus,
+          isFlagged: nextFlagged,
+          flagReason: nextFlagged ? reason : (flagChanged ? null : device.flagReason),
+          statusUpdatedAt: statusChanged ? new Date() : device.statusUpdatedAt,
+        },
+      });
+      const events = [];
+      if (statusChanged) events.push({
+        deviceId, eventType: nextStatus === "BLOCKED" ? "DEVICE_BLOCKED" : "DEVICE_UNBLOCKED",
+        manufacturer: device.manufacturer, model: device.model, androidVersion: device.androidVersion,
+        sdkInt: device.sdkInt, appVersion: device.appVersion, actorId: adminId, reason,
+      });
+      if (flagChanged) events.push({
+        deviceId, eventType: nextFlagged ? "DEVICE_FLAGGED" : "DEVICE_UNFLAGGED",
+        manufacturer: device.manufacturer, model: device.model, androidVersion: device.androidVersion,
+        sdkInt: device.sdkInt, appVersion: device.appVersion, actorId: adminId, reason,
+      });
+      if (events.length) await tx.userDeviceEvent.createMany({ data: events });
+      await tx.auditEvent.create({
+        data: { actorType: "ADMIN", actorId: adminId, action: "USER_DEVICE_UPDATED", targetType: "USER", targetId: userId,
+          metadata: { deviceId, previousStatus: device.status, status: nextStatus, previousFlagged: device.isFlagged, isFlagged: nextFlagged, reason } },
+      });
+      return result;
+    });
+    return { success: true, device: { id: updated.id, status: updated.status, isFlagged: updated.isFlagged, flagReason: updated.flagReason } };
   }
 
   async updatePolicy(userId: string, body: { dailyTaskLimit?: number | null; minClaimIntervalSeconds?: number | null }) {
