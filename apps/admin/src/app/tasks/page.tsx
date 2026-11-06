@@ -307,15 +307,67 @@ export default function AdminTasksPage() {
         <div><h1>任务管理</h1><p>添加和管理可领取任务，并可按任务整理和筛选。</p></div>
         <div className="tasks-heading-actions">
           <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}>任务组</button>
-          <button className="tasks-outline-btn" type="button" onClick={()=>{
-            if(!selectedIds.length){window.alert("请先勾选需要更换话术的任务号码。");return;}
-            const text=window.prompt("请输入新的 WhatsApp 话术模板：");if(text===null)return;
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
+            if(!selectedIds.length)return;
+            const chosen=records.filter((item)=>selectedIds.includes(item.id));
+            const taskIds=Array.from(new Set(chosen.map((item)=>item.taskId)));
+            const warning="将修改所选记录涉及的 "+taskIds.length+" 个任务的任务组名称。\n注意：同一任务下未勾选的其他号码记录也会同步显示新任务组。\n确定继续吗？";
+            if(!window.confirm(warning))return;
+            const groupName=window.prompt("请输入新的任务组名称：");
+            if(groupName===null)return;
+            setBusy(true);setError("");setMessage("");
+            try{
+              const result=await api<{total:number;succeeded:number;failed:number;results:Array<{taskId:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-group",{method:"PATCH",body:JSON.stringify({ids:selectedIds,groupName})});
+              setMessage("批量更换任务组完成：成功 "+result.succeeded+" 个任务，失败 "+result.failed+" 个任务。");
+              if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.taskId+": "+item.message).join("；"));}
+              await refresh();await loadRecords();
+            }catch(err){setError(err instanceof Error?err.message:"批量更换任务组失败。");}
+            finally{setBusy(false);}
+          }}>批量更换任务组（{selectedIds.length}）</button>
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
+            if(!selectedIds.length)return;
+            const chosen=records.filter((item)=>selectedIds.includes(item.id));
+            const eligible=chosen.filter((item)=>item.taskStatus!=="PUBLISHED"&&item.status==="AVAILABLE"&&!item.claimId);
+            const skipped=chosen.length-eligible.length;
+            if(!eligible.length){window.alert("选中的记录没有符合删除条件的项目。只能删除已暂停/草稿任务下未领取的可用记录。");return;}
+            if(!window.confirm("确定批量删除 "+eligible.length+" 条未领取记录吗？"+(skipped?"\n另有 "+skipped+" 条不符合条件，将保留不动。":"")+"\n删除后号码回到可分配号码池。"))return;
+            setBusy(true);setError("");setMessage("");
+            try{
+              const result=await api<{total:number;succeeded:number;failed:number;results:Array<{id:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-delete",{method:"POST",body:JSON.stringify({ids:eligible.map((item)=>item.id)})});
+              setMessage("批量删除完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
+              if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.id+": "+item.message).join("；"));}
+              await refresh();await loadRecords();
+            }catch(err){setError(err instanceof Error?err.message:"批量删除失败。");}
+            finally{setBusy(false);}
+          }}>批量删除（{selectedIds.length}）</button>
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
+            if(!selectedIds.length)return;
+            const chosen=records.filter((item)=>selectedIds.includes(item.id));
+            const eligible=chosen.filter((item)=>!["COMPLETED","REVIEW","FROZEN","VOIDED"].includes(item.status));
+            const skipped=chosen.length-eligible.length;
+            if(!eligible.length){window.alert("选中的记录没有符合作废条件的项目。");return;}
+            if(!window.confirm("确定批量作废 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中、冻结或已作废的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
+            setBusy(true);setError("");setMessage("");
+            try{
+              const result=await api<{total:number;succeeded:number;failed:number;results:Array<{id:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-void",{method:"POST",body:JSON.stringify({ids:eligible.map((item)=>item.id)})});
+              setMessage("批量作废完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
+              if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.id+": "+item.message).join("；"));}
+              await refresh();await loadRecords();
+            }catch(err){setError(err instanceof Error?err.message:"批量作废失败。");}
+            finally{setBusy(false);}
+          }}>批量作废（{selectedIds.length}）</button>
+
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={()=>{
+            if(!selectedIds.length)return;
             const chosen=records.filter((item)=>selectedIds.includes(item.id));
             const ids=Array.from(new Set(chosen.map((item)=>item.taskId)));
             const editable=tasks.filter((task)=>ids.includes(task.id)&&task.status!=="PUBLISHED"&&task.claimedCount===0);
             if(!editable.length){window.alert("选中的任务已发布或有领取记录，暂时不能批量修改话术。");return;}
-            void Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})}))).then(async()=>{setMessage("批量更换话术完成。");await refresh();await loadRecords();}).catch((err)=>setError(err instanceof Error?err.message:"批量更新失败。"));
-          }}>批量更换话术</button>
+            const text=window.prompt("请输入新的 WhatsApp 话术模板：");if(text===null)return;
+            if(!window.confirm("将修改所选记录涉及的 "+editable.length+" 个任务的话术，影响这些任务下的全部号码记录。确定继续吗？"))return;
+            setBusy(true);setError("");setMessage("");
+            void Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})}))).then(async()=>{setMessage("批量更换话术完成。");await refresh();await loadRecords();}).catch((err)=>setError(err instanceof Error?err.message:"批量更新失败。")).finally(()=>setBusy(false));
+          }}>批量更换话术（{selectedIds.length}）</button>
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
