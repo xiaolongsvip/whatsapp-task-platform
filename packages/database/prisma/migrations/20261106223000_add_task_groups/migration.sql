@@ -11,18 +11,7 @@ CREATE UNIQUE INDEX "task_groups_name_key" ON "task_groups"("name");
 
 ALTER TABLE "tasks" ADD COLUMN "group_id" UUID;
 
--- Preserve the existing grouping labels so existing task records remain organized.
-INSERT INTO "task_groups" ("id", "name", "updated_at")
-SELECT gen_random_uuid(), category, CURRENT_TIMESTAMP
-FROM "tasks"
-WHERE category IS NOT NULL AND btrim(category) <> ''
-GROUP BY category
-ON CONFLICT ("name") DO NOTHING;
-
-UPDATE "tasks" AS task
-SET "group_id" = task_group.id
-FROM "task_groups" AS task_group
-WHERE task_group.name = task.category;
+-- Existing task categories represent platforms, not task groups. Keep old tasks ungrouped.
 
 CREATE INDEX "tasks_group_id_idx" ON "tasks"("group_id");
 
