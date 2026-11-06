@@ -338,15 +338,20 @@ export default function AdminHomePage() {
       <aside className={"dashboard-sidebar " + (sidebarOpen ? "sidebar-open" : "")}>
         <div className="sidebar-brand"><div className="sidebar-brand-mark"><Zap size={19} fill="currentColor" /></div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
         <nav className="sidebar-nav">
-          <button className={"sidebar-link " + (activeSection === "dashboard" ? "active" : "")} onClick={() => { setActiveSection("dashboard"); setSidebarOpen(false); }}><LayoutDashboard size={16}/>控制台</button>
-          <button className={"sidebar-link " + (activeSection === "numbers" ? "active" : "")} onClick={() => { setActiveSection("numbers"); setSidebarOpen(false); }}><Phone size={16}/>号码管理</button>
-          <Link className="sidebar-link" href="/tasks"><ClipboardCheck size={16}/>任务管理</Link>
-          <div className="sidebar-group-label">审核与风控</div>
-          <Link className="sidebar-link" href="/ai-reviews"><ScanEye size={16}/>AI 审核记录</Link>
-          <Link className="sidebar-link" href="/ai-settings"><ShieldCheck size={16}/>AI 审核设置</Link>
-          <div className="sidebar-group-label">系统管理</div>
-          <Link className="sidebar-link" href="/storage-settings"><Database size={16}/>图片存储设置</Link>
-          <Link className="sidebar-link" href="/wallet-holds"><WalletCards size={16}/>冻结资金管理</Link>
+          <button type="button" className={"sidebar-link " + (activeSection === "dashboard" ? "active" : "")} onClick={() => { setActiveSection("dashboard"); setSidebarOpen(false); }}><LayoutDashboard size={16}/>控制台</button>
+          <button type="button" className="sidebar-link" disabled><Users size={16}/>用户管理</button>
+          <Link className="sidebar-link" href="/tasks"><Phone size={16}/>任务管理</Link>
+          <button type="button" className="sidebar-link" disabled><FileClock size={16}/>执行记录</button>
+          <button type="button" className={"sidebar-link sidebar-expand " + (expandedMenu === "review" ? "expanded" : "")} onClick={() => setExpandedMenu(expandedMenu === "review" ? null : "review")}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} className="sidebar-chevron"/></button>
+          {expandedMenu === "review" && <div className="sidebar-submenu"><Link href="/ai-reviews">AI 审核记录</Link><Link href="/ai-settings">AI 审核设置</Link></div>}
+          <button type="button" className={"sidebar-link sidebar-expand " + (expandedMenu === "task" ? "expanded" : "")} onClick={() => setExpandedMenu(expandedMenu === "task" ? null : "task")}><ClipboardCheck size={16}/>任务设置<ChevronDown size={14} className="sidebar-chevron"/></button>
+          {expandedMenu === "task" && <div className="sidebar-submenu"><Link href="/tasks">任务列表</Link></div>}
+          <button type="button" className="sidebar-link" disabled><HandCoins size={16}/>邀请与分佣</button>
+          <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
+          <button type="button" className="sidebar-link" disabled><WalletCards size={16}/>财务管理</button>
+          <button type="button" className="sidebar-link" disabled><BarChart3 size={16}/>数据报表</button>
+          <button type="button" className="sidebar-link" disabled><Shield size={16}/>权限管理</button>
+          <button type="button" className="sidebar-link" disabled><Settings size={16}/>系统设置</button>
         </nav>
         <div className="sidebar-version">EasyEarn 管理平台</div>
       </aside>
