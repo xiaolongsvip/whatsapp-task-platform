@@ -149,9 +149,47 @@ model User {
   contactAssignments    ContactAssignment[]
   payoutAccounts        PayoutAccount[]
   paymentTransactions   PaymentTransaction[]
+  devices               UserDevice[]
 
   @@index([status, createdAt])
   @@map("users")
+}
+
+
+model UserDevice {
+  id                 String             @id @default(uuid()) @db.Uuid
+  userId             String             @map("user_id") @db.Uuid
+  deviceIdentifier   String             @map("device_identifier")
+  manufacturer       String?
+  model              String
+  androidVersion     String?            @map("android_version")
+  sdkInt             Int?               @map("sdk_int")
+  appVersion         String             @map("app_version")
+  firstSeenAt        DateTime           @default(now()) @map("first_seen_at")
+  lastSeenAt         DateTime           @default(now()) @map("last_seen_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events             UserDeviceEvent[]
+
+  @@unique([userId, deviceIdentifier])
+  @@index([userId, lastSeenAt])
+  @@map("user_devices")
+}
+
+model UserDeviceEvent {
+  id               String     @id @default(uuid()) @db.Uuid
+  deviceId         String     @map("device_id") @db.Uuid
+  eventType        String     @map("event_type")
+  manufacturer     String?
+  model            String
+  androidVersion   String?    @map("android_version")
+  appVersion       String     @map("app_version")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  device           UserDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, createdAt])
+  @@map("user_device_events")
 }
 
 model AuthSession {
