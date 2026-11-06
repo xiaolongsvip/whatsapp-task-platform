@@ -329,14 +329,14 @@ export default function AdminHomePage() {
     );
   }
 
-  const taskDraft = tasks.filter((t) => t.status === "DRAFT").length;
-  const taskPublished = tasks.filter((t) => t.status === "PUBLISHED").length;
-  const taskPaused = tasks.filter((t) => t.status === "PAUSED").length;
-  const taskClosed = tasks.filter((t) => t.status === "CLOSED").length;
-  const totalTasks = Math.max(1, tasks.length);
-  const totalNumbers = Math.max(1, (summary?.available ?? 0) + (summary?.assigned ?? 0) + (summary?.used ?? 0) + (summary?.blocked ?? 0));
-  const taskDonut = "conic-gradient(#4b83f5 0 " + (taskPublished / totalTasks * 100) + "%, #16c56a 0 " + ((taskPublished + taskDraft) / totalTasks * 100) + "%, #ffb21a 0 " + ((taskPublished + taskDraft + taskPaused) / totalTasks * 100) + "%, #ff7188 0 100%)";
-  const numberDonut = "conic-gradient(#4b83f5 0 " + ((summary?.available ?? 0) / totalNumbers * 100) + "%, #16c56a 0 " + (((summary?.available ?? 0) + (summary?.assigned ?? 0)) / totalNumbers * 100) + "%, #ffb21a 0 " + (((summary?.available ?? 0) + (summary?.assigned ?? 0) + (summary?.used ?? 0)) / totalNumbers * 100) + "%, #ff7188 0 100%)";
+  const claimDistribution = dashboard?.claimDistribution;
+  const distributionTotal = Math.max(1, claimDistribution ? claimDistribution.waiting + claimDistribution.inProgress + claimDistribution.pendingReview + claimDistribution.completed + claimDistribution.rejected : 0);
+  const distributionGradient = claimDistribution
+    ? "conic-gradient(#4b83f5 0 " + (claimDistribution.waiting / distributionTotal * 100) + "%, #16c56a 0 " + ((claimDistribution.waiting + claimDistribution.inProgress) / distributionTotal * 100) + "%, #ffb21a 0 " + ((claimDistribution.waiting + claimDistribution.inProgress + claimDistribution.pendingReview) / distributionTotal * 100) + "%, #36baf2 0 " + ((claimDistribution.waiting + claimDistribution.inProgress + claimDistribution.pendingReview + claimDistribution.completed) / distributionTotal * 100) + "%, #ff7188 0 100%)"
+    : "conic-gradient(#e8edf4 0 100%)";
+  const rewardTotal = dashboard?.cards.todayRewards.length
+    ? dashboard.cards.todayRewards.map((item: {currency:string;amountMinor:string}) => item.currency + " " + (Number(item.amountMinor)/100).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})).join(" · ")
+    : "0";
 
   return (
     <main className="dashboard-app">
@@ -359,40 +359,40 @@ export default function AdminHomePage() {
         <header className="dashboard-topbar">
           <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button>
           <div className="topbar-search"><Search size={16}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索任务、用户、手机号码..."/></div>
-          <div className="topbar-actions">
-            <span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button>
-            <div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>Administrator</strong><small>超级管理员</small></span></div>
-            <button className="topbar-icon" title="退出登录" onClick={() => void logout()}><LogOut size={17}/></button>
-          </div>
+          <div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>Administrator</strong><small>超级管理员</small></span></div><button className="topbar-icon" title="退出登录" onClick={() => void logout()}><LogOut size={17}/></button></div>
         </header>
         <div className="dashboard-content">
           {error && <div className="notice error">{error}</div>}{message && <div className="notice">{message}</div>}
           {activeSection === "dashboard" ? (
             <>
-              <div className="dashboard-heading-row"><div><h1>控制台</h1><p>欢迎回来，查看平台当前运营概况。</p></div><button className="dashboard-refresh" onClick={() => void refresh()} title="刷新数据"><RefreshCw size={17}/></button></div>
-              <section className="overview-grid">
-                <div className="overview-card"><div className="overview-label">号码总数</div><strong>{summary?.total ?? "—"}</strong><small>号码池累计导入</small><span className="overview-icon blue"><Phone size={20}/></span></div>
-                <div className="overview-card"><div className="overview-label">待分配号码</div><strong>{summary?.available ?? "—"}</strong><small>当前可分配库存</small><span className="overview-icon orange"><FileText size={20}/></span></div>
-                <div className="overview-card"><div className="overview-label">已分配号码</div><strong>{summary?.assigned ?? "—"}</strong><small>已进入任务流程</small><span className="overview-icon green"><CheckCircle2 size={20}/></span></div>
-                <div className="overview-card"><div className="overview-label">已使用号码</div><strong>{summary?.used ?? "—"}</strong><small>号码库存状态</small><span className="overview-icon purple"><Users size={20}/></span></div>
-                <div className="overview-card"><div className="overview-label">任务总数</div><strong>{tasks.length}</strong><small>已创建任务</small><span className="overview-icon violet"><ClipboardCheck size={20}/></span></div>
-                <div className="overview-card"><div className="overview-label">已发布任务</div><strong>{taskPublished}</strong><small>当前发布状态</small><span className="overview-icon blue"><Zap size={20}/></span></div>
+              <section className="reference-stat-grid">
+                <div className="reference-stat-card"><div className="reference-stat-label">今日领取任务 <CircleHelp size={13}/></div><strong>{dashboard?.cards.todayClaims ?? "—"}</strong><small>今日累计领取</small><span className="reference-stat-icon blue"><ClipboardCheck size={19}/></span></div>
+                <div className="reference-stat-card"><div className="reference-stat-label">待审核任务 <CircleHelp size={13}/></div><strong>{dashboard?.cards.pendingReviews ?? "—"}</strong><small>当前待办</small><span className="reference-stat-icon orange"><ClipboardCheck size={19}/></span></div>
+                <div className="reference-stat-card"><div className="reference-stat-label">今日审核通过 <CircleHelp size={13}/></div><strong>{dashboard?.cards.todayApprovals ?? "—"}</strong><small>今日累计审核通过</small><span className="reference-stat-icon green"><ShieldCheck size={19}/></span></div>
+                <div className="reference-stat-card"><div className="reference-stat-label">活跃用户 <CircleHelp size={13}/></div><strong>{dashboard?.cards.activeUsers ?? "—"}</strong><small>当前有效用户</small><span className="reference-stat-icon purple"><Users size={19}/></span></div>
+                <div className="reference-stat-card"><div className="reference-stat-label">待处理提现 <CircleHelp size={13}/></div><strong>{dashboard?.cards.pendingWithdrawals ?? "—"}</strong><small>当前待办</small><span className="reference-stat-icon orange"><WalletCards size={19}/></span></div>
+                <div className="reference-stat-card"><div className="reference-stat-label">今日奖励支出 <CircleHelp size={13}/></div><strong className="reward-stat-value">{rewardTotal}</strong><small>今日任务奖励入账</small><span className="reference-stat-icon blue"><Gift size={19}/></span></div>
               </section>
-              <section className="dashboard-middle-grid">
-                <div className="dashboard-card"><div className="dashboard-card-title"><div><h2>任务状态概览</h2><p>按当前任务状态统计</p></div><Link href="/tasks">查看任务 <ArrowRight size={14}/></Link></div>
-                  <div className="status-chart-layout"><div className="status-donut" style={{background:taskDonut}}><div><small>任务总数</small><strong>{tasks.length}</strong></div></div><div className="status-legend"><div><i className="dot blue-dot"/>已发布<b>{taskPublished}</b></div><div><i className="dot green-dot"/>草稿<b>{taskDraft}</b></div><div><i className="dot yellow-dot"/>已暂停<b>{taskPaused}</b></div><div><i className="dot red-dot"/>已结束<b>{taskClosed}</b></div></div></div>
-                </div>
-                <div className="dashboard-card"><div className="dashboard-card-title"><div><h2>号码状态分布</h2><p>号码池当前库存状态</p></div><button onClick={() => setActiveSection("numbers")}>号码管理 <ArrowRight size={14}/></button></div>
-                  <div className="status-chart-layout"><div className="status-donut" style={{background:numberDonut}}><div><small>号码总数</small><strong>{summary?.total ?? "—"}</strong></div></div><div className="status-legend"><div><i className="dot blue-dot"/>待分配<b>{summary?.available ?? 0}</b></div><div><i className="dot green-dot"/>已分配<b>{summary?.assigned ?? 0}</b></div><div><i className="dot yellow-dot"/>已使用<b>{summary?.used ?? 0}</b></div><div><i className="dot red-dot"/>已禁用<b>{summary?.blocked ?? 0}</b></div></div></div>
-                </div>
+              <section className="reference-middle-grid">
+                <div className="dashboard-card trend-card"><div className="dashboard-card-title"><h2>近7日任务趋势</h2></div><TrendChart data={dashboard?.taskTrend ?? []}/><div className="trend-legend"><span><i className="dot green-dot"/>已提交任务数</span><span><i className="dot blue-dot"/>审核通过数</span><span><i className="dot orange-dot"/>审核失败数</span></div></div>
+                <div className="dashboard-card distribution-card"><div className="dashboard-card-title"><h2>任务状态分布</h2></div><div className="reference-distribution-layout">
+                  <div className="reference-donut" style={{background:distributionGradient}}><div><small>总数</small><strong>{claimDistribution ? claimDistribution.waiting + claimDistribution.inProgress + claimDistribution.pendingReview + claimDistribution.completed + claimDistribution.rejected : "—"}</strong></div></div>
+                  <div className="reference-distribution-legend">
+                    <div><i className="dot blue-dot"/>待领取<b>{claimDistribution?.waiting ?? "—"}</b></div>
+                    <div><i className="dot green-dot"/>进行中<b>{claimDistribution?.inProgress ?? "—"}</b></div>
+                    <div><i className="dot yellow-dot"/>待审核<b>{claimDistribution?.pendingReview ?? "—"}</b></div>
+                    <div><i className="dot cyan-dot"/>已完成<b>{claimDistribution?.completed ?? "—"}</b></div>
+                    <div><i className="dot red-dot"/>已驳回<b>{claimDistribution?.rejected ?? "—"}</b></div>
+                  </div>
+                </div></div>
               </section>
-              <section className="dashboard-bottom-grid">
-                <div className="dashboard-card"><div className="dashboard-card-title"><h2>待处理事项</h2></div>
-                  <button className="pending-row" onClick={() => setActiveSection("numbers")}><span className="pending-icon red"><Phone size={17}/></span><span>待分配号码库存</span><b>{summary?.available ?? 0}</b><ArrowRight size={15}/></button>
-                  <Link className="pending-row" href="/tasks"><span className="pending-icon amber"><ClipboardCheck size={17}/></span><span>待发布任务草稿</span><b>{taskDraft}</b><ArrowRight size={15}/></Link>
+              <section className="reference-bottom-grid">
+                <div className="dashboard-card reference-pending-card"><div className="dashboard-card-title"><h2>待处理事项</h2></div>
+                  <div className="reference-pending-row"><span className="pending-icon red"><WalletCards size={17}/></span><span>待处理提现</span><b>{dashboard?.cards.pendingWithdrawals ?? "—"}</b></div>
+                  <button className="reference-pending-row" onClick={() => setActiveSection("numbers")}><span className="pending-icon red"><Phone size={17}/></span><span>号码库存预警</span><b>{summary?.available ?? "—"}</b><ArrowRight size={15}/></button>
                 </div>
-                <div className="dashboard-card"><div className="dashboard-card-title"><h2>快捷操作</h2></div><div className="quick-actions">
-                  <button onClick={() => setActiveSection("numbers")}><span><Upload size={17}/></span>导入号码</button><Link href="/tasks"><span><Plus size={17}/></span>任务管理</Link>
+                <div className="dashboard-card reference-quick-card"><div className="dashboard-card-title"><h2>快捷操作</h2></div><div className="reference-quick-actions">
+                  <button onClick={() => setActiveSection("numbers")}><span><Upload size={17}/></span>导入号码</button><button disabled title="提现管理页面尚未接入"><span><WalletCards size={17}/></span>查看提现</button>
                 </div></div>
               </section>
             </>
