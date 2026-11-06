@@ -117,7 +117,7 @@ export class TaskAdminService {
   }
 
 
-  async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string }) {
+  async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; groupName?: string; createdFrom?: string; createdTo?: string }) {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
     const keyword = input.keyword?.trim() ?? "";
@@ -129,7 +129,24 @@ export class TaskAdminService {
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(keyword)) {
       searchConditions.push({ id: keyword }, { taskId: keyword });
     }
-    const baseWhere: Prisma.TaskSlotWhereInput = keyword ? { OR: searchConditions } : {};
+    const filters: Prisma.TaskSlotWhereInput[] = [];
+    if (keyword) filters.push({ OR: searchConditions });
+    if (input.groupName?.trim() && input.groupName !== "ALL") {
+      filters.push({ task: { is: { category: input.groupName.trim() } } });
+    }
+    const createdFrom = input.createdFrom ? new Date(input.createdFrom) : undefined;
+    const createdTo = input.createdTo ? new Date(input.createdTo) : undefined;
+    if (createdFrom && Number.isNaN(createdFrom.getTime())) throw new BadRequestException("开始日期格式无效。");
+    if (createdTo && Number.isNaN(createdTo.getTime())) throw new BadRequestException("结束日期格式无效。");
+    if (createdFrom && createdTo && createdFrom > createdTo) throw new BadRequestException("开始日期不能晚于结束日期。");
+    if (createdFrom || createdTo) {
+      filters.push({ createdAt: { ...(createdFrom ? { gte: createdFrom } : {}), ...(createdTo ? { lte: createdTo } : {}) } });
+    }
+    const baseWhere: Prisma.TaskSlotWhereInput = filters.length ? { AND: filters } : {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     const notFrozen: Prisma.TaskSlotWhereInput = {
       contactNumber: { is: { status: { not: "BLOCKED" }, consentStatus: { not: "REVOKED" } } },
     };
@@ -167,7 +184,7 @@ export class TaskAdminService {
       ? { AND: [baseWhere, statusWhere(input.status)] }
       : baseWhere;
     const countFor = (status: string) => prisma.taskSlot.count({ where: { AND: [baseWhere, statusWhere(status)] } });
-    const [total, available, inProgress, review, completed, closed, frozen, voided, selectedTotal, rows] = await Promise.all([
+    const [total, available, inProgress, review, completed, closed, frozen, voided, selectedTotal, rows, todayCreated, todayCompleted, todayVoided, approvedClaims, failedClaims] = await Promise.all([
       prisma.taskSlot.count({ where: baseWhere }),
       countFor("AVAILABLE"), countFor("IN_PROGRESS"), countFor("REVIEW"),
       countFor("COMPLETED"), countFor("CLOSED"), countFor("FROZEN"), countFor("VOIDED"),
@@ -183,6 +200,11 @@ export class TaskAdminService {
           claim: { select: { id: true, status: true, claimedAt: true, userId: true } },
         },
       }),
+      prisma.taskSlot.count({ where: { createdAt: { gte: today, lt: tomorrow } } }),
+      prisma.taskSlot.count({ where: { usedAt: { gte: today, lt: tomorrow } } }),
+      prisma.taskSlot.count({ where: { status: "VOIDED", updatedAt: { gte: today, lt: tomorrow } } }),
+      prisma.taskClaim.count({ where: { status: "APPROVED" } }),
+      prisma.taskClaim.count({ where: { status: { in: ["REJECTED", "EXPIRED", "CANCELLED"] } } }),
     ]);
     const items = rows.map((slot) => {
       const claimStatus = slot.claim?.status ?? null;
@@ -206,7 +228,7 @@ export class TaskAdminService {
     return {
       items,
       pagination: { page, pageSize, total: selectedTotal, totalPages: Math.max(1, Math.ceil(selectedTotal / pageSize)) },
-      stats: { total, available, inProgress, review, completed, closed, frozen, voided },
+      stats: { total, available, inProgress, review, completed, closed, frozen, voided, todayCreated, todayCompleted, todayVoided, successRate: approvedClaims + failedClaims ? Math.round((approvedClaims / (approvedClaims + failedClaims)) * 10000) / 100 : 0 },
     };
   }
 
