@@ -57,6 +57,17 @@ export class TaskAdminController {
     return this.tasks.create(body);
   }
 
+
+  @Patch(":id/group")
+  async updateGroup(
+    @Req() request: Request,
+    @Param("id") id: string,
+    @Body() body: { groupName?: string },
+  ) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.updateTaskGroup(id, typeof body.groupName === "string" ? body.groupName : "");
+  }
+
   @Patch(":id")
   async update(
     @Req() request: Request,
