@@ -548,3 +548,9 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .tasks-form-panel{margin-top:14px}
 @media(max-width:1200px){.tasks-toolbar{flex-wrap:wrap}.tasks-search{flex:1 1 220px}.tasks-status-tabs{order:5;flex:1 1 100%}}
 @media(max-width:760px){.tasks-dashboard-content{padding:14px 10px 22px}.tasks-page-heading{align-items:flex-start;flex-direction:column}.tasks-heading-actions{width:100%;flex-wrap:wrap}.tasks-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tasks-management-card{padding:10px}.tasks-table-scroll{height:60vh}.tasks-table-footer{align-items:flex-start;flex-direction:column}.tasks-pagination{flex-wrap:wrap}}
+
+.tasks-status-pill.in_progress{border-color:#bfdbfe;background:#eff6ff;color:#2563eb}
+.tasks-status-pill.review{border-color:#fed7aa;background:#fff7ed;color:#c56a17}
+.tasks-status-pill.completed{border-color:#b7f0d2;background:#effcf5;color:#059669}
+.tasks-status-pill.frozen{border-color:#fecaca;background:#fff1f2;color:#dc5260}
+.tasks-template-cell{max-width:210px;overflow:hidden;text-overflow:ellipsis}
