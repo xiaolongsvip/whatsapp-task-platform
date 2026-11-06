@@ -62,14 +62,12 @@ export class TaskAdminController {
 
   @Post("records/:id/void")
   async voidRecord(@Req() request: Request, @Param("id") id: string) {
-    await this.adminAuth.getCurrentAdmin(adminToken(request));
     const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
     return this.tasks.voidTaskRecord(id, admin.id);
   }
 
   @Delete("records/:id")
   async deleteRecord(@Req() request: Request, @Param("id") id: string) {
-    await this.adminAuth.getCurrentAdmin(adminToken(request));
     const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
     return this.tasks.deleteTaskRecord(id, admin.id);
   }
@@ -99,7 +97,6 @@ export class TaskAdminController {
     @Param("id") id: string,
     @Body() body: { groupName?: string },
   ) {
-    await this.adminAuth.getCurrentAdmin(adminToken(request));
     const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
     return this.tasks.updateTaskGroup(id, typeof body.groupName === "string" ? body.groupName : "", admin.id);
   }
