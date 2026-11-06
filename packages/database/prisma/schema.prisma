@@ -357,6 +357,8 @@ model Task {
   title        String
   description  String      @db.Text
   category     String
+  groupId      String?     @map("group_id") @db.Uuid
+  group        TaskGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
   status       TaskStatus  @default(DRAFT)
   rewardMinor  BigInt      @map("reward_minor")
   currency     String      @db.Char(3)
@@ -377,6 +379,18 @@ model Task {
 
   @@index([status, startsAt, endsAt])
   @@map("tasks")
+}
+
+
+model TaskGroup {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  tasks       Task[]
+
+  @@map("task_groups")
 }
 
 model TaskClaim {
