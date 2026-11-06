@@ -9,6 +9,7 @@ import { PayoutAccountsService } from "./payout-accounts.service";
 import { CreatePayoutAccountDto } from "./create-payout-account.dto";
 import { CreateWithdrawalDto } from "./create-withdrawal.dto";
 import { WithdrawalsService } from "./withdrawals.service";
+import { UserDeviceService } from "./device.service";
 
 function sessionToken(request: Request): string | undefined {
   const header = request.headers.cookie;
@@ -19,7 +20,13 @@ function sessionToken(request: Request): string | undefined {
 
 @Controller("users")
 export class UsersController {
-  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService, private readonly payoutAccounts: PayoutAccountsService, private readonly withdrawals: WithdrawalsService) {}
+  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService, private readonly payoutAccounts: PayoutAccountsService, private readonly withdrawals: WithdrawalsService, private readonly devices: UserDeviceService) {}
+
+  @Post("device")
+  async reportDevice(@Req() request: Request, @Body() body: { deviceIdentifier: string; manufacturer?: string; model: string; androidVersion?: string; sdkInt?: number; appVersion: string }) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    return this.devices.report(user.id, body);
+  }
 
   @Get("dashboard")
   async getDashboard(@Req() request: Request) {
