@@ -117,7 +117,7 @@ export class TaskAdminService {
   }
 
 
-  async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; groupName?: string; createdFrom?: string; createdTo?: string }) {
+  async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; groupName?: string; createdFrom?: string; createdTo?: string; countryRegion?: string }) {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
     const keyword = input.keyword?.trim() ?? "";
@@ -133,6 +133,13 @@ export class TaskAdminService {
     if (keyword) filters.push({ OR: searchConditions });
     if (input.groupName?.trim() && input.groupName !== "ALL") {
       filters.push({ task: { is: { category: input.groupName.trim() } } });
+    }
+    const countryRegion = input.countryRegion?.trim();
+    if (countryRegion) {
+      filters.push({ contactNumber: { is: { OR: [
+        { countryCode: { equals: countryRegion.toUpperCase() } },
+        { countryName: { contains: countryRegion, mode: "insensitive" } },
+      ] } } });
     }
     const createdFrom = input.createdFrom ? new Date(input.createdFrom) : undefined;
     const createdTo = input.createdTo ? new Date(input.createdTo) : undefined;
@@ -196,7 +203,7 @@ export class TaskAdminService {
         take: pageSize,
         include: {
           task: { select: { id: true, title: true, category: true, status: true, rewardMinor: true, currency: true, messageTemplate: true } },
-          contactNumber: { select: { id: true, phoneE164: true, status: true, consentStatus: true } },
+          contactNumber: { select: { id: true, phoneE164: true, status: true, consentStatus: true, countryCode: true, countryName: true } },
           claim: { select: { id: true, status: true, claimedAt: true, userId: true } },
         },
       }),
@@ -220,7 +227,7 @@ export class TaskAdminService {
         phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.category || "未分组",
         rewardAmount: (Number(slot.task.rewardMinor) / 100).toFixed(3),
         currency: slot.task.currency.trim(), messageTemplate: slot.task.messageTemplate ?? "",
-        countryRegion: "—", status, createdAt: slot.createdAt.toISOString(),
+        countryRegion: slot.contactNumber.countryName ?? slot.contactNumber.countryCode ?? "未标记", status, createdAt: slot.createdAt.toISOString(),
         claimId: slot.claim?.id ?? null, claimedAt: slot.claim?.claimedAt?.toISOString() ?? null,
         claimedUserId: slot.claim?.userId ?? null,
       };
