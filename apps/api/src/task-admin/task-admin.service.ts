@@ -280,6 +280,122 @@ export class TaskAdminService {
     });
   }
 
+
+  private normalizeBulkRecordIds(ids: unknown): string[] {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException("请至少选择一条任务号码记录。");
+    }
+    if (ids.length > 100) {
+      throw new BadRequestException("单次最多操作 100 条记录，请分批处理。");
+    }
+    const unique = Array.from(new Set(ids.filter((id): id is string => typeof id === "string").map((id) => id.trim())));
+    if (unique.length !== ids.length || unique.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
+      throw new BadRequestException("所选任务记录编号无效，请刷新列表后重试。");
+    }
+    return unique;
+  }
+
+  async bulkVoidTaskRecords(ids: unknown, actorId: string) {
+    const recordIds = this.normalizeBulkRecordIds(ids);
+    const results: Array<{ id: string; success: boolean; message: string }> = [];
+    for (const id of recordIds) {
+      try {
+        const result = await this.voidTaskRecord(id);
+        await prisma.auditEvent.create({
+          data: {
+            actorType: "ADMIN",
+            actorId,
+            action: "TASK_RECORD_VOID",
+            targetType: "TASK_SLOT",
+            targetId: id,
+            metadata: { bulk: true, status: result.status },
+          },
+        });
+        results.push({ id, success: true, message: result.alreadyVoided ? "已经作废" : "作废成功" });
+      } catch (error) {
+        results.push({ id, success: false, message: error instanceof Error ? error.message : "作废失败" });
+      }
+    }
+    return {
+      action: "VOID",
+      total: recordIds.length,
+      succeeded: results.filter((item) => item.success).length,
+      failed: results.filter((item) => !item.success).length,
+      results,
+    };
+  }
+
+  async bulkDeleteTaskRecords(ids: unknown, actorId: string) {
+    const recordIds = this.normalizeBulkRecordIds(ids);
+    const results: Array<{ id: string; success: boolean; message: string }> = [];
+    for (const id of recordIds) {
+      try {
+        await this.deleteTaskRecord(id);
+        await prisma.auditEvent.create({
+          data: {
+            actorType: "ADMIN",
+            actorId,
+            action: "TASK_RECORD_DELETE",
+            targetType: "TASK_SLOT",
+            targetId: id,
+            metadata: { bulk: true },
+          },
+        });
+        results.push({ id, success: true, message: "删除成功" });
+      } catch (error) {
+        results.push({ id, success: false, message: error instanceof Error ? error.message : "删除失败" });
+      }
+    }
+    return {
+      action: "DELETE",
+      total: recordIds.length,
+      succeeded: results.filter((item) => item.success).length,
+      failed: results.filter((item) => !item.success).length,
+      results,
+    };
+  }
+
+  async bulkUpdateTaskGroups(ids: unknown, groupName: string, actorId: string) {
+    const recordIds = this.normalizeBulkRecordIds(ids);
+    const normalized = groupName.trim();
+    if (!normalized || normalized.length > 80) {
+      throw new BadRequestException("任务组名称不能为空，且不能超过 80 个字符。");
+    }
+    const slots = await prisma.taskSlot.findMany({
+      where: { id: { in: recordIds } },
+      select: { id: true, taskId: true },
+    });
+    const missing = recordIds.filter((id) => !slots.some((slot) => slot.id === id));
+    if (missing.length) throw new NotFoundException("部分任务号码记录已不存在，请刷新列表后重试。");
+    const taskIds = Array.from(new Set(slots.map((slot) => slot.taskId)));
+    const results: Array<{ taskId: string; success: boolean; message: string }> = [];
+    for (const taskId of taskIds) {
+      try {
+        await this.updateTaskGroup(taskId, normalized);
+        await prisma.auditEvent.create({
+          data: {
+            actorType: "ADMIN",
+            actorId,
+            action: "TASK_GROUP_BULK_UPDATE",
+            targetType: "TASK",
+            targetId: taskId,
+            metadata: { bulk: true, selectedRecordCount: slots.filter((slot) => slot.taskId === taskId).length, groupName: normalized },
+          },
+        });
+        results.push({ taskId, success: true, message: "任务组更新成功" });
+      } catch (error) {
+        results.push({ taskId, success: false, message: error instanceof Error ? error.message : "任务组更新失败" });
+      }
+    }
+    return {
+      action: "GROUP",
+      total: taskIds.length,
+      succeeded: results.filter((item) => item.success).length,
+      failed: results.filter((item) => !item.success).length,
+      results,
+    };
+  }
+
   async updateTaskGroup(taskId: string, groupName: string) {
     const normalized = groupName.trim();
     if (!normalized || normalized.length > 80) {
