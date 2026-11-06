@@ -312,7 +312,7 @@ export default function AdminTasksPage() {
             const ids=Array.from(new Set(chosen.map((item)=>item.taskId)));
             const editable=tasks.filter((task)=>ids.includes(task.id)&&task.status!=="PUBLISHED"&&task.claimedCount===0);
             if(!editable.length){window.alert("选中的任务已发布或有领取记录，暂时不能批量修改话术。");return;}
-            void Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})}))).then(async()=>{setMessage("批量更换话术完成。");await refresh();}).catch((err)=>setError(err instanceof Error?err.message:"批量更新失败。"));
+            void Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})}))).then(async()=>{setMessage("批量更换话术完成。");await refresh();await loadRecords();}).catch((err)=>setError(err instanceof Error?err.message:"批量更新失败。"));
           }}>批量更换话术</button>
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
@@ -327,7 +327,7 @@ export default function AdminTasksPage() {
             {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
           </div>
           <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
-          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setPage(1);}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setPage(1);}}>重置</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}><Filter size={13}/> 更多筛选</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{
