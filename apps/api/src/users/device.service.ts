@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 
 export type DeviceReport = { deviceIdentifier: string; manufacturer?: string; model: string; androidVersion?: string; sdkInt?: number; appVersion: string };
@@ -16,7 +16,8 @@ export class UserDeviceService {
     const androidVersion = body.androidVersion?.trim().slice(0, 40) || null;
     const sdkInt = Number.isInteger(body.sdkInt) ? body.sdkInt : null;
     const existing = await prisma.userDevice.findUnique({ where: { userId_deviceIdentifier: { userId, deviceIdentifier } } });
-    const changed = !!existing && (existing.model !== model || existing.manufacturer !== manufacturer || existing.androidVersion !== androidVersion || existing.appVersion !== appVersion);
+    if (existing?.status === "BLOCKED") throw new ForbiddenException("此设备已被管理员限制，请联系平台客服。");
+    const changed = !!existing && (existing.model !== model || existing.manufacturer !== manufacturer || existing.androidVersion !== androidVersion || existing.sdkInt !== sdkInt || existing.appVersion !== appVersion);
     const device = await prisma.userDevice.upsert({
       where: { userId_deviceIdentifier: { userId, deviceIdentifier } },
       create: { userId, deviceIdentifier, manufacturer, model, androidVersion, sdkInt, appVersion },
@@ -25,7 +26,7 @@ export class UserDeviceService {
     if (!existing || changed) {
       await prisma.userDeviceEvent.create({ data: {
         deviceId: device.id, eventType: existing ? "DEVICE_CHANGED" : "DEVICE_REGISTERED",
-        manufacturer, model, androidVersion, appVersion,
+        manufacturer, model, androidVersion, sdkInt, appVersion,
       } });
     }
     return { success: true, deviceId: device.id, changed };
