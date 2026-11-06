@@ -54,7 +54,8 @@ function publicTask(task: {
   previewImageUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
-  _count?: { claims: number };\n  group?: { name: string } | null;
+  _count?: { claims: number };
+  group?: { name: string } | null;
 }) {
   return {
     id: task.id,
@@ -77,7 +78,8 @@ function publicTask(task: {
     previewTitle: task.previewTitle,
     previewDescription: task.previewDescription,
     previewImageUrl: task.previewImageUrl,
-    claimCount: task._count?.claims ?? task.claimedCount,\n    groupName: task.group?.name ?? "未分组",
+    claimCount: task._count?.claims ?? task.claimedCount,
+    groupName: task.group?.name ?? "未分组",
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
   };
