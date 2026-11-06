@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Download, Filter, LayoutDashboard, Menu, MessageSquare, MoreHorizontal, Phone, Search, Settings, Shield, SlidersHorizontal, Users, WalletCards, X } from "lucide-react";
+import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Download, Filter, LayoutDashboard, Menu, MessageSquare, Phone, Search, Settings, Shield, SlidersHorizontal, Users, WalletCards, X } from "lucide-react";
 
 type UserRow = {
   id: string; phone: string; displayName: string | null; referralCode: string; status: "PENDING" | "ACTIVE" | "SUSPENDED" | "CLOSED";
