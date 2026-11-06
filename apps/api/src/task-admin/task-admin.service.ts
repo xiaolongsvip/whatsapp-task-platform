@@ -151,13 +151,14 @@ export class TaskAdminService {
             notFrozen,
             { NOT: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] },
             { OR: [
-              { status: "VOIDED" },
-              { task: { is: { status: { in: ["DRAFT", "PAUSED", "CLOSED"] } } } },
+              { task: { is: { status: { in: ["DRAFT", "PAUSED", "CLOSED"] } } },
               { claim: { is: { status: { in: ["REJECTED", "EXPIRED", "CANCELLED"] } } } },
             ] },
           ] };
         case "FROZEN":
           return { contactNumber: { is: { OR: [{ status: "BLOCKED" }, { consentStatus: "REVOKED" }] } } };
+        case "VOIDED":
+          return { status: "VOIDED" };
         default:
           return {};
       }
@@ -166,10 +167,10 @@ export class TaskAdminService {
       ? { AND: [baseWhere, statusWhere(input.status)] }
       : baseWhere;
     const countFor = (status: string) => prisma.taskSlot.count({ where: { AND: [baseWhere, statusWhere(status)] } });
-    const [total, available, inProgress, review, completed, closed, frozen, selectedTotal, rows] = await Promise.all([
+    const [total, available, inProgress, review, completed, closed, frozen, voided, selectedTotal, rows] = await Promise.all([
       prisma.taskSlot.count({ where: baseWhere }),
       countFor("AVAILABLE"), countFor("IN_PROGRESS"), countFor("REVIEW"),
-      countFor("COMPLETED"), countFor("CLOSED"), countFor("FROZEN"),
+      countFor("COMPLETED"), countFor("CLOSED"), countFor("FROZEN"), countFor("VOIDED"),
       prisma.taskSlot.count({ where: selectedWhere }),
       prisma.taskSlot.findMany({
         where: selectedWhere,
@@ -205,7 +206,7 @@ export class TaskAdminService {
     return {
       items,
       pagination: { page, pageSize, total: selectedTotal, totalPages: Math.max(1, Math.ceil(selectedTotal / pageSize)) },
-      stats: { total, available, inProgress, review, completed, closed, frozen },
+      stats: { total, available, inProgress, review, completed, closed, frozen, voided },
     };
   }
 
