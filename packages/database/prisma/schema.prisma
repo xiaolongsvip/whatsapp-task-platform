@@ -378,6 +378,7 @@ model Task {
   slots        TaskSlot[]
 
   @@index([status, startsAt, endsAt])
+  @@index([groupId])
   @@map("tasks")
 }
 
