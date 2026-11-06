@@ -192,6 +192,9 @@ export class AdminUsersService {
         ...(body.isFlagged !== undefined ? { isFlagged: body.isFlagged, flagReason: body.isFlagged ? reason : null } : {}),
       };
       await tx.userDevice.updateMany({ where: { deviceIdentifier: selected.deviceIdentifier }, data });
+      if (body.status === "BLOCKED") {
+        await tx.authSession.updateMany({ where: { userId: { in: linkedRows.map((row) => row.userId) }, revokedAt: null }, data: { revokedAt: new Date() } });
+      }
       const events = linkedRows.flatMap((row) => {
         const entries = [];
         if (body.status !== undefined && row.status !== body.status) entries.push({
