@@ -302,7 +302,7 @@ export default function AdminTasksPage() {
           <Link className="sidebar-link active" href="/tasks"><Phone size={16}/>任务管理</Link>
           <button type="button" className="sidebar-link" disabled><FileClock size={16}/>执行记录</button>
           <button type="button" className="sidebar-link" disabled><ClipboardCheck size={16}/>审核中心<ChevronDown size={14}/></button>
-          <button type="button" className="sidebar-link" disabled><ClipboardCheck size={16}/>任务设置<ChevronDown size={14}/></button>
+          <Link className="sidebar-link" href="/task-settings/messages"><ClipboardCheck size={16}/>任务设置 · 话术管理</Link>
           <button type="button" className="sidebar-link" disabled><HandCoins size={16}/>邀请与分佣</button>
           <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
           <button type="button" className="sidebar-link" disabled><WalletCards size={16}/>财务管理</button>
@@ -499,7 +499,7 @@ export default function AdminTasksPage() {
                 <p>这里只修改任务组，不会修改奖励、话术、审核或结算规则。</p>
                 <div className="tasks-organize-row">
                   <select value={selectedGroup} onChange={(event)=>setSelectedGroup(event.target.value)}>
-                    {Array.from(new Set([...tasks.map((task)=>task.category),selectedRecord.groupName])).filter(Boolean).map((group)=><option key={group} value={group}>{group}</option>)}
+                    {Array.from(new Set([...groupNames,...taskGroups.map((group)=>group.name),selectedRecord.groupName])).filter(Boolean).map((group)=><option key={group} value={group}>{group}</option>)}
                   </select>
                   <button type="button" disabled={groupSaving || !selectedGroup.trim() || selectedGroup===selectedRecord.groupName} onClick={async()=>{
                     setGroupSaving(true);
@@ -573,7 +573,7 @@ export default function AdminTasksPage() {
             </div>
             <div style={{paddingTop:14}}>
               {bulkMessageTab==="manual" ? <textarea rows={6} value={bulkMessageText} onChange={(event)=>setBulkMessageText(event.target.value)} placeholder="请输入需要批量更换的话术" style={{width:"100%",boxSizing:"border-box",padding:11,border:"1px solid #dbe2ec",borderRadius:7,resize:"vertical"}}/> :
-                <div><label style={{display:"block",fontSize:13,marginBottom:7}}>话术模板</label><select value={bulkTemplateId} onChange={(event)=>setBulkTemplateId(event.target.value)} style={{width:"100%",padding:10,border:"1px solid #dbe2ec",borderRadius:7}}><option value="">请选择话术模板</option>{messageTemplates.filter((item)=>item.platform==="WhatsApp"||item.platform==="通用").map((item)=><option key={item.id} value={item.id}>{item.name} · {item.platform} · {item.action}</option>)}</select><p style={{fontSize:12,color:"#718096"}}>只显示已启用且适用于当前任务平台的模板。模板内容将复制到任务中，之后编辑模板不会改变已创建任务。</p>{bulkTemplateId && <pre style={{whiteSpace:"pre-wrap",maxHeight:140,overflow:"auto",padding:10,background:"#f8fafc",borderRadius:6,fontSize:12}}>{messageTemplates.find((item)=>item.id===bulkTemplateId)?.content}</pre>}</div>}
+                <div><label style={{display:"block",fontSize:13,marginBottom:7}}>话术模板</label><select value={bulkTemplateId} onChange={(event)=>setBulkTemplateId(event.target.value)} style={{width:"100%",padding:10,border:"1px solid #dbe2ec",borderRadius:7}}><option value="">请选择话术模板</option>{messageTemplates.filter((item)=>{const selectedTaskIds=Array.from(new Set(records.filter((record)=>selectedIds.includes(record.id)).map((record)=>record.taskId)));const platforms=tasks.filter((task)=>selectedTaskIds.includes(task.id)).map((task)=>task.category);return item.action==="MESSAGE"&&(platforms.includes(item.platform)||item.platform==="通用");}).map((item)=><option key={item.id} value={item.id}>{item.name} · {item.platform} · {item.action}</option>)}</select><p style={{fontSize:12,color:"#718096"}}>只显示已启用且适用于当前任务平台的模板。模板内容将复制到任务中，之后编辑模板不会改变已创建任务。</p>{bulkTemplateId && <pre style={{whiteSpace:"pre-wrap",maxHeight:140,overflow:"auto",padding:10,background:"#f8fafc",borderRadius:6,fontSize:12}}>{messageTemplates.find((item)=>item.id===bulkTemplateId)?.content}</pre>}</div>}
             </div>
             <footer style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
               <button type="button" className="tasks-outline-btn" onClick={()=>setBulkMessageOpen(false)}>取消</button>
