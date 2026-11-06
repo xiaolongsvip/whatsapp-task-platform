@@ -19,6 +19,8 @@ type ContactNumber = {
   status: "AVAILABLE" | "ASSIGNED" | "USED" | "BLOCKED";
   consentStatus: "UNKNOWN" | "GRANTED" | "REVOKED";
   consentSource: string | null;
+  countryCode: string | null;
+  countryName: string | null;
   consentedAt: string | null;
   importOrder: string;
   importedAt: string;
@@ -105,6 +107,8 @@ export default function AdminHomePage() {
   const [fileName, setFileName] = useState("");
   const [phoneText, setPhoneText] = useState("");
   const [consentSource, setConsentSource] = useState("");
+  const [countryCode, setCountryCode] = useState("");
+  const [countryName, setCountryName] = useState("");
   const [consentedAt, setConsentedAt] = useState(localDateTimeValue);
   const [search, setSearch] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -190,6 +194,8 @@ export default function AdminHomePage() {
         body: JSON.stringify({
           numbers: parsed.map((phone) => ({ phone })),
           consentSource,
+          countryCode: countryCode.trim() || undefined,
+          countryName: countryName.trim() || undefined,
           consentedAt: new Date(consentedAt).toISOString(),
           fileName: fileName || undefined,
         }),
@@ -406,14 +412,16 @@ export default function AdminHomePage() {
               <section className="dashboard-card numbers-import-card"><div className="dashboard-card-title"><div><h2>批量导入号码</h2><p>仅导入已经明确同意接收消息的号码。</p></div></div>
                 <form onSubmit={importNumbers}><div className="form-grid">
                   <div className="field"><label>选择 CSV/TXT 文件</label><input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={onFileChange}/>{fileName && <span className="muted">当前文件：{fileName}</span>}</div>
+                  <div className="field"><label>国家/地区代码（ISO 两位代码）</label><input value={countryCode} onChange={(event) => setCountryCode(event.target.value.toUpperCase().slice(0, 2))} placeholder="例如：KE / NG / PK" maxLength={2}/></div>
+                  <div className="field"><label>国家/地区名称</label><input value={countryName} onChange={(event) => setCountryName(event.target.value)} placeholder="例如：Kenya / Nigeria / Pakistan" maxLength={100}/></div>
                   <div className="field"><label>同意接收来源/证明说明</label><input value={consentSource} onChange={(event) => setConsentSource(event.target.value)} placeholder="例如：客户主动提交的订阅表单" required/></div>
                   <div className="field"><label>同意接收记录时间</label><input type="datetime-local" value={consentedAt} onChange={(event) => setConsentedAt(event.target.value)} required/></div>
                 </div><div className="field" style={{marginTop:14}}><label>号码内容（每行一个国际号码）</label><textarea value={phoneText} onChange={(event) => setPhoneText(event.target.value)} placeholder={"+254700000001\n+254700000002"} required/></div>
                 <div className="action-row"><button className="primary-btn" disabled={busy || !phoneText.trim()}>{busy ? "正在导入…" : "导入号码池"}</button></div></form>
               </section>
-              <section className="dashboard-card numbers-table-card"><div className="dashboard-card-title"><h2>号码列表（按导入顺序）</h2><span className="muted">当前展示最近 100 条</span></div><div className="table-wrap"><table><thead><tr><th>导入顺序</th><th>WhatsApp 号码</th><th>状态</th><th>授权状态</th><th>授权来源</th><th>操作</th></tr></thead><tbody>
-                {visibleNumbers.map((number) => <tr key={number.id}><td>{number.importOrder}</td><td>{number.phoneE164}</td><td><span className={"pill " + number.status.toLowerCase()}>{statusLabel(number.status)}</span></td><td>{number.consentStatus === "GRANTED" ? "已同意" : number.consentStatus === "REVOKED" ? "已撤回" : "未知"}</td><td>{number.consentSource || "—"}</td><td>{number.status !== "BLOCKED" && <button className="danger-btn" disabled={busy} onClick={() => void blockNumber(number.id)}>禁用</button>}</td></tr>)}
-                {visibleNumbers.length === 0 && <tr><td colSpan={6} className="muted">暂无号码记录</td></tr>}
+              <section className="dashboard-card numbers-table-card"><div className="dashboard-card-title"><h2>号码列表（按导入顺序）</h2><span className="muted">当前展示最近 100 条</span></div><div className="table-wrap"><table><thead><tr><th>导入顺序</th><th>WhatsApp 号码</th><th>状态</th><th>授权状态</th><th>国家/地区</th><th>授权来源</th><th>操作</th></tr></thead><tbody>
+                {visibleNumbers.map((number) => <tr key={number.id}><td>{number.importOrder}</td><td>{number.phoneE164}</td><td><span className={"pill " + number.status.toLowerCase()}>{statusLabel(number.status)}</span></td><td>{number.consentStatus === "GRANTED" ? "已同意" : number.consentStatus === "REVOKED" ? "已撤回" : "未知"}</td><td>{number.countryName || number.countryCode || "未标记"}</td><td>{number.consentSource || "—"}</td><td>{number.status !== "BLOCKED" && <button className="danger-btn" disabled={busy} onClick={() => void blockNumber(number.id)}>禁用</button>}</td></tr>)}
+                {visibleNumbers.length === 0 && <tr><td colSpan={7} className="muted">暂无号码记录</td></tr>}
               </tbody></table></div></section>
             </>
           )}
