@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Req,
+  Query,
 } from "@nestjs/common";
 import type { Request } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
@@ -30,6 +31,19 @@ export class TaskAdminController {
     private readonly adminAuth: AdminAuthService,
     private readonly tasks: TaskAdminService,
   ) {}
+
+
+  @Get("records")
+  async listRecords(
+    @Req() request: Request,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+    @Query("keyword") keyword?: string,
+    @Query("status") status?: string,
+  ) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.listRecords({ page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20, keyword, status });
+  }
 
   @Get()
   async list(@Req() request: Request) {
