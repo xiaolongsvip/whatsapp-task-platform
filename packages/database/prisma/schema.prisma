@@ -102,6 +102,7 @@ enum TaskSlotStatus {
   AVAILABLE
   ASSIGNED
   USED
+  VOIDED
 }
 
 enum AdminStatus {
