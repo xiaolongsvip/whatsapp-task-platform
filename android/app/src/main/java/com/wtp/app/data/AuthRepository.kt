@@ -171,7 +171,7 @@ object AuthRepository {
         val context = appContext ?: return
         val identifier = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)?.takeIf { it.isNotBlank() } ?: return
         val model = listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.distinct().joinToString(" ").take(120)
-        runCatching {
+        try {
             request("POST", "users/device", JSONObject()
                 .put("deviceIdentifier", identifier)
                 .put("manufacturer", Build.MANUFACTURER.orEmpty())
@@ -179,6 +179,10 @@ object AuthRepository {
                 .put("androidVersion", Build.VERSION.RELEASE.orEmpty())
                 .put("sdkInt", Build.VERSION.SDK_INT)
                 .put("appVersion", BuildConfig.VERSION_NAME))
+        } catch (error: IOException) {
+            // Keep sign-in available during transient network failures, but honor
+            // an explicit device restriction returned by the administrator.
+            if (error.message.orEmpty().contains("设备已被管理员限制")) throw error
         }
     }
 
