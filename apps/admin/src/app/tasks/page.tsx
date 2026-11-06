@@ -19,6 +19,7 @@ type AdminTask = {
   remainingCapacity: number | null;
   startsAt: string | null;
   endsAt: string | null;
+  createdAt: string;
   messageTemplate: string | null;
   linkUrl: string | null;
   previewTitle: string | null;
@@ -146,7 +147,7 @@ export default function AdminTasksPage() {
       task.createdAt ? new Date(task.createdAt).toLocaleString("zh-CN", { hour12: false }) : "",
     ]);
     const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\r\n");
-    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
