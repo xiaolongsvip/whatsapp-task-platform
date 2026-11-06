@@ -41,6 +41,7 @@ export default function NewTaskPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!form.messageTemplate.trim()) { setError("请先填写话术或选择一个已启用模板。"); return; }
     setBusy(true); setError(""); setMessage("");
     try {
       const result = await api<{ id: string }>("/api/v1/admin/tasks", {
@@ -83,7 +84,7 @@ export default function NewTaskPage() {
       </header>
       <div style={{ padding: "18px 0", borderBottom: "1px solid #e5eaf1" }}>
         <h1 style={{ margin: 0, fontSize: 23 }}>添加任务</h1>
-        <p style={{ margin: "7px 0 0", color: "#68778d", fontSize: 13 }}>填写奖励和话术，再添加一个或多个目标号码；任务平台分类可选。</p>
+        <p style={{ margin: "7px 0 0", color: "#68778d", fontSize: 13 }}>填写任务平台、奖励和话术并保存草稿；发布时从已授权号码池分配号码。</p>
       </div>
       {error && <div role="alert" style={{ marginTop: 14, color: "#b42318", background: "#fff1f0", padding: 12, borderRadius: 7 }}>{error}</div>}
       {message && <div role="status" style={{ marginTop: 14, color: "#16794b", background: "#eaf8f0", padding: 12, borderRadius: 7 }}>{message}</div>}
