@@ -12,7 +12,7 @@ type UserRow = {
 type Summary = { total: number; todayNew: number; last7DaysNew: number; activeToday: number; suspended: number };
 type ListResult = { users: UserRow[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } };
 type StatusFilter = "ALL" | "ACTIVE" | "SUSPENDED";
-type UserDetail = { basic: { id:string; phone:string; status:string; createdAt:string; displayName:string|null; referralCode:string; reputationScore:number; dailyTaskLimit:number|null; minClaimIntervalSeconds:number|null }; devices:{supported:boolean;items: {id:string;model?:string;appVersion?:string;lastSeenAt?:string}[];message?:string}; payoutAccounts:{id:string;accountHolder:string;maskedAccount:string;providerCode:string;methodCode:string;currency:string;status:string;isDefault:boolean}[]; tasks:{total:number;approved:number;rejected:number;approvalRate:number|null;items:{id:string;taskTitle:string;category:string;status:string;claimedAt:string;rewardMinor:string;currency:string}[]}; withdrawals:{total:number;pending:number;paid:number;items:{id:string;amountMinor:string;currency:string;status:string;createdAt:string;payoutAccount:{maskedAccount:string}|null}[]}; risk:{label:string;reviewedTasks:number;rejectedTasks:number;events:{id:string;type:string;createdAt:string;metadata:unknown}[]}; reputation:{score:number;events:{id:string;createdAt:string;metadata:unknown}[]} };
+type UserDetail = { basic: { id:string; phone:string; status:string; createdAt:string; displayName:string|null; email:string|null; referralCode:string; inviter:{id:string;phone:string}|null; lastLoginAt:string|null; reputationScore:number; balances:{currency:string;amountMinor:string}[]; todayClaimed:number; remainingToday:number; effectiveDailyLimit:number; effectiveMinClaimIntervalSeconds:number; dailyTaskLimit:number|null; minClaimIntervalSeconds:number|null; taskLimitSource:string; intervalSource:string }; devices:{supported:boolean;items: {id:string;model?:string;appVersion?:string;lastSeenAt?:string}[];message?:string}; payoutAccounts:{id:string;accountHolder:string;maskedAccount:string;providerCode:string;methodCode:string;currency:string;status:string;isDefault:boolean}[]; tasks:{total:number;approved:number;rejected:number;approvalRate:number|null;items:{id:string;taskTitle:string;category:string;status:string;claimedAt:string;rewardMinor:string;currency:string}[]}; withdrawals:{total:number;pending:number;paid:number;items:{id:string;amountMinor:string;currency:string;status:string;createdAt:string;payoutAccount:{maskedAccount:string}|null}[]}; risk:{label:string;reviewedTasks:number;rejectedTasks:number;events:{id:string;type:string;createdAt:string;metadata:unknown}[]}; reputation:{score:number;events:{id:string;createdAt:string;metadata:unknown}[]} };
 
 const columns = [
   ["phone", "账号/手机号"], ["createdAt", "创建时间"], ["status", "用户状态"], ["score", "信誉分"], ["risk", "风险"],
@@ -189,7 +189,42 @@ export default function AdminUsersPage() {
       <header className="users-detail-head"><div><strong>用户详情</strong><span>{detail.basic.status==="ACTIVE"?"正常":detail.basic.status}</span><p>{detail.basic.phone}</p></div><button onClick={()=>setDetail(null)}><X size={17}/></button></header>
       <nav className="users-detail-tabs">{[["basic","基本信息"],["devices","设备信息"],["payout","收款账户"],["tasks","任务记录"],["withdrawals","提现记录"],["risk","风险记录"],["reputation","信誉记录"]].map(([key,label])=><button key={key} className={detailTab===key?"active":""} onClick={()=>setDetailTab(key)}>{label}</button>)}</nav>
       <div className="users-detail-content">
-      {detailTab==="basic"&&<><div className="users-detail-summary"><b>{detail.basic.reputationScore}分</b><span>{detail.basic.displayName||"未设置昵称"}</span><span>{detail.basic.phone}</span><span>注册时间：{dateText(detail.basic.createdAt)}</span></div><div className="users-detail-grid"><div>用户状态：{detail.basic.status}</div><div>邀请码：{detail.basic.referralCode}</div><div>风险等级：{detail.risk.label}</div></div><section className="users-policy"><h3>任务领取限制</h3><p>留空表示继承系统默认；0 表示禁止领取。</p><div className="users-policy-fields"><label>自定义每日上限<input type="number" min="0" value={policyDaily} onChange={e=>setPolicyDaily(e.target.value)} placeholder="继承系统默认"/></label><label>自定义最小领取间隔（秒）<input type="number" min="0" value={policyInterval} onChange={e=>setPolicyInterval(e.target.value)} placeholder="继承系统默认"/></label></div><button disabled={busy} onClick={()=>void savePolicy()}>保存任务限制</button></section></>}
+      {detailTab==="basic"&&<div className="users-basic-reference">
+        <section className="users-basic-identity">
+          <div className="users-basic-avatar"><UserRound size={22}/></div>
+          <div className="users-basic-name"><strong>{detail.basic.displayName||detail.basic.phone}</strong><span className="users-status active">正常用户</span><small>昵称：{detail.basic.displayName||detail.basic.phone}</small></div>
+        </section>
+        <section className="users-basic-metrics">
+          <div><small>信誉等级</small><strong>{detail.basic.reputationScore}分 <span className="users-stars" aria-label="信誉星级">{Array.from({length:5},(_,i)=><span key={i}>{i<Math.round(detail.basic.reputationScore/20)?"★":"☆"}</span>)}</span></strong></div>
+          <div><small>风险等级</small><strong><i className={detail.risk.reviewedTasks>0?"risk-dot calculated":"risk-dot"}/>{detail.risk.reviewedTasks>0?detail.risk.label:"低风险 · 未计算"}</strong></div>
+          <div><small>可提现余额</small><strong>{money(detail.basic.balances)}</strong></div>
+          <div><small>通过任务</small><strong>{detail.tasks.approved}</strong></div>
+        </section>
+        <section className="users-basic-fields">
+          <div><span>用户 ID</span><strong title={detail.basic.id}>{detail.basic.id}</strong></div>
+          <div><span>手机号码</span><strong>{detail.basic.phone}</strong></div>
+          <div><span>邮箱</span><strong>{detail.basic.email||"未绑定"}</strong></div>
+          <div><span>邀请码</span><strong>{detail.basic.referralCode||"-"}</strong></div>
+          <div><span>上级邀请人</span><strong>{detail.basic.inviter?.phone||"无"}</strong></div>
+          <div><span>注册时间</span><strong>{dateText(detail.basic.createdAt)}</strong></div>
+          <div><span>最近登录时间</span><strong>{detail.basic.lastLoginAt?dateText(detail.basic.lastLoginAt):"-"}</strong></div>
+          <div><span>用户状态</span><strong><span className={`users-status ${detail.basic.status.toLowerCase()}`}>{detail.basic.status==="ACTIVE"?"正常":detail.basic.status==="SUSPENDED"?"冻结":detail.basic.status}</span></strong></div>
+        </section>
+        <section className="users-policy users-policy-reference">
+          <h3>任务领取限制</h3><p>用户覆盖优先于代理和系统默认；两个字段分别继承。</p>
+          <div className="users-policy-effective">
+            <b>当前生效领取规则</b>
+            <div><span>每日任务上限<strong>{detail.basic.effectiveDailyLimit} 次/日</strong></span><span>最小领取间隔（秒）<strong>{detail.basic.effectiveMinClaimIntervalSeconds>=60?Math.floor(detail.basic.effectiveMinClaimIntervalSeconds/60)+" 分钟":detail.basic.effectiveMinClaimIntervalSeconds+" 秒"}</strong></span><span>今日已领取<strong>{detail.basic.todayClaimed}</strong></span><span>今日剩余<strong>{detail.basic.remainingToday}</strong></span></div>
+            <small>个人限制状态：额度与间隔允许　个人限制允许时间：个人限制当前允许</small>
+          </div>
+          <div className="users-policy-fields">
+            <label>自定义每日上限<input type="number" min="0" value={policyDaily} onChange={e=>setPolicyDaily(e.target.value)} placeholder={`继承（${detail.basic.effectiveDailyLimit} 次/日）`}/><small>继承规则：系统默认 {detail.basic.effectiveDailyLimit} 次/日；0 表示禁止领取任务。</small><small>实际生效：{detail.basic.effectiveDailyLimit} 次/日</small></label>
+            <label>自定义最小领取间隔（秒）<input type="number" min="0" value={policyInterval} onChange={e=>setPolicyInterval(e.target.value)} placeholder={`继承（${detail.basic.effectiveMinClaimIntervalSeconds} 秒）`}/><small>继承规则：系统默认 {detail.basic.effectiveMinClaimIntervalSeconds} 秒；0 表示不限制领取间隔。</small><small>实际生效：{detail.basic.effectiveMinClaimIntervalSeconds} 秒</small></label>
+          </div>
+          <button disabled={busy} onClick={()=>void savePolicy()}>保存</button>
+          <div className="users-policy-footnote">受当前账号信誉/风险规则限制：{detail.basic.effectiveDailyLimit} 次/日</div>
+        </section>
+      </div>}
       {detailTab==="devices"&&<><p>设备数量：{detail.devices.items.length}</p>{detail.devices.items.length?detail.devices.items.map(d=><div className="users-detail-row" key={d.id}>{d.model||"设备"} · APP {d.appVersion||"未知"} · {d.lastSeenAt?dateText(d.lastSeenAt):"在线未知"}</div>):<div className="users-detail-empty">{detail.devices.message||"暂无设备记录"}</div>}</>}
       {detailTab==="payout"&&<>{detail.payoutAccounts.length?detail.payoutAccounts.map(a=><div className="users-detail-row" key={a.id}>{a.accountHolder} · {a.currency} · {a.providerCode}/{a.methodCode} · {a.maskedAccount} · {a.status}{a.isDefault?" · 默认":""}</div>):<div className="users-detail-empty">暂无收款账户</div>}</>}
       {detailTab==="tasks"&&<><p>任务总数 {detail.tasks.total} · 通过 {detail.tasks.approved} · 拒绝 {detail.tasks.rejected} · 通过率 {detail.tasks.approvalRate==null?"暂无":(detail.tasks.approvalRate*100).toFixed(2)+"%"}</p>{detail.tasks.items.length?detail.tasks.items.map(t=><div className="users-detail-row" key={t.id}>{t.taskTitle} · {t.category} · {t.status} · {dateText(t.claimedAt)} · {t.currency} {(Number(t.rewardMinor)/100).toFixed(2)}</div>):<div className="users-detail-empty">暂无任务记录</div>}</>}
