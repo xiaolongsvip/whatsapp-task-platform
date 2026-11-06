@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, Filter, HandCoins, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
 
 type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED";
@@ -31,6 +32,7 @@ type AdminTask = {
 };
 
 type TaskList = { tasks: AdminTask[] };
+type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
 type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
@@ -94,7 +96,7 @@ function toIso(value: string): string | null {
   return value ? new Date(value).toISOString() : null;
 }
 
-export default function AdminTasksPage() {
+export default function AdminTasksPage() {\n  const router = useRouter();
   const [adminEmail, setAdminEmail] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -124,7 +126,7 @@ export default function AdminTasksPage() {
   const [countryFilter, setCountryFilter] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
   const [selectedGroup, setSelectedGroup] = useState("");
-  const [groupSaving, setGroupSaving] = useState(false);
+  const [groupSaving, setGroupSaving] = useState(false);\n  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);\n  const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");\n  const [bulkMessageText, setBulkMessageText] = useState("");\n  const [bulkTemplateId, setBulkTemplateId] = useState("");\n  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
@@ -362,16 +364,19 @@ export default function AdminTasksPage() {
             finally{setBusy(false);}
           }}>批量作废（{selectedIds.length}）</button>
 
-          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={()=>{
-            if(!selectedIds.length)return;
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
             const chosen=records.filter((item)=>selectedIds.includes(item.id));
             const ids=Array.from(new Set(chosen.map((item)=>item.taskId)));
             const editable=tasks.filter((task)=>ids.includes(task.id)&&task.status!=="PUBLISHED"&&task.claimedCount===0);
             if(!editable.length){window.alert("选中的任务已发布或有领取记录，暂时不能批量修改话术。");return;}
-            const text=window.prompt("请输入新的 WhatsApp 话术模板：");if(text===null)return;
-            if(!window.confirm("将修改所选记录涉及的 "+editable.length+" 个任务的话术，影响这些任务下的全部号码记录。确定继续吗？"))return;
-            setBusy(true);setError("");setMessage("");
-            void Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})}))).then(async()=>{setMessage("批量更换话术完成。");await refresh();await loadRecords();}).catch((err)=>setError(err instanceof Error?err.message:"批量更新失败。")).finally(()=>setBusy(false));
+            try{
+              const templates=await api<MessageTemplateOption[]>("/api/v1/admin/tasks/message-templates?enabled=true");
+              setMessageTemplates(templates.filter((item)=>item.enabled));
+              setBulkMessageText("");
+              setBulkTemplateId("");
+              setBulkMessageTab("manual");
+              setBulkMessageOpen(true);
+            }catch(err){setError(err instanceof Error?err.message:"话术模板加载失败。");}
           }}>批量更换话术（{selectedIds.length}）</button>
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
@@ -522,6 +527,43 @@ export default function AdminTasksPage() {
               }}>⊗ 作废任务</button>
             </footer>
           </aside>
+        </div>
+      )}
+      {bulkMessageOpen && (
+        <div className="tasks-detail-backdrop" onClick={()=>setBulkMessageOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-label="批量更换话术" onClick={(event)=>event.stopPropagation()} style={{width:"min(94vw,520px)",background:"#fff",borderRadius:10,padding:18,boxShadow:"0 18px 50px rgba(15,23,42,.2)"}}>
+            <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <strong style={{fontSize:16}}>批量更换话术</strong>
+              <button type="button" onClick={()=>setBulkMessageOpen(false)} aria-label="关闭">×</button>
+            </header>
+            <p style={{fontSize:13,color:"#536176",lineHeight:1.6}}>更换当前筛选条件下所选任务涉及的未领取、未占用且未进入回收站的普通任务话术，不受页码和勾选范围外记录影响。</p>
+            <div style={{padding:12,background:"#f7f9fc",border:"1px solid #e5eaf1",borderRadius:7,fontSize:12,color:"#52627a"}}>当前选中 {selectedIds.length} 条任务号码记录；实际修改对应的未发布且尚无领取记录的任务。</div>
+            <div style={{display:"flex",gap:18,borderBottom:"1px solid #e5eaf1",marginTop:14}}>
+              <button type="button" className={bulkMessageTab==="manual"?"active":""} onClick={()=>setBulkMessageTab("manual")} style={{padding:"10px 12px",border:0,borderBottom:bulkMessageTab==="manual"?"2px solid #2864ed":"2px solid transparent",background:"transparent",color:bulkMessageTab==="manual"?"#2864ed":"#52627a"}}>手工输入</button>
+              <button type="button" onClick={()=>setBulkMessageTab("template")} style={{padding:"10px 12px",border:0,borderBottom:bulkMessageTab==="template"?"2px solid #2864ed":"2px solid transparent",background:"transparent",color:bulkMessageTab==="template"?"#2864ed":"#52627a"}}>选择模板</button>
+            </div>
+            <div style={{paddingTop:14}}>
+              {bulkMessageTab==="manual" ? <textarea rows={6} value={bulkMessageText} onChange={(event)=>setBulkMessageText(event.target.value)} placeholder="请输入需要批量更换的话术" style={{width:"100%",boxSizing:"border-box",padding:11,border:"1px solid #dbe2ec",borderRadius:7,resize:"vertical"}}/> :
+                <div><label style={{display:"block",fontSize:13,marginBottom:7}}>话术模板</label><select value={bulkTemplateId} onChange={(event)=>setBulkTemplateId(event.target.value)} style={{width:"100%",padding:10,border:"1px solid #dbe2ec",borderRadius:7}}><option value="">请选择话术模板</option>{messageTemplates.filter((item)=>item.platform==="WhatsApp"||item.platform==="通用").map((item)=><option key={item.id} value={item.id}>{item.name} · {item.platform} · {item.action}</option>)}</select><p style={{fontSize:12,color:"#718096"}}>只显示已启用且适用于当前任务平台的模板。模板内容将复制到任务中，之后编辑模板不会改变已创建任务。</p>{bulkTemplateId && <pre style={{whiteSpace:"pre-wrap",maxHeight:140,overflow:"auto",padding:10,background:"#f8fafc",borderRadius:6,fontSize:12}}>{messageTemplates.find((item)=>item.id===bulkTemplateId)?.content}</pre>}</div>}
+            </div>
+            <footer style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
+              <button type="button" className="tasks-outline-btn" onClick={()=>setBulkMessageOpen(false)}>取消</button>
+              <button type="button" className="tasks-primary-btn" disabled={busy || (bulkMessageTab==="manual"?!bulkMessageText.trim():!bulkTemplateId)} onClick={async()=>{
+                const chosen=records.filter((item)=>selectedIds.includes(item.id));
+                const ids=Array.from(new Set(chosen.map((item)=>item.taskId)));
+                const editable=tasks.filter((task)=>ids.includes(task.id)&&task.status!=="PUBLISHED"&&task.claimedCount===0);
+                const text=bulkMessageTab==="manual"?bulkMessageText.trim():(messageTemplates.find((item)=>item.id===bulkTemplateId)?.content??"");
+                if(!text.trim())return;
+                if(!window.confirm("将更换 "+editable.length+" 个任务的话术，影响这些任务下的全部号码记录。确定继续吗？"))return;
+                setBusy(true);setError("");setMessage("");
+                try{
+                  await Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})})));
+                  setBulkMessageOpen(false);setMessage("批量更换话术完成。");await refresh();await loadRecords();
+                }catch(err){setError(err instanceof Error?err.message:"批量更新失败。");}
+                finally{setBusy(false);}
+              }}>{busy?"正在更换…":"确认更换"}</button>
+            </footer>
+          </section>
         </div>
       )}
       {formOpen && (
