@@ -111,6 +111,7 @@ fun TaskHallScreen(
     var locallyExpiredClaimIds by remember { mutableStateOf(emptySet<String>()) }
     var dashboard by remember { mutableStateOf(JSONObject()) }
     var clockMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var serverClockOffsetMillis by remember { mutableStateOf(0L) }
     LaunchedEffect(Unit) {
         while (true) {
             clockMillis = System.currentTimeMillis()
@@ -144,6 +145,10 @@ fun TaskHallScreen(
                 tasks = result.first.optJSONArray("tasks").asObjectList()
                 claims = result.second.optJSONArray("claims").asObjectList()
                 dashboard = result.third
+                val serverTime = result.third.optString("serverTime")
+                runCatching { Instant.parse(serverTime).toEpochMilli() }.getOrNull()?.let {
+                    serverClockOffsetMillis = it - System.currentTimeMillis()
+                }
             } catch (e: Exception) {
                 error = e.message ?: if (isEnglish) "Could not load tasks." else "任务加载失败。"
             } finally {
@@ -575,7 +580,7 @@ fun TaskHallScreen(
                         val intervalSeconds = dashboard.optInt("minClaimIntervalSeconds", 60)
                         val nextClaimAt = dashboard.optString("nextClaimAt").takeIf { it.isNotBlank() && it != "null" }
                         val nextClaimMillis = nextClaimAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
-                        val remainingWaitSeconds = nextClaimMillis?.let { ((it - clockMillis + 999L) / 1000L).coerceAtLeast(0L) } ?: 0L
+                        val remainingWaitSeconds = nextClaimMillis?.let { ((it - (clockMillis + serverClockOffsetMillis) + 999L) / 1000L).coerceAtLeast(0L) } ?: 0L
                         Surface(
                             color = WtpSky,
                             shape = RoundedCornerShape(10.dp),
