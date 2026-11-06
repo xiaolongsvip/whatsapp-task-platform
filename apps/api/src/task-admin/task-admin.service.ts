@@ -579,7 +579,7 @@ export class TaskAdminService {
     const messageTemplate = input.messageTemplate?.trim() ?? "";
     if (!messageTemplate || messageTemplate.length > 5000) throw new BadRequestException("话术不能为空且不能超过 5000 个字符。");
     const filters: Prisma.TaskSlotWhereInput[] = [
-      { status: { in: ["AVAILABLE", "CLOSED"] }, claimId: null },
+      { status: "AVAILABLE", claimId: null },
       { task: { is: { status: { in: ["DRAFT", "PAUSED"] }, claimedCount: 0 } } },
     ];
     const keyword = input.keyword?.trim();
