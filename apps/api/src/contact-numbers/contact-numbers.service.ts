@@ -25,6 +25,11 @@ export class ContactNumbersService {
       throw new BadRequestException("号码授权时间无效，且不能晚于当前时间。");
     }
 
+    const countryCode = input.countryCode?.trim().toUpperCase() || null;
+    if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) {
+      throw new BadRequestException("国家/地区代码必须使用 ISO 两位字母代码，例如 KE、NG、PK。");
+    }
+    const countryName = input.countryName?.trim() || null;
     const seen = new Set<string>();
     const normalized: string[] = [];
     let invalidCount = 0;
@@ -69,6 +74,8 @@ export class ContactNumbersService {
         const created = await tx.contactNumber.createMany({
           data: newPhones.map((phoneE164) => ({
             phoneE164,
+            countryCode,
+            countryName,
             status: "AVAILABLE",
             consentStatus: "GRANTED",
             consentSource: input.consentSource.trim(),
@@ -150,6 +157,8 @@ export class ContactNumbersService {
         status: true,
         consentStatus: true,
         consentSource: true,
+        countryCode: true,
+        countryName: true,
         consentedAt: true,
         importOrder: true,
         importedAt: true,
