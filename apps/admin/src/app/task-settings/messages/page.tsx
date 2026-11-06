@@ -141,7 +141,7 @@ export default function MessageTemplatesPage() {
           <h2 style={{ fontSize: 17, margin: "0 0 16px" }}>{editingId ? "编辑话术模板" : "新增话术模板"}</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14 }}>
             <label style={fieldLabel}>模板名称<input required minLength={2} maxLength={160} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={fieldInput} placeholder="例如：WhatsApp 注册引导" /></label>
-            <label style={fieldLabel}>目标平台<select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })} style={fieldInput}><option>WhatsApp</option><option>Telegram</option><option>Facebook</option></select></label>
+            <label style={fieldLabel}>目标平台<select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })} style={fieldInput}><option>WhatsApp</option><option>Telegram</option><option>Facebook</option><option>通用</option></select></label>
             <label style={fieldLabel}>动作<select value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })} style={fieldInput}><option value="MESSAGE">Message（发送消息）</option><option value="GROUP">Group（群组操作）</option></select></label>
           </div>
           <label style={{ ...fieldLabel, marginTop: 14 }}>话术内容<textarea required maxLength={10000} rows={7} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} style={{ ...fieldInput, resize: "vertical" }} placeholder="请输入完整话术内容" /></label>
