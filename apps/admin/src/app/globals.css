@@ -432,3 +432,39 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .users-device-actions button { padding:6px 10px; border:1px solid #d7e1ee; border-radius:5px; background:#fff; color:#2459b5; font-size:11px; cursor:pointer; }
 .users-device-actions button:disabled { opacity:.55; cursor:not-allowed; }
 .users-status.suspended { color:#dc2626; background:#fef2f2; border-color:#fecaca; }
+
+
+/* User detail tabs - match the supplied left-side reference panels */
+.users-reference-panel { display:flex; flex-direction:column; gap:12px; color:#334155; }
+.users-reference-count { min-height:34px; display:flex; align-items:center; gap:18px; padding:0 0 8px; border-bottom:1px solid #edf1f5; color:#64748b; font-size:12px; }
+.users-reference-count strong { color:#17243a; font-weight:600; }
+.users-reference-list { display:flex; flex-direction:column; }
+.users-reference-row { min-height:44px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:9px 10px; border-bottom:1px solid #edf1f5; color:#52627a; font-size:12px; }
+.users-reference-row strong { color:#26364d; font-weight:500; }
+.users-reference-row em { padding:2px 7px; border-radius:10px; background:#eff6ff; color:#2563eb; font-size:10px; font-style:normal; }
+.reference-state-active { color:#059669; }.reference-state-muted { color:#8a96a8; }
+.users-reference-empty { min-height:140px; display:grid; place-items:center; border:1px solid #e2e8f0; border-radius:7px; color:#718096; font-size:12px; }
+.users-reference-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding:8px 0 14px; border-bottom:1px solid #edf1f5; }
+.users-reference-summary>div { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.users-reference-summary small { color:#718096; font-size:12px; }.users-reference-summary strong { color:#17243a; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+.users-reference-actions { display:flex; justify-content:flex-end; }
+.users-reference-table-wrap { width:100%; overflow-x:auto; border:1px solid #dce6f2; border-radius:7px; }
+.users-reference-table { width:100%; min-width:720px; border-collapse:collapse; font-size:11px; }
+.users-reference-table th { padding:10px 11px; background:#f8fafc; color:#718096; text-align:left; font-weight:500; white-space:nowrap; border-bottom:1px solid #e7edf5; }
+.users-reference-table td { padding:11px; color:#40516a; border-bottom:1px solid #edf1f5; vertical-align:top; }
+.users-reference-no-data { height:155px; text-align:center!important; vertical-align:middle!important; color:#718096!important; }
+.users-risk-reference .users-reference-summary { grid-template-columns:repeat(2,minmax(0,1fr)); row-gap:13px; }
+.users-reputation-current { display:flex; flex-direction:column; gap:5px; padding:12px 13px; border:1px solid #dce6f2; border-radius:7px; background:#f8fafc; }
+.users-reputation-current small { color:#718096; font-size:11px; }.users-reputation-current strong { color:#17243a; font-size:19px; }
+.users-reputation-editor { display:flex; flex-direction:column; gap:12px; padding:12px; border:1px solid #dce6f2; border-radius:7px; }
+.users-reputation-mode { display:flex; gap:8px; }
+.users-reputation-mode button { padding:7px 13px; border:1px solid #dbe4ef; border-radius:6px; background:#fff; color:#334155; cursor:pointer; font-size:12px; }
+.users-reputation-mode button.active { border-color:#3478ef; background:#3478ef; color:#fff; }
+.users-reputation-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.users-reputation-fields label,.users-reputation-reason { display:grid; gap:6px; color:#52627a; font-size:12px; }
+.users-reputation-fields input,.users-reputation-fields output { min-height:36px; display:flex; align-items:center; width:100%; padding:8px 10px; border:1px solid #dbe4ef; border-radius:6px; background:#f8fafc; color:#263449; font:inherit; }
+.users-reputation-fields input { background:#fff; }
+.users-reputation-reason textarea { min-height:78px; width:100%; padding:9px 10px; border:1px solid #dbe4ef; border-radius:6px; color:#263449; resize:vertical; }
+.users-reputation-editor>button { align-self:flex-start; padding:8px 14px; border:0; border-radius:6px; background:#3478ef; color:#fff; cursor:pointer; font-size:12px; }
+.users-reputation-editor>button:disabled { opacity:.55; cursor:wait; }
+@media(max-width:640px) { .users-reference-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }.users-reputation-fields { grid-template-columns:1fr; }.users-reference-row { align-items:flex-start; } }
