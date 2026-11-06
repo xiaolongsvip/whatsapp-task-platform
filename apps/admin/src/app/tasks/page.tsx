@@ -33,7 +33,7 @@ type AdminTask = {
 type TaskList = { tasks: AdminTask[] };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
 type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
-type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number } };
+type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number } };
 
 type TaskForm = {
   title: string;
@@ -108,7 +108,7 @@ export default function AdminTasksPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | RecordStatus>("ALL");
   const [records, setRecords] = useState<TaskRecord[]>([]);
-  const [recordStats, setRecordStats] = useState<TaskRecordsResponse["stats"]>({total:0,available:0,inProgress:0,review:0,completed:0,closed:0,frozen:0});
+  const [recordStats, setRecordStats] = useState<TaskRecordsResponse["stats"]>({total:0,available:0,inProgress:0,review:0,completed:0,closed:0,frozen:0,voided:0});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
@@ -378,7 +378,7 @@ export default function AdminTasksPage() {
         <div className="tasks-toolbar">
           <div className="tasks-search"><Search size={15}/><input value={searchTerm} onChange={(event)=>setSearchTerm(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setPage(1);setAppliedSearch(searchTerm);}}} placeholder="任务名称、任务/执行编号或完整号码" aria-label="搜索任务"/></div>
           <div className="tasks-status-tabs" role="group" aria-label="任务状态筛选">
-            {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
+            {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"],["VOIDED","已作废"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
           </div>
           <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setPage(1);}}>重置</button>
@@ -396,7 +396,7 @@ export default function AdminTasksPage() {
           <article className="tasks-stat-card"><span className="tasks-stat-icon blue"><Phone size={18}/></span><div><small>总任务</small><strong>{recordStats.total.toLocaleString()}</strong></div></article>
           <article className="tasks-stat-card"><span className="tasks-stat-icon green"><UserRound size={18}/></span><div><small>可领取</small><strong>{recordStats.available.toLocaleString()}</strong></div></article>
           <article className="tasks-stat-card"><span className="tasks-stat-icon orange"><Users size={18}/></span><div><small>已领取任务</small><strong>{(recordStats.inProgress+recordStats.review+recordStats.completed).toLocaleString()}</strong></div></article>
-          <article className="tasks-stat-card"><span className="tasks-stat-icon red"><UserRound size={18}/></span><div><small>已作废</small><strong>{(recordStats.closed+recordStats.frozen).toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon red"><UserRound size={18}/></span><div><small>已作废</small><strong>{recordStats.voided.toLocaleString()}</strong></div></article>
         </div>
         <div className="tasks-table-scroll">
           <table className="tasks-management-table">
@@ -412,7 +412,7 @@ export default function AdminTasksPage() {
                 <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
                 <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[record.status]}</span></td>
                 <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
-                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(record.status) || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":record.status!=="AVAILABLE"?"仅未领取的可用记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
+                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(record.status) || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":!["AVAILABLE","CLOSED"].includes(record.status)?"仅未领取的可用记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
                   if(!window.confirm("确定删除这条未领取的任务号码记录吗？"))return;
                   try{
                     await api("/api/v1/admin/tasks/records/"+record.id,{method:"DELETE"});
@@ -493,7 +493,7 @@ export default function AdminTasksPage() {
               </section>
             </div>
             <footer className="tasks-detail-footer">
-              <button type="button" className="tasks-detail-delete" disabled={selectedRecord.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(selectedRecord.status) || Boolean(selectedRecord.claimId)} title={selectedRecord.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取的号码记录。":selectedRecord.status!=="AVAILABLE"?"仅可删除未领取的可用记录；其他记录请作废保留审计。":"删除后号码回到可分配号码池。"} onClick={async()=>{
+              <button type="button" className="tasks-detail-delete" disabled={selectedRecord.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(selectedRecord.status) || Boolean(selectedRecord.claimId)} title={selectedRecord.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取的号码记录。":!["AVAILABLE","CLOSED"].includes(selectedRecord.status)?"仅可删除未领取的可用记录；其他记录请作废保留审计。":"删除后号码回到可分配号码池。"} onClick={async()=>{
                 if(!window.confirm("确定删除这条未领取的任务号码记录吗？号码会回到可分配号码池。"))return;
                 try{
                   await api("/api/v1/admin/tasks/records/"+selectedRecord.id,{method:"DELETE"});
