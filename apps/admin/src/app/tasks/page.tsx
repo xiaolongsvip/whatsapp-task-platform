@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, HandCoins, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
+import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, Filter, HandCoins, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
 
 type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED";
 
@@ -141,6 +141,8 @@ export default function AdminTasksPage() {
 
   const groupNames = Array.from(new Set(records.map((record) => record.groupName).filter(Boolean)));
   const visibleRecords = records.filter((record) => groupFilter === "ALL" || record.groupName === groupFilter);
+  const pageStart = Math.max(1, Math.min(page - 2, totalPages - 4));
+  const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, index) => pageStart + index);
 
   useEffect(() => {
     api<{ id: string; email: string }>("/api/v1/admin-auth/me")
@@ -325,6 +327,7 @@ export default function AdminTasksPage() {
           </div>
           <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setPage(1);}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}><Filter size={13}/> 更多筛选</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{
             const headers=["任务名称","任务号码","任务组","奖励","话术","国家/地区","任务状态","创建时间"];
@@ -364,7 +367,7 @@ export default function AdminTasksPage() {
           <span>共 {totalRecords.toLocaleString()} 条</span>
           <div className="tasks-pagination">
             <button className="tasks-outline-btn" disabled={page<=1} onClick={()=>setPage((value)=>Math.max(1,value-1))}><ChevronLeft size={14}/></button>
-            <span>第 {page} / {totalPages} 页</span>
+            {pageNumbers.map((number)=><button key={number} className={"tasks-outline-btn "+(page===number?"active":"")} onClick={()=>setPage(number)}>{number}</button>)}
             <button className="tasks-outline-btn" disabled={page>=totalPages} onClick={()=>setPage((value)=>Math.min(totalPages,value+1))}><ChevronRight size={14}/></button>
             <select value={pageSize} onChange={(event)=>{setPageSize(Number(event.target.value));setPage(1);}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select>
           </div>
