@@ -153,10 +153,11 @@ export class TaskAdminService {
       ? { AND: [baseWhere, statusWhere(input.status)] }
       : baseWhere;
     const countFor = (status: string) => prisma.taskSlot.count({ where: { AND: [baseWhere, statusWhere(status)] } });
-    const [total, available, inProgress, review, completed, closed, frozen, rows] = await Promise.all([
+    const [total, available, inProgress, review, completed, closed, frozen, selectedTotal, rows] = await Promise.all([
       prisma.taskSlot.count({ where: baseWhere }),
       countFor("AVAILABLE"), countFor("IN_PROGRESS"), countFor("REVIEW"),
       countFor("COMPLETED"), countFor("CLOSED"), countFor("FROZEN"),
+      prisma.taskSlot.count({ where: selectedWhere }),
       prisma.taskSlot.findMany({
         where: selectedWhere,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -189,7 +190,7 @@ export class TaskAdminService {
     });
     return {
       items,
-      pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+      pagination: { page, pageSize, total: selectedTotal, totalPages: Math.max(1, Math.ceil(selectedTotal / pageSize)) },
       stats: { total, available, inProgress, review, completed, closed, frozen },
     };
   }
