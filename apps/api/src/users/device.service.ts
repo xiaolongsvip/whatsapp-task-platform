@@ -15,8 +15,9 @@ export class UserDeviceService {
     const manufacturer = body.manufacturer?.trim().slice(0, 80) || null;
     const androidVersion = body.androidVersion?.trim().slice(0, 40) || null;
     const sdkInt = Number.isInteger(body.sdkInt) ? body.sdkInt : null;
+    const blockedDevice = await prisma.userDevice.findFirst({ where: { deviceIdentifier, status: "BLOCKED" }, select: { id: true } });
+    if (blockedDevice) throw new ForbiddenException("此设备已被管理员限制，请联系平台客服。");
     const existing = await prisma.userDevice.findUnique({ where: { userId_deviceIdentifier: { userId, deviceIdentifier } } });
-    if (existing?.status === "BLOCKED") throw new ForbiddenException("此设备已被管理员限制，请联系平台客服。");
     const changed = !!existing && (existing.model !== model || existing.manufacturer !== manufacturer || existing.androidVersion !== androidVersion || existing.sdkInt !== sdkInt || existing.appVersion !== appVersion);
     const device = await prisma.userDevice.upsert({
       where: { userId_deviceIdentifier: { userId, deviceIdentifier } },
