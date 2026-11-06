@@ -54,7 +54,7 @@ function publicTask(task: {
   previewImageUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
-  _count?: { claims: number };
+  _count?: { claims: number };\n  group?: { name: string } | null;
 }) {
   return {
     id: task.id,
@@ -77,7 +77,7 @@ function publicTask(task: {
     previewTitle: task.previewTitle,
     previewDescription: task.previewDescription,
     previewImageUrl: task.previewImageUrl,
-    claimCount: task._count?.claims ?? task.claimedCount,
+    claimCount: task._count?.claims ?? task.claimedCount,\n    groupName: task.group?.name ?? "未分组",
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
   };
@@ -89,7 +89,7 @@ export class TaskAdminService {
     const tasks = await prisma.task.findMany({
       orderBy: [{ createdAt: "desc" }],
       take: 200,
-      include: { _count: { select: { claims: true, slots: true } } },
+      include: { group: { select: { name: true } }, _count: { select: { claims: true, slots: true } } },
     });
     const taskIds = tasks.map((task) => task.id);
     const grouped = taskIds.length
@@ -132,7 +132,7 @@ export class TaskAdminService {
     const filters: Prisma.TaskSlotWhereInput[] = [];
     if (keyword) filters.push({ OR: searchConditions });
     if (input.groupName?.trim() && input.groupName !== "ALL") {
-      filters.push({ task: { is: { category: input.groupName.trim() } } });
+      filters.push({ task: { is: { group: { is: { name: input.groupName.trim() } } } } });
     }
     const countryRegion = input.countryRegion?.trim();
     if (countryRegion) {
@@ -202,7 +202,7 @@ export class TaskAdminService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          task: { select: { id: true, title: true, category: true, status: true, rewardMinor: true, currency: true, messageTemplate: true } },
+          task: { select: { id: true, title: true, category: true, status: true, rewardMinor: true, currency: true, messageTemplate: true, group: { select: { name: true } } } },
           contactNumber: { select: { id: true, phoneE164: true, status: true, consentStatus: true, countryCode: true, countryName: true } },
           claim: { select: { id: true, status: true, claimedAt: true, userId: true } },
         },
@@ -224,7 +224,7 @@ export class TaskAdminService {
       else if (slot.status !== "VOIDED" && slot.status === "AVAILABLE" && slot.task.status === "PUBLISHED" && slot.contactNumber.status === "AVAILABLE" && slot.contactNumber.consentStatus === "GRANTED") status = "AVAILABLE";
       return {
         id: slot.id, taskId: slot.task.id, taskStatus: slot.task.status, taskName: slot.task.title,
-        phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.category || "未分组",
+        phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.group?.name ?? "未分组",
         rewardAmount: (Number(slot.task.rewardMinor) / 100).toFixed(3),
         currency: slot.task.currency.trim(), messageTemplate: slot.task.messageTemplate ?? "",
         countryRegion: slot.contactNumber.countryName ?? slot.contactNumber.countryCode ?? "未标记", status, createdAt: slot.createdAt.toISOString(),
@@ -414,10 +414,16 @@ export class TaskAdminService {
     const existing = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
     if (!existing) throw new NotFoundException("任务不存在。");
     return prisma.$transaction(async (tx) => {
+      const group = await tx.taskGroup.upsert({
+        where: { name: normalized },
+        create: { name: normalized },
+        update: {},
+        select: { id: true, name: true },
+      });
       const updated = await tx.task.update({
         where: { id: taskId },
-        data: { category: normalized },
-        select: { id: true, category: true },
+        data: { groupId: group.id },
+        select: { id: true, groupId: true },
       });
       if (actorId) {
         await tx.auditEvent.create({
@@ -554,6 +560,35 @@ export class TaskAdminService {
       });
       return publicTask(updated);
     });
+  }
+
+  async listTaskGroups() {
+    const groups = await prisma.taskGroup.findMany({
+      orderBy: { name: "asc" },
+      include: { _count: { select: { tasks: true } } },
+    });
+    return groups.map((group) => ({ id: group.id, name: group.name, description: group.description, taskCount: group._count.tasks, createdAt: group.createdAt.toISOString() }));
+  }
+
+  async createTaskGroup(input: { name?: string; description?: string }) {
+    const name = input.name?.trim() ?? "";
+    if (name.length < 2 || name.length > 100) throw new BadRequestException("任务组名称需要为 2 至 100 个字符。");
+    try {
+      return await prisma.taskGroup.create({ data: { name, description: cleanOptional(input.description) ?? null } });
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") throw new ConflictException("任务组名称已存在。");
+      throw error;
+    }
+  }
+
+  async deleteTaskGroup(id: string) {
+    const group = await prisma.taskGroup.findUnique({ where: { id }, include: { _count: { select: { tasks: true } } } });
+    if (!group) throw new NotFoundException("任务组不存在。");
+    await prisma.$transaction(async (tx) => {
+      await tx.task.updateMany({ where: { groupId: id }, data: { groupId: null } });
+      await tx.taskGroup.delete({ where: { id } });
+    });
+    return { id, deleted: true, detachedTasks: group._count.tasks, message: "任务组已删除，任务本身及其号码记录均已保留。" };
   }
 
   async listMessageTemplates(input: { enabled?: boolean; platform?: string; action?: string } = {}) {
