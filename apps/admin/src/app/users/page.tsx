@@ -94,7 +94,7 @@ export default function AdminUsersPage() {
     if (!detail) return;
     setBusy(true); setError("");
     try {
-      const result = await api<{items: UserDetail["devices"]["items"][number]["events"][]}>(`/api/v1/admin/users/${detail.basic.id}/devices/${deviceId}/history?page=1&pageSize=100`);
+      const result = await api<{items: UserDetail["devices"]["items"][number]["events"]}>(`/api/v1/admin/users/${detail.basic.id}/devices/${deviceId}/history?page=1&pageSize=100`);
       setDetail(current => current ? { ...current, devices: { ...current.devices, items: current.devices.items.map(device => device.id === deviceId ? { ...device, events: result.items } : device) } } : current);
       setDeviceHistoryLoaded(current => [...new Set([...current, deviceId])]);
     } catch (e) { setError(e instanceof Error ? e.message : "读取设备历史失败。"); }
