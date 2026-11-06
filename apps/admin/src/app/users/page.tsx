@@ -171,7 +171,7 @@ export default function AdminUsersPage() {
               {shownColumns.map(([key])=><td key={key}>{key==="phone"?<><strong>{user.phone}</strong><small>{user.displayName||user.referralCode}</small></>
                 :key==="createdAt"?dateText(user.createdAt)
                 :key==="status"?<span className={`users-status ${user.status.toLowerCase()}`}>{user.status==="ACTIVE"?"正常":user.status==="SUSPENDED"?"冻结":user.status==="PENDING"?"待激活":"已关闭"}</span>
-                 :key==="score"?`${user.reputationScore}分`
+                 :key==="score"?<span className="users-table-score"><span>{user.reputationScore}分</span><span className="users-stars" aria-label={`信誉星级 ${Math.round(user.reputationScore/20)} 星`}>{Array.from({length:5},(_,i)=><span key={i}>{i<Math.max(0,Math.min(5,Math.round(user.reputationScore/20)))?"★":"☆"}</span>)}</span></span>
                 :key==="risk"?<span className={`users-risk ${user.riskLabel==="低风险"?"low":user.riskLabel==="中风险"?"medium":"high"}`}>● {user.riskLabel}</span>
                 :key==="balance"?money(user.balances)
                 :key==="taskCount"?user.taskCount
