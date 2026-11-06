@@ -7,7 +7,7 @@ import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Cl
 type UserRow = {
   id: string; phone: string; displayName: string | null; referralCode: string; status: "PENDING" | "ACTIVE" | "SUSPENDED" | "CLOSED";
   createdAt: string; taskCount: number; approvedCount: number; rejectedCount: number; approvalRate: number | null;
-  riskLabel: string; balances: { currency: string; amountMinor: string }[];
+  riskLabel: string; reputationScore: number; balances: { currency: string; amountMinor: string }[];
 };
 type Summary = { total: number; todayNew: number; last7DaysNew: number; activeToday: number; suspended: number };
 type ListResult = { users: UserRow[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } };
@@ -171,7 +171,7 @@ export default function AdminUsersPage() {
               {shownColumns.map(([key])=><td key={key}>{key==="phone"?<><strong>{user.phone}</strong><small>{user.displayName||user.referralCode}</small></>
                 :key==="createdAt"?dateText(user.createdAt)
                 :key==="status"?<span className={`users-status ${user.status.toLowerCase()}`}>{user.status==="ACTIVE"?"正常":user.status==="SUSPENDED"?"冻结":user.status==="PENDING"?"待激活":"已关闭"}</span>
-                :key==="score"?(user.approvalRate===null?"暂无":`${user.approvalRate}分`)
+                 :key==="score"?`${user.reputationScore}分`
                 :key==="risk"?<span className={`users-risk ${user.riskLabel==="低风险"?"low":user.riskLabel==="中风险"?"medium":"high"}`}>● {user.riskLabel}</span>
                 :key==="balance"?money(user.balances)
                 :key==="taskCount"?user.taskCount
