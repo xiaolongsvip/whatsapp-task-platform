@@ -24,6 +24,21 @@ export class AdminUsersController {
     await this.auth.getCurrentAdmin(adminToken(request));
     return this.users.list(search, status, page, pageSize);
   }
+  @Get(":id/detail")
+  async detail(@Req() request: Request, @Param("id") id: string) {
+    await this.auth.getCurrentAdmin(adminToken(request));
+    return this.users.detail(id);
+  }
+  @Patch(":id/policy")
+  async updatePolicy(@Req() request: Request, @Param("id") id: string, @Body() body: { dailyTaskLimit?: number | null; minClaimIntervalSeconds?: number | null }) {
+    await this.auth.getCurrentAdmin(adminToken(request));
+    return this.users.updatePolicy(id, body);
+  }
+  @Post(":id/reputation")
+  async adjustReputation(@Req() request: Request, @Param("id") id: string, @Body() body: { amount: number; reason: string }) {
+    const admin = await this.auth.getCurrentAdmin(adminToken(request));
+    return this.users.adjustReputation(id, admin.id, body);
+  }
   @Patch(":id/profile")
   async updateProfile(@Req() request: Request, @Param("id") id: string, @Body() body: { displayName?: string | null }) {
     const admin = await this.auth.getCurrentAdmin(adminToken(request));
