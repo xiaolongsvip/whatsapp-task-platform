@@ -155,14 +155,18 @@ export class AdminUsersService {
     return { success: true };
   }
 
-  async setStatus(userId: string, statusInput: string) {
+  async setStatus(userId: string, statusInput: string, adminId?: string) {
     if (statusInput !== "ACTIVE" && statusInput !== "SUSPENDED") throw new BadRequestException("只允许启用或冻结用户。");
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, status: true } });
     if (!user) throw new NotFoundException("用户不存在。");
-    const updated = await prisma.user.update({ where: { id: userId }, data: { status: statusInput } });
-    if (statusInput === "SUSPENDED") {
-      await prisma.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
-    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.user.update({ where: { id: userId }, data: { status: statusInput } });
+      if (statusInput === "SUSPENDED") {
+        await tx.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      }
+      await tx.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId ?? null, action: statusInput === "SUSPENDED" ? "USER_SUSPENDED" : "USER_ACTIVATED", targetType: "USER", targetId: userId, metadata: { previousStatus: user.status, newStatus: statusInput } } });
+      return result;
+    });
     return { id: updated.id, status: updated.status };
   }
 
