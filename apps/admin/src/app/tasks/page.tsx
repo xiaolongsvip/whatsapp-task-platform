@@ -138,7 +138,7 @@ export default function AdminTasksPage() {
   const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");
   const [bulkMessageText, setBulkMessageText] = useState("");
   const [bulkTemplateId, setBulkTemplateId] = useState("");
-  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);\n  const [bulkPlatforms, setBulkPlatforms] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
@@ -374,12 +374,10 @@ export default function AdminTasksPage() {
             finally{setBusy(false);}
           }}>批量作废（{selectedIds.length}）</button>
 
-          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
-            const chosen=records.filter((item)=>selectedIds.includes(item.id));
-            const ids=Array.from(new Set(chosen.map((item)=>item.taskId)));
-            const editable=tasks.filter((task)=>ids.includes(task.id)&&task.status!=="PUBLISHED"&&task.claimedCount===0);
-            if(!editable.length){window.alert("选中的任务已发布或有领取记录，暂时不能批量修改话术。");return;}
+          <button className="tasks-outline-btn" type="button" disabled={busy} onClick={async()=>{
             try{
+              const eligible=tasks.filter((task)=>task.status!=="PUBLISHED"&&task.claimedCount===0&&(groupFilter==="ALL"||task.groupName===groupFilter));
+              setBulkPlatforms(Array.from(new Set(eligible.map((task)=>task.category))));
               const templates=await api<MessageTemplateOption[]>("/api/v1/admin/tasks/message-templates?enabled=true");
               setMessageTemplates(templates.filter((item)=>item.enabled));
               setBulkMessageText("");
@@ -387,7 +385,7 @@ export default function AdminTasksPage() {
               setBulkMessageTab("manual");
               setBulkMessageOpen(true);
             }catch(err){setError(err instanceof Error?err.message:"话术模板加载失败。");}
-          }}>批量更换话术（{selectedIds.length}）</button>
+          }}>批量更换话术</button>
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
@@ -566,29 +564,35 @@ export default function AdminTasksPage() {
               <strong style={{fontSize:16}}>批量更换话术</strong>
               <button type="button" onClick={()=>setBulkMessageOpen(false)} aria-label="关闭">×</button>
             </header>
-            <p style={{fontSize:13,color:"#536176",lineHeight:1.6}}>更换当前筛选条件下所选任务涉及的未领取、未占用且未进入回收站的普通任务话术，不受页码和勾选范围外记录影响。</p>
-            <div style={{padding:12,background:"#f7f9fc",border:"1px solid #e5eaf1",borderRadius:7,fontSize:12,color:"#52627a"}}>当前选中 {selectedIds.length} 条任务号码记录；实际修改对应的未发布且尚无领取记录的任务。</div>
+            <p style={{fontSize:13,color:"#536176",lineHeight:1.6}}>更换当前已应用筛选条件下全部未领取、未占用且未进入回收站的普通任务话术，不受页码和勾选状态影响。</p>
+            <div style={{padding:12,background:"#f7f9fc",border:"1px solid #e5eaf1",borderRadius:7,fontSize:12,color:"#52627a"}}>按当前筛选条件匹配任务；只修改未发布、未领取且未占用的任务。</div>
             <div style={{display:"flex",gap:18,borderBottom:"1px solid #e5eaf1",marginTop:14}}>
               <button type="button" className={bulkMessageTab==="manual"?"active":""} onClick={()=>setBulkMessageTab("manual")} style={{padding:"10px 12px",border:0,borderBottom:bulkMessageTab==="manual"?"2px solid #2864ed":"2px solid transparent",background:"transparent",color:bulkMessageTab==="manual"?"#2864ed":"#52627a"}}>手工输入</button>
               <button type="button" onClick={()=>setBulkMessageTab("template")} style={{padding:"10px 12px",border:0,borderBottom:bulkMessageTab==="template"?"2px solid #2864ed":"2px solid transparent",background:"transparent",color:bulkMessageTab==="template"?"#2864ed":"#52627a"}}>选择模板</button>
             </div>
             <div style={{paddingTop:14}}>
               {bulkMessageTab==="manual" ? <textarea rows={6} value={bulkMessageText} onChange={(event)=>setBulkMessageText(event.target.value)} placeholder="请输入需要批量更换的话术" style={{width:"100%",boxSizing:"border-box",padding:11,border:"1px solid #dbe2ec",borderRadius:7,resize:"vertical"}}/> :
-                <div><label style={{display:"block",fontSize:13,marginBottom:7}}>话术模板</label><select value={bulkTemplateId} onChange={(event)=>setBulkTemplateId(event.target.value)} style={{width:"100%",padding:10,border:"1px solid #dbe2ec",borderRadius:7}}><option value="">请选择话术模板</option>{messageTemplates.filter((item)=>{const selectedTaskIds=Array.from(new Set(records.filter((record)=>selectedIds.includes(record.id)).map((record)=>record.taskId)));const platforms=Array.from(new Set(tasks.filter((task)=>selectedTaskIds.includes(task.id)).map((task)=>task.category)));return item.action==="MESSAGE"&&(item.platform==="通用"||(platforms.length===1&&platforms[0]===item.platform));}).map((item)=><option key={item.id} value={item.id}>{item.name} · {item.platform} · {item.action}</option>)}</select><p style={{fontSize:12,color:"#718096"}}>只显示已启用且适用于当前任务平台的模板。模板内容将复制到任务中，之后编辑模板不会改变已创建任务。</p>{bulkTemplateId && <pre style={{whiteSpace:"pre-wrap",maxHeight:140,overflow:"auto",padding:10,background:"#f8fafc",borderRadius:6,fontSize:12}}>{messageTemplates.find((item)=>item.id===bulkTemplateId)?.content}</pre>}</div>}
+                <div><label style={{display:"block",fontSize:13,marginBottom:7}}>话术模板</label><select value={bulkTemplateId} onChange={(event)=>setBulkTemplateId(event.target.value)} style={{width:"100%",padding:10,border:"1px solid #dbe2ec",borderRadius:7}}><option value="">请选择话术模板</option>{messageTemplates.filter((item)=>item.action==="MESSAGE"&&(item.platform==="通用"||(bulkPlatforms.length===1&&bulkPlatforms[0]===item.platform))).map((item)=><option key={item.id} value={item.id}>{item.name} · {item.platform} · {item.action}</option>)}</select><p style={{fontSize:12,color:"#718096"}}>只显示已启用且适用于当前任务平台的模板。模板内容将复制到任务中，之后编辑模板不会改变已创建任务。</p>{bulkTemplateId && <pre style={{whiteSpace:"pre-wrap",maxHeight:140,overflow:"auto",padding:10,background:"#f8fafc",borderRadius:6,fontSize:12}}>{messageTemplates.find((item)=>item.id===bulkTemplateId)?.content}</pre>}</div>}
             </div>
             <footer style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
               <button type="button" className="tasks-outline-btn" onClick={()=>setBulkMessageOpen(false)}>取消</button>
               <button type="button" className="tasks-primary-btn" disabled={busy || (bulkMessageTab==="manual"?!bulkMessageText.trim():!bulkTemplateId)} onClick={async()=>{
-                const chosen=records.filter((item)=>selectedIds.includes(item.id));
-                const ids=Array.from(new Set(chosen.map((item)=>item.taskId)));
-                const editable=tasks.filter((task)=>ids.includes(task.id)&&task.status!=="PUBLISHED"&&task.claimedCount===0);
                 const text=bulkMessageTab==="manual"?bulkMessageText.trim():(messageTemplates.find((item)=>item.id===bulkTemplateId)?.content??"");
                 if(!text.trim())return;
-                if(!window.confirm("将更换 "+editable.length+" 个任务的话术，影响这些任务下的全部号码记录。确定继续吗？"))return;
+                if(!window.confirm("将更换当前筛选条件下所有符合条件的未领取任务话术。已发布、已领取或已占用任务不会修改。确定继续吗？"))return;
                 setBusy(true);setError("");setMessage("");
                 try{
-                  await Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})})));
-                  setBulkMessageOpen(false);setMessage("批量更换话术完成。");await refresh();await loadRecords();
+                  const result=await api<{matchedTasks:number;updatedTasks:number;message:string}>("/api/v1/admin/tasks/records/bulk-message",{method:"POST",body:JSON.stringify({
+                    messageTemplate:text,
+                    keyword:appliedSearch,
+                    groupName:groupFilter,
+                    countryRegion:countryFilter.trim(),
+                    createdFrom:createdFrom?new Date(createdFrom+"T00:00:00").toISOString():undefined,
+                    createdTo:createdTo?new Date(createdTo+"T23:59:59.999").toISOString():undefined
+                  })});
+                  setBulkMessageOpen(false);
+                  setMessage(result.message+" 匹配 "+result.matchedTasks+" 个任务，更新 "+result.updatedTasks+" 个任务。");
+                  await refresh();await loadRecords();
                 }catch(err){setError(err instanceof Error?err.message:"批量更新失败。");}
                 finally{setBusy(false);}
               }}>{busy?"正在更换…":"确认更换"}</button>
