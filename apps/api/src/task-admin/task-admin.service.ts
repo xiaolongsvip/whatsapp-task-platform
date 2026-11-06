@@ -151,6 +151,7 @@ export class TaskAdminService {
             notFrozen,
             { NOT: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] },
             { OR: [
+              { status: "VOIDED" },
               { task: { is: { status: { in: ["DRAFT", "PAUSED", "CLOSED"] } } } },
               { claim: { is: { status: { in: ["REJECTED", "EXPIRED", "CANCELLED"] } } } },
             ] },
