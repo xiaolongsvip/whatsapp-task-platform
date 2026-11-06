@@ -215,6 +215,7 @@ export default function AdminTasksPage() {
       setEditingId(null);
       setForm(emptyForm);
       await refresh();
+      await loadRecords();
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存任务失败。");
     } finally {
@@ -237,6 +238,7 @@ export default function AdminTasksPage() {
       await api(`/api/v1/admin/tasks/${id}/${action}`, { method: "POST", body: "{}" });
       setMessage(action === "publish" ? "任务已发布，客户端任务大厅现在可以读取。" : action === "pause" ? "任务已暂停。" : "任务已结束。");
       await refresh();
+      await loadRecords();
     } catch (err) {
       setError(err instanceof Error ? err.message : "任务状态更新失败。");
     } finally {
