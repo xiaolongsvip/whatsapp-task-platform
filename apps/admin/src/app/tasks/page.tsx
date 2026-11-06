@@ -301,11 +301,45 @@ export default function AdminTasksPage() {
   }
 
   return (
-    <main className="admin-shell tasks-admin-page">
+    <main className="dashboard-app">
+      <aside className={"dashboard-sidebar " + (sidebarOpen ? "sidebar-open" : "")}>
+        <div className="sidebar-brand"><div className="sidebar-brand-mark"><Zap size={19} fill="currentColor" /></div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
+        <nav className="sidebar-nav">
+          <Link className="sidebar-link" href="/"><LayoutDashboard size={16}/>控制台</Link>
+          <Link className="sidebar-link" href="/users"><Users size={16}/>用户管理</Link>
+          <Link className="sidebar-link active" href="/tasks"><Phone size={16}/>任务管理</Link>
+          <button type="button" className="sidebar-link" disabled><FileClock size={16}/>执行记录</button>
+          <button type="button" className="sidebar-link" disabled><ClipboardCheck size={16}/>审核中心<ChevronDown size={14}/></button>
+          <button type="button" className="sidebar-link" disabled><ClipboardCheck size={16}/>任务设置<ChevronDown size={14}/></button>
+          <button type="button" className="sidebar-link" disabled><HandCoins size={16}/>邀请与分佣</button>
+          <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
+          <button type="button" className="sidebar-link" disabled><WalletCards size={16}/>财务管理</button>
+          <button type="button" className="sidebar-link" disabled><BarChart3 size={16}/>数据报表</button>
+          <button type="button" className="sidebar-link" disabled><Shield size={16}/>权限管理</button>
+          <button type="button" className="sidebar-link" disabled><Settings size={16}/>系统设置</button>
+        </nav>
+        <div className="sidebar-version">EasyEarn v1.0.0</div>
+      </aside>
+      <section className="dashboard-main">
+        <header className="dashboard-topbar">
+          <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button>
+          <div className="topbar-search"><Search size={16}/><input value={adminSearch} onChange={(event)=>setAdminSearch(event.target.value)} placeholder="搜索任务、用户、手机号码..."/></div>
+          <div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>{adminEmail || "Administrator"}</strong><small>超级管理员</small></span></div></div>
+        </header>
+        <div className="dashboard-content tasks-dashboard-content">
       <header className="tasks-page-heading">
         <div><h1>任务管理</h1><p>添加和管理可领取任务，并可按任务整理和筛选。</p></div>
         <div className="tasks-heading-actions">
-          <button className="tasks-outline-btn" type="button" onClick={() => { setStatusFilter("ALL"); setSearchTerm(""); void refresh(); }}>刷新数据</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>window.alert("任务组目前使用任务分类标识，独立任务组管理将在后续接入。")}>任务组</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{
+            if(!selectedIds.length){window.alert("请先勾选需要更换话术的任务号码。");return;}
+            const text=window.prompt("请输入新的 WhatsApp 话术模板：");if(text===null)return;
+            const chosen=records.filter((item)=>selectedIds.includes(item.id));
+            const ids=Array.from(new Set(chosen.map((item)=>item.taskId)));
+            const editable=tasks.filter((task)=>ids.includes(task.id)&&task.status!=="PUBLISHED"&&task.claimedCount===0);
+            if(!editable.length){window.alert("选中的任务已发布或有领取记录，暂时不能批量修改话术。");return;}
+            void Promise.all(editable.map((task)=>api("/api/v1/admin/tasks/"+task.id,{method:"PATCH",body:JSON.stringify({messageTemplate:text})}))).then(async()=>{setMessage("批量更换话术完成。");await refresh();}).catch((err)=>setError(err instanceof Error?err.message:"批量更新失败。"));
+          }}>批量更换话术</button>
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
@@ -427,6 +461,8 @@ export default function AdminTasksPage() {
           </form>
         </section>
       )}
+        </div>
+      </section>
     </main>
   );
 }
