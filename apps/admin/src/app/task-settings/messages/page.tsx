@@ -180,10 +180,10 @@ export default function MessageTemplatesPage() {
   );
 }
 
-const primaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, border: 0, borderRadius: 7, padding: "9px 14px", background: "#2864ed", color: "#fff", cursor: "pointer", fontSize: 13 };
-const secondaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, border: "1px solid #d9e1ec", borderRadius: 7, padding: "9px 14px", background: "#fff", color: "#344054", cursor: "pointer", fontSize: 13 };
-const fieldLabel = { display: "flex", flexDirection: "column" as const, gap: 7, color: "#344054", fontSize: 13, fontWeight: 600 };
-const fieldInput = { width: "100%", boxSizing: "border-box" as const, border: "1px solid #d9e1ec", borderRadius: 7, padding: "10px 11px", color: "#172033", background: "#fff", font: "inherit", fontWeight: 400 };
-const tableHead = { padding: "12px 14px", color: "#667085", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #edf0f5" };
-const tableCell = { padding: "13px 14px", borderBottom: "1px solid #edf0f5", fontSize: 13, color: "#344054" };
-const textButton = { display: "inline-flex", alignItems: "center", gap: 4, border: 0, background: "transparent", color: "#2864ed", cursor: "pointer", fontSize: 12, padding: 0 };
+const primaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, border: 0, borderRadius: 7, padding: "9px 14px", background: "#2864ed", color: "#fff", cursor: "pointer", fontSize: 13 } as const;
+const secondaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, border: "1px solid #d9e1ec", borderRadius: 7, padding: "9px 14px", background: "#fff", color: "#344054", cursor: "pointer", fontSize: 13 } as const;
+const fieldLabel = { display: "flex", flexDirection: "column" as const, gap: 7, color: "#344054", fontSize: 13, fontWeight: 600 } as const;
+const fieldInput = { width: "100%", boxSizing: "border-box" as const, border: "1px solid #d9e1ec", borderRadius: 7, padding: "10px 11px", color: "#172033", background: "#fff", font: "inherit", fontWeight: 400 } as const;
+const tableHead = { padding: "12px 14px", color: "#667085", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #edf0f5" } as const;
+const tableCell = { padding: "13px 14px", borderBottom: "1px solid #edf0f5", fontSize: 13, color: "#344054" } as const;
+const textButton = { display: "inline-flex", alignItems: "center", gap: 4, border: 0, background: "transparent", color: "#2864ed", cursor: "pointer", fontSize: 12, padding: 0 } as const;
