@@ -31,8 +31,8 @@ type AdminTask = {
 };
 
 type TaskList = { tasks: AdminTask[] };
-type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN";
-type TaskRecord = { id: string; taskId: string; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
+type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
+type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number } };
 
 type TaskForm = {
@@ -334,7 +334,7 @@ export default function AdminTasksPage() {
           <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{
             const headers=["任务名称","任务号码","任务组","奖励","话术","国家/地区","任务状态","创建时间"];
-            const labels={AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结"};
+            const labels={AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"};
             const rows=visibleRecords.map((item)=>[item.taskName,item.phoneNumber,item.groupName,item.rewardAmount+" "+item.currency,item.messageTemplate,item.countryRegion,labels[item.status],new Date(item.createdAt).toLocaleString("zh-CN")]);
             const csv=[headers,...rows].map((row)=>row.map((value)=>'"'+String(value).replace(/"/g,'""')+'"').join(",")).join("\r\n");
             const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="任务管理.csv";link.click();URL.revokeObjectURL(url);
@@ -358,7 +358,7 @@ export default function AdminTasksPage() {
                 <td className="tasks-title-cell" title={record.taskName}>{record.taskName}</td>
                 <td>{record.phoneNumber}</td><td>{record.groupName}</td><td>{record.rewardAmount} {record.currency}</td>
                 <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
-                <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[record.status]}</span></td>
+                <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[record.status]}</span></td>
                 <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
                 <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled title="单条删除接口尚未实现">删除</button></div></td>
               </tr>)}
@@ -434,10 +434,23 @@ export default function AdminTasksPage() {
               </section>
             </div>
             <footer className="tasks-detail-footer">
-              <button type="button" className="tasks-detail-delete" disabled title="任务号码删除接口尚未实现，不会直接删除数据库记录。"><Trash2 size={13}/> 删除</button>
-              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="CLOSED" || selectedRecord.status==="COMPLETED"} onClick={()=>{
-                setSelectedRecord(null);
-                void taskAction(selectedRecord.taskId,"close");
+              <button type="button" className="tasks-detail-delete" disabled={selectedRecord.taskStatus==="PUBLISHED" || selectedRecord.status!=="AVAILABLE" || Boolean(selectedRecord.claimId)} title={selectedRecord.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取的号码记录。":selectedRecord.status!=="AVAILABLE"?"仅可删除未领取的可用记录；其他记录请作废保留审计。":"删除后号码回到可分配号码池。"} onClick={async()=>{
+                if(!window.confirm("确定删除这条未领取的任务号码记录吗？号码会回到可分配号码池。"))return;
+                try{
+                  await api("/api/v1/admin/tasks/records/"+selectedRecord.id,{method:"DELETE"});
+                  setSelectedRecord(null);
+                  setMessage("任务号码记录已删除。");
+                  await refresh();await loadRecords();
+                }catch(err){setError(err instanceof Error?err.message:"删除任务号码记录失败。");}
+              }}><Trash2 size={13}/> 删除</button>
+              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="VOIDED" || selectedRecord.status==="COMPLETED" || selectedRecord.status==="REVIEW" || selectedRecord.status==="FROZEN"} onClick={async()=>{
+                if(!window.confirm("确定作废当前这条任务号码记录吗？不会关闭整批任务。"))return;
+                try{
+                  await api("/api/v1/admin/tasks/records/"+selectedRecord.id+"/void",{method:"POST"});
+                  setSelectedRecord(null);
+                  setMessage("当前任务号码记录已作废，其他号码任务不受影响。");
+                  await refresh();await loadRecords();
+                }catch(err){setError(err instanceof Error?err.message:"作废任务号码记录失败。");}
               }}>⊗ 作废任务</button>
             </footer>
           </aside>
