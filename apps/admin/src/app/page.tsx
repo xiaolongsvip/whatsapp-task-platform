@@ -72,6 +72,22 @@ function statusLabel(status: ContactNumber["status"]) {
   }[status];
 }
 
+
+function TrendChart({ data }: { data: { day: string; submitted: number; approved: number; rejected: number }[] }) {
+  const width = 720, height = 250, left = 42, right = 18, top = 18, bottom = 38;
+  const max = Math.max(1, ...data.flatMap((item) => [item.submitted, item.approved, item.rejected]));
+  const x = (index: number) => left + (data.length <= 1 ? 0 : index * (width - left - right) / (data.length - 1));
+  const y = (value: number) => top + (height - top - bottom) * (1 - value / max);
+  const path = (key: "submitted" | "approved" | "rejected") => data.map((item, index) => (index === 0 ? "M" : "L") + " " + x(index) + " " + y(item[key])).join(" ");
+  return <svg className="trend-chart" viewBox="0 0 720 250" role="img" aria-label="近7日任务趋势">
+    {[0, Math.round(max / 3), Math.round(max * 2 / 3), max].map((tick, index) => <g key={index}><line x1={left} x2={width-right} y1={y(tick)} y2={y(tick)} stroke="#e6edf6" strokeDasharray="4 5"/><text x={left-9} y={y(tick)+4} textAnchor="end" fill="#8b9ab0" fontSize="10">{tick}</text></g>)}
+    <path d={path("submitted")} fill="none" stroke="#16c56a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d={path("approved")} fill="none" stroke="#4385ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d={path("rejected")} fill="none" stroke="#ff791f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+    {data.map((item,index)=><g key={item.day}><circle cx={x(index)} cy={y(item.submitted)} r="3.5" fill="#16c56a"/><circle cx={x(index)} cy={y(item.approved)} r="3.5" fill="#4385ff"/><circle cx={x(index)} cy={y(item.rejected)} r="3.5" fill="#ff791f"/><text x={x(index)} y={height-12} textAnchor="middle" fill="#8292aa" fontSize="10">{item.day.slice(5).replace("-","/")}</text></g>)}
+  </svg>;
+}
+
 export default function AdminHomePage() {
   const [adminEmail, setAdminEmail] = useState("");
   const [password, setPassword] = useState("");
