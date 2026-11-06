@@ -512,3 +512,39 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .tasks-table-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;color:#718096;font-size:12px}
 @media(max-width:900px){.tasks-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tasks-page-heading{align-items:flex-start}.tasks-toolbar{align-items:stretch}.tasks-status-tabs{order:3;width:100%}.tasks-search{flex-basis:100%}}
 @media(max-width:560px){.tasks-page-heading{flex-direction:column}.tasks-heading-actions{width:100%}.tasks-stat-grid{gap:8px}.tasks-stat-card{min-height:72px;padding:10px}.tasks-stat-icon{flex-basis:34px;width:34px;height:34px}.tasks-stat-card strong{font-size:20px}.tasks-management-card{padding:10px}}
+
+
+/* EasyEarn task manager reference layout */
+.tasks-dashboard-content{max-width:none;padding:16px 16px 28px}
+.tasks-page-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 0 14px;margin:0 0 14px;border:0}
+.tasks-page-heading h1{margin:0;color:#172b49;font-size:19px;font-weight:800}
+.tasks-page-heading p{margin:5px 0 0;color:#8795a9;font-size:11px}
+.tasks-heading-actions{display:flex;align-items:center;gap:8px}
+.tasks-heading-actions .tasks-primary-btn,.tasks-heading-actions .tasks-outline-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;font-size:11px}
+.tasks-management-card{padding:14px;border:1px solid #e2e9f2;border-radius:8px;background:#fff}
+.tasks-toolbar{display:flex;align-items:center;flex-wrap:nowrap;gap:7px;padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid #edf1f6}
+.tasks-search{height:34px;flex:0 0 225px;min-width:180px}
+.tasks-search input{font-size:11px}
+.tasks-status-tabs{flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap}
+.tasks-status-tabs button{padding:0 9px;min-height:28px;font-size:11px}
+.tasks-toolbar>.tasks-outline-btn,.tasks-toolbar>.tasks-primary-btn{min-height:32px;padding:0 10px;font-size:11px}
+.tasks-stat-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:12px}
+.tasks-stat-card{min-height:72px;padding:11px 13px;border-radius:7px}
+.tasks-stat-card strong{font-size:22px}
+.tasks-table-scroll{height:min(62vh,590px);min-height:300px;overflow:auto;border:1px solid #e4eaf2;border-radius:6px}
+.tasks-management-table{width:100%;min-width:1320px;font-size:11px}
+.tasks-management-table th{padding:9px 10px;font-size:10px}
+.tasks-management-table td{padding:10px;color:#29415f;font-size:11px}
+.tasks-management-table th:first-child,.tasks-management-table td:first-child{width:34px;text-align:center}
+.tasks-management-table input[type=checkbox]{width:14px;height:14px;accent-color:#2864ed;vertical-align:middle}
+.tasks-title-cell{max-width:190px}
+.tasks-template-cell{max-width:210px;overflow:hidden;text-overflow:ellipsis}
+.tasks-table-footer{min-height:42px;padding-top:9px;font-size:11px}
+.tasks-pagination{display:flex;align-items:center;gap:6px}
+.tasks-pagination .tasks-outline-btn{display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:28px;padding:0 7px}
+.tasks-pagination select{height:29px;padding:0 8px;border:1px solid #dce5f1;border-radius:6px;background:#fff;color:#334b68;font-size:11px}
+.tasks-group-filter{display:flex;align-items:center;gap:8px;margin:-5px 0 12px;padding:9px 12px;border:1px solid #e3eaf3;border-radius:7px;background:#fff;color:#61738c;font-size:12px}
+.tasks-group-filter select{height:30px;padding:0 9px;border:1px solid #dce5f1;border-radius:6px;background:#fff}
+.tasks-form-panel{margin-top:14px}
+@media(max-width:1200px){.tasks-toolbar{flex-wrap:wrap}.tasks-search{flex:1 1 220px}.tasks-status-tabs{order:5;flex:1 1 100%}}
+@media(max-width:760px){.tasks-dashboard-content{padding:14px 10px 22px}.tasks-page-heading{align-items:flex-start;flex-direction:column}.tasks-heading-actions{width:100%;flex-wrap:wrap}.tasks-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tasks-management-card{padding:10px}.tasks-table-scroll{height:60vh}.tasks-table-footer{align-items:flex-start;flex-direction:column}.tasks-pagination{flex-wrap:wrap}}
