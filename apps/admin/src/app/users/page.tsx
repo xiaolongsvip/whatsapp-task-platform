@@ -288,11 +288,17 @@ export default function AdminUsersPage() {
           </div>
         </section>):<div className="users-detail-empty">该用户尚未通过 Android APP 上报设备信息。用户下次登录或启动 APP 后将自动登记。</div>}
       </div>}
-      {detailTab==="payout"&&<div className="users-reference-panel">
+      {detailTab==="payout"&&<div className="users-reference-panel users-payout-reference">
         <div className="users-reference-count">收款账户数量 <strong>{detail.payoutAccounts.length}</strong></div>
-        {detail.payoutAccounts.length ? <div className="users-reference-list">{detail.payoutAccounts.map(a=><div className="users-reference-row" key={a.id}>
-          <strong>{a.accountHolder||"未设置账户名"}</strong><span>{a.currency}</span><span>{a.providerCode}</span><span>{a.methodCode}</span><span>{a.maskedAccount}</span><span className={a.status==="ACTIVE"?"reference-state-active":"reference-state-muted"}>{a.status==="ACTIVE"?"正常":a.status}</span>{a.isDefault&&<em>默认</em>}
-        </div>)}</div> : <div className="users-reference-empty">暂无收款账户</div>}
+        {detail.payoutAccounts.length ? <div className="users-payout-list">{detail.payoutAccounts.map(a=><section className="users-payout-account" key={a.id}>
+          <div><span>收款账户</span><strong>{[a.accountHolder,a.maskedAccount].filter(Boolean).join(" · ")||"未设置"}</strong></div>
+          <div><span>账户类型</span><strong>{[a.currency,a.providerCode,a.methodCode].filter(Boolean).join(" · ")||"-"}</strong></div>
+          <div><span>账户状态</span><strong className={a.status==="ACTIVE"?"reference-state-active":"reference-state-muted"}>{a.status==="ACTIVE"?"正常":a.status==="DISABLED"?"已停用":a.status}</strong></div>
+        </section>)}</div> : <div className="users-payout-empty">
+          <div><span>收款账户</span><strong>-</strong></div>
+          <div><span>账户类型</span><strong>-</strong></div>
+          <div><span>账户状态</span><strong>-</strong></div>
+        </div>}
       </div>}
       {detailTab==="tasks"&&<div className="users-reference-panel">
         <div className="users-reference-summary"><div><small>任务总数</small><strong>{detail.tasks.total}</strong></div><div><small>通过任务</small><strong>{detail.tasks.approved}</strong></div><div><small>拒绝任务</small><strong>{detail.tasks.rejected}</strong></div><div><small>通过率</small><strong>{detail.tasks.approvalRate==null?"暂无":(detail.tasks.approvalRate*100).toFixed(2)+"%"}</strong></div></div>
