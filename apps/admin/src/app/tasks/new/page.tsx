@@ -138,13 +138,13 @@ export default function NewTaskPage() {
   </main>;
 }
 
-const shell = { minHeight: "100vh", background: "#f5f7fb", color: "#172033", padding: 22, boxSizing: "border-box" as const };
-const card = { background: "#fff", border: "1px solid #e4e9f1", borderRadius: 9, padding: 18 };
-const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 14 };
-const label = { display: "flex", flexDirection: "column" as const, gap: 7, color: "#344054", fontSize: 13, fontWeight: 600 };
-const input = { width: "100%", boxSizing: "border-box" as const, padding: "10px 11px", border: "1px solid #d9e1ec", borderRadius: 7, color: "#172033", background: "#fff", font: "inherit", fontWeight: 400 };
-const hint = { color: "#718096", fontSize: 12, fontWeight: 400 };
-const tabs = { display: "flex", gap: 18, borderBottom: "1px solid #e5eaf1", marginTop: 9 };
-const tab = (active: boolean) => ({ padding: "10px 12px", border: 0, borderBottom: active ? "2px solid #2864ed" : "2px solid transparent", background: "transparent", color: active ? "#2864ed" : "#52627a", cursor: "pointer" });
-const primary = { display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 7, padding: "10px 15px", background: "#2864ed", color: "#fff", cursor: "pointer" };
-const secondary = { display: "inline-flex", alignItems: "center", border: "1px solid #d9e1ec", borderRadius: 7, padding: "10px 15px", color: "#344054", background: "#fff" };
+const shell = { minHeight: "100vh", background: "#f5f7fb", color: "#172033", padding: 22, boxSizing: "border-box" as const } as const;
+const card = { background: "#fff", border: "1px solid #e4e9f1", borderRadius: 9, padding: 18 } as const;
+const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 14 } as const;
+const label = { display: "flex", flexDirection: "column" as const, gap: 7, color: "#344054", fontSize: 13, fontWeight: 600 } as const;
+const input = { width: "100%", boxSizing: "border-box" as const, padding: "10px 11px", border: "1px solid #d9e1ec", borderRadius: 7, color: "#172033", background: "#fff", font: "inherit", fontWeight: 400 } as const;
+const hint = { color: "#718096", fontSize: 12, fontWeight: 400 } as const;
+const tabs = { display: "flex", gap: 18, borderBottom: "1px solid #e5eaf1", marginTop: 9 } as const;
+const tab = (active: boolean) => ({ padding: "10px 12px", border: 0, borderBottom: active ? "2px solid #2864ed" : "2px solid transparent", background: "transparent", color: active ? "#2864ed" : "#52627a", cursor: "pointer" } as const);
+const primary = { display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 7, padding: "10px 15px", background: "#2864ed", color: "#fff", cursor: "pointer" } as const;
+const secondary = { display: "inline-flex", alignItems: "center", border: "1px solid #d9e1ec", borderRadius: 7, padding: "10px 15px", color: "#344054", background: "#fff" } as const;
