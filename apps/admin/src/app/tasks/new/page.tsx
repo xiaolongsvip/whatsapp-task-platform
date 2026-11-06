@@ -19,7 +19,8 @@ function iso(value: string) { return value ? new Date(value).toISOString() : nul
 
 export default function NewTaskPage() {
   const [form, setForm] = useState<Form>(initial);
-  const [templates, setTemplates] = useState<Template[]>([]);\n  const [groups, setGroups] = useState<TaskGroup[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [groups, setGroups] = useState<TaskGroup[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [messageMode, setMessageMode] = useState<"manual" | "template">("manual");
   const [uploadMode, setUploadMode] = useState<"manual" | "file">("manual");
