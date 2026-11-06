@@ -50,6 +50,15 @@ export class TaskAdminController {
     return this.tasks.listRecords({ page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20, keyword, status, groupName, createdFrom, createdTo, countryRegion });
   }
 
+  @Post("records/bulk-message")
+  async bulkUpdateMessages(
+    @Req() request: Request,
+    @Body() body: { messageTemplate?: string; keyword?: string; groupName?: string; countryRegion?: string; createdFrom?: string; createdTo?: string },
+  ) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.bulkUpdateMessageTemplate(body);
+  }
+
   @Get("message-templates")
   async listMessageTemplates(
     @Req() request: Request,
