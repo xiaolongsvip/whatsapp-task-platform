@@ -24,6 +24,16 @@ export class ImportContactNumbersDto {
   @Type(() => ImportContactNumberItemDto)
   numbers!: ImportContactNumberItemDto[];
 
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  countryCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  countryName?: string;
+
   @IsString()
   @Length(3, 500)
   consentSource!: string;
