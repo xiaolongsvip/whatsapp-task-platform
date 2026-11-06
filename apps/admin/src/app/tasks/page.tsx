@@ -32,7 +32,7 @@ type AdminTask = {
 
 type TaskList = { tasks: AdminTask[] };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN";
-type TaskRecord = { id: string; taskId: string; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null };
+type TaskRecord = { id: string; taskId: string; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number } };
 
 type TaskForm = {
@@ -120,6 +120,8 @@ export default function AdminTasksPage() {
   const [groupFilterOpen, setGroupFilterOpen] = useState(false);
   const [groupFilter, setGroupFilter] = useState("ALL");
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [groupSaving, setGroupSaving] = useState(false);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
@@ -358,7 +360,7 @@ export default function AdminTasksPage() {
                 <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
                 <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[record.status]}</span></td>
                 <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
-                <td><div className="tasks-row-actions"><button type="button" onClick={()=>setSelectedRecord(record)}>查看</button><button type="button" className="danger" disabled title="单条删除接口尚未实现">删除</button></div></td>
+                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled title="单条删除接口尚未实现">删除</button></div></td>
               </tr>)}
               {visibleRecords.length===0&&<tr><td colSpan={10} className="tasks-empty-row">当前任务组没有任务号码记录</td></tr>}
             </tbody>
@@ -375,34 +377,70 @@ export default function AdminTasksPage() {
         </footer>
       </section>
       {selectedRecord && (
-        <div className="tasks-modal-backdrop" onClick={() => setSelectedRecord(null)}>
-          <section className="tasks-record-modal" role="dialog" aria-modal="true" aria-label="任务号码详情" onClick={(event) => event.stopPropagation()}>
-            <div className="tasks-modal-heading">
-              <div><h2>任务详情</h2><p>查看该号码对应的任务配置和执行状态</p></div>
-              <button type="button" onClick={() => setSelectedRecord(null)}>×</button>
-            </div>
-            <dl className="tasks-record-details">
-              <div><dt>任务名称</dt><dd>{selectedRecord.taskName}</dd></div>
-              <div><dt>任务号码</dt><dd>{selectedRecord.phoneNumber}</dd></div>
-              <div><dt>任务组</dt><dd>{selectedRecord.groupName}</dd></div>
-              <div><dt>奖励</dt><dd>{selectedRecord.rewardAmount} {selectedRecord.currency}</dd></div>
-              <div><dt>任务状态</dt><dd>{selectedRecord.status}</dd></div>
-              <div><dt>创建时间</dt><dd>{new Date(selectedRecord.createdAt).toLocaleString("zh-CN")}</dd></div>
-              <div className="wide"><dt>WhatsApp 话术</dt><dd>{selectedRecord.messageTemplate || "未设置"}</dd></div>
-            </dl>
-            {(() => {
-              const task = tasks.find((item) => item.id === selectedRecord.taskId);
-              if (!task) return <div className="notice">任务配置未出现在当前管理列表中，暂时无法执行配置操作。</div>;
-              return (
-                <div className="tasks-modal-actions">
-                  {(task.status === "DRAFT" || task.status === "PAUSED") && <button className="tasks-outline-btn" type="button" disabled={task.claimedCount > 0} onClick={() => { setSelectedRecord(null); startEdit(task); }}>编辑任务</button>}
-                  {(task.status === "DRAFT" || task.status === "PAUSED") && <button className="tasks-primary-btn" type="button" onClick={() => { setSelectedRecord(null); void taskAction(task.id, "publish"); }}>发布任务</button>}
-                  {task.status === "PUBLISHED" && <button className="tasks-outline-btn" type="button" onClick={() => { setSelectedRecord(null); void taskAction(task.id, "pause"); }}>暂停任务</button>}
-                  {task.status !== "CLOSED" && <button className="tasks-outline-btn" type="button" onClick={() => { setSelectedRecord(null); void taskAction(task.id, "close"); }}>结束任务</button>}
+        <div className="tasks-detail-backdrop" onClick={() => setSelectedRecord(null)}>
+          <aside className="tasks-detail-drawer" role="dialog" aria-modal="true" aria-label="任务详情" onClick={(event) => event.stopPropagation()}>
+            <header className="tasks-detail-header">
+              <div>
+                <div className="tasks-detail-title">任务详情 <span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></div>
+                <p>{selectedRecord.phoneNumber}</p>
+              </div>
+              <button type="button" aria-label="关闭详情" onClick={() => setSelectedRecord(null)}>×</button>
+            </header>
+            <div className="tasks-detail-body">
+              <section className="tasks-detail-section">
+                <h3>基本信息</h3>
+                <dl className="tasks-detail-list">
+                  <div><dt>任务 ID</dt><dd title={selectedRecord.taskId}>{selectedRecord.taskId}</dd></div>
+                  <div><dt>任务名称</dt><dd>{selectedRecord.taskName}</dd></div>
+                  <div><dt>任务号码</dt><dd>{selectedRecord.phoneNumber}</dd></div>
+                  <div><dt>国家/地区</dt><dd>{selectedRecord.countryRegion || "—"}</dd></div>
+                  <div><dt>任务奖励</dt><dd>{selectedRecord.rewardAmount} {selectedRecord.currency}</dd></div>
+                  <div><dt>任务组</dt><dd>{selectedRecord.groupName}</dd></div>
+                  <div><dt>创建时间</dt><dd>{new Date(selectedRecord.createdAt).toLocaleString("zh-CN",{hour12:false})}</dd></div>
+                </dl>
+                <div className="tasks-detail-message">
+                  <strong>完整话术</strong>
+                  <p>{selectedRecord.messageTemplate || "当前任务未设置话术。"}</p>
                 </div>
-              );
-            })()}
-          </section>
+              </section>
+              <section className="tasks-detail-section">
+                <h3>当前状态</h3>
+                <dl className="tasks-detail-list">
+                  <div><dt>任务状态</dt><dd><span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></dd></div>
+                  <div><dt>领取用户</dt><dd>{selectedRecord.claimedUserId || "—"}</dd></div>
+                  <div><dt>执行记录</dt><dd>{selectedRecord.claimId || "—"}</dd></div>
+                  {selectedRecord.claimedAt && <div><dt>领取时间</dt><dd>{new Date(selectedRecord.claimedAt).toLocaleString("zh-CN",{hour12:false})}</dd></div>}
+                </dl>
+              </section>
+              <section className="tasks-detail-section tasks-organize-section">
+                <h3>整理任务</h3>
+                <p>这里只修改任务组，不会修改奖励、话术、审核或结算规则。</p>
+                <div className="tasks-organize-row">
+                  <select value={selectedGroup} onChange={(event)=>setSelectedGroup(event.target.value)}>
+                    {Array.from(new Set([...tasks.map((task)=>task.category),selectedRecord.groupName])).filter(Boolean).map((group)=><option key={group} value={group}>{group}</option>)}
+                  </select>
+                  <button type="button" disabled={groupSaving || !selectedGroup.trim() || selectedGroup===selectedRecord.groupName} onClick={async()=>{
+                    setGroupSaving(true);
+                    try{
+                      await api("/api/v1/admin/tasks/"+selectedRecord.taskId+"/group",{method:"PATCH",body:JSON.stringify({groupName:selectedGroup})});
+                      setMessage("任务组已更新。");
+                      setSelectedRecord({...selectedRecord,groupName:selectedGroup});
+                      await refresh();
+                      await loadRecords();
+                    }catch(err){setError(err instanceof Error?err.message:"保存任务组失败。");}
+                    finally{setGroupSaving(false);}
+                  }}>{groupSaving?"保存中…":"保存"}</button>
+                </div>
+              </section>
+            </div>
+            <footer className="tasks-detail-footer">
+              <button type="button" className="tasks-detail-delete" disabled title="任务号码删除接口尚未实现，不会直接删除数据库记录。"><Trash2 size={13}/> 删除</button>
+              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="CLOSED" || selectedRecord.status==="COMPLETED"} onClick={()=>{
+                setSelectedRecord(null);
+                void taskAction(selectedRecord.taskId,"close");
+              }}>⊗ 作废任务</button>
+            </footer>
+          </aside>
         </div>
       )}
       {formOpen && (
