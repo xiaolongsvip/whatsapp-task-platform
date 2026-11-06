@@ -556,3 +556,14 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .tasks-template-cell{max-width:210px;overflow:hidden;text-overflow:ellipsis}
 
 .tasks-pagination .tasks-outline-btn.active{border-color:#2864ed;background:#2864ed;color:#fff}
+
+
+.tasks-modal-backdrop{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.42)}
+.tasks-record-modal{width:min(620px,100%);max-height:90vh;overflow:auto;padding:20px;border:1px solid #e1e8f0;border-radius:12px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22)}
+.tasks-modal-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid #edf1f6}
+.tasks-modal-heading h2{margin:0;color:#172b49;font-size:17px}.tasks-modal-heading p{margin:5px 0 0;color:#8795a9;font-size:11px}
+.tasks-modal-heading>button{width:30px;height:30px;border:1px solid #e3eaf3;border-radius:7px;background:#fff;color:#64748b;font-size:20px;cursor:pointer}
+.tasks-record-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:16px 0}
+.tasks-record-details>div{min-width:0}.tasks-record-details>div.wide{grid-column:1/-1}
+.tasks-record-details dt{margin-bottom:4px;color:#8795a9;font-size:11px}.tasks-record-details dd{margin:0;color:#273d59;font-size:12px;overflow-wrap:anywhere}
+.tasks-modal-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding-top:14px;border-top:1px solid #edf1f6}
