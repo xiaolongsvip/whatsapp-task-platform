@@ -1,5 +1,6 @@
 package com.wtp.app.data
 
+import com.wtp.app.BuildConfig
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
