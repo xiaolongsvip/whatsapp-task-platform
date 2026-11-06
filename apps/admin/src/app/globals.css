@@ -278,3 +278,19 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
  .reference-distribution-layout { justify-content:space-evenly; }
  .trend-chart { height:230px; }
 }
+
+
+/* Left navigation menu based on the supplied EasyEarn reference */
+.sidebar-nav { gap:5px; padding:10px 9px 16px; }
+.sidebar-link:disabled { opacity:1; cursor:default; color:#52627a; }
+.sidebar-link:disabled:hover { background:transparent; color:#52627a; }
+.sidebar-expand { position:relative; }
+.sidebar-chevron { margin-left:auto; transition:transform .18s ease; }
+.sidebar-expand.expanded .sidebar-chevron { transform:rotate(180deg); }
+.sidebar-submenu { display:grid; gap:3px; margin:-1px 0 4px 27px; padding-left:10px; border-left:1px solid #e7edf4; }
+.sidebar-submenu a { min-height:29px; display:flex; align-items:center; padding:0 7px; border-radius:6px; color:#718198; text-decoration:none; font-size:11px; }
+.sidebar-submenu a:hover { color:#0d956d; background:#f1faf6; }
+@media (max-width:760px) {
+ .dashboard-sidebar { overflow-y:auto; }
+ .sidebar-nav { padding-bottom:20px; }
+}
