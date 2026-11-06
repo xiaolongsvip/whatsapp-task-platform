@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Download, Filter, LayoutDashboard, Menu, MessageSquare, Phone, Search, Settings, Shield, SlidersHorizontal, Users, WalletCards, X } from "lucide-react";
+import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Download, Filter, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, SlidersHorizontal, UserRound, Users, WalletCards, X } from "lucide-react";
 
 type UserRow = {
   id: string; phone: string; displayName: string | null; referralCode: string; status: "PENDING" | "ACTIVE" | "SUSPENDED" | "CLOSED";
@@ -48,6 +48,7 @@ export default function AdminUsersPage() {
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(columns.map(c => c[0]));
   const [filterOpen, setFilterOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
 
   const refresh = useCallback(async () => {
     setBusy(true); setError("");
@@ -65,6 +66,7 @@ export default function AdminUsersPage() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   function submitSearch(event: React.FormEvent) { event.preventDefault(); setPage(1); setSearch(searchInput.trim()); }
+  async function logout() { await api("/api/v1/admin-auth/logout", { method: "POST" }).catch(() => undefined); window.location.href = "/"; }
   async function changeStatus(user: UserRow) {
     const next = user.status === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
     const action = next === "SUSPENDED" ? "冻结" : "解冻";
@@ -113,7 +115,7 @@ export default function AdminUsersPage() {
       </nav><div className="sidebar-version">EasyEarn v1.0.0</div>
     </aside>
     <main className="dashboard-main">
-      <header className="dashboard-topbar"><button className="topbar-icon" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={17}/></button><div className="topbar-actions"><div className="topbar-search"><Search size={14}/><input placeholder="搜索任务、用户、手机号..." value={searchInput} onChange={e=>setSearchInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setPage(1);setSearch(searchInput.trim())}}}/></div><button className="topbar-icon"><CircleHelp size={17}/></button><button className="topbar-icon"><Bell size={17}/></button><span className="topbar-admin">Administrator</span></div></header>
+      <header className="dashboard-topbar"><button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button><div className="topbar-search"><Search size={16}/><input value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)} placeholder="搜索任务、用户、手机号码..." onKeyDown={e=>{if(e.key==="Enter"){setSearchInput(globalSearch);setPage(1);setSearch(globalSearch.trim())}}}/></div><div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>Administrator</strong><small>超级管理员</small></span></div><button className="topbar-icon" title="退出登录" onClick={() => void logout()}><LogOut size={17}/></button></div></header>
       <section className="users-page">
         <div className="users-toolbar">
           <form className="users-search" onSubmit={submitSearch}><Search size={15}/><input placeholder="用户 ID、手机号、昵称或邀请码" value={searchInput} onChange={e=>setSearchInput(e.target.value)}/><button type="submit">搜索</button></form>
