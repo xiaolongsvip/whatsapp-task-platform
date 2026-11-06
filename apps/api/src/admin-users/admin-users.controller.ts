@@ -46,8 +46,8 @@ export class AdminUsersController {
   }
   @Patch(":id/status")
   async setStatus(@Req() request: Request, @Param("id") id: string, @Body() body: { status: string }) {
-    await this.auth.getCurrentAdmin(adminToken(request));
-    return this.users.setStatus(id, body.status);
+    const admin = await this.auth.getCurrentAdmin(adminToken(request));
+    return this.users.setStatus(id, body.status, admin.id);
   }
   @Post(":id/reset-password")
   async resetPassword(@Req() request: Request, @Param("id") id: string) {
