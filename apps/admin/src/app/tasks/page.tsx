@@ -32,7 +32,8 @@ type AdminTask = {
 };
 
 type TaskList = { tasks: AdminTask[] };
-type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };\ntype TaskGroupOption = { id: string; name: string; description: string | null; taskCount: number };
+type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
+type TaskGroupOption = { id: string; name: string; description: string | null; taskCount: number };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
 type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
@@ -96,7 +97,8 @@ function toIso(value: string): string | null {
   return value ? new Date(value).toISOString() : null;
 }
 
-export default function AdminTasksPage() {\n  const router = useRouter();
+export default function AdminTasksPage() {
+  const router = useRouter();
   const [adminEmail, setAdminEmail] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -126,7 +128,16 @@ export default function AdminTasksPage() {\n  const router = useRouter();
   const [countryFilter, setCountryFilter] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
   const [selectedGroup, setSelectedGroup] = useState("");
-  const [groupSaving, setGroupSaving] = useState(false);\n  const [groupModalOpen, setGroupModalOpen] = useState(false);\n  const [taskGroups, setTaskGroups] = useState<TaskGroupOption[]>([]);\n  const [newGroupName, setNewGroupName] = useState("");\n  const [newGroupDescription, setNewGroupDescription] = useState("");\n  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);\n  const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");\n  const [bulkMessageText, setBulkMessageText] = useState("");\n  const [bulkTemplateId, setBulkTemplateId] = useState("");\n  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [taskGroups, setTaskGroups] = useState<TaskGroupOption[]>([]);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);
+  const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");
+  const [bulkMessageText, setBulkMessageText] = useState("");
+  const [bulkTemplateId, setBulkTemplateId] = useState("");
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
@@ -172,9 +183,7 @@ export default function AdminTasksPage() {\n  const router = useRouter();
   function startCreate() {
     setEditingId(null);
     setForm(emptyForm);
-    setFormOpen(true);
-    setError("");
-    setMessage("");
+    router.push("/tasks/new");
   }
 
   function startEdit(task: AdminTask) {
