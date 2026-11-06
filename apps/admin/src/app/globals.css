@@ -554,3 +554,5 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .tasks-status-pill.completed{border-color:#b7f0d2;background:#effcf5;color:#059669}
 .tasks-status-pill.frozen{border-color:#fecaca;background:#fff1f2;color:#dc5260}
 .tasks-template-cell{max-width:210px;overflow:hidden;text-overflow:ellipsis}
+
+.tasks-pagination .tasks-outline-btn.active{border-color:#2864ed;background:#2864ed;color:#fff}
