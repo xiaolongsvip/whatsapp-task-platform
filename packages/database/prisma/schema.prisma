@@ -280,6 +280,8 @@ model ContactImportBatch {
 model ContactNumber {
   id              String                @id @default(uuid()) @db.Uuid
   phoneE164       String                @unique @map("phone_e164")
+  countryCode     String?               @map("country_code") @db.Char(2)
+  countryName     String?               @map("country_name") @db.VarChar(100)
   status          ContactNumberStatus   @default(AVAILABLE)
   consentStatus   ContactConsentStatus  @default(UNKNOWN) @map("consent_status")
   consentSource   String?               @map("consent_source") @db.Text
@@ -296,6 +298,7 @@ model ContactNumber {
   consentEvents   ContactConsentEvent[]
 
   @@index([status, consentStatus, importOrder])
+  @@index([countryCode, importOrder])
   @@index([importBatchId, importOrder])
   @@map("contact_numbers")
 }
