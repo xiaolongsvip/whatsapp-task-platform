@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
 
-type Template = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };\ntype TaskGroup = { id: string; name: string; description: string | null; taskCount: number };
+type Template = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
+type TaskGroup = { id: string; name: string; description: string | null; taskCount: number };
 type Form = { title: string; platform: string; groupId: string; rewardAmount: string; currency: string; description: string; messageTemplate: string; linkUrl: string; previewTitle: string; previewDescription: string; previewImageUrl: string; startsAt: string; endsAt: string };
 const initial: Form = { title: "", platform: "WhatsApp", groupId: "", rewardAmount: "0.070", currency: "USD", description: "", messageTemplate: "", linkUrl: "", previewTitle: "", previewDescription: "", previewImageUrl: "", startsAt: "", endsAt: "" };
 
@@ -31,7 +32,8 @@ export default function NewTaskPage() {
 
   useEffect(() => {
     api("/api/v1/admin-auth/me").then(() => setAuthenticated(true)).catch(() => setAuthenticated(false)).finally(() => setChecking(false));
-    api<Template[]>("/api/v1/admin/tasks/message-templates?enabled=true").then(setTemplates).catch(() => setTemplates([]));\n    api<TaskGroup[]>("/api/v1/admin/tasks/groups").then(setGroups).catch(() => setGroups([]));
+    api<Template[]>("/api/v1/admin/tasks/message-templates?enabled=true").then(setTemplates).catch(() => setTemplates([]));
+    api<TaskGroup[]>("/api/v1/admin/tasks/groups").then(setGroups).catch(() => setGroups([]));
   }, []);
 
   function update<K extends keyof Form>(key: K, value: Form[K]) { setForm((current) => ({ ...current, [key]: value })); }
@@ -89,7 +91,8 @@ export default function NewTaskPage() {
             <label style={label}>目标平台<select required value={form.platform} onChange={(e) => update("platform", e.target.value)} style={input}><option>WhatsApp</option><option>Telegram</option><option>Facebook</option></select><small style={hint}>平台分类会保存到任务分类字段。</small></label>
             <label style={label}>单个任务奖励<input required value={form.rewardAmount} onChange={(e) => update("rewardAmount", e.target.value)} inputMode="decimal" pattern="\d{1,8}(\.\d{1,2})?" style={input}/></label>
             <label style={label}>奖励币种<input required maxLength={3} minLength={3} value={form.currency} onChange={(e) => update("currency", e.target.value.toUpperCase())} style={input}/></label>
-            <label style={label}>任务名称<input required minLength={2} maxLength={120} value={form.title} onChange={(e) => update("title", e.target.value)} style={input} placeholder="请输入任务名称"/></label>\n            <label style={label}>任务组<select value={form.groupId} onChange={(e) => update("groupId", e.target.value)} style={input}><option value="">暂不分组</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><small style={hint}>可在任务管理的“任务组”弹窗中新建任务组。</small></label>
+            <label style={label}>任务名称<input required minLength={2} maxLength={120} value={form.title} onChange={(e) => update("title", e.target.value)} style={input} placeholder="请输入任务名称"/></label>
+            <label style={label}>任务组<select value={form.groupId} onChange={(e) => update("groupId", e.target.value)} style={input}><option value="">暂不分组</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><small style={hint}>可在任务管理的“任务组”弹窗中新建任务组。</small></label>
           </div>
           <label style={{ ...label, marginTop: 16 }}>任务说明<textarea required minLength={2} maxLength={5000} rows={3} value={form.description} onChange={(e) => update("description", e.target.value)} style={{ ...input, resize: "vertical" }}/></label>
           <div style={{ marginTop: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
