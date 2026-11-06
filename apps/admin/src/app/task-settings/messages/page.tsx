@@ -104,21 +104,6 @@ export default function MessageTemplatesPage() {
     }
   }
 
-  async function disable(item: MessageTemplate) {
-    if (!window.confirm(`确定停用话术模板“${item.name}”吗？已使用该模板的任务内容不会改变。`)) return;
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/api/v1/admin/tasks/message-templates/${item.id}`, { method: "DELETE" });
-      await load();
-      setMessage("模板已停用，未删除历史任务中的话术内容。");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "停用模板失败。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <main style={{ minHeight: "100vh", background: "#f5f7fb", color: "#172033", padding: 24 }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
