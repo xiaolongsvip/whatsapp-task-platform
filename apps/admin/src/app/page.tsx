@@ -96,14 +96,16 @@ export default function AdminHomePage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextSummary, nextNumbers, nextTasks] = await Promise.all([
+    const [nextSummary, nextNumbers, nextTasks, nextDashboard] = await Promise.all([
       api<Summary>("/api/v1/admin/contact-numbers/summary"),
       api<ContactList>("/api/v1/admin/contact-numbers?limit=100"),
       api<AdminTaskList>("/api/v1/admin/tasks"),
+      api<AdminDashboardSummary>("/api/v1/admin/dashboard/summary"),
     ]);
     setSummary(nextSummary);
     setNumbers(nextNumbers.numbers);
     setTasks(nextTasks.tasks);
+    setDashboard(nextDashboard);
   }, []);
 
   useEffect(() => {
