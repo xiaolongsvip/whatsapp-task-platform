@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, ScanEye, Send, ShieldCheck, UserRound, WalletCards, Zap } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, CircleHelp, ClipboardCheck, Database, Eye, EyeOff, FileText, LayoutDashboard, LockKeyhole, LogOut, Menu, Phone, Plus, RefreshCw, ScanEye, Search, Send, ShieldCheck, UserRound, Upload, Users, WalletCards, Zap } from "lucide-react";
 
 type Summary = {
   total: number;
@@ -25,6 +25,8 @@ type ContactNumber = {
 };
 
 type ContactList = { numbers: ContactNumber[] };
+type AdminTaskSummary = { id: string; title: string; status: "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED"; claimedCount: number; inventory?: { total: number; available: number; assigned: number; used: number } };
+type AdminTaskList = { tasks: AdminTaskSummary[] };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
@@ -80,6 +82,9 @@ export default function AdminHomePage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [tasks, setTasks] = useState<AdminTaskSummary[]>([]);
+  const [activeSection, setActiveSection] = useState<"dashboard" | "numbers">("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [numbers, setNumbers] = useState<ContactNumber[]>([]);
   const [fileName, setFileName] = useState("");
   const [phoneText, setPhoneText] = useState("");
@@ -89,12 +94,14 @@ export default function AdminHomePage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextSummary, nextNumbers] = await Promise.all([
+    const [nextSummary, nextNumbers, nextTasks] = await Promise.all([
       api<Summary>("/api/v1/admin/contact-numbers/summary"),
       api<ContactList>("/api/v1/admin/contact-numbers?limit=100"),
+      api<AdminTaskList>("/api/v1/admin/tasks"),
     ]);
     setSummary(nextSummary);
     setNumbers(nextNumbers.numbers);
+    setTasks(nextTasks.tasks);
   }, []);
 
   useEffect(() => {
@@ -302,95 +309,93 @@ export default function AdminHomePage() {
     );
   }
 
+  const taskDraft = tasks.filter((t) => t.status === "DRAFT").length;
+  const taskPublished = tasks.filter((t) => t.status === "PUBLISHED").length;
+  const taskPaused = tasks.filter((t) => t.status === "PAUSED").length;
+  const taskClosed = tasks.filter((t) => t.status === "CLOSED").length;
+  const totalTasks = Math.max(1, tasks.length);
+  const totalNumbers = Math.max(1, (summary?.available ?? 0) + (summary?.assigned ?? 0) + (summary?.used ?? 0) + (summary?.blocked ?? 0));
+  const taskDonut = "conic-gradient(#4b83f5 0 " + (taskPublished / totalTasks * 100) + "%, #16c56a 0 " + ((taskPublished + taskDraft) / totalTasks * 100) + "%, #ffb21a 0 " + ((taskPublished + taskDraft + taskPaused) / totalTasks * 100) + "%, #ff7188 0 100%)";
+  const numberDonut = "conic-gradient(#4b83f5 0 " + ((summary?.available ?? 0) / totalNumbers * 100) + "%, #16c56a 0 " + (((summary?.available ?? 0) + (summary?.assigned ?? 0)) / totalNumbers * 100) + "%, #ffb21a 0 " + (((summary?.available ?? 0) + (summary?.assigned ?? 0) + (summary?.used ?? 0)) / totalNumbers * 100) + "%, #ff7188 0 100%)";
+
   return (
-    <main className="admin-shell">
-      <header className="admin-header">
-        <div>
-          <div className="admin-brand">WTP 管理后台</div>
-          <div className="admin-subtitle">号码池管理 · FIFO 自动分配 · 授权记录</div>
-        </div>
-        <div className="action-row" style={{ marginTop: 0 }}>
-          <span className="muted">{adminEmail}</span>
-          <Link className="secondary-btn" href="/tasks" style={{ textDecoration: "none" }}>任务管理</Link>
-          <Link className="secondary-btn" href="/wallet-holds" style={{ textDecoration: "none" }}>冻结资金管理</Link>
-          <Link className="secondary-btn" href="/ai-settings" style={{ textDecoration: "none" }}>AI 审核设置</Link>
-          <Link className="secondary-btn" href="/storage-settings" style={{ textDecoration: "none" }}>图片存储设置</Link>
-          <button className="secondary-btn" onClick={logout}>退出登录</button>
-        </div>
-      </header>
-
-      {error && <div className="notice error">{error}</div>}
-      {message && <div className="notice">{message}</div>}
-
-      <section className="panel">
-        <h2>号码池统计</h2>
-        <div className="stats-grid">
-          {[
-            ["号码总数", summary?.total ?? 0],
-            ["待分配", summary?.available ?? 0],
-            ["已分配", summary?.assigned ?? 0],
-            ["已使用", summary?.used ?? 0],
-            ["已禁用", summary?.blocked ?? 0],
-            ["导入批次", summary?.batches ?? 0],
-          ].map(([label, value]) => (
-            <div className="stat" key={label}>
-              <span>{label}</span><strong>{value}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>批量导入号码</h2>
-        <p className="muted">每行一个国际号码，必须包含国家区号。仅导入已经明确同意接收消息的号码；同意来源和时间会随批次保存。</p>
-        <form onSubmit={importNumbers}>
-          <div className="form-grid">
-            <div className="field">
-              <label>选择 CSV/TXT 文件</label>
-              <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={onFileChange} />
-              {fileName && <span className="muted">当前文件：{fileName}</span>}
-            </div>
-            <div className="field">
-              <label>同意接收来源/证明说明</label>
-              <input value={consentSource} onChange={(event) => setConsentSource(event.target.value)} placeholder="例如：客户主动提交的订阅表单，批次 2026-11-05" required />
-            </div>
-            <div className="field">
-              <label>同意接收记录时间</label>
-              <input type="datetime-local" value={consentedAt} onChange={(event) => setConsentedAt(event.target.value)} required />
-            </div>
+    <main className="dashboard-app">
+      <aside className={"dashboard-sidebar " + (sidebarOpen ? "sidebar-open" : "")}>
+        <div className="sidebar-brand"><div className="sidebar-brand-mark"><Zap size={19} fill="currentColor" /></div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
+        <nav className="sidebar-nav">
+          <button className={"sidebar-link " + (activeSection === "dashboard" ? "active" : "")} onClick={() => { setActiveSection("dashboard"); setSidebarOpen(false); }}><LayoutDashboard size={16}/>控制台</button>
+          <button className={"sidebar-link " + (activeSection === "numbers" ? "active" : "")} onClick={() => { setActiveSection("numbers"); setSidebarOpen(false); }}><Phone size={16}/>号码管理</button>
+          <Link className="sidebar-link" href="/tasks"><ClipboardCheck size={16}/>任务管理</Link>
+          <div className="sidebar-group-label">审核与风控</div>
+          <Link className="sidebar-link" href="/ai-reviews"><ScanEye size={16}/>AI 审核记录</Link>
+          <Link className="sidebar-link" href="/ai-settings"><ShieldCheck size={16}/>AI 审核设置</Link>
+          <div className="sidebar-group-label">系统管理</div>
+          <Link className="sidebar-link" href="/storage-settings"><Database size={16}/>图片存储设置</Link>
+          <Link className="sidebar-link" href="/wallet-holds"><WalletCards size={16}/>冻结资金管理</Link>
+        </nav>
+        <div className="sidebar-version">EasyEarn 管理平台</div>
+      </aside>
+      <section className="dashboard-main">
+        <header className="dashboard-topbar">
+          <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button>
+          <div className="topbar-search"><Search size={16}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索任务、用户、手机号码..."/></div>
+          <div className="topbar-actions">
+            <span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button>
+            <div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>Administrator</strong><small>超级管理员</small></span></div>
+            <button className="topbar-icon" title="退出登录" onClick={() => void logout()}><LogOut size={17}/></button>
           </div>
-          <div className="field" style={{ marginTop: 14 }}>
-            <label>号码内容（可直接粘贴，也可读取 CSV）</label>
-            <textarea value={phoneText} onChange={(event) => setPhoneText(event.target.value)} placeholder={"+254700000001\n+254700000002\n+254700000003"} required />
-          </div>
-          <div className="action-row">
-            <button className="primary-btn" disabled={busy || !phoneText.trim()}>{busy ? "正在导入…" : "导入号码池"}</button>
-          </div>
-        </form>
-      </section>
-
-      <section className="panel">
-        <div className="admin-header" style={{ marginBottom: 12 }}>
-          <h2 style={{ margin: 0 }}>号码列表（按导入顺序）</h2>
-          <input aria-label="搜索号码" placeholder="搜索号码" value={search} onChange={(event) => setSearch(event.target.value)} style={{ border: "1px solid #d5dfeb", borderRadius: 9, padding: "9px 11px", maxWidth: 220 }} />
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>导入顺序</th><th>WhatsApp 号码</th><th>状态</th><th>授权状态</th><th>授权来源</th><th>操作</th></tr></thead>
-            <tbody>
-              {visibleNumbers.map((number) => (
-                <tr key={number.id}>
-                  <td>{number.importOrder}</td>
-                  <td>{number.phoneE164}</td>
-                  <td><span className={`pill ${number.status.toLowerCase()}`}>{statusLabel(number.status)}</span></td>
-                  <td>{number.consentStatus === "GRANTED" ? "已同意" : number.consentStatus === "REVOKED" ? "已撤回" : "未知"}</td>
-                  <td>{number.consentSource || "—"}</td>
-                  <td>{number.status !== "BLOCKED" && <button className="danger-btn" disabled={busy} onClick={() => void blockNumber(number.id)}>禁用</button>}</td>
-                </tr>
-              ))}
-              {visibleNumbers.length === 0 && <tr><td colSpan={6} className="muted">暂无号码记录</td></tr>}
-            </tbody>
-          </table>
+        </header>
+        <div className="dashboard-content">
+          {error && <div className="notice error">{error}</div>}{message && <div className="notice">{message}</div>}
+          {activeSection === "dashboard" ? (
+            <>
+              <div className="dashboard-heading-row"><div><h1>控制台</h1><p>欢迎回来，查看平台当前运营概况。</p></div><button className="dashboard-refresh" onClick={() => void refresh()} title="刷新数据"><RefreshCw size={17}/></button></div>
+              <section className="overview-grid">
+                <div className="overview-card"><div className="overview-label">号码总数</div><strong>{summary?.total ?? "—"}</strong><small>号码池累计导入</small><span className="overview-icon blue"><Phone size={20}/></span></div>
+                <div className="overview-card"><div className="overview-label">待分配号码</div><strong>{summary?.available ?? "—"}</strong><small>当前可分配库存</small><span className="overview-icon orange"><FileText size={20}/></span></div>
+                <div className="overview-card"><div className="overview-label">已分配号码</div><strong>{summary?.assigned ?? "—"}</strong><small>已进入任务流程</small><span className="overview-icon green"><CheckCircle2 size={20}/></span></div>
+                <div className="overview-card"><div className="overview-label">已使用号码</div><strong>{summary?.used ?? "—"}</strong><small>号码库存状态</small><span className="overview-icon purple"><Users size={20}/></span></div>
+                <div className="overview-card"><div className="overview-label">任务总数</div><strong>{tasks.length}</strong><small>已创建任务</small><span className="overview-icon violet"><ClipboardCheck size={20}/></span></div>
+                <div className="overview-card"><div className="overview-label">已发布任务</div><strong>{taskPublished}</strong><small>当前发布状态</small><span className="overview-icon blue"><Zap size={20}/></span></div>
+              </section>
+              <section className="dashboard-middle-grid">
+                <div className="dashboard-card"><div className="dashboard-card-title"><div><h2>任务状态概览</h2><p>按当前任务状态统计</p></div><Link href="/tasks">查看任务 <ArrowRight size={14}/></Link></div>
+                  <div className="status-chart-layout"><div className="status-donut" style={{background:taskDonut}}><div><small>任务总数</small><strong>{tasks.length}</strong></div></div><div className="status-legend"><div><i className="dot blue-dot"/>已发布<b>{taskPublished}</b></div><div><i className="dot green-dot"/>草稿<b>{taskDraft}</b></div><div><i className="dot yellow-dot"/>已暂停<b>{taskPaused}</b></div><div><i className="dot red-dot"/>已结束<b>{taskClosed}</b></div></div></div>
+                </div>
+                <div className="dashboard-card"><div className="dashboard-card-title"><div><h2>号码状态分布</h2><p>号码池当前库存状态</p></div><button onClick={() => setActiveSection("numbers")}>号码管理 <ArrowRight size={14}/></button></div>
+                  <div className="status-chart-layout"><div className="status-donut" style={{background:numberDonut}}><div><small>号码总数</small><strong>{summary?.total ?? "—"}</strong></div></div><div className="status-legend"><div><i className="dot blue-dot"/>待分配<b>{summary?.available ?? 0}</b></div><div><i className="dot green-dot"/>已分配<b>{summary?.assigned ?? 0}</b></div><div><i className="dot yellow-dot"/>已使用<b>{summary?.used ?? 0}</b></div><div><i className="dot red-dot"/>已禁用<b>{summary?.blocked ?? 0}</b></div></div></div>
+                </div>
+              </section>
+              <section className="dashboard-bottom-grid">
+                <div className="dashboard-card"><div className="dashboard-card-title"><h2>待处理事项</h2></div>
+                  <button className="pending-row" onClick={() => setActiveSection("numbers")}><span className="pending-icon red"><Phone size={17}/></span><span>待分配号码库存</span><b>{summary?.available ?? 0}</b><ArrowRight size={15}/></button>
+                  <Link className="pending-row" href="/tasks"><span className="pending-icon amber"><ClipboardCheck size={17}/></span><span>待发布任务草稿</span><b>{taskDraft}</b><ArrowRight size={15}/></Link>
+                </div>
+                <div className="dashboard-card"><div className="dashboard-card-title"><h2>快捷操作</h2></div><div className="quick-actions">
+                  <button onClick={() => setActiveSection("numbers")}><span><Upload size={17}/></span>导入号码</button><Link href="/tasks"><span><Plus size={17}/></span>任务管理</Link>
+                </div></div>
+              </section>
+            </>
+          ) : (
+            <>
+              <div className="dashboard-heading-row"><div><h1>号码管理</h1><p>号码池导入、授权记录和库存状态管理。</p></div><button className="dashboard-refresh" onClick={() => void refresh()}><RefreshCw size={17}/></button></div>
+              <section className="overview-grid numbers-overview-grid">
+                {[["号码总数",summary?.total ?? 0],["待分配",summary?.available ?? 0],["已分配",summary?.assigned ?? 0],["已使用",summary?.used ?? 0],["已禁用",summary?.blocked ?? 0],["导入批次",summary?.batches ?? 0]].map(([label,value]) => <div className="overview-card compact-overview" key={label}><div className="overview-label">{label}</div><strong>{value}</strong></div>)}
+              </section>
+              <section className="dashboard-card numbers-import-card"><div className="dashboard-card-title"><div><h2>批量导入号码</h2><p>仅导入已经明确同意接收消息的号码。</p></div></div>
+                <form onSubmit={importNumbers}><div className="form-grid">
+                  <div className="field"><label>选择 CSV/TXT 文件</label><input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={onFileChange}/>{fileName && <span className="muted">当前文件：{fileName}</span>}</div>
+                  <div className="field"><label>同意接收来源/证明说明</label><input value={consentSource} onChange={(event) => setConsentSource(event.target.value)} placeholder="例如：客户主动提交的订阅表单" required/></div>
+                  <div className="field"><label>同意接收记录时间</label><input type="datetime-local" value={consentedAt} onChange={(event) => setConsentedAt(event.target.value)} required/></div>
+                </div><div className="field" style={{marginTop:14}}><label>号码内容（每行一个国际号码）</label><textarea value={phoneText} onChange={(event) => setPhoneText(event.target.value)} placeholder={"+254700000001\n+254700000002"} required/></div>
+                <div className="action-row"><button className="primary-btn" disabled={busy || !phoneText.trim()}>{busy ? "正在导入…" : "导入号码池"}</button></div></form>
+              </section>
+              <section className="dashboard-card numbers-table-card"><div className="dashboard-card-title"><h2>号码列表（按导入顺序）</h2><span className="muted">当前展示最近 100 条</span></div><div className="table-wrap"><table><thead><tr><th>导入顺序</th><th>WhatsApp 号码</th><th>状态</th><th>授权状态</th><th>授权来源</th><th>操作</th></tr></thead><tbody>
+                {visibleNumbers.map((number) => <tr key={number.id}><td>{number.importOrder}</td><td>{number.phoneE164}</td><td><span className={"pill " + number.status.toLowerCase()}>{statusLabel(number.status)}</span></td><td>{number.consentStatus === "GRANTED" ? "已同意" : number.consentStatus === "REVOKED" ? "已撤回" : "未知"}</td><td>{number.consentSource || "—"}</td><td>{number.status !== "BLOCKED" && <button className="danger-btn" disabled={busy} onClick={() => void blockNumber(number.id)}>禁用</button>}</td></tr>)}
+                {visibleNumbers.length === 0 && <tr><td colSpan={6} className="muted">暂无号码记录</td></tr>}
+              </tbody></table></div></section>
+            </>
+          )}
         </div>
       </section>
     </main>
