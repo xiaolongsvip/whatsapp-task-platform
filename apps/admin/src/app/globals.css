@@ -599,3 +599,5 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .tasks-detail-void:disabled,.tasks-detail-delete:disabled{opacity:.48;cursor:not-allowed}
 @media(max-width:900px){.tasks-detail-drawer{width:min(100%,680px);min-width:0;max-width:none}}
 @media(max-width:560px){.tasks-detail-header{padding:13px 14px}.tasks-detail-body{padding:0 14px 18px}.tasks-detail-list>div{grid-template-columns:88px minmax(0,1fr)}.tasks-detail-footer{padding:10px 12px}}
+
+.tasks-status-pill.voided{border-color:#fed7aa;background:#fff7ed;color:#c2410c}
