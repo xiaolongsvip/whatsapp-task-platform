@@ -443,11 +443,17 @@ export class TaskAdminService {
       throw new BadRequestException("任务结束时间必须晚于开始时间。");
     }
 
+    if (input.groupId) {
+      const group = await prisma.taskGroup.findUnique({ where: { id: input.groupId }, select: { id: true } });
+      if (!group) throw new NotFoundException("所选任务组不存在。");
+    }
+
     const task = await prisma.task.create({
       data: {
         title: input.title.trim(),
         description: input.description.trim(),
         category: input.category.trim(),
+        ...(input.groupId ? { groupId: input.groupId } : {}),
         status: "DRAFT",
         rewardMinor: toMinorUnits(input.rewardAmount),
         currency: input.currency.trim().toUpperCase(),
@@ -460,7 +466,7 @@ export class TaskAdminService {
         previewDescription: cleanOptional(input.previewDescription) ?? null,
         previewImageUrl: cleanOptional(input.previewImageUrl) ?? null,
       },
-      include: { _count: { select: { claims: true } } },
+      include: { group: { select: { name: true } }, _count: { select: { claims: true } } },
     });
     return publicTask(task);
   }
@@ -489,6 +495,7 @@ export class TaskAdminService {
         ...(input.title !== undefined ? { title: input.title.trim() } : {}),
         ...(input.description !== undefined ? { description: input.description.trim() } : {}),
         ...(input.category !== undefined ? { category: input.category.trim() } : {}),
+        ...(input.groupId !== undefined ? { groupId: input.groupId } : {}),
         ...(input.rewardAmount !== undefined ? { rewardMinor: toMinorUnits(input.rewardAmount) } : {}),
         ...(input.currency !== undefined ? { currency: input.currency.trim().toUpperCase() } : {}),
         ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
@@ -500,7 +507,7 @@ export class TaskAdminService {
         ...(input.previewDescription !== undefined ? { previewDescription: cleanOptional(input.previewDescription) } : {}),
         ...(input.previewImageUrl !== undefined ? { previewImageUrl: cleanOptional(input.previewImageUrl) } : {}),
       },
-      include: { _count: { select: { claims: true } } },
+      include: { group: { select: { name: true } }, _count: { select: { claims: true } } },
     });
     return publicTask(task);
   }
