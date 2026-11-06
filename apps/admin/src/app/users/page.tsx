@@ -55,6 +55,7 @@ export default function AdminUsersPage() {
   const [policyDaily, setPolicyDaily] = useState("");
   const [policyInterval, setPolicyInterval] = useState("");
   const [adjustAmount, setAdjustAmount] = useState("1");
+  const [adjustMode, setAdjustMode] = useState<"add" | "deduct">("add");
   const [adjustReason, setAdjustReason] = useState("");
   const [deviceHistoryLoaded, setDeviceHistoryLoaded] = useState<string[]>([]);
 
@@ -133,8 +134,9 @@ export default function AdminUsersPage() {
   }
   async function saveReputation() {
     if (!detail) return;
-    const amount = Number(adjustAmount);
-    if (!Number.isInteger(amount) || amount === 0 || !adjustReason.trim()) { setError("请填写非零整数分数及调整原因。"); return; }
+    const rawAmount = Number(adjustAmount);
+    const amount = Math.abs(rawAmount) * (adjustMode === "add" ? 1 : -1);
+    if (!Number.isInteger(rawAmount) || rawAmount <= 0 || !adjustReason.trim()) { setError("请填写非零整数分数及调整原因。"); return; }
     setBusy(true);
     try { await api("/api/v1/admin/users/" + detail.basic.id + "/reputation", {method:"POST",body:JSON.stringify({amount,reason:adjustReason})}); setNotice("信誉分调整成功。"); await openDetail({id:detail.basic.id} as UserRow); setDetailTab("reputation"); }
     catch(e) { setError(e instanceof Error ? e.message : "信誉调整失败。"); } finally { setBusy(false); }
@@ -286,11 +288,42 @@ export default function AdminUsersPage() {
           </div>
         </section>):<div className="users-detail-empty">该用户尚未通过 Android APP 上报设备信息。用户下次登录或启动 APP 后将自动登记。</div>}
       </div>}
-      {detailTab==="payout"&&<>{detail.payoutAccounts.length?detail.payoutAccounts.map(a=><div className="users-detail-row" key={a.id}>{a.accountHolder} · {a.currency} · {a.providerCode}/{a.methodCode} · {a.maskedAccount} · {a.status}{a.isDefault?" · 默认":""}</div>):<div className="users-detail-empty">暂无收款账户</div>}</>}
-      {detailTab==="tasks"&&<><p>任务总数 {detail.tasks.total} · 通过 {detail.tasks.approved} · 拒绝 {detail.tasks.rejected} · 通过率 {detail.tasks.approvalRate==null?"暂无":(detail.tasks.approvalRate*100).toFixed(2)+"%"}</p>{detail.tasks.items.length?detail.tasks.items.map(t=><div className="users-detail-row" key={t.id}>{t.taskTitle} · {t.category} · {t.status} · {dateText(t.claimedAt)} · {t.currency} {(Number(t.rewardMinor)/100).toFixed(2)}</div>):<div className="users-detail-empty">暂无任务记录</div>}</>}
-      {detailTab==="withdrawals"&&<><p>提现总数 {detail.withdrawals.total} · 待处理 {detail.withdrawals.pending} · 已支付 {detail.withdrawals.paid}</p>{detail.withdrawals.items.length?detail.withdrawals.items.map(w=><div className="users-detail-row" key={w.id}>{w.currency} {(Number(w.amountMinor)/100).toFixed(2)} · {w.status} · {dateText(w.createdAt)} · {w.payoutAccount?.maskedAccount||"未关联账户"}</div>):<div className="users-detail-empty">暂无提现记录</div>}</>}
-      {detailTab==="risk"&&<><p>风险等级 {detail.risk.label} · 已审核任务 {detail.risk.reviewedTasks} · 拒绝 {detail.risk.rejectedTasks}</p><button disabled={busy} onClick={()=>void openDetail({id:detail.basic.id} as UserRow)}>重新计算 / 刷新风险</button>{detail.risk.events.length?detail.risk.events.map(e=><div className="users-detail-row" key={e.id}>{e.type} · {dateText(e.createdAt)} · {JSON.stringify(e.metadata)}</div>):<div className="users-detail-empty">暂无风险事件；风险等级根据现有任务审核统计计算。</div>}</>}
-      {detailTab==="reputation"&&<><h3>当前信誉：{detail.reputation.score}分</h3><div className="users-policy-fields"><label>调整分数（正数加分，负数扣分）<input type="number" value={adjustAmount} onChange={e=>setAdjustAmount(e.target.value)}/></label><label>调整原因<textarea value={adjustReason} onChange={e=>setAdjustReason(e.target.value)} maxLength={500}/></label></div><button disabled={busy} onClick={()=>void saveReputation()}>保存信誉调整</button>{detail.reputation.events.length?detail.reputation.events.map(e=><div className="users-detail-row" key={e.id}>{dateText(e.createdAt)} · {JSON.stringify(e.metadata)}</div>):<div className="users-detail-empty">暂无信誉调整记录</div>}</>}
+      {detailTab==="payout"&&<div className="users-reference-panel">
+        <div className="users-reference-count">收款账户数量 <strong>{detail.payoutAccounts.length}</strong></div>
+        {detail.payoutAccounts.length ? <div className="users-reference-list">{detail.payoutAccounts.map(a=><div className="users-reference-row" key={a.id}>
+          <strong>{a.accountHolder||"未设置账户名"}</strong><span>{a.currency}</span><span>{a.providerCode}</span><span>{a.methodCode}</span><span>{a.maskedAccount}</span><span className={a.status==="ACTIVE"?"reference-state-active":"reference-state-muted"}>{a.status==="ACTIVE"?"正常":a.status}</span>{a.isDefault&&<em>默认</em>}
+        </div>)}</div> : <div className="users-reference-empty">暂无收款账户</div>}
+      </div>}
+      {detailTab==="tasks"&&<div className="users-reference-panel">
+        <div className="users-reference-summary"><div><small>任务总数</small><strong>{detail.tasks.total}</strong></div><div><small>通过任务</small><strong>{detail.tasks.approved}</strong></div><div><small>拒绝任务</small><strong>{detail.tasks.rejected}</strong></div><div><small>通过率</small><strong>{detail.tasks.approvalRate==null?"暂无":(detail.tasks.approvalRate*100).toFixed(2)+"%"}</strong></div></div>
+        {detail.tasks.items.length ? <div className="users-reference-list">{detail.tasks.items.map(t=><div className="users-reference-row" key={t.id}><strong>{t.taskTitle}</strong><span>{t.category}</span><span>{t.status}</span><span>{dateText(t.claimedAt)}</span><span>{t.currency} {(Number(t.rewardMinor)/100).toFixed(2)}</span></div>)}</div> : <div className="users-reference-empty">暂无任务记录</div>}
+      </div>}
+      {detailTab==="withdrawals"&&<div className="users-reference-panel">
+        <div className="users-reference-summary"><div><small>提现总数</small><strong>{detail.withdrawals.total}</strong></div><div><small>待处理提现</small><strong>{detail.withdrawals.pending}</strong></div><div><small>已支付提现</small><strong>{detail.withdrawals.paid}</strong></div></div>
+        {detail.withdrawals.items.length ? <div className="users-reference-list">{detail.withdrawals.items.map(w=><div className="users-reference-row" key={w.id}><strong>{w.currency} {(Number(w.amountMinor)/100).toFixed(2)}</strong><span>{w.status}</span><span>{dateText(w.createdAt)}</span><span>{w.payoutAccount?.maskedAccount||"未关联账户"}</span></div>)}</div> : <div className="users-reference-empty">暂无提现记录</div>}
+      </div>}
+      {detailTab==="risk"&&<div className="users-reference-panel users-risk-reference">
+        <div className="users-reference-summary"><div><small>生效风险</small><strong>{detail.risk.label}</strong></div><div><small>档案风险</small><strong>{detail.risk.label}</strong></div><div><small>汇总风险</small><strong>{detail.risk.calculated?"已计算":"未计算"}</strong></div><div><small>风险总分</small><strong>{detail.risk.calculated?detail.risk.reviewedTasks+" 项审核":"未计算"}</strong></div><div><small>设备风险</small><strong>{detail.devices.items.some(d=>d.isFlagged||d.status==="BLOCKED")?"需关注":"未发现异常"}</strong></div><div><small>网络风险</small><strong>未计算</strong></div><div><small>支付风险</small><strong>未计算</strong></div><div><small>证据风险</small><strong>未计算</strong></div><div><small>行为风险</small><strong>{detail.risk.reviewedTasks>=5&&detail.risk.rejectedTasks/detail.risk.reviewedTasks>=0.25?"需关注":"未发现异常"}</strong></div><div><small>近期拒绝率</small><strong>{detail.risk.reviewedTasks?(detail.risk.rejectedTasks/detail.risk.reviewedTasks*100).toFixed(2)+"%":"未计算"}</strong></div><div><small>计算时间</small><strong>{detail.risk.calculated?dateText(new Date().toISOString()):"未计算"}</strong></div></div>
+        <div className="users-reference-actions"><button className="users-tool-button" disabled={busy} onClick={async()=>{setBusy(true);setError("");try{const result=await api<UserDetail>("/api/v1/admin/users/"+detail.basic.id+"/detail");setDetail(result);setDetailTab("risk");setNotice("风险数据已重新读取。");}catch(e){setError(e instanceof Error?e.message:"刷新风险数据失败。");}finally{setBusy(false);}}}>重新计算 / 刷新风险</button></div>
+        <div className="users-reference-table-wrap"><table className="users-reference-table"><thead><tr><th>风险类型</th><th>风险等级</th><th>风险分</th><th>风险原因</th><th>处理状态</th><th>发生时间</th></tr></thead><tbody>
+          {detail.risk.events.length ? detail.risk.events.map(e=><tr key={e.id}><td>{e.type}</td><td>{detail.risk.label}</td><td>—</td><td>{typeof e.metadata==="object"&&e.metadata!==null?JSON.stringify(e.metadata):String(e.metadata??"—")}</td><td>待核查</td><td>{dateText(e.createdAt)}</td></tr>) : <tr><td colSpan={6} className="users-reference-no-data">暂无风险事件</td></tr>}
+        </tbody></table></div>
+      </div>}
+      {detailTab==="reputation"&&<div className="users-reference-panel users-reputation-reference">
+        <section className="users-reputation-current"><small>当前信誉</small><strong>{detail.reputation.score}分 · {detail.reputation.score>=80?"优秀":detail.reputation.score>=60?"新手":"待改善"}</strong></section>
+        <section className="users-reputation-editor">
+          <div className="users-reputation-mode"><button className={adjustMode==="add"?"active":""} onClick={()=>setAdjustMode("add")}>加分</button><button className={adjustMode==="deduct"?"active":""} onClick={()=>setAdjustMode("deduct")}>扣分</button></div>
+          <div className="users-reputation-fields">
+            <label>调整数量<input type="number" min="1" step="1" value={adjustAmount} onChange={e=>setAdjustAmount(e.target.value)}/></label>
+            <label>调整后预览<output>{detail.reputation.score} → {Math.max(0,Math.min(100,detail.reputation.score+(adjustMode==="add"?1:-1)*(Number(adjustAmount)||0)))}</output></label>
+          </div>
+          <label className="users-reputation-reason">调整原因<textarea value={adjustReason} onChange={e=>setAdjustReason(e.target.value)} maxLength={500} placeholder="请填写调整原因"/></label>
+          <button disabled={busy} onClick={()=>void saveReputation()}>保存信誉</button>
+        </section>
+        <div className="users-reference-table-wrap"><table className="users-reference-table"><thead><tr><th>实际变更</th><th>请求变更</th><th>变更前后</th><th>原因/备注</th><th>来源/操作人</th><th>关联业务</th></tr></thead><tbody>
+          {detail.reputation.events.length ? detail.reputation.events.map(e=>{const m=typeof e.metadata==="object"&&e.metadata!==null?e.metadata as Record<string,unknown>:{};return <tr key={e.id}><td>{String(m.after??"—")}</td><td>{String(m.requestedAmount??"—")}</td><td>{String(m.before??"—")} → {String(m.after??"—")}</td><td>{String(m.reason??"—")}</td><td>{String(m.actorId??"管理员")} · {dateText(e.createdAt)}</td><td>信誉调整</td></tr>}) : <tr><td colSpan={6} className="users-reference-no-data">暂无信誉事件；审核结果或管理员调整后会生成信誉记录。</td></tr>}
+        </tbody></table></div>
+      </div>}
       </div><footer className="users-detail-footer"><button onClick={()=>void doResetPassword({id:detail.basic.id,phone:detail.basic.phone} as UserRow)}>重置密码</button><button onClick={()=>void changeStatus({id:detail.basic.id,phone:detail.basic.phone,status:detail.basic.status} as UserRow)}>{detail.basic.status==="SUSPENDED"?"解冻用户":"冻结用户"}</button></footer>
     </div></div>}
     {editing&&<div className="users-modal-backdrop"><div className="users-modal"><button className="users-modal-close" onClick={()=>setEditing(null)}><X size={17}/></button><h2>编辑用户资料</h2><p>{editing.phone}</p><label>用户昵称<input value={displayName} maxLength={80} onChange={e=>setDisplayName(e.target.value)}/></label><div><button className="users-tool-button" onClick={()=>setEditing(null)}>取消</button><button className="users-save-button" disabled={busy} onClick={()=>void saveEdit()}>保存修改</button></div></div></div>}
