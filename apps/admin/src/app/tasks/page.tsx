@@ -32,7 +32,7 @@ type AdminTask = {
 };
 
 type TaskList = { tasks: AdminTask[] };
-type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
+type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };\ntype TaskGroupOption = { id: string; name: string; description: string | null; taskCount: number };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
 type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
@@ -126,7 +126,7 @@ export default function AdminTasksPage() {\n  const router = useRouter();
   const [countryFilter, setCountryFilter] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
   const [selectedGroup, setSelectedGroup] = useState("");
-  const [groupSaving, setGroupSaving] = useState(false);\n  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);\n  const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");\n  const [bulkMessageText, setBulkMessageText] = useState("");\n  const [bulkTemplateId, setBulkTemplateId] = useState("");\n  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
+  const [groupSaving, setGroupSaving] = useState(false);\n  const [groupModalOpen, setGroupModalOpen] = useState(false);\n  const [taskGroups, setTaskGroups] = useState<TaskGroupOption[]>([]);\n  const [newGroupName, setNewGroupName] = useState("");\n  const [newGroupDescription, setNewGroupDescription] = useState("");\n  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);\n  const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");\n  const [bulkMessageText, setBulkMessageText] = useState("");\n  const [bulkTemplateId, setBulkTemplateId] = useState("");\n  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
@@ -149,7 +149,7 @@ export default function AdminTasksPage() {\n  const router = useRouter();
     if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
   }, [authenticated,loadRecords]);
 
-  const groupNames = Array.from(new Set(tasks.map((task) => task.category).filter(Boolean)));
+  const groupNames = Array.from(new Set(tasks.map((task) => task.groupName).filter((name) => name && name !== "未分组")));
   const visibleRecords = records;
   const pageStart = Math.max(1, Math.min(page - 2, totalPages - 4));
   const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, index) => pageStart + index);
@@ -313,7 +313,7 @@ export default function AdminTasksPage() {\n  const router = useRouter();
       <header className="tasks-page-heading">
         <div><h1>任务管理</h1><p>添加和管理可领取任务，并可按任务整理和筛选。</p></div>
         <div className="tasks-heading-actions">
-          <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}>任务组</button>
+          <button className="tasks-outline-btn" type="button" onClick={async()=>{setGroupModalOpen(true);try{const result=await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups");setTaskGroups(result);}catch(err){setError(err instanceof Error?err.message:"任务组加载失败。");}}}>任务组</button>
           <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
             if(!selectedIds.length)return;
             const chosen=records.filter((item)=>selectedIds.includes(item.id));
@@ -527,6 +527,26 @@ export default function AdminTasksPage() {\n  const router = useRouter();
               }}>⊗ 作废任务</button>
             </footer>
           </aside>
+        </div>
+      )}
+      {groupModalOpen && (
+        <div className="tasks-detail-backdrop" onClick={()=>setGroupModalOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-label="任务组管理" onClick={(event)=>event.stopPropagation()} style={{width:"min(94vw,560px)",background:"#fff",borderRadius:10,padding:18,boxShadow:"0 18px 50px rgba(15,23,42,.2)"}}>
+            <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><strong style={{fontSize:16}}>任务组</strong><button type="button" onClick={()=>setGroupModalOpen(false)} aria-label="关闭">×</button></header>
+            <p style={{fontSize:13,color:"#536176",margin:"0 0 14px"}}>任务组仅用于整理任务；删除任务组不会删除任务及任务号码记录。</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1.4fr auto",gap:7,marginBottom:14}}>
+              <input value={newGroupName} onChange={(event)=>setNewGroupName(event.target.value)} placeholder="任务组名称" style={{minWidth:0,padding:9,border:"1px solid #dbe2ec",borderRadius:6}}/>
+              <input value={newGroupDescription} onChange={(event)=>setNewGroupDescription(event.target.value)} placeholder="任务组说明（可选）" style={{minWidth:0,padding:9,border:"1px solid #dbe2ec",borderRadius:6}}/>
+              <button type="button" className="tasks-primary-btn" disabled={busy||newGroupName.trim().length<2} onClick={async()=>{setBusy(true);try{await api("/api/v1/admin/tasks/groups",{method:"POST",body:JSON.stringify({name:newGroupName,description:newGroupDescription})});setNewGroupName("");setNewGroupDescription("");setTaskGroups(await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups"));setMessage("任务组创建成功。");}catch(err){setError(err instanceof Error?err.message:"创建任务组失败。");}finally{setBusy(false);}}}>＋ 新建</button>
+            </div>
+            <div style={{border:"1px solid #e5eaf1",borderRadius:8,overflow:"hidden",maxHeight:340,overflowY:"auto"}}>
+              {taskGroups.length===0?<div style={{padding:18,color:"#718096",fontSize:13}}>暂无任务组</div>:taskGroups.map((group)=><div key={group.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 13px",borderBottom:"1px solid #edf0f5"}}>
+                <div style={{minWidth:0}}><strong style={{fontSize:13}}>{group.name}</strong><div style={{fontSize:12,color:"#718096",marginTop:4}}>{group.description||"未填写说明"} · {group.taskCount} 个任务</div></div>
+                <div style={{display:"flex",gap:7,flexShrink:0}}><button type="button" className="tasks-outline-btn" onClick={()=>{setGroupFilter(group.name);setPage(1);setGroupModalOpen(false);}}>查看任务</button><button type="button" className="tasks-outline-btn" disabled={busy} onClick={async()=>{if(!window.confirm("确定删除任务组“"+group.name+"”吗？任务本身及其号码记录会保留，并转为未分组。"))return;setBusy(true);try{await api("/api/v1/admin/tasks/groups/"+group.id,{method:"DELETE"});setTaskGroups(await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups"));await refresh();await loadRecords();setMessage("任务组已删除，任务和号码记录均已保留。");}catch(err){setError(err instanceof Error?err.message:"删除任务组失败。");}finally{setBusy(false);}}}>删除</button></div>
+              </div>)}
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}><button type="button" className="tasks-outline-btn" onClick={()=>setGroupModalOpen(false)}>关闭</button></div>
+          </section>
         </div>
       )}
       {bulkMessageOpen && (
