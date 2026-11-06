@@ -119,6 +119,7 @@ export default function AdminTasksPage() {
   const [adminSearch, setAdminSearch] = useState("");
   const [groupFilterOpen, setGroupFilterOpen] = useState(false);
   const [groupFilter, setGroupFilter] = useState("ALL");
+  const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
@@ -357,7 +358,7 @@ export default function AdminTasksPage() {
                 <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
                 <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[record.status]}</span></td>
                 <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
-                <td><div className="tasks-row-actions"><button type="button" onClick={()=>window.alert("任务名称："+record.taskName+"\n任务号码："+record.phoneNumber+"\n任务编号："+record.taskId+"\n任务状态："+record.status)}>查看</button><button type="button" className="danger" disabled title="单条删除接口尚未实现">删除</button></div></td>
+                <td><div className="tasks-row-actions"><button type="button" onClick={()=>setSelectedRecord(record)}>查看</button><button type="button" className="danger" disabled title="单条删除接口尚未实现">删除</button></div></td>
               </tr>)}
               {visibleRecords.length===0&&<tr><td colSpan={10} className="tasks-empty-row">当前任务组没有任务号码记录</td></tr>}
             </tbody>
