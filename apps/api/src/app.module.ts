@@ -10,6 +10,7 @@ import { ContactNumbersModule } from "./contact-numbers/contact-numbers.module";
 import { AiConfigModule } from "./ai-config/ai-config.module";
 import { StorageConfigModule } from "./storage-config/storage-config.module";
 import { WalletHoldsAdminModule } from "./wallet-holds-admin/wallet-holds-admin.module";
+import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WalletHoldsAdminModule } from "./wallet-holds-admin/wallet-holds-admin.
     AiConfigModule,
     StorageConfigModule,
     WalletHoldsAdminModule,
+    AdminDashboardModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
