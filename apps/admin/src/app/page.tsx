@@ -99,7 +99,6 @@ export default function AdminHomePage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [tasks, setTasks] = useState<AdminTaskSummary[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboardSummary | null>(null);
   const [activeSection, setActiveSection] = useState<"dashboard" | "numbers">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -112,15 +111,13 @@ export default function AdminHomePage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextSummary, nextNumbers, nextTasks, nextDashboard] = await Promise.all([
+    const [nextSummary, nextNumbers, nextDashboard] = await Promise.all([
       api<Summary>("/api/v1/admin/contact-numbers/summary"),
       api<ContactList>("/api/v1/admin/contact-numbers?limit=100"),
-      api<AdminTaskList>("/api/v1/admin/tasks"),
       api<AdminDashboardSummary>("/api/v1/admin/dashboard/summary"),
     ]);
     setSummary(nextSummary);
     setNumbers(nextNumbers.numbers);
-    setTasks(nextTasks.tasks);
     setDashboard(nextDashboard);
   }, []);
 
