@@ -108,12 +108,14 @@ export class AdminUsersService {
     if (!user) throw new NotFoundException("用户不存在。");
     const audit = await prisma.auditEvent.findMany({ where: { targetType: "USER", targetId: userId }, orderBy: { createdAt: "desc" }, take: 100 });
     const today = utcStart();
-    const [todayClaimed, allClaimCount] = await Promise.all([
+    const [todayClaimed, claimGroups] = await Promise.all([
       prisma.taskClaim.count({ where: { userId, claimedAt: { gte: today } } }),
-      prisma.taskClaim.count({ where: { userId } }),
+      prisma.taskClaim.groupBy({ by: ["status"], where: { userId }, _count: { _all: true } }),
     ]);
-    const approved = user.claims.filter((x) => x.status === "APPROVED").length;
-    const rejected = user.claims.filter((x) => x.status === "REJECTED").length;
+    const claimCounts = Object.fromEntries(claimGroups.map((group) => [group.status, group._count._all])) as Record<string, number>;
+    const allClaimCount = claimGroups.reduce((sum, group) => sum + group._count._all, 0);
+    const approved = claimCounts.APPROVED ?? 0;
+    const rejected = claimCounts.REJECTED ?? 0;
     const reviewed = approved + rejected;
     const withdrawals = user.wallets.flatMap((w) => w.withdrawals).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const balanceMap = new Map<string, bigint>();
@@ -130,7 +132,7 @@ export class AdminUsersService {
       payoutAccounts: user.payoutAccounts,
       tasks: { total: allClaimCount, approved, rejected, approvalRate: reviewed ? approved / reviewed : null, items: user.claims.map((x) => ({ id: x.id, taskTitle: x.task.title, category: x.task.category, status: x.status, claimedAt: x.claimedAt, rewardMinor: x.task.rewardMinor.toString(), currency: x.task.currency, submissions: x.submissions.map((s) => ({ id: s.id, status: s.status, submittedAt: s.submittedAt, reviews: s.reviews })) })) },
       withdrawals: { total: withdrawals.length, pending: withdrawals.filter((x) => ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"].includes(x.status)).length, paid: withdrawals.filter((x) => x.status === "PAID").length, items: withdrawals.map((x) => ({ id: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency, status: x.status, createdAt: x.createdAt, payoutReference: x.payoutReference, payoutAccount: x.payoutAccount })) },
-      risk: { label: reviewed >= 5 && rejected / reviewed >= 0.5 ? "需关注" : reviewed >= 5 && rejected / reviewed >= 0.25 ? "中风险" : "低风险", reviewedTasks: reviewed, rejectedTasks: rejected, events: audit.filter((x) => /RISK|FRAUD|SUSPEND/i.test(x.action)).map((x) => ({ id: x.id, type: x.action, metadata: x.metadata, createdAt: x.createdAt })) },
+      risk: { calculated: reviewed >= 5, label: reviewed >= 5 && rejected / reviewed >= 0.5 ? "需关注" : reviewed >= 5 && rejected / reviewed >= 0.25 ? "中风险" : "低风险", reviewedTasks: reviewed, rejectedTasks: rejected, events: audit.filter((x) => /RISK|FRAUD|SUSPEND/i.test(x.action)).map((x) => ({ id: x.id, type: x.action, metadata: x.metadata, createdAt: x.createdAt })) },
       reputation: { score: user.profile?.reputationScore ?? 60, events: audit.filter((x) => x.action === "USER_REPUTATION_ADJUSTED").map((x) => ({ id: x.id, metadata: x.metadata, createdAt: x.createdAt, actorId: x.actorId })) },
     };
   }
