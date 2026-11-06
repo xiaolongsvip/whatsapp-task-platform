@@ -12,6 +12,7 @@ import { startOfDay } from "../users/dashboard.service";
 import { S3ObjectStorageService } from "./s3-object-storage.service";
 
 const DAILY_TASK_LIMIT = 20;
+const DEFAULT_MIN_CLAIM_INTERVAL_SECONDS = 60;
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
 type EvidenceFile = {
@@ -271,7 +272,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
         const userPolicy = await tx.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } });
         const dailyTaskLimit = userPolicy?.dailyTaskLimit ?? DAILY_TASK_LIMIT;
-        const minClaimIntervalSeconds = userPolicy?.minClaimIntervalSeconds ?? 0;
+        const minClaimIntervalSeconds = userPolicy?.minClaimIntervalSeconds ?? DEFAULT_MIN_CLAIM_INTERVAL_SECONDS;
         const slot = await tx.taskSlot.findUnique({
           where: { id: slotId },
           include: { task: true, contactNumber: true },
