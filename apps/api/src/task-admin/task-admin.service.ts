@@ -211,7 +211,7 @@ export class TaskAdminService {
 
 
 
-  async voidTaskRecord(slotId: string) {
+  async voidTaskRecord(slotId: string, actorId?: string) {
     return prisma.$transaction(async (tx) => {
       const identity = await tx.taskSlot.findUnique({ where: { id: slotId }, select: { id: true, claimId: true, contactNumberId: true } });
       if (!identity) throw new NotFoundException("任务号码记录不存在。");
@@ -261,11 +261,16 @@ export class TaskAdminService {
         where: { id: slot.id },
         data: { status: "VOIDED", releasedAt: new Date() },
       });
+      if (actorId) {
+        await tx.auditEvent.create({
+          data: { actorType: "ADMIN", actorId, action: "TASK_RECORD_VOID", targetType: "TASK_SLOT", targetId: slot.id },
+        });
+      }
       return { id: slot.id, status: "VOIDED", alreadyVoided: false };
     });
   }
 
-  async deleteTaskRecord(slotId: string) {
+  async deleteTaskRecord(slotId: string, actorId?: string) {
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
       const slot = await tx.taskSlot.findUnique({ where: { id: slotId }, include: { task: true } });
@@ -273,6 +278,11 @@ export class TaskAdminService {
       if (slot.task.status === "PUBLISHED") throw new ConflictException("已发布任务不能删除号码记录，请先暂停任务。");
       if (slot.status !== "AVAILABLE" || slot.claimId) {
         throw new ConflictException("已领取、已执行或已作废的任务记录不能删除，请使用作废操作保留审计记录。");
+      }
+      if (actorId) {
+        await tx.auditEvent.create({
+          data: { actorType: "ADMIN", actorId, action: "TASK_RECORD_DELETE", targetType: "TASK_SLOT", targetId: slot.id },
+        });
       }
       await tx.taskSlot.delete({ where: { id: slot.id } });
       await allocateAvailableNumbersToOldestPublishedTask(tx);
@@ -300,17 +310,7 @@ export class TaskAdminService {
     const results: Array<{ id: string; success: boolean; message: string }> = [];
     for (const id of recordIds) {
       try {
-        const result = await this.voidTaskRecord(id);
-        await prisma.auditEvent.create({
-          data: {
-            actorType: "ADMIN",
-            actorId,
-            action: "TASK_RECORD_VOID",
-            targetType: "TASK_SLOT",
-            targetId: id,
-            metadata: { bulk: true, status: result.status },
-          },
-        });
+        const result = await this.voidTaskRecord(id, actorId);
         results.push({ id, success: true, message: result.alreadyVoided ? "已经作废" : "作废成功" });
       } catch (error) {
         results.push({ id, success: false, message: error instanceof Error ? error.message : "作废失败" });
@@ -330,17 +330,7 @@ export class TaskAdminService {
     const results: Array<{ id: string; success: boolean; message: string }> = [];
     for (const id of recordIds) {
       try {
-        await this.deleteTaskRecord(id);
-        await prisma.auditEvent.create({
-          data: {
-            actorType: "ADMIN",
-            actorId,
-            action: "TASK_RECORD_DELETE",
-            targetType: "TASK_SLOT",
-            targetId: id,
-            metadata: { bulk: true },
-          },
-        });
+        await this.deleteTaskRecord(id, actorId);
         results.push({ id, success: true, message: "删除成功" });
       } catch (error) {
         results.push({ id, success: false, message: error instanceof Error ? error.message : "删除失败" });
@@ -371,17 +361,7 @@ export class TaskAdminService {
     const results: Array<{ taskId: string; success: boolean; message: string }> = [];
     for (const taskId of taskIds) {
       try {
-        await this.updateTaskGroup(taskId, normalized);
-        await prisma.auditEvent.create({
-          data: {
-            actorType: "ADMIN",
-            actorId,
-            action: "TASK_GROUP_BULK_UPDATE",
-            targetType: "TASK",
-            targetId: taskId,
-            metadata: { bulk: true, selectedRecordCount: slots.filter((slot) => slot.taskId === taskId).length, groupName: normalized },
-          },
-        });
+        await this.updateTaskGroup(taskId, normalized, actorId);
         results.push({ taskId, success: true, message: "任务组更新成功" });
       } catch (error) {
         results.push({ taskId, success: false, message: error instanceof Error ? error.message : "任务组更新失败" });
@@ -396,17 +376,25 @@ export class TaskAdminService {
     };
   }
 
-  async updateTaskGroup(taskId: string, groupName: string) {
+  async updateTaskGroup(taskId: string, groupName: string, actorId?: string) {
     const normalized = groupName.trim();
     if (!normalized || normalized.length > 80) {
       throw new BadRequestException("任务组名称不能为空，且不能超过 80 个字符。");
     }
     const existing = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
     if (!existing) throw new NotFoundException("任务不存在。");
-    return prisma.task.update({
-      where: { id: taskId },
-      data: { category: normalized },
-      select: { id: true, category: true },
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.task.update({
+        where: { id: taskId },
+        data: { category: normalized },
+        select: { id: true, category: true },
+      });
+      if (actorId) {
+        await tx.auditEvent.create({
+          data: { actorType: "ADMIN", actorId, action: "TASK_GROUP_UPDATE", targetType: "TASK", targetId: taskId, metadata: { groupName: normalized } },
+        });
+      }
+      return updated;
     });
   }
 
