@@ -399,3 +399,26 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .users-table-score { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
 .users-table-score .users-stars { display:inline-flex; align-items:center; gap:2px; color:#17243a; font-size:15px; line-height:1; letter-spacing:0; }
 .users-table-score .users-stars span:nth-child(n+4) { color:#cbd5e1; }
+
+.users-device-panel { display:flex; flex-direction:column; gap:12px; }
+.users-device-heading { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #dce6f2; border-radius:7px; color:#334155; }
+.users-device-heading>b { color:#17243a; font-size:18px; }
+.users-device-heading>span { margin-left:auto; color:#718096; font-size:11px; }
+.users-device-card { padding:13px; border:1px solid #dce6f2; border-radius:8px; background:#fff; }
+.users-device-card-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:10px; border-bottom:1px solid #edf1f5; }
+.users-device-card-head>strong { color:#17243a; font-size:14px; }
+.users-device-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 18px; padding:12px 0; }
+.users-device-grid>div { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.users-device-grid small { color:#718096; font-size:11px; }
+.users-device-grid strong { color:#334155; font-size:12px; font-weight:500; overflow-wrap:anywhere; }
+.users-device-history { display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid #edf1f5; }
+.users-device-history>strong { color:#334155; font-size:12px; }
+.users-device-history>div { display:grid; grid-template-columns:110px minmax(0,1fr); gap:10px; color:#64748b; font-size:11px; }
+.users-device-history>div span:last-child { overflow-wrap:anywhere; }
+.users-device-history>small { color:#94a3b8; font-size:11px; }
+@media(max-width:640px) {
+ .users-device-heading { align-items:flex-start; flex-wrap:wrap; }
+ .users-device-heading>span { width:100%; margin-left:0; }
+ .users-device-grid { grid-template-columns:1fr; }
+ .users-device-history>div { grid-template-columns:1fr; gap:3px; }
+}
