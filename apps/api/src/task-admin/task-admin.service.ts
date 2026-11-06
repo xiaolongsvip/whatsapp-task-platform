@@ -556,6 +556,60 @@ export class TaskAdminService {
     });
   }
 
+  async listMessageTemplates(input: { enabled?: boolean; platform?: string; action?: string } = {}) {
+    return prisma.messageTemplate.findMany({
+      where: {
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        ...(input.platform ? { platform: input.platform } : {}),
+        ...(input.action ? { action: input.action } : {}),
+      },
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+    });
+  }
+
+  async createMessageTemplate(input: { name?: string; platform?: string; action?: string; content?: string; enabled?: boolean }) {
+    const name = input.name?.trim() ?? "";
+    const platform = input.platform?.trim() ?? "";
+    const action = input.action?.trim() || "MESSAGE";
+    const content = input.content?.trim() ?? "";
+    if (name.length < 2 || name.length > 160) throw new BadRequestException("模板名称需要为 2 至 160 个字符。");
+    if (!platform || platform.length > 40) throw new BadRequestException("请选择有效的平台。");
+    if (action.length > 40) throw new BadRequestException("模板动作名称不能超过 40 个字符。");
+    if (!content || content.length > 10000) throw new BadRequestException("话术内容不能为空且不能超过 10000 个字符。");
+    return prisma.messageTemplate.create({
+      data: { name, platform, action, content, enabled: input.enabled ?? true },
+    });
+  }
+
+  async updateMessageTemplate(id: string, input: { name?: string; platform?: string; action?: string; content?: string; enabled?: boolean }) {
+    const existing = await prisma.messageTemplate.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("话术模板不存在。");
+    const name = input.name?.trim();
+    const platform = input.platform?.trim();
+    const action = input.action?.trim();
+    const content = input.content?.trim();
+    if (name !== undefined && (name.length < 2 || name.length > 160)) throw new BadRequestException("模板名称需要为 2 至 160 个字符。");
+    if (platform !== undefined && (!platform || platform.length > 40)) throw new BadRequestException("请选择有效的平台。");
+    if (action !== undefined && (!action || action.length > 40)) throw new BadRequestException("模板动作名称无效。");
+    if (content !== undefined && (!content || content.length > 10000)) throw new BadRequestException("话术内容不能为空且不能超过 10000 个字符。");
+    return prisma.messageTemplate.update({
+      where: { id },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(platform !== undefined ? { platform } : {}),
+        ...(action !== undefined ? { action } : {}),
+        ...(content !== undefined ? { content } : {}),
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      },
+    });
+  }
+
+  async disableMessageTemplate(id: string) {
+    const existing = await prisma.messageTemplate.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("话术模板不存在。");
+    return prisma.messageTemplate.update({ where: { id }, data: { enabled: false } });
+  }
+
   async close(taskId: string) {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException("任务不存在。");
