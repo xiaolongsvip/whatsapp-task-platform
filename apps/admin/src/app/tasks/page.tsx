@@ -12,6 +12,7 @@ type AdminTask = {
   title: string;
   description: string;
   category: string;
+  groupName: string;
   status: TaskStatus;
   rewardMinor: string;
   rewardAmount: string;
