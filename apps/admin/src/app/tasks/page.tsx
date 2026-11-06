@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, HandCoins, LayoutDashboard, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
+import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, HandCoins, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
 
 type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED";
 
@@ -94,15 +94,6 @@ function toIso(value: string): string | null {
   return value ? new Date(value).toISOString() : null;
 }
 
-function statusLabel(status: TaskStatus): string {
-  return {
-    DRAFT: "草稿",
-    PUBLISHED: "已发布",
-    PAUSED: "已暂停",
-    CLOSED: "已结束",
-  }[status];
-}
-
 export default function AdminTasksPage() {
   const [adminEmail, setAdminEmail] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
@@ -156,33 +147,6 @@ export default function AdminTasksPage() {
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false));
   }, [refresh]);
-
-  const filteredTasks = tasks.filter((task) => {
-    const query = searchTerm.trim().toLowerCase();
-    const matchesQuery = !query || [task.title, task.category, task.id].some((value) => value.toLowerCase().includes(query));
-    return matchesQuery && (statusFilter === "ALL" || task.status === statusFilter);
-  });
-  const publishedCount = tasks.filter((task) => task.status === "PUBLISHED").length;
-  const totalClaims = tasks.reduce((sum, task) => sum + task.claimedCount, 0);
-  const closedCount = tasks.filter((task) => task.status === "CLOSED").length;
-
-  function exportTasks() {
-    const headers = ["任务名称", "任务编号", "任务分类", "奖励", "领取次数", "号码库存总数", "可领取号码", "已分配号码", "已使用号码", "任务状态", "创建时间"];
-    const rows = filteredTasks.map((task) => [
-      task.title, task.id, task.category, `${task.currency} ${task.rewardAmount}`, String(task.claimedCount),
-      String(task.inventory?.total ?? 0), String(task.inventory?.available ?? 0),
-      String(task.inventory?.assigned ?? 0), String(task.inventory?.used ?? 0), statusLabel(task.status),
-      task.createdAt ? new Date(task.createdAt).toLocaleString("zh-CN", { hour12: false }) : "",
-    ]);
-    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\r\n");
-    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "任务管理列表.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  }
 
   function updateField<K extends keyof TaskForm>(key: K, value: TaskForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -324,7 +288,7 @@ export default function AdminTasksPage() {
         <header className="dashboard-topbar">
           <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button>
           <div className="topbar-search"><Search size={16}/><input value={adminSearch} onChange={(event)=>setAdminSearch(event.target.value)} placeholder="搜索任务、用户、手机号码..."/></div>
-          <div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>{adminEmail || "Administrator"}</strong><small>超级管理员</small></span></div></div>
+          <div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>{adminEmail || "Administrator"}</strong><small>超级管理员</small></span></div><button className="topbar-icon" title="退出登录" onClick={()=>void logout()}><LogOut size={16}/></button></div>
         </header>
         <div className="dashboard-content tasks-dashboard-content">
       <header className="tasks-page-heading">
