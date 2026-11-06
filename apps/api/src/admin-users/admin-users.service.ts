@@ -179,42 +179,41 @@ export class AdminUsersService {
     if (body.isFlagged !== undefined && typeof body.isFlagged !== "boolean") throw new BadRequestException("设备风险标记无效。");
     const reason = body.reason?.trim();
     if (!reason || reason.length > 500) throw new BadRequestException("请填写 1 到 500 个字符的操作原因。");
-    const device = await prisma.userDevice.findFirst({ where: { id: deviceId, userId } });
-    if (!device) throw new NotFoundException("设备记录不存在。");
-    const nextStatus = body.status ?? device.status;
-    const nextFlagged = body.isFlagged ?? device.isFlagged;
-    const statusChanged = nextStatus !== device.status;
-    const flagChanged = nextFlagged !== device.isFlagged;
+    const selected = await prisma.userDevice.findFirst({ where: { id: deviceId, userId } });
+    if (!selected) throw new NotFoundException("设备记录不存在。");
+    // Apply device-level actions to every account row carrying this same app-scoped Android ID.
+    const linkedRows = await prisma.userDevice.findMany({ where: { deviceIdentifier: selected.deviceIdentifier } });
+    const statusChanged = body.status !== undefined && linkedRows.some((row) => row.status !== body.status);
+    const flagChanged = body.isFlagged !== undefined && linkedRows.some((row) => row.isFlagged !== body.isFlagged);
     if (!statusChanged && !flagChanged) throw new BadRequestException("设备状态没有变化。");
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.userDevice.update({
-        where: { id: deviceId },
-        data: {
-          status: nextStatus,
-          isFlagged: nextFlagged,
-          flagReason: nextFlagged ? reason : (flagChanged ? null : device.flagReason),
-          statusUpdatedAt: statusChanged ? new Date() : device.statusUpdatedAt,
-        },
-      });
-      const events = [];
-      if (statusChanged) events.push({
-        deviceId, eventType: nextStatus === "BLOCKED" ? "DEVICE_BLOCKED" : "DEVICE_UNBLOCKED",
-        manufacturer: device.manufacturer, model: device.model, androidVersion: device.androidVersion,
-        sdkInt: device.sdkInt, appVersion: device.appVersion, actorId: adminId, reason,
-      });
-      if (flagChanged) events.push({
-        deviceId, eventType: nextFlagged ? "DEVICE_FLAGGED" : "DEVICE_UNFLAGGED",
-        manufacturer: device.manufacturer, model: device.model, androidVersion: device.androidVersion,
-        sdkInt: device.sdkInt, appVersion: device.appVersion, actorId: adminId, reason,
+      const data = {
+        ...(body.status !== undefined ? { status: body.status, statusUpdatedAt: new Date() } : {}),
+        ...(body.isFlagged !== undefined ? { isFlagged: body.isFlagged, flagReason: body.isFlagged ? reason : null } : {}),
+      };
+      await tx.userDevice.updateMany({ where: { deviceIdentifier: selected.deviceIdentifier }, data });
+      const events = linkedRows.flatMap((row) => {
+        const entries = [];
+        if (body.status !== undefined && row.status !== body.status) entries.push({
+          deviceId: row.id, eventType: body.status === "BLOCKED" ? "DEVICE_BLOCKED" : "DEVICE_UNBLOCKED",
+          manufacturer: row.manufacturer, model: row.model, androidVersion: row.androidVersion,
+          sdkInt: row.sdkInt, appVersion: row.appVersion, actorId: adminId, reason,
+        });
+        if (body.isFlagged !== undefined && row.isFlagged !== body.isFlagged) entries.push({
+          deviceId: row.id, eventType: body.isFlagged ? "DEVICE_FLAGGED" : "DEVICE_UNFLAGGED",
+          manufacturer: row.manufacturer, model: row.model, androidVersion: row.androidVersion,
+          sdkInt: row.sdkInt, appVersion: row.appVersion, actorId: adminId, reason,
+        });
+        return entries;
       });
       if (events.length) await tx.userDeviceEvent.createMany({ data: events });
       await tx.auditEvent.create({
         data: { actorType: "ADMIN", actorId: adminId, action: "USER_DEVICE_UPDATED", targetType: "USER", targetId: userId,
-          metadata: { deviceId, previousStatus: device.status, status: nextStatus, previousFlagged: device.isFlagged, isFlagged: nextFlagged, reason } },
+          metadata: { deviceIdentifier: selected.deviceIdentifier, affectedDeviceIds: linkedRows.map((row) => row.id), affectedAccountCount: linkedRows.length, status: body.status, isFlagged: body.isFlagged, reason } },
       });
-      return result;
+      return tx.userDevice.findFirst({ where: { id: deviceId } });
     });
-    return { success: true, device: { id: updated.id, status: updated.status, isFlagged: updated.isFlagged, flagReason: updated.flagReason } };
+    return { success: true, affectedAccounts: linkedRows.length, device: updated ? { id: updated.id, status: updated.status, isFlagged: updated.isFlagged, flagReason: updated.flagReason } : null };
   }
 
   async updatePolicy(userId: string, body: { dailyTaskLimit?: number | null; minClaimIntervalSeconds?: number | null }) {
