@@ -575,6 +575,48 @@ export class TaskAdminService {
     });
   }
 
+  async bulkUpdateMessageTemplate(input: { messageTemplate?: string; keyword?: string; groupName?: string; countryRegion?: string; createdFrom?: string; createdTo?: string }) {
+    const messageTemplate = input.messageTemplate?.trim() ?? "";
+    if (!messageTemplate || messageTemplate.length > 5000) throw new BadRequestException("话术不能为空且不能超过 5000 个字符。");
+    const filters: Prisma.TaskSlotWhereInput[] = [
+      { status: { in: ["AVAILABLE", "CLOSED"] }, claimId: null },
+      { task: { is: { status: { in: ["DRAFT", "PAUSED"] }, claimedCount: 0 } } },
+    ];
+    const keyword = input.keyword?.trim();
+    if (keyword) filters.push({ OR: [
+      { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
+      { task: { is: { category: { contains: keyword, mode: "insensitive" } } } },
+      { contactNumber: { is: { phoneE164: { contains: keyword } } } },
+    ] });
+    if (input.groupName?.trim() && input.groupName !== "ALL") {
+      filters.push({ task: { is: { group: { is: { name: input.groupName.trim() } } } } });
+    }
+    const countryRegion = input.countryRegion?.trim();
+    if (countryRegion) filters.push({ contactNumber: { is: { OR: [
+      { countryCode: { equals: countryRegion.toUpperCase() } },
+      { countryName: { contains: countryRegion, mode: "insensitive" } },
+    ] } } });
+    const createdFrom = input.createdFrom ? new Date(input.createdFrom) : undefined;
+    const createdTo = input.createdTo ? new Date(input.createdTo) : undefined;
+    if (createdFrom && Number.isNaN(createdFrom.getTime())) throw new BadRequestException("开始日期格式无效。");
+    if (createdTo && Number.isNaN(createdTo.getTime())) throw new BadRequestException("结束日期格式无效。");
+    if (createdFrom && createdTo && createdFrom > createdTo) throw new BadRequestException("开始日期不能晚于结束日期。");
+    if (createdFrom || createdTo) filters.push({ createdAt: { ...(createdFrom ? { gte: createdFrom } : {}), ...(createdTo ? { lte: createdTo } : {}) } });
+
+    const slots = await prisma.taskSlot.findMany({
+      where: { AND: filters },
+      distinct: ["taskId"],
+      select: { taskId: true },
+    });
+    const taskIds = slots.map((slot) => slot.taskId);
+    if (!taskIds.length) return { matchedTasks: 0, updatedTasks: 0, message: "当前筛选条件下没有符合批量更换条件的任务。" };
+    const result = await prisma.task.updateMany({
+      where: { id: { in: taskIds }, status: { in: ["DRAFT", "PAUSED"] }, claimedCount: 0 },
+      data: { messageTemplate },
+    });
+    return { matchedTasks: taskIds.length, updatedTasks: result.count, message: "已更新符合条件任务的话术；已领取或已发布任务保持不变。" };
+  }
+
   async listTaskGroups() {
     const groups = await prisma.taskGroup.findMany({
       orderBy: { name: "asc" },
