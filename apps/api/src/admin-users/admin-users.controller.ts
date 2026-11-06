@@ -24,6 +24,17 @@ export class AdminUsersController {
     await this.auth.getCurrentAdmin(adminToken(request));
     return this.users.list(search, status, page, pageSize);
   }
+
+  @Get(":id/devices/:deviceId/history")
+  async deviceHistory(@Req() request: Request, @Param("id") id: string, @Param("deviceId") deviceId: string, @Query("page") page?: string, @Query("pageSize") pageSize?: string) {
+    await this.auth.getCurrentAdmin(adminToken(request));
+    return this.users.deviceHistory(id, deviceId, page, pageSize);
+  }
+  @Patch(":id/devices/:deviceId")
+  async updateDevice(@Req() request: Request, @Param("id") id: string, @Param("deviceId") deviceId: string, @Body() body: { status?: "ACTIVE" | "BLOCKED"; isFlagged?: boolean; reason: string }) {
+    const admin = await this.auth.getCurrentAdmin(adminToken(request));
+    return this.users.updateDevice(id, deviceId, admin.id, body);
+  }
   @Get(":id/detail")
   async detail(@Req() request: Request, @Param("id") id: string) {
     await this.auth.getCurrentAdmin(adminToken(request));
