@@ -48,6 +48,7 @@ export default function NewTaskPage() {
           title: form.title.trim(),
           description: form.description.trim(),
           category: form.platform,
+          groupId: form.groupId || null,
           rewardAmount: form.rewardAmount.trim(),
           currency: form.currency.toUpperCase(),
           startsAt: iso(form.startsAt),
