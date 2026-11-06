@@ -45,7 +45,7 @@ export class AdminUsersService {
       prisma.user.count({ where }),
       prisma.user.findMany({
         where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize,
-        select: { id: true, phone: true, referralCode: true, status: true, createdAt: true, profile: { select: { displayName: true, reputationScore: true } }, wallets: { select: { id: true, currency: true } } },
+        select: { id: true, phone: true, referralCode: true, status: true, createdAt: true, profile: { select: { displayName: true, reputationScore: true, dailyTaskLimit: true } }, wallets: { select: { id: true, currency: true } } },
       }),
     ]);
     const userIds = users.map((u) => u.id);
@@ -83,6 +83,7 @@ export class AdminUsersService {
           referralCode: user.referralCode, status: user.status, createdAt: user.createdAt.toISOString(),
           taskCount: Object.values(claims).reduce((sum, count) => sum + count, 0),
           approvedCount: approved, rejectedCount: rejected,
+          dailyTaskLimit: user.profile?.dailyTaskLimit ?? 20,
           approvalRate: reviewed ? Math.round((approved / reviewed) * 100) : null,
           riskLabel: reviewed >= 5 && rejected / reviewed >= 0.5 ? "需关注" : reviewed >= 5 && rejected / reviewed >= 0.25 ? "中风险" : "低风险",
           reputationScore: user.profile?.reputationScore ?? 60,
