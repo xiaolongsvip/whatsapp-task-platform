@@ -340,7 +340,7 @@ export default function AdminHomePage() {
         <div className="sidebar-brand"><div className="sidebar-brand-mark"><Zap size={19} fill="currentColor" /></div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
         <nav className="sidebar-nav">
           <button type="button" className={"sidebar-link " + (activeSection === "dashboard" ? "active" : "")} onClick={() => { setActiveSection("dashboard"); setSidebarOpen(false); }}><LayoutDashboard size={16}/>控制台</button>
-          <button type="button" className="sidebar-link" disabled><Users size={16}/>用户管理</button>
+          <Link className="sidebar-link" href="/users"><Users size={16}/>用户管理</Link>
           <Link className="sidebar-link" href="/tasks"><Phone size={16}/>任务管理</Link>
           <button type="button" className="sidebar-link" disabled><FileClock size={16}/>执行记录</button>
           <button type="button" className={"sidebar-link sidebar-expand " + (expandedMenu === "review" ? "expanded" : "")} onClick={() => setExpandedMenu(expandedMenu === "review" ? null : "review")}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} className="sidebar-chevron"/></button>
