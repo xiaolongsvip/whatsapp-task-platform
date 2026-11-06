@@ -184,15 +184,15 @@ export class TaskAdminService {
     ]);
     const items = rows.map((slot) => {
       const claimStatus = slot.claim?.status ?? null;
-      let status = "CLOSED";
-      if (slot.contactNumber.status === "BLOCKED" || slot.contactNumber.consentStatus === "REVOKED") status = "FROZEN";
-      else if (slot.status === "USED" || claimStatus === "APPROVED") status = "COMPLETED";
-      else if (slot.task.status === "DRAFT" || slot.task.status === "CLOSED" || slot.task.status === "PAUSED" || ["REJECTED", "EXPIRED", "CANCELLED"].includes(claimStatus ?? "")) status = "CLOSED";
-      else if (claimStatus === "SUBMITTED" || claimStatus === "UNDER_REVIEW") status = "REVIEW";
-      else if (claimStatus === "CLAIMED" || claimStatus === "IN_PROGRESS" || slot.status === "ASSIGNED") status = "IN_PROGRESS";
-      else if (slot.status === "AVAILABLE" && slot.task.status === "PUBLISHED" && slot.contactNumber.status === "AVAILABLE" && slot.contactNumber.consentStatus === "GRANTED") status = "AVAILABLE";
+      let status = slot.status === "VOIDED" ? "VOIDED" : "CLOSED";
+      if (slot.status !== "VOIDED" && (slot.contactNumber.status === "BLOCKED" || slot.contactNumber.consentStatus === "REVOKED")) status = "FROZEN";
+      else if (slot.status !== "VOIDED" && (slot.status === "USED" || claimStatus === "APPROVED")) status = "COMPLETED";
+      else if (slot.status !== "VOIDED" && (slot.task.status === "DRAFT" || slot.task.status === "CLOSED" || slot.task.status === "PAUSED" || ["REJECTED", "EXPIRED", "CANCELLED"].includes(claimStatus ?? ""))) status = "CLOSED";
+      else if (slot.status !== "VOIDED" && (claimStatus === "SUBMITTED" || claimStatus === "UNDER_REVIEW")) status = "REVIEW";
+      else if (slot.status !== "VOIDED" && (claimStatus === "CLAIMED" || claimStatus === "IN_PROGRESS" || slot.status === "ASSIGNED")) status = "IN_PROGRESS";
+      else if (slot.status !== "VOIDED" && slot.status === "AVAILABLE" && slot.task.status === "PUBLISHED" && slot.contactNumber.status === "AVAILABLE" && slot.contactNumber.consentStatus === "GRANTED") status = "AVAILABLE";
       return {
-        id: slot.id, taskId: slot.task.id, taskName: slot.task.title,
+        id: slot.id, taskId: slot.task.id, taskStatus: slot.task.status, taskName: slot.task.title,
         phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.category || "未分组",
         rewardAmount: (Number(slot.task.rewardMinor) / 100).toFixed(3),
         currency: slot.task.currency.trim(), messageTemplate: slot.task.messageTemplate ?? "",
@@ -208,6 +208,70 @@ export class TaskAdminService {
     };
   }
 
+
+
+  async voidTaskRecord(slotId: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
+      const slot = await tx.taskSlot.findUnique({
+        where: { id: slotId },
+        include: { task: true, claim: { include: { contactAssignment: true } } },
+      });
+      if (!slot) throw new NotFoundException("任务号码记录不存在。");
+      if (slot.status === "VOIDED") return { id: slot.id, status: "VOIDED", alreadyVoided: true };
+      if (slot.status === "USED" || slot.claim?.status === "APPROVED") {
+        throw new ConflictException("已完成或已结算的任务不能作废，请保留历史记录。");
+      }
+      if (slot.claim) {
+        const claim = slot.claim;
+        if (!["CLAIMED", "IN_PROGRESS", "REJECTED", "EXPIRED", "CANCELLED"].includes(claim.status)) {
+          throw new ConflictException("当前领取状态不能作废。");
+        }
+        const pending = await tx.taskSubmission.findFirst({
+          where: { claimId: claim.id, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } },
+          select: { id: true },
+        });
+        if (pending) throw new ConflictException("该任务正在审核中，不能作废。");
+        if (["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+          await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "CANCELLED" } });
+          if (claim.contactAssignment?.status === "ASSIGNED") {
+            await tx.contactAssignment.update({
+              where: { id: claim.contactAssignment.id },
+              data: { status: "RELEASED", releasedAt: new Date() },
+            });
+            await tx.contactNumber.updateMany({
+              where: { id: claim.contactAssignment.contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
+              data: { status: "AVAILABLE" },
+            });
+          }
+          await tx.task.updateMany({
+            where: { id: claim.taskId, claimedCount: { gt: 0 } },
+            data: { claimedCount: { decrement: 1 } },
+          });
+        }
+      }
+      await tx.taskSlot.update({
+        where: { id: slot.id },
+        data: { status: "VOIDED", releasedAt: new Date() },
+      });
+      return { id: slot.id, status: "VOIDED", alreadyVoided: false };
+    });
+  }
+
+  async deleteTaskRecord(slotId: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
+      const slot = await tx.taskSlot.findUnique({ where: { id: slotId }, include: { task: true } });
+      if (!slot) throw new NotFoundException("任务号码记录不存在。");
+      if (slot.task.status === "PUBLISHED") throw new ConflictException("已发布任务不能删除号码记录，请先暂停任务。");
+      if (slot.status !== "AVAILABLE" || slot.claimId) {
+        throw new ConflictException("已领取、已执行或已作废的任务记录不能删除，请使用作废操作保留审计记录。");
+      }
+      await tx.taskSlot.delete({ where: { id: slot.id } });
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
+      return { id: slot.id, deleted: true };
+    });
+  }
 
   async updateTaskGroup(taskId: string, groupName: string) {
     const normalized = groupName.trim();
