@@ -6,7 +6,7 @@ import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Cl
 
 type UserRow = {
   id: string; phone: string; displayName: string | null; referralCode: string; status: "PENDING" | "ACTIVE" | "SUSPENDED" | "CLOSED";
-  createdAt: string; taskCount: number; approvedCount: number; rejectedCount: number; approvalRate: number | null;
+  createdAt: string; taskCount: number; approvedCount: number; rejectedCount: number; dailyTaskLimit: number; approvalRate: number | null;
   riskLabel: string; reputationScore: number; balances: { currency: string; amountMinor: string }[];
 };
 type Summary = { total: number; todayNew: number; last7DaysNew: number; activeToday: number; suspended: number };
@@ -16,7 +16,7 @@ type UserDetail = { basic: { id:string; phone:string; status:string; createdAt:s
 
 const columns = [
   ["phone", "账号/手机号"], ["createdAt", "创建时间"], ["status", "用户状态"], ["score", "信誉分"], ["risk", "风险"],
-  ["balance", "可提现金额"], ["taskCount", "任务总数"], ["approvedCount", "已通过"], ["rejectedCount", "已拒绝"],
+  ["balance", "可提现金额"], ["taskCount", "任务总数"], ["approvedCount", "已通过"], ["rejectedCount", "已拒绝"], ["dailyTaskLimit", "每日可领"],
 ] as const;
 type ColumnKey = typeof columns[number][0];
 
@@ -176,7 +176,8 @@ export default function AdminUsersPage() {
                 :key==="balance"?money(user.balances)
                 :key==="taskCount"?user.taskCount
                 :key==="approvedCount"?user.approvedCount
-                :key==="rejectedCount"?user.rejectedCount:"—"}</td>)}
+                :key==="rejectedCount"?user.rejectedCount
+                :key==="dailyTaskLimit"?user.dailyTaskLimit:"—"}</td>)}
               <td>—</td><td><div className="users-row-actions"><button onClick={()=>void openDetail(user)}>编辑</button><button onClick={()=>void doResetPassword(user)}>重置密码</button><button className={user.status==="SUSPENDED"?"unfreeze":""} onClick={()=>void changeStatus(user)}>{user.status==="SUSPENDED"?"解冻":"冻结"}</button></div></td>
             </tr>)}
             {!users.length&&<tr><td colSpan={shownColumns.length+2} className="users-empty">{busy?"正在加载用户…":"没有找到符合条件的用户"}</td></tr>}</tbody></table></div>
