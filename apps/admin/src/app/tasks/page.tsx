@@ -172,6 +172,8 @@ export default function AdminTasksPage() {
         setAdminEmail(admin.email);
         setAuthenticated(true);
         await refresh();
+        const groups = await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups");
+        setTaskGroups(groups);
       })
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false));
