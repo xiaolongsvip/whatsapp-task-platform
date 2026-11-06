@@ -92,6 +92,57 @@ export class AdminUsersService {
     };
   }
 
+  async detail(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        payoutAccounts: { orderBy: { createdAt: "desc" }, select: { id: true, countryCode: true, currency: true, providerCode: true, methodCode: true, accountHolder: true, maskedAccount: true, status: true, isDefault: true, createdAt: true } },
+        wallets: { include: { withdrawals: { orderBy: { createdAt: "desc" }, take: 100, include: { payoutAccount: { select: { maskedAccount: true, providerCode: true, methodCode: true } } } } } },
+        claims: { orderBy: { claimedAt: "desc" }, take: 100, include: { task: { select: { title: true, category: true, rewardMinor: true, currency: true } }, submissions: { orderBy: { submittedAt: "desc" }, take: 5, include: { reviews: { orderBy: { reviewedAt: "desc" }, take: 5 } } } } },
+      },
+    });
+    if (!user) throw new NotFoundException("用户不存在。");
+    const audit = await prisma.auditEvent.findMany({ where: { targetType: "USER", targetId: userId }, orderBy: { createdAt: "desc" }, take: 100 });
+    const approved = user.claims.filter((x) => x.status === "APPROVED").length;
+    const rejected = user.claims.filter((x) => x.status === "REJECTED").length;
+    const reviewed = approved + rejected;
+    const withdrawals = user.wallets.flatMap((w) => w.withdrawals).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return {
+      basic: { id: user.id, phone: user.phone, referralCode: user.referralCode, status: user.status, createdAt: user.createdAt, displayName: user.profile?.displayName ?? null, email: null, lastActiveAt: null, reputationScore: user.profile?.reputationScore ?? 60, dailyTaskLimit: user.profile?.dailyTaskLimit ?? null, minClaimIntervalSeconds: user.profile?.minClaimIntervalSeconds ?? null, taskLimitSource: user.profile?.dailyTaskLimit == null ? "继承系统默认" : "用户自定义", intervalSource: user.profile?.minClaimIntervalSeconds == null ? "继承系统默认" : "用户自定义" },
+      devices: { supported: false, items: [], message: "当前数据库尚未建立用户设备登记表；需在 Android APP 增加设备上报后才能展示真实设备信息。" },
+      payoutAccounts: user.payoutAccounts,
+      tasks: { total: user.claims.length, approved, rejected, approvalRate: reviewed ? approved / reviewed : null, items: user.claims.map((x) => ({ id: x.id, taskTitle: x.task.title, category: x.task.category, status: x.status, claimedAt: x.claimedAt, rewardMinor: x.task.rewardMinor.toString(), currency: x.task.currency, submissions: x.submissions.map((s) => ({ id: s.id, status: s.status, submittedAt: s.submittedAt, reviews: s.reviews })) })) },
+      withdrawals: { total: withdrawals.length, pending: withdrawals.filter((x) => ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"].includes(x.status)).length, paid: withdrawals.filter((x) => x.status === "PAID").length, items: withdrawals.map((x) => ({ id: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency, status: x.status, createdAt: x.createdAt, payoutReference: x.payoutReference, payoutAccount: x.payoutAccount })) },
+      risk: { label: reviewed >= 5 && rejected / reviewed >= 0.5 ? "需关注" : reviewed >= 5 && rejected / reviewed >= 0.25 ? "中风险" : "低风险", reviewedTasks: reviewed, rejectedTasks: rejected, events: audit.filter((x) => /RISK|FRAUD|SUSPEND/i.test(x.action)).map((x) => ({ id: x.id, type: x.action, metadata: x.metadata, createdAt: x.createdAt })) },
+      reputation: { score: user.profile?.reputationScore ?? 60, events: audit.filter((x) => x.action === "USER_REPUTATION_ADJUSTED").map((x) => ({ id: x.id, metadata: x.metadata, createdAt: x.createdAt, actorId: x.actorId })) },
+    };
+  }
+
+  async updatePolicy(userId: string, body: { dailyTaskLimit?: number | null; minClaimIntervalSeconds?: number | null }) {
+    if (body.dailyTaskLimit !== undefined && body.dailyTaskLimit !== null && (!Number.isInteger(body.dailyTaskLimit) || body.dailyTaskLimit < 0 || body.dailyTaskLimit > 100000)) throw new BadRequestException("每日任务上限必须是 0 到 100000 的整数；留空表示继承系统默认。");
+    if (body.minClaimIntervalSeconds !== undefined && body.minClaimIntervalSeconds !== null && (!Number.isInteger(body.minClaimIntervalSeconds) || body.minClaimIntervalSeconds < 0 || body.minClaimIntervalSeconds > 86400)) throw new BadRequestException("最小领取间隔必须是 0 到 86400 秒；留空表示继承系统默认。");
+    const exists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!exists) throw new NotFoundException("用户不存在。");
+    await prisma.userProfile.upsert({ where: { userId }, create: { userId, ...body }, update: body });
+    return { success: true };
+  }
+
+  async adjustReputation(userId: string, adminId: string, body: { amount: number; reason: string }) {
+    if (!Number.isInteger(body.amount) || body.amount === 0 || Math.abs(body.amount) > 100) throw new BadRequestException("信誉分调整必须是 -100 到 100 之间的非零整数。");
+    const reason = body.reason?.trim();
+    if (!reason || reason.length > 500) throw new BadRequestException("请填写 1 到 500 个字符的调整原因。");
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } });
+    if (!user) throw new NotFoundException("用户不存在。");
+    const before = user.profile?.reputationScore ?? 60;
+    const after = Math.max(0, Math.min(100, before + body.amount));
+    await prisma.$transaction(async (tx) => {
+      await tx.userProfile.upsert({ where: { userId }, create: { userId, reputationScore: after }, update: { reputationScore: after } });
+      await tx.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "USER_REPUTATION_ADJUSTED", targetType: "USER", targetId: userId, metadata: { requestedAmount: body.amount, before, after, reason } } });
+    });
+    return { success: true, before, after };
+  }
+
   async updateProfile(userId: string, displayNameInput: string | null) {
     const displayName = displayNameInput?.trim() || null;
     if (displayName && displayName.length > 80) throw new BadRequestException("用户昵称不能超过 80 个字符。");
