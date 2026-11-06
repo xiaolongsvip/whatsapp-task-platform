@@ -374,6 +374,37 @@ export default function AdminTasksPage() {
           </div>
         </footer>
       </section>
+      {selectedRecord && (
+        <div className="tasks-modal-backdrop" onClick={() => setSelectedRecord(null)}>
+          <section className="tasks-record-modal" role="dialog" aria-modal="true" aria-label="任务号码详情" onClick={(event) => event.stopPropagation()}>
+            <div className="tasks-modal-heading">
+              <div><h2>任务详情</h2><p>查看该号码对应的任务配置和执行状态</p></div>
+              <button type="button" onClick={() => setSelectedRecord(null)}>×</button>
+            </div>
+            <dl className="tasks-record-details">
+              <div><dt>任务名称</dt><dd>{selectedRecord.taskName}</dd></div>
+              <div><dt>任务号码</dt><dd>{selectedRecord.phoneNumber}</dd></div>
+              <div><dt>任务组</dt><dd>{selectedRecord.groupName}</dd></div>
+              <div><dt>奖励</dt><dd>{selectedRecord.rewardAmount} {selectedRecord.currency}</dd></div>
+              <div><dt>任务状态</dt><dd>{selectedRecord.status}</dd></div>
+              <div><dt>创建时间</dt><dd>{new Date(selectedRecord.createdAt).toLocaleString("zh-CN")}</dd></div>
+              <div className="wide"><dt>WhatsApp 话术</dt><dd>{selectedRecord.messageTemplate || "未设置"}</dd></div>
+            </dl>
+            {(() => {
+              const task = tasks.find((item) => item.id === selectedRecord.taskId);
+              if (!task) return <div className="notice">任务配置未出现在当前管理列表中，暂时无法执行配置操作。</div>;
+              return (
+                <div className="tasks-modal-actions">
+                  {(task.status === "DRAFT" || task.status === "PAUSED") && <button className="tasks-outline-btn" type="button" disabled={task.claimedCount > 0} onClick={() => { setSelectedRecord(null); startEdit(task); }}>编辑任务</button>}
+                  {(task.status === "DRAFT" || task.status === "PAUSED") && <button className="tasks-primary-btn" type="button" onClick={() => { setSelectedRecord(null); void taskAction(task.id, "publish"); }}>发布任务</button>}
+                  {task.status === "PUBLISHED" && <button className="tasks-outline-btn" type="button" onClick={() => { setSelectedRecord(null); void taskAction(task.id, "pause"); }}>暂停任务</button>}
+                  {task.status !== "CLOSED" && <button className="tasks-outline-btn" type="button" onClick={() => { setSelectedRecord(null); void taskAction(task.id, "close"); }}>结束任务</button>}
+                </div>
+              );
+            })()}
+          </section>
+        </div>
+      )}
       {formOpen && (
         <section className="panel">
           <div className="admin-header">
