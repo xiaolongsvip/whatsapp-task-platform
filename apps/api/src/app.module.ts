@@ -11,6 +11,7 @@ import { AiConfigModule } from "./ai-config/ai-config.module";
 import { StorageConfigModule } from "./storage-config/storage-config.module";
 import { WalletHoldsAdminModule } from "./wallet-holds-admin/wallet-holds-admin.module";
 import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
+import { AdminUsersModule } from "./admin-users/admin-users.module";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
     StorageConfigModule,
     WalletHoldsAdminModule,
     AdminDashboardModule,
+    AdminUsersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
