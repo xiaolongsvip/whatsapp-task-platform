@@ -12,6 +12,7 @@ type UserRow = {
 type Summary = { total: number; todayNew: number; last7DaysNew: number; activeToday: number; suspended: number };
 type ListResult = { users: UserRow[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } };
 type StatusFilter = "ALL" | "ACTIVE" | "SUSPENDED";
+type UserDetail = { basic: { id:string; phone:string; status:string; createdAt:string; displayName:string|null; referralCode:string; reputationScore:number; dailyTaskLimit:number|null; minClaimIntervalSeconds:number|null }; devices:{supported:boolean;items: {id:string;model?:string;appVersion?:string;lastSeenAt?:string}[];message?:string}; payoutAccounts:{id:string;accountHolder:string;maskedAccount:string;providerCode:string;methodCode:string;currency:string;status:string;isDefault:boolean}[]; tasks:{total:number;approved:number;rejected:number;approvalRate:number|null;items:{id:string;taskTitle:string;category:string;status:string;claimedAt:string;rewardMinor:string;currency:string}[]}; withdrawals:{total:number;pending:number;paid:number;items:{id:string;amountMinor:string;currency:string;status:string;createdAt:string;payoutAccount:{maskedAccount:string}|null}[]}; risk:{label:string;reviewedTasks:number;rejectedTasks:number;events:{id:string;type:string;createdAt:string;metadata:unknown}[]}; reputation:{score:number;events:{id:string;createdAt:string;metadata:unknown}[]} };
 
 const columns = [
   ["phone", "账号/手机号"], ["createdAt", "创建时间"], ["status", "用户状态"], ["score", "信誉分"], ["risk", "风险"],
@@ -49,6 +50,12 @@ export default function AdminUsersPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
+  const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [detailTab, setDetailTab] = useState("basic");
+  const [policyDaily, setPolicyDaily] = useState("");
+  const [policyInterval, setPolicyInterval] = useState("");
+  const [adjustAmount, setAdjustAmount] = useState("1");
+  const [adjustReason, setAdjustReason] = useState("");
 
   const refresh = useCallback(async () => {
     setBusy(true); setError("");
@@ -76,6 +83,28 @@ export default function AdminUsersPage() {
     catch (e) { setError(e instanceof Error ? e.message : `${action}失败。`); } finally { setBusy(false); }
   }
   function openEdit(user: UserRow) { setEditing(user); setDisplayName(user.displayName ?? ""); }
+  async function openDetail(user: UserRow) {
+    setBusy(true); setError(""); setDetailTab("basic");
+    try { const result = await api<UserDetail>("/api/v1/admin/users/" + user.id + "/detail"); setDetail(result); setPolicyDaily(result.basic.dailyTaskLimit == null ? "" : String(result.basic.dailyTaskLimit)); setPolicyInterval(result.basic.minClaimIntervalSeconds == null ? "" : String(result.basic.minClaimIntervalSeconds)); }
+    catch (e) { setError(e instanceof Error ? e.message : "读取用户详情失败。"); } finally { setBusy(false); }
+  }
+  async function savePolicy() {
+    if (!detail) return;
+    const daily = policyDaily.trim() === "" ? null : Number(policyDaily);
+    const interval = policyInterval.trim() === "" ? null : Number(policyInterval);
+    if ((daily !== null && (!Number.isInteger(daily) || daily < 0)) || (interval !== null && (!Number.isInteger(interval) || interval < 0))) { setError("任务限制必须是非负整数，留空表示继承系统默认。"); return; }
+    setBusy(true);
+    try { await api("/api/v1/admin/users/" + detail.basic.id + "/policy", { method:"PATCH", body:JSON.stringify({dailyTaskLimit:daily,minClaimIntervalSeconds:interval}) }); setNotice("任务限制已保存。"); await openDetail({id:detail.basic.id} as UserRow); }
+    catch(e) { setError(e instanceof Error ? e.message : "保存失败。"); } finally { setBusy(false); }
+  }
+  async function saveReputation() {
+    if (!detail) return;
+    const amount = Number(adjustAmount);
+    if (!Number.isInteger(amount) || amount === 0 || !adjustReason.trim()) { setError("请填写非零整数分数及调整原因。"); return; }
+    setBusy(true);
+    try { await api("/api/v1/admin/users/" + detail.basic.id + "/reputation", {method:"POST",body:JSON.stringify({amount,reason:adjustReason})}); setNotice("信誉分调整成功。"); await openDetail({id:detail.basic.id} as UserRow); setDetailTab("reputation"); }
+    catch(e) { setError(e instanceof Error ? e.message : "信誉调整失败。"); } finally { setBusy(false); }
+  }
   async function saveEdit() {
     if (!editing) return; setBusy(true); setError(""); setNotice("");
     try { await api(`/api/v1/admin/users/${editing.id}/profile`, { method: "PATCH", body: JSON.stringify({ displayName }) }); setNotice("用户资料已保存。"); setEditing(null); await refresh(); }
@@ -148,13 +177,27 @@ export default function AdminUsersPage() {
                 :key==="taskCount"?user.taskCount
                 :key==="approvedCount"?user.approvedCount
                 :key==="rejectedCount"?user.rejectedCount:"—"}</td>)}
-              <td>—</td><td><div className="users-row-actions"><button onClick={()=>openEdit(user)}>编辑</button><button onClick={()=>void doResetPassword(user)}>重置密码</button><button className={user.status==="SUSPENDED"?"unfreeze":""} onClick={()=>void changeStatus(user)}>{user.status==="SUSPENDED"?"解冻":"冻结"}</button></div></td>
+              <td>—</td><td><div className="users-row-actions"><button onClick={()=>void openDetail(user)}>详情</button><button onClick={()=>openEdit(user)}>编辑</button><button onClick={()=>void doResetPassword(user)}>重置密码</button><button className={user.status==="SUSPENDED"?"unfreeze":""} onClick={()=>void changeStatus(user)}>{user.status==="SUSPENDED"?"解冻":"冻结"}</button></div></td>
             </tr>)}
             {!users.length&&<tr><td colSpan={shownColumns.length+2} className="users-empty">{busy?"正在加载用户…":"没有找到符合条件的用户"}</td></tr>}</tbody></table></div>
           <div className="users-pagination"><span>共 {total} 条</span><div><select value={pageSize} onChange={e=>{setPageSize(Number(e.target.value));setPage(1)}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select><button disabled={page<=1||busy} onClick={()=>setPage(p=>p-1)}><ChevronLeft size={15}/></button><b>{page}</b><span>/ {totalPages}</span><button disabled={page>=totalPages||busy} onClick={()=>setPage(p=>p+1)}><ChevronRight size={15}/></button></div></div>
         </div>
       </section>
     </main>
+
+    {detail&&<div className="users-modal-backdrop"><div className="users-detail-modal">
+      <header className="users-detail-head"><div><strong>用户详情</strong><span>{detail.basic.status==="ACTIVE"?"正常":detail.basic.status}</span><p>{detail.basic.phone}</p></div><button onClick={()=>setDetail(null)}><X size={17}/></button></header>
+      <nav className="users-detail-tabs">{[["basic","基本信息"],["devices","设备信息"],["payout","收款账户"],["tasks","任务记录"],["withdrawals","提现记录"],["risk","风险记录"],["reputation","信誉记录"]].map(([key,label])=><button key={key} className={detailTab===key?"active":""} onClick={()=>setDetailTab(key)}>{label}</button>)}</nav>
+      <div className="users-detail-content">
+      {detailTab==="basic"&&<><div className="users-detail-summary"><b>{detail.basic.reputationScore}分</b><span>{detail.basic.displayName||"未设置昵称"}</span><span>{detail.basic.phone}</span><span>注册时间：{dateText(detail.basic.createdAt)}</span></div><div className="users-detail-grid"><div>用户状态：{detail.basic.status}</div><div>邀请码：{detail.basic.referralCode}</div><div>风险等级：{detail.risk.label}</div></div><section className="users-policy"><h3>任务领取限制</h3><p>留空表示继承系统默认；0 表示禁止领取。</p><div className="users-policy-fields"><label>自定义每日上限<input type="number" min="0" value={policyDaily} onChange={e=>setPolicyDaily(e.target.value)} placeholder="继承系统默认"/></label><label>自定义最小领取间隔（秒）<input type="number" min="0" value={policyInterval} onChange={e=>setPolicyInterval(e.target.value)} placeholder="继承系统默认"/></label></div><button disabled={busy} onClick={()=>void savePolicy()}>保存任务限制</button></section></>}
+      {detailTab==="devices"&&<><p>设备数量：{detail.devices.items.length}</p>{detail.devices.items.length?detail.devices.items.map(d=><div className="users-detail-row" key={d.id}>{d.model||"设备"} · APP {d.appVersion||"未知"} · {d.lastSeenAt?dateText(d.lastSeenAt):"在线未知"}</div>):<div className="users-detail-empty">{detail.devices.message||"暂无设备记录"}</div>}</>}
+      {detailTab==="payout"&&<>{detail.payoutAccounts.length?detail.payoutAccounts.map(a=><div className="users-detail-row" key={a.id}>{a.accountHolder} · {a.currency} · {a.providerCode}/{a.methodCode} · {a.maskedAccount} · {a.status}{a.isDefault?" · 默认":""}</div>):<div className="users-detail-empty">暂无收款账户</div>}</>}
+      {detailTab==="tasks"&&<><p>任务总数 {detail.tasks.total} · 通过 {detail.tasks.approved} · 拒绝 {detail.tasks.rejected} · 通过率 {detail.tasks.approvalRate==null?"暂无":(detail.tasks.approvalRate*100).toFixed(2)+"%"}</p>{detail.tasks.items.length?detail.tasks.items.map(t=><div className="users-detail-row" key={t.id}>{t.taskTitle} · {t.category} · {t.status} · {dateText(t.claimedAt)} · {t.currency} {(Number(t.rewardMinor)/100).toFixed(2)}</div>):<div className="users-detail-empty">暂无任务记录</div>}</>}
+      {detailTab==="withdrawals"&&<><p>提现总数 {detail.withdrawals.total} · 待处理 {detail.withdrawals.pending} · 已支付 {detail.withdrawals.paid}</p>{detail.withdrawals.items.length?detail.withdrawals.items.map(w=><div className="users-detail-row" key={w.id}>{w.currency} {(Number(w.amountMinor)/100).toFixed(2)} · {w.status} · {dateText(w.createdAt)} · {w.payoutAccount?.maskedAccount||"未关联账户"}</div>):<div className="users-detail-empty">暂无提现记录</div>}</>}
+      {detailTab==="risk"&&<><p>风险等级 {detail.risk.label} · 已审核任务 {detail.risk.reviewedTasks} · 拒绝 {detail.risk.rejectedTasks}</p>{detail.risk.events.length?detail.risk.events.map(e=><div className="users-detail-row" key={e.id}>{e.type} · {dateText(e.createdAt)} · {JSON.stringify(e.metadata)}</div>):<div className="users-detail-empty">暂无风险事件；风险等级根据现有任务审核统计计算。</div>}</>}
+      {detailTab==="reputation"&&<><h3>当前信誉：{detail.reputation.score}分</h3><div className="users-policy-fields"><label>调整分数（正数加分，负数扣分）<input type="number" value={adjustAmount} onChange={e=>setAdjustAmount(e.target.value)}/></label><label>调整原因<textarea value={adjustReason} onChange={e=>setAdjustReason(e.target.value)} maxLength={500}/></label></div><button disabled={busy} onClick={()=>void saveReputation()}>保存信誉调整</button>{detail.reputation.events.length?detail.reputation.events.map(e=><div className="users-detail-row" key={e.id}>{dateText(e.createdAt)} · {JSON.stringify(e.metadata)}</div>):<div className="users-detail-empty">暂无信誉调整记录</div>}</>}
+      </div><footer className="users-detail-footer"><button onClick={()=>void doResetPassword({id:detail.basic.id,phone:detail.basic.phone} as UserRow)}>重置密码</button><button onClick={()=>void changeStatus({id:detail.basic.id,phone:detail.basic.phone,status:detail.basic.status} as UserRow)}>{detail.basic.status==="SUSPENDED"?"解冻用户":"冻结用户"}</button></footer>
+    </div></div>}
     {editing&&<div className="users-modal-backdrop"><div className="users-modal"><button className="users-modal-close" onClick={()=>setEditing(null)}><X size={17}/></button><h2>编辑用户资料</h2><p>{editing.phone}</p><label>用户昵称<input value={displayName} maxLength={80} onChange={e=>setDisplayName(e.target.value)}/></label><div><button className="users-tool-button" onClick={()=>setEditing(null)}>取消</button><button className="users-save-button" disabled={busy} onClick={()=>void saveEdit()}>保存修改</button></div></div></div>}
     {resetPassword&&<div className="users-modal-backdrop"><div className="users-modal"><button className="users-modal-close" onClick={()=>setResetPassword("")}><X size={17}/></button><h2>密码已重置</h2><p>请安全地将临时密码交给用户。用户下次登录时建议立即修改。</p><code>{resetPassword}</code><div><button className="users-save-button" onClick={()=>{void navigator.clipboard?.writeText(resetPassword);setNotice("临时密码已复制。");setResetPassword("")}}>复制临时密码</button><button className="users-tool-button" onClick={()=>setResetPassword("")}>关闭</button></div></div></div>}
   </div>;
