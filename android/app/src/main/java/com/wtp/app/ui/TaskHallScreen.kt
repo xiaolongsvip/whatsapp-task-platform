@@ -110,6 +110,13 @@ fun TaskHallScreen(
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
     var locallyExpiredClaimIds by remember { mutableStateOf(emptySet<String>()) }
     var dashboard by remember { mutableStateOf(JSONObject()) }
+    var clockMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            clockMillis = System.currentTimeMillis()
+            delay(1000L)
+        }
+    }
     var loading by remember { mutableStateOf(true) }
     var busyId by remember { mutableStateOf<String?>(null) }
     var abandoningId by remember { mutableStateOf<String?>(null) }
@@ -565,6 +572,33 @@ fun TaskHallScreen(
                                 (if (isEnglish) "Available" else "可领取") to availableTasks.size.toString()
                             )
                         )
+                        val intervalSeconds = dashboard.optInt("minClaimIntervalSeconds", 60)
+                        val nextClaimAt = dashboard.optString("nextClaimAt").takeIf { it.isNotBlank() && it != "null" }
+                        val nextClaimMillis = nextClaimAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+                        val remainingWaitSeconds = nextClaimMillis?.let { ((it - clockMillis + 999L) / 1000L).coerceAtLeast(0L) } ?: 0L
+                        Surface(
+                            color = WtpSky,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                        ) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    if (isEnglish) "Minimum claim interval: ${intervalSeconds}s" else "任务领取间隔：${intervalSeconds} 秒",
+                                    color = WtpText, fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    if (remainingWaitSeconds > 0L) {
+                                        val minutes = remainingWaitSeconds / 60L
+                                        val seconds = remainingWaitSeconds % 60L
+                                        if (isEnglish) "Next claim in %02d:%02d".format(minutes, seconds)
+                                        else "距离下次领取还需 %02d:%02d".format(minutes, seconds)
+                                    } else {
+                                        if (isEnglish) "Claim interval satisfied" else "领取间隔已满足"
+                                    },
+                                    color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
                         if (hasUnfinishedTask) {
                             Surface(
                                 color = WtpSky,
@@ -592,11 +626,15 @@ fun TaskHallScreen(
                                 AvailableTaskCard(
                                     task = task,
                                     isEnglish = isEnglish,
-                                    busy = busyId == task.optString("id") || busyId != null || hasUnfinishedTask,
+                                    busy = busyId == task.optString("id") || busyId != null || hasUnfinishedTask || remainingWaitSeconds > 0L,
                                     onStart = {
                                         val taskId = task.optString("taskId")
                                         val slotId = task.optString("slotId")
                                         scope.launch {
+                                            if (remainingWaitSeconds > 0L) {
+                                                error = if (isEnglish) "Please wait for the claim interval." else "领取间隔未结束，请等待倒计时完成。"
+                                                return@AvailableTaskCard
+                                            }
                                             busyId = slotId
                                             error = null
                                             notice = null
