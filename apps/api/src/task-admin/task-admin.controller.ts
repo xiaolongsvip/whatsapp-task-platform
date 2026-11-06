@@ -72,6 +72,25 @@ export class TaskAdminController {
     return this.tasks.deleteTaskRecord(id);
   }
 
+
+  @Post("records/bulk-void")
+  async bulkVoidRecords(@Req() request: Request, @Body() body: { ids?: unknown }) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.bulkVoidTaskRecords(body.ids, admin.id);
+  }
+
+  @Post("records/bulk-delete")
+  async bulkDeleteRecords(@Req() request: Request, @Body() body: { ids?: unknown }) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.bulkDeleteTaskRecords(body.ids, admin.id);
+  }
+
+  @Patch("records/bulk-group")
+  async bulkUpdateGroups(@Req() request: Request, @Body() body: { ids?: unknown; groupName?: string }) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.bulkUpdateTaskGroups(body.ids, typeof body.groupName === "string" ? body.groupName : "", admin.id);
+  }
+
   @Patch(":id/group")
   async updateGroup(
     @Req() request: Request,
