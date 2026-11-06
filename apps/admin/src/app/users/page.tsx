@@ -12,7 +12,7 @@ type UserRow = {
 type Summary = { total: number; todayNew: number; last7DaysNew: number; activeToday: number; suspended: number };
 type ListResult = { users: UserRow[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } };
 type StatusFilter = "ALL" | "ACTIVE" | "SUSPENDED";
-type UserDetail = { basic: { id:string; phone:string; status:string; createdAt:string; displayName:string|null; email:string|null; referralCode:string; inviter:{id:string;phone:string}|null; lastLoginAt:string|null; reputationScore:number; balances:{currency:string;amountMinor:string}[]; todayClaimed:number; remainingToday:number; effectiveDailyLimit:number; effectiveMinClaimIntervalSeconds:number; dailyTaskLimit:number|null; minClaimIntervalSeconds:number|null; taskLimitSource:string; intervalSource:string }; devices:{supported:boolean;items:{id:string;deviceIdentifier:string;manufacturer:string|null;model:string;androidVersion:string|null;sdkInt:number|null;appVersion:string;firstSeenAt:string;lastSeenAt:string;events:{id:string;eventType:string;manufacturer:string|null;model:string;androidVersion:string|null;appVersion:string;createdAt:string}[]}[];message?:string}; payoutAccounts:{id:string;accountHolder:string;maskedAccount:string;providerCode:string;methodCode:string;currency:string;status:string;isDefault:boolean}[]; tasks:{total:number;approved:number;rejected:number;approvalRate:number|null;items:{id:string;taskTitle:string;category:string;status:string;claimedAt:string;rewardMinor:string;currency:string}[]}; withdrawals:{total:number;pending:number;paid:number;items:{id:string;amountMinor:string;currency:string;status:string;createdAt:string;payoutAccount:{maskedAccount:string}|null}[]}; risk:{calculated:boolean;label:string;reviewedTasks:number;rejectedTasks:number;events:{id:string;type:string;createdAt:string;metadata:unknown}[]}; reputation:{score:number;events:{id:string;createdAt:string;metadata:unknown}[]} };
+type UserDetail = { basic: { id:string; phone:string; status:string; createdAt:string; displayName:string|null; email:string|null; referralCode:string; inviter:{id:string;phone:string}|null; lastLoginAt:string|null; reputationScore:number; balances:{currency:string;amountMinor:string}[]; todayClaimed:number; remainingToday:number; effectiveDailyLimit:number; effectiveMinClaimIntervalSeconds:number; dailyTaskLimit:number|null; minClaimIntervalSeconds:number|null; taskLimitSource:string; intervalSource:string }; devices:{supported:boolean;items:{id:string;deviceIdentifier:string;manufacturer:string|null;model:string;androidVersion:string|null;sdkInt:number|null;appVersion:string;firstSeenAt:string;lastSeenAt:string;status:"ACTIVE"|"BLOCKED";isFlagged:boolean;flagReason:string|null;linkedAccounts:{id:string;phone:string;status:string}[];events:{id:string;eventType:string;manufacturer:string|null;model:string;androidVersion:string|null;sdkInt:number|null;appVersion:string;actorId:string|null;reason:string|null;createdAt:string}[]}[];message?:string}; payoutAccounts:{id:string;accountHolder:string;maskedAccount:string;providerCode:string;methodCode:string;currency:string;status:string;isDefault:boolean}[]; tasks:{total:number;approved:number;rejected:number;approvalRate:number|null;items:{id:string;taskTitle:string;category:string;status:string;claimedAt:string;rewardMinor:string;currency:string}[]}; withdrawals:{total:number;pending:number;paid:number;items:{id:string;amountMinor:string;currency:string;status:string;createdAt:string;payoutAccount:{maskedAccount:string}|null}[]}; risk:{calculated:boolean;label:string;reviewedTasks:number;rejectedTasks:number;events:{id:string;type:string;createdAt:string;metadata:unknown}[]}; reputation:{score:number;events:{id:string;createdAt:string;metadata:unknown}[]} };
 
 const columns = [
   ["phone", "账号/手机号"], ["createdAt", "创建时间"], ["status", "用户状态"], ["score", "信誉分"], ["risk", "风险"],
@@ -56,6 +56,7 @@ export default function AdminUsersPage() {
   const [policyInterval, setPolicyInterval] = useState("");
   const [adjustAmount, setAdjustAmount] = useState("1");
   const [adjustReason, setAdjustReason] = useState("");
+  const [deviceHistoryLoaded, setDeviceHistoryLoaded] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     setBusy(true); setError("");
@@ -87,6 +88,39 @@ export default function AdminUsersPage() {
     setBusy(true); setError(""); setDetailTab("basic");
     try { const result = await api<UserDetail>("/api/v1/admin/users/" + user.id + "/detail"); setDetail(result); setPolicyDaily(result.basic.dailyTaskLimit == null ? "" : String(result.basic.dailyTaskLimit)); setPolicyInterval(result.basic.minClaimIntervalSeconds == null ? "" : String(result.basic.minClaimIntervalSeconds)); }
     catch (e) { setError(e instanceof Error ? e.message : "读取用户详情失败。"); } finally { setBusy(false); }
+  }
+
+  async function loadDeviceHistory(deviceId: string) {
+    if (!detail) return;
+    setBusy(true); setError("");
+    try {
+      const result = await api<{items: UserDetail["devices"]["items"][number]["events"][]}>(`/api/v1/admin/users/${detail.basic.id}/devices/${deviceId}/history?page=1&pageSize=100`);
+      setDetail(current => current ? { ...current, devices: { ...current.devices, items: current.devices.items.map(device => device.id === deviceId ? { ...device, events: result.items } : device) } } : current);
+      setDeviceHistoryLoaded(current => [...new Set([...current, deviceId])]);
+    } catch (e) { setError(e instanceof Error ? e.message : "读取设备历史失败。"); }
+    finally { setBusy(false); }
+  }
+  async function manageDevice(deviceId: string, action: "block" | "unblock" | "flag" | "unflag") {
+    if (!detail) return;
+    const reason = window.prompt("请填写本次设备操作原因（必填）：")?.trim();
+    if (!reason) return;
+    const actionLabel = action === "block" ? "限制设备" : action === "unblock" ? "解除设备限制" : action === "flag" ? "标记风险" : "解除风险标记";
+    if (!window.confirm(`确认${actionLabel}？该操作将写入设备历史和管理员审计记录。`)) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await api(`/api/v1/admin/users/${detail.basic.id}/devices/${deviceId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...(action === "block" ? { status: "BLOCKED" } : action === "unblock" ? { status: "ACTIVE" } : {}),
+          ...(action === "flag" ? { isFlagged: true } : action === "unflag" ? { isFlagged: false } : {}),
+          reason,
+        }),
+      });
+      setNotice(`设备操作成功：${actionLabel}。`);
+      await openDetail({ id: detail.basic.id } as UserRow);
+      setDetailTab("devices");
+    } catch (e) { setError(e instanceof Error ? e.message : "设备操作失败。"); }
+    finally { setBusy(false); }
   }
   async function savePolicy() {
     if (!detail) return;
@@ -227,18 +261,28 @@ export default function AdminUsersPage() {
         </section>
       </div>}
       {detailTab==="devices"&&<div className="users-device-panel">
-        <div className="users-device-heading"><strong>设备数量</strong><b>{detail.devices.items.length}</b><span>仅展示用户通过官方 Android APP 主动上报的设备</span></div>
+        <div className="users-device-heading"><strong>设备数量</strong><b>{detail.devices.items.length}</b><span>同一设备标识用于关联本平台登录过的账号；仅用于安全审查</span></div>
         {detail.devices.items.length?detail.devices.items.map(d=><section className="users-device-card" key={d.id}>
-          <div className="users-device-card-head"><strong>{d.manufacturer?d.manufacturer+" ":""}{d.model}</strong><span className="users-status active">已登记</span></div>
+          <div className="users-device-card-head"><strong>{d.manufacturer?d.manufacturer+" ":""}{d.model}</strong><span className={`users-status ${d.status==="BLOCKED"?"suspended":"active"}`}>{d.status==="BLOCKED"?"已限制":"正常"}{d.isFlagged?" · 风险标记":""}</span></div>
           <div className="users-device-grid">
             <div><small>设备标识</small><strong title={d.deviceIdentifier}>{d.deviceIdentifier}</strong></div>
             <div><small>APP 版本</small><strong>{d.appVersion}</strong></div>
             <div><small>Android 版本</small><strong>{d.androidVersion||"-"}{d.sdkInt? " (API "+d.sdkInt+")":""}</strong></div>
             <div><small>首次登记</small><strong>{dateText(d.firstSeenAt)}</strong></div>
             <div><small>最后在线时间</small><strong>{dateText(d.lastSeenAt)}</strong></div>
+            <div><small>设备状态</small><strong>{d.status==="BLOCKED"?"已限制使用":"正常登记"}{d.isFlagged?" · 风险标记":""}</strong></div>
           </div>
-          <div className="users-device-history"><strong>设备变更记录（{d.events.length}）</strong>
-            {d.events.length?d.events.map(e=><div key={e.id}><span>{e.eventType==="DEVICE_REGISTERED"?"首次登记":"设备信息变更"}</span><span>{e.manufacturer?e.manufacturer+" ":""}{e.model} · APP {e.appVersion} · {dateText(e.createdAt)}</span></div>):<small>暂无设备变更记录</small>}
+          {d.flagReason&&<div className="users-device-warning">风险原因：{d.flagReason}</div>}
+          <div className="users-device-linked"><strong>同设备关联账号（{d.linkedAccounts.length}）</strong>
+            {d.linkedAccounts.length>1?d.linkedAccounts.map(account=><span key={account.id}>{account.phone} · {account.status}{account.id===detail.basic.id?"（当前用户）":""}</span>):<small>暂未发现其他账号使用相同设备标识</small>}
+          </div>
+          <div className="users-device-actions">
+            <button disabled={busy} onClick={()=>void loadDeviceHistory(d.id)}>{deviceHistoryLoaded.includes(d.id)?"重新加载历史":"查看完整历史"}</button>
+            <button disabled={busy} onClick={()=>void manageDevice(d.id,d.status==="BLOCKED"?"unblock":"block")}>{d.status==="BLOCKED"?"解除设备限制":"限制此设备"}</button>
+            <button disabled={busy} onClick={()=>void manageDevice(d.id,d.isFlagged?"unflag":"flag")}>{d.isFlagged?"解除风险标记":"标记风险"}</button>
+          </div>
+          <div className="users-device-history"><strong>设备变更与管理记录（{d.events.length}）</strong>
+            {d.events.length?d.events.map(e=><div key={e.id}><span>{({DEVICE_REGISTERED:"首次登记",DEVICE_CHANGED:"设备信息变更",DEVICE_BLOCKED:"管理员限制设备",DEVICE_UNBLOCKED:"管理员解除限制",DEVICE_FLAGGED:"管理员标记风险",DEVICE_UNFLAGGED:"管理员解除风险标记"} as Record<string,string>)[e.eventType]||e.eventType}</span><span>{e.manufacturer?e.manufacturer+" ":""}{e.model} · Android {e.androidVersion||"-"} · APP {e.appVersion} · {dateText(e.createdAt)}{e.reason?" · 原因："+e.reason:""}{e.actorId?" · 操作管理员："+e.actorId:""}</span></div>):<small>暂无设备变更记录</small>}
           </div>
         </section>):<div className="users-detail-empty">该用户尚未通过 Android APP 上报设备信息。用户下次登录或启动 APP 后将自动登记。</div>}
       </div>}
