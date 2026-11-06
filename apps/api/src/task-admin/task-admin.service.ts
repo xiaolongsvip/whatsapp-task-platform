@@ -125,23 +125,35 @@ export class TaskAdminService {
       OR: [
         { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
         { task: { is: { category: { contains: keyword, mode: "insensitive" } } } },
+        { id: keyword },
+        { taskId: keyword },
         { contactNumber: { is: { phoneE164: { contains: keyword } } } },
       ],
     } : {};
+    const notFrozen: Prisma.TaskSlotWhereInput = {
+      contactNumber: { is: { status: { not: "BLOCKED" }, consentStatus: { not: "REVOKED" } } },
+    };
+    const activeTask: Prisma.TaskSlotWhereInput = {
+      task: { is: { status: { notIn: ["PAUSED", "CLOSED"] } } },
+    };
     const statusWhere = (status: string): Prisma.TaskSlotWhereInput => {
       switch (status) {
         case "AVAILABLE":
           return { status: "AVAILABLE", task: { is: { status: "PUBLISHED" } }, contactNumber: { is: { status: "AVAILABLE", consentStatus: "GRANTED" } } };
         case "IN_PROGRESS":
-          return { status: "ASSIGNED", claim: { is: { status: { in: ["CLAIMED", "IN_PROGRESS"] } } } };
+          return { AND: [notFrozen, activeTask, { status: "ASSIGNED", claim: { is: { status: { in: ["CLAIMED", "IN_PROGRESS"] } } } }] };
         case "REVIEW":
-          return { status: "ASSIGNED", claim: { is: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } } };
+          return { AND: [notFrozen, activeTask, { status: "ASSIGNED", claim: { is: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } } }] };
         case "COMPLETED":
-          return { OR: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] };
+          return { AND: [notFrozen, { OR: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] }] };
         case "CLOSED":
-          return { OR: [
-            { task: { is: { status: { in: ["PAUSED", "CLOSED"] } } } },
-            { claim: { is: { status: { in: ["REJECTED", "EXPIRED", "CANCELLED"] } } } },
+          return { AND: [
+            notFrozen,
+            { NOT: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] },
+            { OR: [
+              { task: { is: { status: { in: ["PAUSED", "CLOSED"] } } } },
+              { claim: { is: { status: { in: ["REJECTED", "EXPIRED", "CANCELLED"] } } } },
+            ] },
           ] };
         case "FROZEN":
           return { contactNumber: { is: { OR: [{ status: "BLOCKED" }, { consentStatus: "REVOKED" }] } } };
