@@ -422,3 +422,13 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
  .users-device-grid { grid-template-columns:1fr; }
  .users-device-history>div { grid-template-columns:1fr; gap:3px; }
 }
+
+.users-device-linked { display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:10px 0; border-top:1px solid #edf1f5; }
+.users-device-linked>strong { width:100%; color:#334155; font-size:12px; }
+.users-device-linked>span { padding:4px 8px; border:1px solid #dce6f2; border-radius:5px; color:#475569; font-size:11px; }
+.users-device-linked>small { color:#94a3b8; font-size:11px; }
+.users-device-warning { margin:0 0 8px; padding:8px 10px; border:1px solid #fed7aa; border-radius:6px; background:#fff7ed; color:#9a3412; font-size:11px; }
+.users-device-actions { display:flex; flex-wrap:wrap; gap:8px; padding:10px 0; border-top:1px solid #edf1f5; }
+.users-device-actions button { padding:6px 10px; border:1px solid #d7e1ee; border-radius:5px; background:#fff; color:#2459b5; font-size:11px; cursor:pointer; }
+.users-device-actions button:disabled { opacity:.55; cursor:not-allowed; }
+.users-status.suspended { color:#dc2626; background:#fef2f2; border-color:#fecaca; }
