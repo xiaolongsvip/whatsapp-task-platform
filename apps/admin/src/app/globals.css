@@ -343,3 +343,18 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .users-policy button,.users-detail-content>button { padding:8px 14px; border:1px solid #2563eb; border-radius:6px; background:#2563eb; color:#fff; cursor:pointer; }.users-detail-row { padding:12px 10px; border-bottom:1px solid #edf1f5; line-height:1.6; }.users-detail-empty { display:grid; place-items:center; min-height:150px; color:#718096; border:1px solid #e2e8f0; border-radius:8px; background:#fff; text-align:center; padding:20px; }
 .users-detail-footer { display:flex; gap:10px; padding:14px 22px; border-top:1px solid #edf1f5; background:#fff; }.users-detail-footer button { padding:9px 14px; border:1px solid #dbe4ef; border-radius:6px; background:#fff; color:#334155; cursor:pointer; }.users-detail-footer button:last-child { margin-left:auto; border-color:#ef4444; background:#ef4444; color:#fff; }
 @media(max-width:640px) { .users-detail-modal { width:calc(100vw - 16px); max-height:calc(100vh - 16px); }.users-detail-head,.users-detail-content,.users-detail-footer { padding-left:12px; padding-right:12px; }.users-detail-tabs { padding:0 8px; }.users-detail-grid,.users-policy-fields { grid-template-columns:1fr; } }
+
+
+/* User editor: right-side drawer matching the reference design */
+.users-drawer-backdrop { display:flex; justify-content:flex-end; align-items:stretch; padding:0; background:rgba(15,23,42,.22); }
+.users-drawer-backdrop .users-detail-modal { width:min(800px, 100vw); height:100vh; height:100dvh; max-height:100vh; max-height:100dvh; margin:0; border:0; border-left:1px solid #e2e8f0; border-radius:0; box-shadow:-16px 0 48px rgba(15,23,42,.16); animation:users-drawer-in .2s ease-out; }
+.users-drawer-backdrop .users-detail-head { flex-shrink:0; padding:16px 22px; }
+.users-drawer-backdrop .users-detail-content { flex:1; min-height:0; }
+.users-drawer-backdrop .users-detail-footer { flex-shrink:0; padding:14px 22px; }
+@keyframes users-drawer-in { from { transform:translateX(24px); opacity:.85; } to { transform:translateX(0); opacity:1; } }
+@media(max-width:640px) {
+  .users-drawer-backdrop .users-detail-modal { width:100vw; }
+  .users-drawer-backdrop .users-detail-head { padding:14px 16px; }
+  .users-drawer-backdrop .users-detail-content { padding:14px 16px; }
+  .users-drawer-backdrop .users-detail-footer { padding:12px 16px; }
+}
