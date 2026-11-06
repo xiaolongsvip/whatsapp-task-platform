@@ -6,7 +6,7 @@ import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Cl
 
 type UserRow = {
   id: string; phone: string; displayName: string | null; referralCode: string; status: "PENDING" | "ACTIVE" | "SUSPENDED" | "CLOSED";
-  createdAt: string; taskCount: number; approvedCount: number; rejectedCount: number; dailyTaskLimit: number; approvalRate: number | null;
+  createdAt: string; taskCount: number; approvedCount: number; rejectedCount: number; dailyTaskLimit: number; minClaimIntervalSeconds: number; approvalRate: number | null;
   riskLabel: string; reputationScore: number; balances: { currency: string; amountMinor: string }[];
 };
 type Summary = { total: number; todayNew: number; last7DaysNew: number; activeToday: number; suspended: number };
@@ -212,7 +212,7 @@ export default function AdminUsersPage() {
                 :key==="approvedCount"?user.approvedCount
                 :key==="rejectedCount"?user.rejectedCount
                 :key==="dailyTaskLimit"?user.dailyTaskLimit:"—"}</td>)}
-              <td>—</td><td><div className="users-row-actions"><button onClick={()=>void openDetail(user)}>编辑</button><button onClick={()=>void doResetPassword(user)}>重置密码</button><button className={user.status==="SUSPENDED"?"unfreeze":""} onClick={()=>void changeStatus(user)}>{user.status==="SUSPENDED"?"解冻":"冻结"}</button></div></td>
+              <td>{user.minClaimIntervalSeconds===0?"不限制":user.minClaimIntervalSeconds%60===0?`${user.minClaimIntervalSeconds/60} 分钟`:`${user.minClaimIntervalSeconds} 秒`}</td><td><div className="users-row-actions"><button onClick={()=>void openDetail(user)}>编辑</button><button onClick={()=>void doResetPassword(user)}>重置密码</button><button className={user.status==="SUSPENDED"?"unfreeze":""} onClick={()=>void changeStatus(user)}>{user.status==="SUSPENDED"?"解冻":"冻结"}</button></div></td>
             </tr>)}
             {!users.length&&<tr><td colSpan={shownColumns.length+2} className="users-empty">{busy?"正在加载用户…":"没有找到符合条件的用户"}</td></tr>}</tbody></table></div>
           <div className="users-pagination"><span>共 {total} 条</span><div><select value={pageSize} onChange={e=>{setPageSize(Number(e.target.value));setPage(1)}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select><button disabled={page<=1||busy} onClick={()=>setPage(p=>p-1)}><ChevronLeft size={15}/></button><b>{page}</b><span>/ {totalPages}</span><button disabled={page>=totalPages||busy} onClick={()=>setPage(p=>p+1)}><ChevronRight size={15}/></button></div></div>
