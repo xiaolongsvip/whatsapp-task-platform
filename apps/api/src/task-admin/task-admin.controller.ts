@@ -44,9 +44,10 @@ export class TaskAdminController {
     @Query("groupName") groupName?: string,
     @Query("createdFrom") createdFrom?: string,
     @Query("createdTo") createdTo?: string,
+    @Query("countryRegion") countryRegion?: string,
   ) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
-    return this.tasks.listRecords({ page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20, keyword, status, groupName, createdFrom, createdTo });
+    return this.tasks.listRecords({ page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20, keyword, status, groupName, createdFrom, createdTo, countryRegion });
   }
 
   @Get()
