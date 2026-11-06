@@ -109,6 +109,8 @@ export default function AdminTasksPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | TaskStatus>("ALL");
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
@@ -125,6 +127,33 @@ export default function AdminTasksPage() {
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false));
   }, [refresh]);
+
+  const filteredTasks = tasks.filter((task) => {
+    const query = searchTerm.trim().toLowerCase();
+    const matchesQuery = !query || [task.title, task.category, task.id].some((value) => value.toLowerCase().includes(query));
+    return matchesQuery && (statusFilter === "ALL" || task.status === statusFilter);
+  });
+  const publishedCount = tasks.filter((task) => task.status === "PUBLISHED").length;
+  const totalClaims = tasks.reduce((sum, task) => sum + task.claimedCount, 0);
+  const closedCount = tasks.filter((task) => task.status === "CLOSED").length;
+
+  function exportTasks() {
+    const headers = ["任务名称", "任务编号", "任务分类", "奖励", "领取次数", "号码库存总数", "可领取号码", "已分配号码", "已使用号码", "任务状态", "创建时间"];
+    const rows = filteredTasks.map((task) => [
+      task.title, task.id, task.category, `${task.currency} ${task.rewardAmount}`, String(task.claimedCount),
+      String(task.inventory?.total ?? 0), String(task.inventory?.available ?? 0),
+      String(task.inventory?.assigned ?? 0), String(task.inventory?.used ?? 0), statusLabel(task.status),
+      task.createdAt ? new Date(task.createdAt).toLocaleString("zh-CN", { hour12: false }) : "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "任务管理列表.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   function updateField<K extends keyof TaskForm>(key: K, value: TaskForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -243,72 +272,58 @@ export default function AdminTasksPage() {
   }
 
   return (
-    <main className="admin-shell">
-      <header className="admin-header">
-        <div>
-          <div className="admin-brand">WTP 管理后台</div>
-          <div className="admin-subtitle">任务管理 · 创建 · 发布 · 暂停</div>
-        </div>
-        <div className="action-row" style={{ marginTop: 0 }}>
-          <span className="muted">{adminEmail}</span>
-          <Link className="secondary-btn" href="/" style={{ textDecoration: "none" }}>号码池管理</Link>
-          <Link className="secondary-btn" href="/ai-settings" style={{ textDecoration: "none" }}>AI 审核设置</Link>
-          <button className="secondary-btn" onClick={logout}>退出登录</button>
+    <main className="admin-shell tasks-admin-page">
+      <header className="tasks-page-heading">
+        <div><h1>任务管理</h1><p>添加和管理可领取任务，并可按任务整理和筛选。</p></div>
+        <div className="tasks-heading-actions">
+          <button className="tasks-outline-btn" type="button" onClick={() => { setStatusFilter("ALL"); setSearchTerm(""); void refresh(); }}>刷新数据</button>
+          <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
-
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
-
-      <section className="panel">
-        <div className="admin-header" style={{ marginBottom: 8 }}>
-          <div>
-            <h2 style={{ marginBottom: 5 }}>任务列表</h2>
-            <p className="muted" style={{ margin: 0 }}>草稿不会显示在用户任务大厅；只有发布状态且在有效时间内的任务才会开放领取。</p>
+      <section className="tasks-management-card">
+        <div className="tasks-toolbar">
+          <div className="tasks-search"><span aria-hidden="true">⌕</span><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="任务名称、任务编号或完整号码" aria-label="搜索任务" /></div>
+          <div className="tasks-status-tabs" role="group" aria-label="任务状态筛选">
+            {([["ALL","全部"],["PUBLISHED","可领取"],["DRAFT","草稿"],["PAUSED","已暂停"],["CLOSED","已结束"]] as const).map(([value,label]) =>
+              <button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>setStatusFilter(value)}>{label}</button>
+            )}
           </div>
-          <button className="primary-btn" onClick={startCreate}>＋ 创建任务</button>
+          <button className="tasks-primary-btn tasks-search-btn" type="button">搜索</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setStatusFilter("ALL");}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={exportTasks}>⇩ 导出</button>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>任务名称</th><th>分类</th><th>奖励</th><th>领取次数</th><th>号码库存（总数 / 可领取 / 已分配 / 已使用）</th><th>状态</th><th>开始时间</th><th>操作</th>
-              </tr>
-            </thead>
+        <div className="tasks-stat-grid">
+          <article className="tasks-stat-card"><span className="tasks-stat-icon blue">▣</span><div><small>任务总数（当前列表）</small><strong>{tasks.length}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon green">♙</span><div><small>可领取任务</small><strong>{publishedCount}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon orange">♧</span><div><small>累计领取次数</small><strong>{totalClaims}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon red">⊗</span><div><small>已结束任务</small><strong>{closedCount}</strong></div></article>
+        </div>
+        <div className="tasks-table-heading"><strong>任务列表</strong><span>共 {filteredTasks.length} 条记录</span><button type="button" className="tasks-outline-btn" onClick={()=>void refresh()} disabled={busy}>刷新数据</button></div>
+        <div className="tasks-table-scroll">
+          <table className="tasks-management-table">
+            <thead><tr><th>任务名称</th><th>任务编号</th><th>任务分类</th><th>奖励</th><th>领取次数</th><th>号码库存（总数 / 可领取 / 已分配 / 已使用）</th><th>任务状态</th><th>创建时间</th><th>操作</th></tr></thead>
             <tbody>
-              {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td>{task.title}</td>
-                  <td>{task.category}</td>
-                  <td>{task.currency} {task.rewardAmount}</td>
-                  <td>{task.claimedCount}</td>
-                  <td>{task.inventory ? `${task.inventory.total} / ${task.inventory.available} / ${task.inventory.assigned} / ${task.inventory.used}` : "尚未绑定号码"}</td>
-                  <td><span className={`pill ${task.status === "PUBLISHED" ? "available" : task.status === "PAUSED" ? "assigned" : task.status === "CLOSED" ? "blocked" : ""}`}>{statusLabel(task.status)}</span></td>
-                  <td>{task.startsAt ? new Date(task.startsAt).toLocaleString() : "立即"}</td>
-                  <td>
-                    <div className="action-row" style={{ margin: 0, flexWrap: "nowrap" }}>
-                      {(task.status === "DRAFT" || task.status === "PAUSED") && (
-                        <button className="secondary-btn" disabled={busy || task.claimedCount > 0} onClick={() => startEdit(task)}>编辑</button>
-                      )}
-                      {(task.status === "DRAFT" || task.status === "PAUSED") && (
-                        <button className="primary-btn" disabled={busy} onClick={() => void taskAction(task.id, "publish")}>发布</button>
-                      )}
-                      {task.status === "PUBLISHED" && (
-                        <button className="secondary-btn" disabled={busy} onClick={() => void taskAction(task.id, "pause")}>暂停</button>
-                      )}
-                      {task.status !== "CLOSED" && (
-                        <button className="danger-btn" disabled={busy} onClick={() => void taskAction(task.id, "close")}>结束</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {tasks.length === 0 && <tr><td colSpan={8} className="muted">目前还没有任务，请先创建任务草稿。</td></tr>}
+              {filteredTasks.map((task) => <tr key={task.id}>
+                <td className="tasks-title-cell" title={task.title}>{task.title}</td><td className="tasks-id-cell" title={task.id}>{task.id.slice(0,12)}…</td>
+                <td>{task.category || "未分组"}</td><td>{task.rewardAmount} {task.currency}</td><td>{task.claimedCount}</td>
+                <td>{task.inventory ? `${task.inventory.total} / ${task.inventory.available} / ${task.inventory.assigned} / ${task.inventory.used}` : "尚未绑定号码"}</td>
+                <td><span className={`tasks-status-pill ${task.status.toLowerCase()}`}>{statusLabel(task.status)}</span></td>
+                <td>{task.createdAt ? new Date(task.createdAt).toLocaleString("zh-CN",{hour12:false}) : "—"}</td>
+                <td><div className="tasks-row-actions">
+                  {(task.status==="DRAFT"||task.status==="PAUSED")&&<button type="button" onClick={()=>startEdit(task)} disabled={busy||task.claimedCount>0}>编辑</button>}
+                  {(task.status==="DRAFT"||task.status==="PAUSED")&&<button type="button" onClick={()=>void taskAction(task.id,"publish")} disabled={busy}>发布</button>}
+                  {task.status==="PUBLISHED"&&<button type="button" onClick={()=>void taskAction(task.id,"pause")} disabled={busy}>暂停</button>}
+                  {task.status!=="CLOSED"&&<button className="danger" type="button" onClick={()=>void taskAction(task.id,"close")} disabled={busy}>结束</button>}
+                </div></td>
+              </tr>)}
+              {filteredTasks.length===0&&<tr><td colSpan={9} className="tasks-empty-row">{tasks.length===0?"目前还没有任务，请点击右上角添加任务。":"没有找到符合条件的任务"}</td></tr>}
             </tbody>
           </table>
         </div>
+        <footer className="tasks-table-footer"><span>当前显示 {filteredTasks.length} 条 · 接口最多返回最近 200 条任务</span><button className="tasks-outline-btn" type="button" onClick={()=>void refresh()} disabled={busy}>刷新</button></footer>
       </section>
-
       {formOpen && (
         <section className="panel">
           <div className="admin-header">
