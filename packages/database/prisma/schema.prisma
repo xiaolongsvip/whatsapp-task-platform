@@ -109,6 +109,11 @@ enum AdminStatus {
   DISABLED
 }
 
+enum DeviceStatus {
+  ACTIVE
+  BLOCKED
+}
+
 enum WalletHoldStatus {
   ACTIVE
   RELEASED
@@ -167,6 +172,10 @@ model UserDevice {
   appVersion         String             @map("app_version")
   firstSeenAt        DateTime           @default(now()) @map("first_seen_at")
   lastSeenAt         DateTime           @default(now()) @map("last_seen_at")
+  status             DeviceStatus       @default(ACTIVE)
+  isFlagged          Boolean            @default(false) @map("is_flagged")
+  flagReason         String?            @map("flag_reason")
+  statusUpdatedAt    DateTime           @default(now()) @map("status_updated_at")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -174,6 +183,8 @@ model UserDevice {
 
   @@unique([userId, deviceIdentifier])
   @@index([userId, lastSeenAt])
+  @@index([deviceIdentifier])
+  @@index([status, isFlagged])
   @@map("user_devices")
 }
 
@@ -185,6 +196,9 @@ model UserDeviceEvent {
   model            String
   androidVersion   String?    @map("android_version")
   appVersion       String     @map("app_version")
+  sdkInt           Int?       @map("sdk_int")
+  actorId          String?    @map("actor_id") @db.Uuid
+  reason           String?    @db.Text
   createdAt        DateTime   @default(now()) @map("created_at")
   device           UserDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
