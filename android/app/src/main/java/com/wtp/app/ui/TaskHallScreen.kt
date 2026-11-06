@@ -633,7 +633,7 @@ fun TaskHallScreen(
                                         scope.launch {
                                             if (remainingWaitSeconds > 0L) {
                                                 error = if (isEnglish) "Please wait for the claim interval." else "领取间隔未结束，请等待倒计时完成。"
-                                                return@AvailableTaskCard
+                                                return@launch
                                             }
                                             busyId = slotId
                                             error = null
