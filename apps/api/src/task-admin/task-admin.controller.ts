@@ -58,6 +58,19 @@ export class TaskAdminController {
   }
 
 
+
+  @Post("records/:id/void")
+  async voidRecord(@Req() request: Request, @Param("id") id: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.voidTaskRecord(id);
+  }
+
+  @Delete("records/:id")
+  async deleteRecord(@Req() request: Request, @Param("id") id: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.deleteTaskRecord(id);
+  }
+
   @Patch(":id/group")
   async updateGroup(
     @Req() request: Request,
