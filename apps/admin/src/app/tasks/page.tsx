@@ -296,7 +296,7 @@ export default function AdminTasksPage() {
       <section className="dashboard-main">
         <header className="dashboard-topbar">
           <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button>
-          <div className="topbar-search"><Search size={16}/><input value={adminSearch} onChange={(event)=>setAdminSearch(event.target.value)} placeholder="搜索任务、用户、手机号码..."/></div>
+          <div className="topbar-search"><Search size={16}/><input value={adminSearch} onChange={(event)=>setAdminSearch(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setSearchTerm(adminSearch);setAppliedSearch(adminSearch);setPage(1);}}} placeholder="搜索任务、用户、手机号码..."/></div>
           <div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>{adminEmail || "Administrator"}</strong><small>超级管理员</small></span></div><button className="topbar-icon" title="退出登录" onClick={()=>void logout()}><LogOut size={16}/></button></div>
         </header>
         <div className="dashboard-content tasks-dashboard-content">
