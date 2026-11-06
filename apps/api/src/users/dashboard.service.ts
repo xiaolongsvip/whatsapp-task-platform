@@ -55,7 +55,7 @@ export class DashboardService {
     const today = startOfDay(timezone);
     const now = new Date();
 
-    const [wallets, settledToday, pendingReview, claimedToday, tasks] = await Promise.all([
+    const [wallets, settledToday, pendingReview, claimedToday, tasks, profile, latestClaim] = await Promise.all([
       prisma.wallet.findMany({
         where: { userId },
         include: {
@@ -102,6 +102,8 @@ export class DashboardService {
           claimedCount: true,
         },
       }),
+      prisma.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } }),
+      prisma.taskClaim.findFirst({ where: { userId }, orderBy: { claimedAt: "desc" }, select: { claimedAt: true } }),
     ]);
 
     const balances = wallets.map((wallet) => {
@@ -122,7 +124,11 @@ export class DashboardService {
 
     // Stable dashboard contract. The admin-managed persistent setting will
     // replace this provisional display default when the admin settings module is implemented.
-    const dailyTaskLimit = 20;
+    const dailyTaskLimit = profile?.dailyTaskLimit ?? 20;
+    const minClaimIntervalSeconds = profile?.minClaimIntervalSeconds ?? 60;
+    const nextClaimAt = latestClaim && minClaimIntervalSeconds > 0
+      ? new Date(latestClaim.claimedAt.getTime() + minClaimIntervalSeconds * 1000).toISOString()
+      : null;
     // Reserved dashboard contract. The protected admin announcement module
     // will populate this from shared persistent storage in a later phase.
     const announcements: string[] = [];
@@ -130,6 +136,9 @@ export class DashboardService {
     return {
       announcements,
       dailyTaskLimit,
+      minClaimIntervalSeconds,
+      nextClaimAt,
+      serverTime: now.toISOString(),
       // Stable shared-client contract. These values will later be populated
       // from protected admin-managed settings without changing the client API.
       supportUrl: null as string | null,
