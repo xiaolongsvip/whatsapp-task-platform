@@ -16,8 +16,8 @@ export class AdminDashboardService {
       prisma.withdrawalRequest.count({ where: { status: { in: ["REQUESTED", "UNDER_REVIEW"] } } }),
       prisma.ledgerEntry.groupBy({ by: ["currency"], where: { sourceType: "TASK_REWARD", direction: "CREDIT", createdAt: { gte: startOfToday } }, _sum: { amountMinor: true } }),
       prisma.taskClaim.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.$queryRaw<DailyCount[]>\`SELECT to_char(date_trunc('day', submitted_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count FROM task_submissions WHERE submitted_at >= ${sevenDaysAgo} GROUP BY 1 ORDER BY 1\`,
-      prisma.$queryRaw<DailyReviewCount[]>\`SELECT to_char(date_trunc('day', reviewed_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, decision::text AS decision, COUNT(*)::int AS count FROM task_reviews WHERE reviewed_at >= ${sevenDaysAgo} GROUP BY 1, 2 ORDER BY 1\`,
+      prisma.$queryRaw<DailyCount[]>`SELECT to_char(date_trunc('day', submitted_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count FROM task_submissions WHERE submitted_at >= ${sevenDaysAgo} GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<DailyReviewCount[]>`SELECT to_char(date_trunc('day', reviewed_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, decision::text AS decision, COUNT(*)::int AS count FROM task_reviews WHERE reviewed_at >= ${sevenDaysAgo} GROUP BY 1, 2 ORDER BY 1`,
     ]);
     const count = (status: string) => Number(claimStatuses.find((item) => item.status === status)?._count._all ?? 0);
     const taskTrend = Array.from({ length: 7 }, (_, index) => {
