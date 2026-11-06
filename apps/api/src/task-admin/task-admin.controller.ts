@@ -90,6 +90,24 @@ export class TaskAdminController {
     return this.tasks.disableMessageTemplate(id);
   }
 
+  @Get("groups")
+  async listTaskGroups(@Req() request: Request) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.listTaskGroups();
+  }
+
+  @Post("groups")
+  async createTaskGroup(@Req() request: Request, @Body() body: { name?: string; description?: string }) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.createTaskGroup(body);
+  }
+
+  @Delete("groups/:id")
+  async deleteTaskGroup(@Req() request: Request, @Param("id") id: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.deleteTaskGroup(id);
+  }
+
   @Get()
   async list(@Req() request: Request) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
