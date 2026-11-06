@@ -121,6 +121,7 @@ export default function AdminTasksPage() {
   const [groupFilter, setGroupFilter] = useState("ALL");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
   const [selectedGroup, setSelectedGroup] = useState("");
   const [groupSaving, setGroupSaving] = useState(false);
@@ -131,7 +132,7 @@ export default function AdminTasksPage() {
   }, []);
 
   const loadRecords = useCallback(async () => {
-    const params = new URLSearchParams({page:String(page),pageSize:String(pageSize),keyword:appliedSearch,status:statusFilter,groupName:groupFilter});
+    const params = new URLSearchParams({page:String(page),pageSize:String(pageSize),keyword:appliedSearch,status:statusFilter,groupName:groupFilter,countryRegion:countryFilter.trim()});
     if (createdFrom) params.set("createdFrom", new Date(createdFrom + "T00:00:00").toISOString());
     if (createdTo) params.set("createdTo", new Date(createdTo + "T23:59:59.999").toISOString());
     const result = await api<TaskRecordsResponse>("/api/v1/admin/tasks/records?" + params.toString());
@@ -140,7 +141,7 @@ export default function AdminTasksPage() {
     setTotalPages(result.pagination.totalPages);
     setTotalRecords(result.pagination.total);
     setSelectedIds([]);
-  }, [page,pageSize,appliedSearch,statusFilter,groupFilter,createdFrom,createdTo]);
+  }, [page,pageSize,appliedSearch,statusFilter,groupFilter,createdFrom,createdTo,countryFilter]);
 
   useEffect(() => {
     if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
@@ -375,7 +376,7 @@ export default function AdminTasksPage() {
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
-      {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>{setGroupFilter(event.target.value);setPage(1);}}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><label>创建开始</label><input aria-label="创建开始日期" type="date" value={createdFrom} onChange={(event)=>{setCreatedFrom(event.target.value);setPage(1);}}/><label>创建结束</label><input aria-label="创建结束日期" type="date" value={createdTo} onChange={(event)=>{setCreatedTo(event.target.value);setPage(1);}}/><button type="button" onClick={()=>{setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setPage(1);setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
+      {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>{setGroupFilter(event.target.value);setPage(1);}}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><label>创建开始</label><input aria-label="创建开始日期" type="date" value={createdFrom} onChange={(event)=>{setCreatedFrom(event.target.value);setPage(1);}}/><label>创建结束</label><input aria-label="创建结束日期" type="date" value={createdTo} onChange={(event)=>{setCreatedTo(event.target.value);setPage(1);}}/><label>国家/地区</label><input aria-label="国家/地区筛选" value={countryFilter} onChange={(event)=>{setCountryFilter(event.target.value);setPage(1);}} placeholder="国家代码或名称"/><button type="button" onClick={()=>{setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setPage(1);setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
       <section className="tasks-management-card">
@@ -385,7 +386,7 @@ export default function AdminTasksPage() {
             {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"],["VOIDED","已作废"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
           </div>
           <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
-          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setPage(1);}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setPage(1);}}>重置</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}><Filter size={13}/> 更多筛选</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{
