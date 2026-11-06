@@ -376,7 +376,7 @@ export default function AdminHomePage() {
           <button type="button" className={"sidebar-link sidebar-expand " + (expandedMenu === "review" ? "expanded" : "")} onClick={() => setExpandedMenu(expandedMenu === "review" ? null : "review")}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} className="sidebar-chevron"/></button>
           {expandedMenu === "review" && <div className="sidebar-submenu"><Link href="/ai-reviews">AI 审核记录</Link><Link href="/ai-settings">AI 审核设置</Link></div>}
           <button type="button" className={"sidebar-link sidebar-expand " + (expandedMenu === "task" ? "expanded" : "")} onClick={() => setExpandedMenu(expandedMenu === "task" ? null : "task")}><ClipboardCheck size={16}/>任务设置<ChevronDown size={14} className="sidebar-chevron"/></button>
-          {expandedMenu === "task" && <div className="sidebar-submenu"><Link href="/tasks">任务列表</Link><Link href="/task-settings/messages">话术管理</Link></div>}
+          {expandedMenu === "task" && <div className="sidebar-submenu"><Link href="/tasks">任务列表</Link></div>}
           <button type="button" className="sidebar-link" disabled><HandCoins size={16}/>邀请与分佣</button>
           <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
           <button type="button" className="sidebar-link" disabled><WalletCards size={16}/>财务管理</button>
