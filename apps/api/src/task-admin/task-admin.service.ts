@@ -125,7 +125,6 @@ export class TaskAdminService {
       OR: [
         { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
         { task: { is: { category: { contains: keyword, mode: "insensitive" } } } },
-        { taskId: { contains: keyword, mode: "insensitive" } },
         { contactNumber: { is: { phoneE164: { contains: keyword } } } },
       ],
     } : {};
