@@ -72,6 +72,30 @@ function statusLabel(status: ContactNumber["status"]) {
   }[status];
 }
 
+const COUNTRY_OPTIONS = [
+  { code: "KE", name: "肯尼亚" },
+  { code: "NG", name: "尼日利亚" },
+  { code: "PK", name: "巴基斯坦" },
+  { code: "TZ", name: "坦桑尼亚" },
+  { code: "UG", name: "乌干达" },
+  { code: "GH", name: "加纳" },
+  { code: "ZA", name: "南非" },
+  { code: "IN", name: "印度" },
+  { code: "BD", name: "孟加拉国" },
+  { code: "PH", name: "菲律宾" },
+  { code: "ID", name: "印度尼西亚" },
+  { code: "MY", name: "马来西亚" },
+  { code: "TH", name: "泰国" },
+  { code: "VN", name: "越南" },
+  { code: "JP", name: "日本" },
+  { code: "CN", name: "中国" },
+  { code: "US", name: "美国" },
+  { code: "GB", name: "英国" },
+  { code: "CA", name: "加拿大" },
+  { code: "AU", name: "澳大利亚" },
+  { code: "AE", name: "阿联酋" },
+  { code: "SA", name: "沙特阿拉伯" },
+] as const;
 
 function TrendChart({ data }: { data: { day: string; submitted: number; approved: number; rejected: number }[] }) {
   const width = 720, height = 250, left = 42, right = 18, top = 18, bottom = 38;
@@ -412,8 +436,7 @@ export default function AdminHomePage() {
               <section className="dashboard-card numbers-import-card"><div className="dashboard-card-title"><div><h2>批量导入号码</h2><p>仅导入已经明确同意接收消息的号码。</p></div></div>
                 <form onSubmit={importNumbers}><div className="form-grid">
                   <div className="field"><label>选择 CSV/TXT 文件</label><input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={onFileChange}/>{fileName && <span className="muted">当前文件：{fileName}</span>}</div>
-                  <div className="field"><label>国家/地区代码（ISO 两位代码）</label><input value={countryCode} onChange={(event) => setCountryCode(event.target.value.toUpperCase().slice(0, 2))} placeholder="例如：KE / NG / PK" maxLength={2}/></div>
-                  <div className="field"><label>国家/地区名称</label><input value={countryName} onChange={(event) => setCountryName(event.target.value)} placeholder="例如：Kenya / Nigeria / Pakistan" maxLength={100}/></div>
+                  <div className="field"><label>国家/地区</label><select value={countryCode} onChange={(event) => { const selected = COUNTRY_OPTIONS.find((item) => item.code === event.target.value); setCountryCode(selected?.code ?? ""); setCountryName(selected?.name ?? ""); }}><option value="">请选择国家/地区</option>{COUNTRY_OPTIONS.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select><span className="muted">国家名称使用中文显示，系统自动保存对应国家代码。</span></div>
                   <div className="field"><label>同意接收来源/证明说明</label><input value={consentSource} onChange={(event) => setConsentSource(event.target.value)} placeholder="例如：客户主动提交的订阅表单" required/></div>
                   <div className="field"><label>同意接收记录时间</label><input type="datetime-local" value={consentedAt} onChange={(event) => setConsentedAt(event.target.value)} required/></div>
                 </div><div className="field" style={{marginTop:14}}><label>号码内容（每行一个国际号码）</label><textarea value={phoneText} onChange={(event) => setPhoneText(event.target.value)} placeholder={"+254700000001\n+254700000002"} required/></div>
