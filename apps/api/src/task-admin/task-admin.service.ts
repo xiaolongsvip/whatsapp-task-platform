@@ -187,10 +187,10 @@ export class TaskAdminService {
       let status = "CLOSED";
       if (slot.contactNumber.status === "BLOCKED" || slot.contactNumber.consentStatus === "REVOKED") status = "FROZEN";
       else if (slot.status === "USED" || claimStatus === "APPROVED") status = "COMPLETED";
-      else if (slot.task.status === "CLOSED" || slot.task.status === "PAUSED" || ["REJECTED", "EXPIRED", "CANCELLED"].includes(claimStatus ?? "")) status = "CLOSED";
+      else if (slot.task.status === "DRAFT" || slot.task.status === "CLOSED" || slot.task.status === "PAUSED" || ["REJECTED", "EXPIRED", "CANCELLED"].includes(claimStatus ?? "")) status = "CLOSED";
       else if (claimStatus === "SUBMITTED" || claimStatus === "UNDER_REVIEW") status = "REVIEW";
       else if (claimStatus === "CLAIMED" || claimStatus === "IN_PROGRESS" || slot.status === "ASSIGNED") status = "IN_PROGRESS";
-      else if (slot.status === "AVAILABLE" && slot.task.status === "PUBLISHED") status = "AVAILABLE";
+      else if (slot.status === "AVAILABLE" && slot.task.status === "PUBLISHED" && slot.contactNumber.status === "AVAILABLE" && slot.contactNumber.consentStatus === "GRANTED") status = "AVAILABLE";
       return {
         id: slot.id, taskId: slot.task.id, taskName: slot.task.title,
         phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.category || "未分组",
