@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Bell, CheckCircle2, CircleHelp, ClipboardCheck, Database, Eye, EyeOff, FileText, Gift, LayoutDashboard, LockKeyhole, LogOut, Menu, Phone, Plus, RefreshCw, ScanEye, Search, Send, ShieldCheck, UserRound, Upload, Users, WalletCards, Zap } from "lucide-react";
+import { ArrowRight, Bell, CircleHelp, ClipboardCheck, Database, Eye, EyeOff, Gift, LayoutDashboard, LockKeyhole, LogOut, Menu, Phone, RefreshCw, ScanEye, Search, Send, ShieldCheck, UserRound, Upload, Users, WalletCards, Zap } from "lucide-react";
 
 type Summary = {
   total: number;
@@ -25,8 +25,6 @@ type ContactNumber = {
 };
 
 type ContactList = { numbers: ContactNumber[] };
-type AdminTaskSummary = { id: string; title: string; status: "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED"; claimedCount: number; inventory?: { total: number; available: number; assigned: number; used: number } };
-type AdminTaskList = { tasks: AdminTaskSummary[] };
 type AdminDashboardSummary = { cards: { todayClaims: number; pendingReviews: number; todayApprovals: number; activeUsers: number; pendingWithdrawals: number; todayRewards: { currency: string; amountMinor: string }[] }; claimDistribution: { waiting: number; inProgress: number; pendingReview: number; completed: number; rejected: number }; taskTrend: { day: string; submitted: number; approved: number; rejected: number }[] };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
