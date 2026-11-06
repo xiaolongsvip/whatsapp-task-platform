@@ -121,15 +121,15 @@ export class TaskAdminService {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
     const keyword = input.keyword?.trim() ?? "";
-    const baseWhere: Prisma.TaskSlotWhereInput = keyword ? {
-      OR: [
-        { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
-        { task: { is: { category: { contains: keyword, mode: "insensitive" } } } },
-        { id: keyword },
-        { taskId: keyword },
-        { contactNumber: { is: { phoneE164: { contains: keyword } } } },
-      ],
-    } : {};
+    const searchConditions: Prisma.TaskSlotWhereInput[] = [
+      { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
+      { task: { is: { category: { contains: keyword, mode: "insensitive" } } } },
+      { contactNumber: { is: { phoneE164: { contains: keyword } } } },
+    ];
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(keyword)) {
+      searchConditions.push({ id: keyword }, { taskId: keyword });
+    }
+    const baseWhere: Prisma.TaskSlotWhereInput = keyword ? { OR: searchConditions } : {};
     const notFrozen: Prisma.TaskSlotWhereInput = {
       contactNumber: { is: { status: { not: "BLOCKED" }, consentStatus: { not: "REVOKED" } } },
     };
