@@ -757,3 +757,18 @@ model AuditEvent {
   @@index([targetType, targetId, createdAt])
   @@map("audit_events")
 }
+
+model MessageTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(160)
+  platform  String   @default("WhatsApp") @db.VarChar(40)
+  action    String   @default("MESSAGE") @db.VarChar(40)
+  content   String   @db.Text
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([enabled, platform, action])
+  @@index([name])
+  @@map("message_templates")
+}
