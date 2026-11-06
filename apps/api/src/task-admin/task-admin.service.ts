@@ -485,6 +485,10 @@ export class TaskAdminService {
     const endsAt = dateValue(input.endsAt);
     const nextStartsAt = startsAt === undefined ? existing.startsAt : startsAt;
     const nextEndsAt = endsAt === undefined ? existing.endsAt : endsAt;
+    if (input.groupId) {
+      const group = await prisma.taskGroup.findUnique({ where: { id: input.groupId }, select: { id: true } });
+      if (!group) throw new NotFoundException("所选任务组不存在。");
+    }
     if (nextStartsAt && nextEndsAt && nextStartsAt >= nextEndsAt) {
       throw new BadRequestException("任务结束时间必须晚于开始时间。");
     }
