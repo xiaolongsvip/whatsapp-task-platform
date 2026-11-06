@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { prisma } from "@wtp/database";
+import type { Prisma } from "@wtp/database";
 import type { CreateAdminTaskDto, UpdateAdminTaskDto } from "./task-admin.dto";
 import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
 
@@ -112,6 +113,85 @@ export class TaskAdminService {
           },
         };
       }),
+    };
+  }
+
+
+  async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string }) {
+    const page = Math.max(1, Math.floor(Number(input.page) || 1));
+    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
+    const keyword = input.keyword?.trim() ?? "";
+    const baseWhere: Prisma.TaskSlotWhereInput = keyword ? {
+      OR: [
+        { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
+        { task: { is: { category: { contains: keyword, mode: "insensitive" } } } },
+        { taskId: { contains: keyword, mode: "insensitive" } },
+        { contactNumber: { is: { phoneE164: { contains: keyword } } } },
+      ],
+    } : {};
+    const statusWhere = (status: string): Prisma.TaskSlotWhereInput => {
+      switch (status) {
+        case "AVAILABLE":
+          return { status: "AVAILABLE", task: { is: { status: "PUBLISHED" } }, contactNumber: { is: { status: "AVAILABLE", consentStatus: "GRANTED" } } };
+        case "IN_PROGRESS":
+          return { status: "ASSIGNED", claim: { is: { status: { in: ["CLAIMED", "IN_PROGRESS"] } } } };
+        case "REVIEW":
+          return { status: "ASSIGNED", claim: { is: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } } };
+        case "COMPLETED":
+          return { OR: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] };
+        case "CLOSED":
+          return { OR: [
+            { task: { is: { status: { in: ["PAUSED", "CLOSED"] } } } },
+            { claim: { is: { status: { in: ["REJECTED", "EXPIRED", "CANCELLED"] } } } },
+          ] };
+        case "FROZEN":
+          return { contactNumber: { is: { OR: [{ status: "BLOCKED" }, { consentStatus: "REVOKED" }] } } };
+        default:
+          return {};
+      }
+    };
+    const selectedWhere: Prisma.TaskSlotWhereInput = input.status && input.status !== "ALL"
+      ? { AND: [baseWhere, statusWhere(input.status)] }
+      : baseWhere;
+    const countFor = (status: string) => prisma.taskSlot.count({ where: { AND: [baseWhere, statusWhere(status)] } });
+    const [total, available, inProgress, review, completed, closed, frozen, rows] = await Promise.all([
+      prisma.taskSlot.count({ where: baseWhere }),
+      countFor("AVAILABLE"), countFor("IN_PROGRESS"), countFor("REVIEW"),
+      countFor("COMPLETED"), countFor("CLOSED"), countFor("FROZEN"),
+      prisma.taskSlot.findMany({
+        where: selectedWhere,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          task: { select: { id: true, title: true, category: true, status: true, rewardMinor: true, currency: true, messageTemplate: true } },
+          contactNumber: { select: { id: true, phoneE164: true, status: true, consentStatus: true } },
+          claim: { select: { id: true, status: true, claimedAt: true } },
+        },
+      }),
+    ]);
+    const items = rows.map((slot) => {
+      const claimStatus = slot.claim?.status ?? null;
+      let status = "CLOSED";
+      if (slot.contactNumber.status === "BLOCKED" || slot.contactNumber.consentStatus === "REVOKED") status = "FROZEN";
+      else if (slot.task.status === "CLOSED" || slot.task.status === "PAUSED" || ["REJECTED", "EXPIRED", "CANCELLED"].includes(claimStatus ?? "")) status = "CLOSED";
+      else if (slot.status === "USED" || claimStatus === "APPROVED") status = "COMPLETED";
+      else if (claimStatus === "SUBMITTED" || claimStatus === "UNDER_REVIEW") status = "REVIEW";
+      else if (claimStatus === "CLAIMED" || claimStatus === "IN_PROGRESS" || slot.status === "ASSIGNED") status = "IN_PROGRESS";
+      else if (slot.status === "AVAILABLE" && slot.task.status === "PUBLISHED") status = "AVAILABLE";
+      return {
+        id: slot.id, taskId: slot.task.id, taskName: slot.task.title,
+        phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.category || "未分组",
+        rewardAmount: (Number(slot.task.rewardMinor) / 100).toFixed(3),
+        currency: slot.task.currency.trim(), messageTemplate: slot.task.messageTemplate ?? "",
+        countryRegion: "—", status, createdAt: slot.createdAt.toISOString(),
+        claimId: slot.claim?.id ?? null, claimedAt: slot.claim?.claimedAt?.toISOString() ?? null,
+      };
+    });
+    return {
+      items,
+      pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+      stats: { total, available, inProgress, review, completed, closed, frozen },
     };
   }
 
