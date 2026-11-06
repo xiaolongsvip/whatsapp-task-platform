@@ -178,7 +178,7 @@ export class TaskAdminService {
         include: {
           task: { select: { id: true, title: true, category: true, status: true, rewardMinor: true, currency: true, messageTemplate: true } },
           contactNumber: { select: { id: true, phoneE164: true, status: true, consentStatus: true } },
-          claim: { select: { id: true, status: true, claimedAt: true } },
+          claim: { select: { id: true, status: true, claimedAt: true, userId: true } },
         },
       }),
     ]);
@@ -198,6 +198,7 @@ export class TaskAdminService {
         currency: slot.task.currency.trim(), messageTemplate: slot.task.messageTemplate ?? "",
         countryRegion: "—", status, createdAt: slot.createdAt.toISOString(),
         claimId: slot.claim?.id ?? null, claimedAt: slot.claim?.claimedAt?.toISOString() ?? null,
+        claimedUserId: slot.claim?.userId ?? null,
       };
     });
     return {
@@ -205,6 +206,21 @@ export class TaskAdminService {
       pagination: { page, pageSize, total: selectedTotal, totalPages: Math.max(1, Math.ceil(selectedTotal / pageSize)) },
       stats: { total, available, inProgress, review, completed, closed, frozen },
     };
+  }
+
+
+  async updateTaskGroup(taskId: string, groupName: string) {
+    const normalized = groupName.trim();
+    if (!normalized || normalized.length > 80) {
+      throw new BadRequestException("任务组名称不能为空，且不能超过 80 个字符。");
+    }
+    const existing = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
+    if (!existing) throw new NotFoundException("任务不存在。");
+    return prisma.task.update({
+      where: { id: taskId },
+      data: { category: normalized },
+      select: { id: true, category: true },
+    });
   }
 
   async create(input: CreateAdminTaskDto) {
