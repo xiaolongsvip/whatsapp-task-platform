@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, RefreshCw, Save, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, Save, ToggleLeft, ToggleRight } from "lucide-react";
 
 type MessageTemplate = {
   id: string;
@@ -169,7 +169,7 @@ export default function MessageTemplatesPage() {
                   <td style={tableCell}><div style={{ display: "flex", gap: 8, whiteSpace: "nowrap" }}>
                     <button type="button" onClick={() => openEdit(item)} style={textButton}>编辑</button>
                     <button type="button" disabled={busy} onClick={() => void toggle(item)} style={textButton}>{item.enabled ? <ToggleRight size={15}/> : <ToggleLeft size={15}/>} {item.enabled ? "停用" : "启用"}</button>
-                    {item.enabled && <button type="button" disabled={busy} onClick={() => void disable(item)} style={{ ...textButton, color: "#c24141" }}><Trash2 size={14}/>停用</button>}
+                    
                   </div></td>
                 </tr>)}</tbody>
               </table>
