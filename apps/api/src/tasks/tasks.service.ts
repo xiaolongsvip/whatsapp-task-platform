@@ -269,6 +269,9 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     try {
       const claim = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+        const userPolicy = await tx.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } });
+        const dailyTaskLimit = userPolicy?.dailyTaskLimit ?? DAILY_TASK_LIMIT;
+        const minClaimIntervalSeconds = userPolicy?.minClaimIntervalSeconds ?? 0;
         const slot = await tx.taskSlot.findUnique({
           where: { id: slotId },
           include: { task: true, contactNumber: true },
@@ -308,8 +311,17 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           throw new ConflictException("一次只能领取一个任务，请先完成当前任务后再领取下一个。");
         }
         const claimedToday = await tx.taskClaim.count({ where: { userId, claimedAt: { gte: today } } });
-        if (claimedToday >= DAILY_TASK_LIMIT) {
-          throw new ConflictException("已达到每日领取上限（" + DAILY_TASK_LIMIT + " 个任务）。");
+        if (claimedToday >= dailyTaskLimit) {
+          throw new ConflictException("已达到每日领取上限（" + dailyTaskLimit + " 个任务）。");
+        }
+        if (minClaimIntervalSeconds > 0) {
+          const latestClaim = await tx.taskClaim.findFirst({ where: { userId }, orderBy: { claimedAt: "desc" }, select: { claimedAt: true } });
+          if (latestClaim) {
+            const elapsedSeconds = Math.floor((now.getTime() - latestClaim.claimedAt.getTime()) / 1000);
+            if (elapsedSeconds < minClaimIntervalSeconds) {
+              throw new ConflictException("领取间隔尚未达到要求，请等待 " + (minClaimIntervalSeconds - elapsedSeconds) + " 秒后重试。");
+            }
+          }
         }
 
         // Keep the inventory lock order consistent with cancellation, expiry,
