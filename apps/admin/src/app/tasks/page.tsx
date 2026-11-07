@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 import { useRouter } from "next/navigation";
 import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, Filter, HandCoins, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
 
@@ -298,24 +299,7 @@ export default function AdminTasksPage() {
 
   return (
     <main className="dashboard-app">
-      <aside className={"dashboard-sidebar " + (sidebarOpen ? "sidebar-open" : "")}>
-        <div className="sidebar-brand"><div className="sidebar-brand-mark"><Zap size={19} fill="currentColor" /></div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
-        <nav className="sidebar-nav">
-          <Link className="sidebar-link" href="/"><LayoutDashboard size={16}/>控制台</Link>
-          <Link className="sidebar-link" href="/users"><Users size={16}/>用户管理</Link>
-          <Link className="sidebar-link active" href="/tasks"><Phone size={16}/>任务管理</Link>
-          <Link className="sidebar-link" href="/executions"><FileClock size={16}/>执行记录</Link>
-          <button type="button" className="sidebar-link" disabled><ClipboardCheck size={16}/>审核中心<ChevronDown size={14}/></button>
-          <Link className="sidebar-link" href="/task-settings/messages"><ClipboardCheck size={16}/>任务设置 · 话术管理</Link>
-          <button type="button" className="sidebar-link" disabled><HandCoins size={16}/>邀请与分佣</button>
-          <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
-          <button type="button" className="sidebar-link" disabled><WalletCards size={16}/>财务管理</button>
-          <button type="button" className="sidebar-link" disabled><BarChart3 size={16}/>数据报表</button>
-          <button type="button" className="sidebar-link" disabled><Shield size={16}/>权限管理</button>
-          <button type="button" className="sidebar-link" disabled><Settings size={16}/>系统设置</button>
-        </nav>
-        <div className="sidebar-version">EasyEarn v1.0.0</div>
-      </aside>
+      <AdminSidebar />
       <section className="dashboard-main">
         <header className="dashboard-topbar">
           <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button>
