@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import AdminSidebar from "../../components/AdminSidebar";
+import AdminSidebar from "../../../components/AdminSidebar";
 import { ArrowLeft, Save } from "lucide-react";
 
 type Template = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
