@@ -30,6 +30,12 @@ export class FinanceAdminController {
   async wallets(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.wallets(query); }
   @Get("wallets/:id/ledger")
   async ledger(@Req() req: Request, @Param("id") id: string, @Query("page") page?: string, @Query("pageSize") pageSize?: string) { await this.authorize(req); return this.finance.ledger(id,page,pageSize); }
+  @Get("payout-accounts/summary")
+  async payoutAccountSummary(@Req() req: Request) { await this.authorize(req); return this.finance.payoutAccountSummary(); }
+  @Get("payout-accounts/:id/history")
+  async payoutAccountHistory(@Req() req: Request, @Param("id") id: string, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.payoutAccountHistory(id, query); }
+  @Get("payout-accounts/:id")
+  async payoutAccountDetail(@Req() req: Request, @Param("id") id: string) { await this.authorize(req); return this.finance.payoutAccountDetail(id); }
   @Get("payout-accounts")
   async payoutAccounts(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.payoutAccounts(query); }
   @Get("providers")
