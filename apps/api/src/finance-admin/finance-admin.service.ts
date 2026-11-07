@@ -121,6 +121,8 @@ export class FinanceAdminService {
       });
       if (!withdrawal) throw new NotFoundException("提现申请不存在");
       if (withdrawal.status !== "APPROVED" && withdrawal.status !== "PROCESSING") throw new ConflictException("只有已通过、待付款或付款处理中状态可以登记付款结果");
+      const payoutAccount = withdrawal.payoutAccount;
+      if (!payoutAccount) throw new BadRequestException("该提现单没有有效的收款账户，无法登记付款结果");
       if (outcome === "PAID") {
         const providerCode = requestedProviderCode;
         const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true } });
@@ -149,11 +151,11 @@ export class FinanceAdminService {
       }
       const transaction = await tx.paymentTransaction.create({ data: {
         userId: withdrawal.wallet.userId, walletId: withdrawal.walletId, withdrawalRequestId: id,
-        providerCode: withdrawal.payoutAccount.providerCode, flow: "PAYOUT", status: "FAILED",
+        providerCode: payoutAccount.providerCode, flow: "PAYOUT", status: "FAILED",
         amountMinor: withdrawal.amountMinor, currency: withdrawal.currency,
         idempotencyKey: "manual-payout-failed:" + id + ":" + Date.now(),
         failureCode: "MANUAL_PAYOUT_FAILED", failureMessage: note,
-        metadata: { mode: "MANUAL_CONFIRMATION", confirmedBy: adminId, providerCode: withdrawal.payoutAccount.providerCode },
+        metadata: { mode: "MANUAL_CONFIRMATION", confirmedBy: adminId, providerCode: payoutAccount.providerCode },
       }});
       const changed = await tx.withdrawalRequest.updateMany({ where: { id, status: withdrawal.status }, data: { status: "FAILED", reviewedById: adminId } });
       if (changed.count !== 1) throw new ConflictException("提现状态已变化，请刷新后重试");
