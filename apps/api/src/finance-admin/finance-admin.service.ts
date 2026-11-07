@@ -562,7 +562,7 @@ export class FinanceAdminService {
     const status = exceptionCount === 0 ? "SUCCESS" : "FAILED";
     const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length, exceptionCount };
     const run = await prisma.financeReconciliationRun.create({ data: {
-      triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500),
+      triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500) as Prisma.InputJsonValue,
       createdByAdminId: adminId, createdAt: startedAt, completedAt,
     } });
     return { id: run.id, status: run.status, checkedCount: run.checkedCount, exceptionCount: run.exceptionCount, summary, items: items.slice(0, 500), createdAt: run.createdAt.toISOString(), completedAt: run.completedAt?.toISOString() ?? null };
