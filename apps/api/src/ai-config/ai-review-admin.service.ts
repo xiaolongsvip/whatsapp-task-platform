@@ -482,4 +482,62 @@ export class AiReviewAdminService {
     });
   }
 
+
+  async listRiskEvents(input: { page?: number; pageSize?: number; keyword?: string; level?: string; status?: string }) {
+    const page = Math.max(1, input.page || 1);
+    const pageSize = Math.min(100, Math.max(1, input.pageSize || 20));
+    const where: any = { targetType: "RISK_EVENT" };
+    if (input.status) where.action = input.status;
+    if (input.keyword) where.OR = [
+      { action: { contains: input.keyword, mode: "insensitive" } },
+      { targetId: { contains: input.keyword, mode: "insensitive" } },
+    ];
+    const [total, rows] = await prisma.$transaction([
+      prisma.auditEvent.count({ where }),
+      prisma.auditEvent.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    ]);
+    const events = rows.map((row) => {
+      const meta = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata as Record<string, unknown> : {};
+      const score = Number(meta.riskScore ?? meta.score ?? 0);
+      const level = String(meta.riskLevel ?? (score >= 90 ? "CRITICAL" : score >= 70 ? "HIGH" : score >= 40 ? "MEDIUM" : "LOW"));
+      return { id: row.id, type: String(meta.riskType ?? row.action), level, score, status: String(meta.status ?? "OPEN"), userId: String(meta.userId ?? row.actorId ?? ""), phone: String(meta.phone ?? ""), createdAt: row.createdAt.toISOString(), description: String(meta.description ?? meta.reason ?? "") };
+    }).filter((event) => !input.level || event.level === input.level);
+    return { events, total: input.level ? events.length : total, page, pageSize, stats: { open: total, high: events.filter(x => x.level === "HIGH").length, critical: events.filter(x => x.level === "CRITICAL").length } };
+  }
+
+  async listRiskUsers(input: { keyword?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, input.page || 1);
+    const pageSize = Math.min(100, Math.max(1, input.pageSize || 20));
+    const where: any = { isFlagged: true };
+    if (input.keyword) where.OR = [{ user: { phone: { contains: input.keyword, mode: "insensitive" } } }, { deviceIdentifier: { contains: input.keyword, mode: "insensitive" } }];
+    const [total, devices] = await prisma.$transaction([
+      prisma.userDevice.count({ where }),
+      prisma.userDevice.findMany({ where, include: { user: { include: { profile: true } } }, orderBy: { lastSeenAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    ]);
+    return { total, page, pageSize, users: devices.map(d => ({ id: d.user.id, phone: d.user.phone, device: d.deviceIdentifier, reason: d.flagReason, reputationScore: d.user.profile?.reputationScore ?? 0, status: d.status, lastSeenAt: d.lastSeenAt.toISOString() })) };
+  }
+
+  async listRiskRules() {
+    return prisma.riskRule.findMany({ orderBy: [{ executionOrder: "asc" }, { createdAt: "desc" }] });
+  }
+
+  async createRiskRule(input: { name: string; category: string; impactScore: number; executionOrder: number; startsAt?: string; endsAt?: string; status: string; description?: string }, adminId: string) {
+    if (!input.name?.trim() || !input.category?.trim()) throw new BadRequestException("规则名称和规则分类不能为空。");
+    const rule = await prisma.riskRule.create({ data: { name: input.name.trim(), category: input.category, impactScore: Number(input.impactScore) || 0, executionOrder: Number(input.executionOrder) || 100, startsAt: input.startsAt ? new Date(input.startsAt) : null, endsAt: input.endsAt ? new Date(input.endsAt) : null, status: input.status || "DRAFT", description: input.description?.trim() || null } });
+    await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "RISK_RULE_CREATED", targetType: "RISK_RULE", targetId: rule.id, metadata: { category: rule.category } } });
+    return rule;
+  }
+
+  async updateRiskRule(id: string, input: { name?: string; category?: string; impactScore?: number; executionOrder?: number; startsAt?: string | null; endsAt?: string | null; status?: string; description?: string }, adminId: string) {
+    const exists = await prisma.riskRule.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException("风控规则不存在。");
+    const data: any = { ...input };
+    if (input.startsAt !== undefined) data.startsAt = input.startsAt ? new Date(input.startsAt) : null;
+    if (input.endsAt !== undefined) data.endsAt = input.endsAt ? new Date(input.endsAt) : null;
+    const rule = await prisma.riskRule.update({ where: { id }, data });
+    await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "RISK_RULE_UPDATED", targetType: "RISK_RULE", targetId: id, metadata: { status: rule.status, category: rule.category } } });
+    return rule;
+  }
+
+
 }
