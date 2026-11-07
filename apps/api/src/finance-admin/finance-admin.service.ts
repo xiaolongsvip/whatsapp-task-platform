@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { createCipheriv, randomBytes } from "node:crypto";
 import { prisma, type Prisma } from "@wtp/database";
 
 const RESERVED = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
@@ -116,10 +117,90 @@ export class FinanceAdminService {
     return { ...pg, total, items: rows.map(x => ({ ...x, countryCode: x.countryCode.trim(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() })) };
   }
 
+  private encryptProviderSecret(value: string): { ciphertext: string; iv: string; tag: string } {
+    const raw = process.env.FINANCE_CREDENTIALS_KEY;
+    if (!raw || !/^[0-9a-f]{64}$/i.test(raw)) {
+      throw new BadRequestException("服务端未配置 FINANCE_CREDENTIALS_KEY（需要 64 位十六进制 AES-256 密钥）");
+    }
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", Buffer.from(raw, "hex"), iv);
+    const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+    return { ciphertext: ciphertext.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64") };
+  }
+
+  private validateProviderInput(input: Record<string, unknown>) {
+    const providerCode = typeof input.providerCode === "string" ? input.providerCode.trim().toUpperCase() : "";
+    const displayName = typeof input.displayName === "string" ? input.displayName.trim() : "";
+    const countryCode = typeof input.countryCode === "string" ? input.countryCode.trim().toUpperCase() : "";
+    const methodCode = typeof input.methodCode === "string" ? input.methodCode.trim().toUpperCase() : "";
+    const environment = typeof input.environment === "string" ? input.environment.trim().toUpperCase() : "SANDBOX";
+    const apiBaseUrl = typeof input.apiBaseUrl === "string" ? input.apiBaseUrl.trim() : "";
+    const merchantId = typeof input.merchantId === "string" ? input.merchantId.trim() : "";
+    const supportedCurrencies = Array.isArray(input.supportedCurrencies) ? input.supportedCurrencies.map(x => String(x).trim().toUpperCase()).filter(Boolean) : [];
+    const credentials = typeof input.credentials === "string" ? input.credentials.trim() : "";
+    const webhookSecret = typeof input.webhookSecret === "string" ? input.webhookSecret.trim() : "";
+    if (!/^[A-Z0-9_-]{2,40}$/.test(providerCode)) throw new BadRequestException("服务商代码格式不正确");
+    if (!displayName || displayName.length > 80) throw new BadRequestException("请填写代付方式名称（最多 80 个字符）");
+    if (!/^(GLOBAL|PK|NG|BD)$/.test(countryCode)) throw new BadRequestException("国家/地区暂只支持 GLOBAL、PK、NG、BD");
+    if (!/^[A-Z0-9_-]{2,40}$/.test(methodCode)) throw new BadRequestException("收款渠道代码格式不正确");
+    if (!["SANDBOX","PRODUCTION"].includes(environment)) throw new BadRequestException("环境必须是 SANDBOX 或 PRODUCTION");
+    if (apiBaseUrl) {
+      let parsed: URL;
+      try { parsed = new URL(apiBaseUrl); } catch { throw new BadRequestException("API 地址格式不正确"); }
+      if (parsed.protocol !== "https:" && !(environment === "SANDBOX" && parsed.hostname === "localhost" && parsed.protocol === "http:")) {
+        throw new BadRequestException("API 地址必须使用 HTTPS（沙箱 localhost 除外）");
+      }
+    }
+    if (supportedCurrencies.length > 10 || supportedCurrencies.some(x => !/^[A-Z]{3}$/.test(x))) throw new BadRequestException("出款币种必须为 3 位 ISO 币种代码");
+    if (credentials.length > 12000 || webhookSecret.length > 4000) throw new BadRequestException("密钥内容过长");
+    return { providerCode, displayName, countryCode, methodCode, environment, apiBaseUrl: apiBaseUrl || null, merchantId: merchantId || null, supportedCurrencies: [...new Set(supportedCurrencies)], credentials, webhookSecret };
+  }
+
+  async createProvider(input: Record<string, unknown>) {
+    const v = this.validateProviderInput(input);
+    const exists = await prisma.paymentProviderConfig.findUnique({ where: { providerCode: v.providerCode } });
+    if (exists) throw new ConflictException("服务商代码已存在");
+    const credentials = v.credentials ? this.encryptProviderSecret(v.credentials) : null;
+    const webhook = v.webhookSecret ? this.encryptProviderSecret(v.webhookSecret) : null;
+    const row = await prisma.paymentProviderConfig.create({ data: {
+      providerCode: v.providerCode, displayName: v.displayName, countryCode: v.countryCode, methodCode: v.methodCode,
+      environment: v.environment, apiBaseUrl: v.apiBaseUrl, merchantId: v.merchantId, supportedCurrencies: v.supportedCurrencies,
+      enabled: false,
+      ...(credentials ? { credentialsCiphertext: credentials.ciphertext, credentialsIv: credentials.iv, credentialsTag: credentials.tag } : {}),
+      ...(webhook ? { webhookSecretCiphertext: webhook.ciphertext, webhookSecretIv: webhook.iv, webhookSecretTag: webhook.tag } : {}),
+    }});
+    return { ...row, credentialsConfigured: Boolean(credentials), webhookSecretConfigured: Boolean(webhook), credentialsCiphertext: undefined, credentialsIv: undefined, credentialsTag: undefined, webhookSecretCiphertext: undefined, webhookSecretIv: undefined, webhookSecretTag: undefined };
+  }
+
+  async updateProvider(providerCode: string, input: Record<string, unknown>) {
+    const current = await prisma.paymentProviderConfig.findUnique({ where: { providerCode } });
+    if (!current) throw new NotFoundException("代付配置不存在");
+    const v = this.validateProviderInput({ ...input, providerCode: current.providerCode });
+    const credentials = v.credentials ? this.encryptProviderSecret(v.credentials) : null;
+    const webhook = v.webhookSecret ? this.encryptProviderSecret(v.webhookSecret) : null;
+    const row = await prisma.paymentProviderConfig.update({ where: { providerCode }, data: {
+      displayName: v.displayName, countryCode: v.countryCode, methodCode: v.methodCode, environment: v.environment,
+      apiBaseUrl: v.apiBaseUrl, merchantId: v.merchantId, supportedCurrencies: v.supportedCurrencies,
+      ...(credentials ? { credentialsCiphertext: credentials.ciphertext, credentialsIv: credentials.iv, credentialsTag: credentials.tag } : {}),
+      ...(webhook ? { webhookSecretCiphertext: webhook.ciphertext, webhookSecretIv: webhook.iv, webhookSecretTag: webhook.tag } : {}),
+    }});
+    return { ...row, credentialsConfigured: Boolean(credentials || current.credentialsCiphertext), webhookSecretConfigured: Boolean(webhook || current.webhookSecretCiphertext), credentialsCiphertext: undefined, credentialsIv: undefined, credentialsTag: undefined, webhookSecretCiphertext: undefined, webhookSecretIv: undefined, webhookSecretTag: undefined };
+  }
+
+  async setProviderEnabled(providerCode: string, enabled: boolean) {
+    const current = await prisma.paymentProviderConfig.findUnique({ where: { providerCode } });
+    if (!current) throw new NotFoundException("代付配置不存在");
+    if (enabled && (!current.credentialsCiphertext || !current.apiBaseUrl || !current.merchantId || !current.supportedCurrencies.length)) {
+      throw new BadRequestException("启用前必须配置 API 地址、商户号、API 密钥和出款币种");
+    }
+    const row = await prisma.paymentProviderConfig.update({ where: { providerCode }, data: { enabled } });
+    return { providerCode: row.providerCode, enabled: row.enabled, updatedAt: row.updatedAt.toISOString() };
+  }
+
   async providers() {
     const rows = await prisma.paymentProviderConfig.findMany({ orderBy: { providerCode: "asc" },
-      select: { providerCode: true, displayName: true, environment: true, enabled: true, supportedCurrencies: true, createdAt: true, updatedAt: true } });
-    return rows.map(x => ({ ...x, createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() }));
+      select: { providerCode: true, displayName: true, countryCode: true, methodCode: true, apiBaseUrl: true, merchantId: true, environment: true, enabled: true, supportedCurrencies: true, credentialsCiphertext: true, webhookSecretCiphertext: true, createdAt: true, updatedAt: true } });
+    return rows.map(x => ({ providerCode: x.providerCode, displayName: x.displayName, countryCode: x.countryCode, methodCode: x.methodCode, apiBaseUrl: x.apiBaseUrl, merchantId: x.merchantId, environment: x.environment, enabled: x.enabled, supportedCurrencies: x.supportedCurrencies, credentialsConfigured: Boolean(x.credentialsCiphertext), webhookSecretConfigured: Boolean(x.webhookSecretCiphertext), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() }));
   }
 
   async transactions(query: { search?: string; status?: string; page?: string; pageSize?: string }) {
