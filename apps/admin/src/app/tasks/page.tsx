@@ -304,7 +304,7 @@ export default function AdminTasksPage() {
           <Link className="sidebar-link" href="/"><LayoutDashboard size={16}/>控制台</Link>
           <Link className="sidebar-link" href="/users"><Users size={16}/>用户管理</Link>
           <Link className="sidebar-link active" href="/tasks"><Phone size={16}/>任务管理</Link>
-          <button type="button" className="sidebar-link" disabled><FileClock size={16}/>执行记录</button>
+          <Link className="sidebar-link" href="/executions"><FileClock size={16}/>执行记录</Link>
           <button type="button" className="sidebar-link" disabled><ClipboardCheck size={16}/>审核中心<ChevronDown size={14}/></button>
           <Link className="sidebar-link" href="/task-settings/messages"><ClipboardCheck size={16}/>任务设置 · 话术管理</Link>
           <button type="button" className="sidebar-link" disabled><HandCoins size={16}/>邀请与分佣</button>
