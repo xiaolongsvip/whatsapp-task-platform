@@ -331,12 +331,7 @@ export class ContactNumbersService {
           targetType: "CONTACT_NUMBER",
           metadata: {
             deletedCount: existingIds.length,
-            numberIds: existingIds,
-            maskedPhones: existing.map((row) =>
-              row.phoneE164.length > 7
-                ? row.phoneE164.slice(0, 4) + "••••" + row.phoneE164.slice(-3)
-                : "••••",
-            ),
+            deletionMode: all ? "CLEAR_ALL" : "SELECTED",
           },
         },
       });
