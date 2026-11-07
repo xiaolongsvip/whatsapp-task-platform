@@ -15,9 +15,9 @@ export class AdminReferralsService {
     const where: Prisma.UserWhereInput = {
       ...(status && status !== "ALL" ? { status: status as Prisma.EnumUserStatusFilter["equals"] } : {}),
       ...(search ? { OR: [
-        { phone: { contains: search, mode: "insensitive" } },
-        { referralCode: { contains: search, mode: "insensitive" } },
-        { id: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search, mode: "insensitive" as const } },
+        { referralCode: { contains: search, mode: "insensitive" as const } },
+        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search) ? [{ id: search }] : []),
       ] } : {}),
     };
     const [total, users] = await prisma.$transaction([
@@ -32,10 +32,12 @@ export class AdminReferralsService {
       }),
     ]);
     const ids = users.map((user) => user.id);
-    const [rewardGroups, directActive] = await Promise.all([
-      ids.length ? prisma.referralReward.groupBy({ by: ["beneficiaryId", "currency"], where: { beneficiaryId: { in: ids } }, _sum: { amountMinor: true } }) : [],
-      ids.length ? prisma.referralEdge.findMany({ where: { inviterUserId: { in: ids }, invitee: { status: "ACTIVE" } }, select: { inviterUserId: true } }) : [],
+    const [rewardGroupsResult, directActiveResult] = await Promise.all([
+      ids.length ? prisma.referralReward.groupBy({ by: ["beneficiaryId", "currency"], where: { beneficiaryId: { in: ids } }, _sum: { amountMinor: true } }) : null,
+      ids.length ? prisma.referralEdge.findMany({ where: { inviterUserId: { in: ids }, invitee: { status: "ACTIVE" } }, select: { inviterUserId: true } }) : null,
     ]);
+    const rewardGroups = rewardGroupsResult ?? [];
+    const directActive = directActiveResult ?? [];
     const activeMap = new Map<string, number>();
     for (const row of directActive) activeMap.set(row.inviterUserId, (activeMap.get(row.inviterUserId) ?? 0) + 1);
     const rewardMap = new Map<string, string>();
@@ -101,7 +103,10 @@ export class AdminReferralsService {
     const where: Prisma.ReferralRewardWhereInput = {
       ...(depth ? { depth } : {}),
       ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
-      ...(searchInput?.trim() ? { OR: [{ sourceUserId: { contains: searchInput.trim() } }, { beneficiaryId: { contains: searchInput.trim() } }, { sourceEventId: { contains: searchInput.trim() } }] } : {}),
+      ...(searchInput?.trim() ? { OR: [
+        { sourceEventId: { contains: searchInput.trim(), mode: "insensitive" as const } },
+        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(searchInput.trim()) ? [{ sourceUserId: searchInput.trim() }, { beneficiaryId: searchInput.trim() }] : []),
+      ] } : {}),
     };
     const [total, rows] = await prisma.$transaction([
       prisma.referralReward.count({ where }),
