@@ -82,27 +82,27 @@ export class FinanceAdminService {
 
   async reviewWithdrawal(id: string, action: string, adminId: string, note?: string) {
     if (!isUuid(id)) throw new BadRequestException("提现单 ID 格式不正确");
-    if (!["START_REVIEW", "APPROVE"].includes(action)) throw new BadRequestException("当前仅支持开始审核和审核通过");
+    if (!["START_REVIEW", "APPROVE", "REJECT"].includes(action)) throw new BadRequestException("不支持的提现审核操作");
+    const cleanNote = typeof note === "string" ? note.trim() : "";
+    if (action === "REJECT" && (!cleanNote || cleanNote.length > 500)) throw new BadRequestException("拒绝提现必须填写 1–500 个字符的原因");
     const current = await prisma.withdrawalRequest.findUnique({ where: { id }, select: { id: true, status: true, walletId: true, amountMinor: true, currency: true } });
     if (!current) throw new NotFoundException("提现申请不存在");
     const expected = action === "START_REVIEW" ? "REQUESTED" : "UNDER_REVIEW";
-    const next = action === "START_REVIEW" ? "UNDER_REVIEW" : "APPROVED";
+    const next = action === "START_REVIEW" ? "UNDER_REVIEW" : action === "APPROVE" ? "APPROVED" : "REJECTED";
     if (current.status !== expected) throw new ConflictException(`提现单当前状态为 ${current.status}，不能执行此操作`);
     await prisma.$transaction(async tx => {
-      const changed = await tx.withdrawalRequest.updateMany({
-        where: { id, status: expected },
-        data: { status: next, reviewedById: adminId },
-      });
+      const changed = await tx.withdrawalRequest.updateMany({ where: { id, status: expected }, data: { status: next, reviewedById: adminId } });
       if (changed.count !== 1) throw new ConflictException("提现单状态已变化，请刷新后重试");
       await tx.auditEvent.create({
         data: {
-          actorType: "ADMIN", actorId: adminId, action: action === "START_REVIEW" ? "WITHDRAWAL_REVIEW_STARTED" : "WITHDRAWAL_APPROVED",
+          actorType: "ADMIN", actorId: adminId,
+          action: action === "START_REVIEW" ? "WITHDRAWAL_REVIEW_STARTED" : action === "APPROVE" ? "WITHDRAWAL_APPROVED" : "WITHDRAWAL_REJECTED",
           targetType: "WITHDRAWAL_REQUEST", targetId: id,
-          metadata: { fromStatus: expected, toStatus: next, amountMinor: current.amountMinor.toString(), currency: current.currency.trim(), note: typeof note === "string" ? note.slice(0, 500) : null },
+          metadata: { fromStatus: expected, toStatus: next, amountMinor: current.amountMinor.toString(), currency: current.currency.trim(), note: cleanNote || null, balanceReservationReleased: action === "REJECT" },
         },
       });
-    });
-    return { id, status: next };
+    }, { isolationLevel: "Serializable" });
+    return { id, status: next, balanceReservationReleased: action === "REJECT" };
   }
 
   async wallets(query: { search?: string; currency?: string; page?: string; pageSize?: string }) {
