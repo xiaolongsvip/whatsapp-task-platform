@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import EvidenceRecords from "./EvidenceRecords";
 import Image from "next/image";
 import Link from "next/link";
 import AdminSidebar from "../../components/AdminSidebar";
@@ -29,6 +31,8 @@ const tabs = [
 const emptyStats = { manualReview: 0, smartReview: 0, approved: 0, rejected: 0, risk: 0 };
 
 export default function AiReviewsPage() {
+  const searchParams = useSearchParams();
+  if (searchParams.get("view") === "evidence") return <EvidenceRecords />;
   const [tab, setTab] = useState("MANUAL_REVIEW");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<CenterResponse>({ records: [], total: 0, page: 1, pageSize: 20, stats: emptyStats });
