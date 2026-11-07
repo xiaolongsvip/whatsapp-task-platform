@@ -126,7 +126,7 @@ export class FinanceAdminService {
     const pg = pageArgs(query.page, query.pageSize);
     const where: Prisma.PaymentTransactionWhereInput = {
       ...(query.status && query.status !== "ALL" && ["CREATED","PENDING","PROCESSING","SUCCEEDED","FAILED","CANCELLED"].includes(query.status) ? { status: query.status as Prisma.EnumPaymentTransactionStatusFilter["equals"] } : {}),
-      ...(query.search ? { OR: [{ ...(isUuid(query.search) ? { id: query.search } : {}) }, { user: { phone: { contains: query.search, mode: "insensitive" } } }, { providerReference: { contains: query.search, mode: "insensitive" } }] } : {}),
+      ...(query.search ? { OR: [...(isUuid(query.search) ? [{ id: query.search }] : []), { user: { phone: { contains: query.search, mode: "insensitive" } } }, { providerReference: { contains: query.search, mode: "insensitive" } }] } : {}),
     };
     const [total, rows] = await prisma.$transaction([
       prisma.paymentTransaction.count({ where }),
