@@ -115,22 +115,28 @@ export default function AiReviewsPage() {
       </div>
       {showColumns && <div style={{ padding: 10, border: "1px solid #e2e8f0", borderRadius: 6, marginBottom: 10, color: "#64748b", fontSize: 12 }}>{columns.join("　·　")}</div>}
       {error && <div className="notice error" style={{ marginTop: 12 }}>{error}</div>}
-      {(tab === "NEEDS_RESUBMIT" || tab === "FROZEN") ? <div style={{ padding: "70px 20px", textAlign: "center" }}>
+      {(tab === "NEEDS_RESUBMIT" || tab === "FROZEN") && <div style={{ padding: "70px 20px", textAlign: "center" }}>
         <strong>{tab === "FROZEN" ? "暂无冻结记录" : "暂无要求重新提交的记录"}</strong>
         <p className="muted">当前数据库还没有独立的冻结及补图状态，暂不使用其他状态冒充。</p>
-      </div> : loading ? <p className="muted" style={{ padding: 24 }}>正在加载审核记录…</p> : data.records.length === 0 ? <p className="muted" style={{ padding: 50, textAlign: "center" }}>暂无审核记录</p> : <div style={{ overflowX: "auto", marginTop: 12 }}>
+      </div>}
+      {tab !== "NEEDS_RESUBMIT" && tab !== "FROZEN" && <div style={{ overflowX: "auto", marginTop: 12, minHeight: 520 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
           <thead><tr style={{ background: "#f8fafc", color: "#64748b" }}>{columns.map(x => <th key={x} style={{ textAlign: "left", padding: "11px 9px", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap", fontWeight: 500 }}>{x}</th>)}</tr></thead>
-          <tbody>{data.records.map(item => <tr key={item.id} style={{ borderBottom: "1px solid #edf2f7" }}>
-            <td style={{ padding: "11px 9px", color: "#31547d", whiteSpace: "nowrap" }}>{item.id}</td>
-            <td style={{ padding: "11px 9px", color: "#31547d" }}>{item.user.phone}</td>
-            <td style={{ padding: "11px 9px" }}><span style={{ display: "inline-block", border: "1px solid #fed7aa", color: "#ea580c", background: "#fff7ed", borderRadius: 5, padding: "3px 7px" }}>{item.status === "MANUAL_REVIEW" ? "人工复核" : item.status === "SMART_REVIEW" ? "智能审核中" : item.status === "APPROVED" ? "已通过" : "已拒绝"}</span></td>
-            <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>{item.latestReview?.decision || item.ai?.decision || "人工复核"}</td>
-            <td style={{ padding: "11px 9px" }}><span style={{ color: "#64748b" }}>待接入风险规则</span></td>
-            <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>APP 任务截图</td>
-            <td style={{ padding: "11px 9px", whiteSpace: "nowrap", color: "#31547d" }}>{new Date(item.submittedAt).toLocaleString("zh-CN", { hour12: false })}</td>
-            <td style={{ padding: "11px 9px" }}><button onClick={() => { setActionError(""); setSelected(item); }} style={{ border: 0, background: "transparent", color: "#334155", cursor: "pointer" }}>◉ 打开</button></td>
-          </tr>)}</tbody>
+          <tbody>
+            {loading ? <tr><td colSpan={columns.length} style={{ padding: "48px 12px", textAlign: "center", color: "#94a3b8" }}>正在加载审核记录…</td></tr>
+              : error ? <tr><td colSpan={columns.length} style={{ padding: "48px 12px", textAlign: "center", color: "#dc2626" }}>审核记录加载失败</td></tr>
+              : data.records.length === 0 ? <tr><td colSpan={columns.length} style={{ padding: "48px 12px", textAlign: "center", color: "#94a3b8" }}>暂无审核记录</td></tr>
+              : data.records.map(item => <tr key={item.id} style={{ borderBottom: "1px solid #edf2f7" }}>
+                <td style={{ padding: "11px 9px", color: "#31547d", whiteSpace: "nowrap" }}>{item.id}</td>
+                <td style={{ padding: "11px 9px", color: "#31547d" }}>{item.user.phone}</td>
+                <td style={{ padding: "11px 9px" }}><span style={{ display: "inline-block", border: "1px solid #fed7aa", color: "#ea580c", background: "#fff7ed", borderRadius: 5, padding: "3px 7px" }}>{item.status === "MANUAL_REVIEW" ? "人工复核" : item.status === "SMART_REVIEW" ? "智能审核中" : item.status === "APPROVED" ? "已通过" : "已拒绝"}</span></td>
+                <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>{item.latestReview?.decision || item.ai?.decision || "人工复核"}</td>
+                <td style={{ padding: "11px 9px" }}><span style={{ color: "#64748b" }}>待接入风险规则</span></td>
+                <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>APP 任务截图</td>
+                <td style={{ padding: "11px 9px", whiteSpace: "nowrap", color: "#31547d" }}>{new Date(item.submittedAt).toLocaleString("zh-CN", { hour12: false })}</td>
+                <td style={{ padding: "11px 9px" }}><button onClick={() => { setActionError(""); setSelected(item); }} style={{ border: 0, background: "transparent", color: "#334155", cursor: "pointer" }}>◉ 打开</button></td>
+              </tr>)}
+          </tbody>
         </table>
       </div>}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 7, paddingTop: 13, fontSize: 12, color: "#64748b" }}>
