@@ -259,4 +259,78 @@ export class AiReviewAdminService {
     };
   }
 
+
+  async listCenter(status?: string, page = 1, pageSize = 20) {
+    const allowed = ["MANUAL_REVIEW", "SMART_REVIEW", "APPROVED", "REJECTED"];
+    const normalized = status && allowed.includes(status) ? status : undefined;
+    const take = Math.min(100, Math.max(1, pageSize));
+    const skip = (Math.max(1, page) - 1) * take;
+    const submissions = await prisma.taskSubmission.findMany({
+      orderBy: [{ submittedAt: "desc" }],
+      include: {
+        aiReviewJob: true,
+        reviews: { orderBy: { reviewedAt: "desc" }, take: 1 },
+        claim: {
+          include: {
+            task: { select: { id: true, title: true, rewardMinor: true, currency: true } },
+            user: { select: { id: true, phone: true, profile: { select: { reputationScore: true } } } },
+            contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
+          },
+        },
+      },
+    });
+    const mapped = submissions.map((submission) => {
+      const job = submission.aiReviewJob;
+      const latestReview = submission.reviews[0] ?? null;
+      const centerStatus =
+        submission.status === "APPROVED" ? "APPROVED" :
+        submission.status === "REJECTED" ? "REJECTED" :
+        job && ["PENDING", "PROCESSING", "RETRY"].includes(job.status) ? "SMART_REVIEW" :
+        "MANUAL_REVIEW";
+      return {
+        id: submission.id,
+        status: centerStatus,
+        submissionStatus: submission.status,
+        submittedAt: submission.submittedAt.toISOString(),
+        originalName: submission.originalName,
+        mimeType: submission.mimeType,
+        sizeBytes: submission.sizeBytes,
+        note: submission.note,
+        ai: job ? {
+          id: job.id, status: job.status, decision: job.decision,
+          confidence: job.confidence, reason: job.reason,
+          extractedText: job.extractedText, attemptCount: job.attemptCount,
+          lastError: job.lastError, updatedAt: job.updatedAt.toISOString(),
+        } : null,
+        latestReview: latestReview ? {
+          decision: latestReview.decision, reason: latestReview.reason,
+          reviewedAt: latestReview.reviewedAt.toISOString(),
+        } : null,
+        task: {
+          id: submission.claim.task.id, title: submission.claim.task.title,
+          rewardMinor: submission.claim.task.rewardMinor.toString(),
+          currency: submission.claim.task.currency.trim(),
+        },
+        claim: { id: submission.claim.id, status: submission.claim.status },
+        user: {
+          id: submission.claim.user.id, phone: submission.claim.user.phone,
+          reputationScore: submission.claim.user.profile?.reputationScore ?? 60,
+        },
+        targetPhone: submission.claim.contactAssignment?.contactNumber.phoneE164 ?? null,
+      };
+    });
+    const filtered = normalized ? mapped.filter((item) => item.status === normalized) : mapped;
+    const [manualReview, smartReview, approved, rejected] = await Promise.all([
+      prisma.taskSubmission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] }, OR: [{ aiReviewJob: { is: null } }, { aiReviewJob: { is: { status: "NEEDS_REVIEW" } } }] } }),
+      prisma.taskSubmission.count({ where: { aiReviewJob: { is: { status: { in: ["PENDING", "PROCESSING", "RETRY"] } } } } }),
+      prisma.taskSubmission.count({ where: { status: "APPROVED" } }),
+      prisma.taskSubmission.count({ where: { status: "REJECTED" } }),
+    ]);
+    return {
+      page: Math.max(1, page), pageSize: take, total: filtered.length,
+      stats: { manualReview, smartReview, approved, rejected, risk: 0 },
+      records: filtered.slice(skip, skip + take),
+    };
+  }
+
 }
