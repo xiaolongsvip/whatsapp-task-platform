@@ -329,6 +329,63 @@ export class AiReviewAdminService {
   }
 
 
+  async getEvidenceDetail(submissionId: string) {
+    const item = await prisma.taskSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        aiReviewJob: true,
+        reviews: { orderBy: { reviewedAt: "desc" }, take: 1 },
+        claim: {
+          include: {
+            task: { select: { id: true, title: true, category: true, rewardMinor: true, currency: true } },
+            user: { select: { id: true, phone: true } },
+            contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
+          },
+        },
+      },
+    });
+    if (!item) throw new NotFoundException("截图证据记录不存在。");
+    const review = item.reviews[0] ?? null;
+    return {
+      id: item.id,
+      userPhone: item.claim.user.phone,
+      targetPhone: item.claim.contactAssignment?.contactNumber.phoneE164 ?? null,
+      taskTitle: item.claim.task.title,
+      taskId: item.claim.task.id,
+      taskCategory: item.claim.task.category,
+      claimId: item.claimId,
+      claimStatus: item.claim.status,
+      submissionStatus: item.status,
+      source: "实时屏幕截图",
+      captureMode: "APP 任务提交",
+      trustLevel: "未评估",
+      reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
+        ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
+        item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
+      reviewDecision: review?.decision ?? item.aiReviewJob?.decision ?? null,
+      reviewReason: review?.reason ?? item.aiReviewJob?.reason ?? null,
+      reviewedAt: review?.reviewedAt.toISOString() ?? null,
+      aiConfidence: item.aiReviewJob?.confidence ?? null,
+      aiReason: item.aiReviewJob?.reason ?? null,
+      extractedText: item.aiReviewJob?.extractedText ?? null,
+      originalName: item.originalName,
+      mimeType: item.mimeType,
+      sizeBytes: item.sizeBytes,
+      note: item.note,
+      submittedAt: item.submittedAt.toISOString(),
+      createdAt: item.createdAt.toISOString(),
+      objectKey: item.objectKey,
+      imageDimensions: null,
+      contentHash: null,
+      retentionStatus: "正常",
+      retentionUntil: null,
+      deletionAttempts: 0,
+      archivedAt: null,
+      nextRetryAt: null,
+      lastStorageError: null,
+    };
+  }
+
   async listEvidenceRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; taskType?: string }) {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
