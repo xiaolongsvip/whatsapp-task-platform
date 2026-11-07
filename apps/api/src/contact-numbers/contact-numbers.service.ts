@@ -271,7 +271,7 @@ export class ContactNumbersService {
       : [...new Set((requestedIds || []).filter((id) => typeof id === "string" && id.length > 0))];
 
     if (!all && ids.length === 0) throw new BadRequestException("请先选择要删除的抽检号码。");
-    if (ids.length > 5000) throw new BadRequestException("单次最多删除 5000 条号码，请分批操作。");
+    if (!all && ids.length > 5000) throw new BadRequestException("单次最多删除 5000 条号码，请分批操作。");
     if (ids.length === 0) return { success: true, deletedCount: 0 };
 
     return prisma.$transaction(async (tx) => {
