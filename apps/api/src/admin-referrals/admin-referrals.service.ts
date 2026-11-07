@@ -101,12 +101,21 @@ export class AdminReferralsService {
     const from = fromInput ? new Date(fromInput) : undefined;
     const to = toInput ? new Date(toInput) : undefined;
     if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) throw new BadRequestException("日期筛选格式无效。");
+    if (from && to && from > to) throw new BadRequestException("开始日期不能晚于结束日期。");
+    if (to && /^\\d{4}-\\d{2}-\\d{2}$/.test(toInput ?? "")) to.setHours(23, 59, 59, 999);
+    const search = searchInput?.trim();
+    const matchedUsers = search ? await prisma.user.findMany({
+      where: { phone: { contains: search, mode: "insensitive" } },
+      select: { id: true },
+      take: 500,
+    }) : [];
     const where: Prisma.ReferralRewardWhereInput = {
       ...(depth ? { depth } : {}),
       ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
-      ...(searchInput?.trim() ? { OR: [
-        { sourceEventId: { contains: searchInput.trim(), mode: "insensitive" as const } },
-        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(searchInput.trim()) ? [{ sourceUserId: searchInput.trim() }, { beneficiaryId: searchInput.trim() }] : []),
+      ...(search ? { OR: [
+        { sourceEventId: { contains: search, mode: "insensitive" } },
+        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search) ? [{ sourceUserId: search }, { beneficiaryId: search }] : []),
+        ...(matchedUsers.length ? [{ sourceUserId: { in: matchedUsers.map((user) => user.id) } }, { beneficiaryId: { in: matchedUsers.map((user) => user.id) } }] : []),
       ] } : {}),
     };
     const [total, rows] = await prisma.$transaction([
