@@ -196,40 +196,49 @@ export default function TaskConfigurationPage(){
  const filtered=dataRows.filter(row=>!search||JSON.stringify(row).toLowerCase().includes(search.toLowerCase()));
 
  return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main" style={{minWidth:0}}><AdminTopbar/>
-  <div className="dashboard-content" style={{padding:"14px 18px 24px",display:"grid",gap:14}}>
+  <div className="dashboard-content" style={{padding:"12px 16px 20px",display:"grid",gap:14}}>
    <section style={panel}>
     <header style={pageHeader}><div><div style={eyebrow}>TASK CENTER / CONFIGURATION</div><h1 style={pageTitle}>任务配置</h1><p style={muted}>统一管理任务平台、目标应用、执行动作与奖励规则。</p></div><button onClick={()=>void load()} disabled={loading||busy} style={secondary}><RefreshCw size={14}/>刷新数据</button></header>
     <nav style={tabsBar}>{tabs.map(item=>{const Icon=item.icon;return <button key={item.key} onClick={()=>{setTab(item.key);setFormOpen(false);setSearch("");setNotice("");setError("");}} style={{...tabButton,...(tab===item.key?tabActive:{})}}><Icon size={15}/>{item.label}</button>;})}</nav>
     {error&&<div role="alert" style={alert}><CircleDot size={15}/>{error}</div>}
     {notice&&<div role="status" style={success}><Check size={15}/>{notice}</div>}
     {tab==="platforms"?<>
-     <div style={toolbar}><div><h2 style={sectionTitle}>平台与目标 APP</h2><p style={muted}>平台配置、应用目录和任务动作在同一页面内维护。</p></div><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><div style={searchWrap}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索平台 / APP / 代码" style={searchInput}/></div><button onClick={openPlatformCreate} style={primary}><Plus size={15}/>创建平台</button></div></div>
-     {loading?<div style={empty}>正在加载平台配置…</div>:<div style={platformLayout}>
-      <aside style={platformList}><div style={listHeader}><span>平台列表</span><span style={count}>{visiblePlatforms.length}</span></div>
-       {visiblePlatforms.length===0?<div style={emptySmall}>暂无平台，点击“创建平台”添加。</div>:visiblePlatforms.map(p=><button key={p.id} onClick={()=>setSelectedId(p.id)} style={{...platformItem,...(selected?.id===p.id?platformItemActive:{})}}>
-        <span style={appIcon}><Package size={18}/></span><span style={{minWidth:0,flex:1,textAlign:"left"}}><strong style={itemName}>{p.name}</strong><small style={itemMeta}>{p.targetApp} · {p.code}</small></span><span style={{...statusDot,background:p.enabled?"#16a34a":"#94a3b8"}}/><ChevronRight size={15} color="#98a2b3"/>
-       </button>)}
-      </aside>
-      <div style={detailColumn}>
-       {!selected?<div style={empty}>选择一个平台查看详细配置。</div>:<>
-        <section style={detailCard}>
-         <div style={detailTop}><div style={{display:"flex",gap:12,alignItems:"center",minWidth:0}}><div style={heroIcon}><Layers size={23}/></div><div style={{minWidth:0}}><h3 style={detailTitle}>{selected.name}</h3><div style={itemMeta}>{selected.code}　·　目标应用：{selected.targetApp}</div></div></div><span style={statusPill(selected.enabled)}>{selected.enabled?"运行中":"已停用"}</span></div>
-         {selected.description&&<p style={description}>{selected.description}</p>}
-         <div style={capabilityGrid}>{capabilityLabels.map(c=>{const Icon=c.icon;const on=!!selected.capabilities?.[c.key];return <div key={c.key} style={capabilityCard}><span style={{...capIcon,color:on?"#2563eb":"#98a2b3",background:on?"#eff6ff":"#f5f6f8"}}><Icon size={17}/></span><span style={{flex:1,fontSize:13,color:"#344054",fontWeight:600}}>{c.label}</span><span style={{...tinyPill(on)}}>{on?"已支持":"未配置"}</span></div>;})}</div>
-         <div style={detailActions}><button onClick={()=>openPlatformEdit(selected)} style={secondary}><Pencil size={14}/>编辑平台</button><button onClick={()=>void togglePlatform(selected)} disabled={busy} style={selected.enabled?warningButton:primary}><Power size={14}/>{selected.enabled?"停用平台":"启用平台"}</button></div>
-        </section>
-        <section style={detailCard}>
-         <div style={sectionHeader}><div><h3 style={subTitle}><Smartphone size={17}/>应用目录</h3><p style={muted}>此平台绑定的目标 APP 信息，可通过编辑平台进行维护。</p></div><span style={count}>1 个应用</span></div>
-         <div style={directoryRow}><div style={directoryIcon}><Smartphone size={20}/></div><div style={{flex:1,minWidth:0}}><strong style={itemName}>{selected.targetApp}</strong><div style={itemMeta}>关联平台：{selected.name} · 应用标识：{selected.code}</div></div><button onClick={()=>openPlatformEdit(selected)} style={linkButton}><Pencil size={13}/>编辑</button></div>
-        </section>
-        <section style={detailCard}>
-         <div style={sectionHeader}><div><h3 style={subTitle}><ListChecks size={17}/>任务动作</h3><p style={muted}>配置该平台允许发布的任务类型及执行凭证要求。</p></div><button onClick={openActionCreate} disabled={!selected.enabled} style={primary}><Plus size={14}/>添加动作</button></div>
-         {!selected.actions?.length?<div style={emptySmall}>当前平台还没有任务动作。添加动作后，任务发布时即可选择对应执行类型。</div>:<div style={{display:"grid",gap:9}}>{selected.actions.map(a=><div key={a.id} style={actionRow}><div style={actionGlyph}><ListChecks size={17}/></div><div style={{flex:1,minWidth:0}}><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><strong style={itemName}>{a.name}</strong><code style={codeTag}>{a.code}</code><span style={tinyPill(a.enabled)}>{a.enabled?"启用":"停用"}</span></div><div style={itemMeta}>{[a.requiresTargetPhone?"需要目标号码":"无需目标号码",a.requiresDeliveryStatus?"校验送达状态":"不校验送达状态",a.requiresMessageTemplate?"关联话术模板":"不关联话术模板",a.evidenceType==="SCREENSHOT"?"截图凭证":a.evidenceType??"截图凭证"].join(" · ")}</div></div><button onClick={()=>openActionEdit(a)} style={iconButton} aria-label="编辑动作"><Pencil size={14}/></button><button onClick={()=>void toggleAction(a)} disabled={busy} style={iconButton} aria-label={a.enabled?"停用动作":"启用动作"}><Power size={14}/></button></div>)}</div>}
-        </section>
-       </>}
-      </div>
-     </div>}
-    </>:tab==="claim-limits"?<div style={{padding:"22px 8px",maxWidth:760}}><h2 style={sectionTitle}>任务领取限制</h2><p style={muted}>设置全局默认的每日领取上限、领取间隔和任务完成时限。</p><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}<input type="number" min="1" value={String(limits[f.key]??"")} onChange={e=>setLimits(v=>({...v,[f.key]:e.target.value}))} style={input}/></label>)}</div><p style={muted}>保存后将参与用户领取任务、领取间隔和超时回收校验。</p><button onClick={()=>void saveLimits()} disabled={busy} style={primary}><Save size={14}/>保存限制</button></div>:<>
+     <div style={statsGrid}>
+      <div style={statCard}><span style={{...statIcon,background:"#eaf1ff",color:"#3478f6"}}><Layers size={17}/></span><div><small style={statLabel}>平台列表</small><strong style={statValue}>{platforms.filter(p=>!p.archived).length}</strong></div></div>
+      <div style={statCard}><span style={{...statIcon,background:"#e7f8ef",color:"#10a66a"}}><Check size={17}/></span><div><small style={statLabel}>启用</small><strong style={statValue}>{platforms.filter(p=>!p.archived&&p.enabled).length}</strong></div></div>
+      <div style={statCard}><span style={{...statIcon,background:"#fff1e7",color:"#f97316"}}><Power size={17}/></span><div><small style={statLabel}>停用</small><strong style={statValue}>{platforms.filter(p=>!p.archived&&!p.enabled).length}</strong></div></div>
+      <div style={statCard}><span style={{...statIcon,background:"#eef2f7",color:"#64748b"}}><ListChecks size={17}/></span><div><small style={statLabel}>任务动作</small><strong style={statValue}>{platforms.reduce((n,p)=>n+(p.actions?.length??0),0)}</strong></div></div>
+     </div>
+     <div style={platformToolbar}><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><button onClick={openPlatformCreate} style={primary}><Plus size={14}/>新建平台</button><button onClick={()=>void load()} disabled={loading||busy} style={secondary} aria-label="刷新平台"><RefreshCw size={14}/></button></div><div style={searchWrap}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索平台、APP、代码…" style={searchInput}/></div></div>
+     {loading?<div style={empty}>正在加载平台配置…</div>:<>
+      <div style={tableWrap}><table style={{...table,minWidth:760}}><thead><tr>{["平台","能力","任务动作","状态","操作"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>
+       {visiblePlatforms.length===0?<tr><td colSpan={5} style={{...td,textAlign:"center",padding:32,color:"#98a2b3"}}>暂无平台，点击“新建平台”添加。</td></tr>:visiblePlatforms.map(p=><tr key={p.id} onClick={()=>setSelectedId(p.id)} style={{background:selected?.id===p.id?"#f8fbff":"#fff",cursor:"pointer"}}>
+        <td style={td}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={appIcon}><Package size={16}/></span><span><strong style={itemName}>{p.name}</strong><small style={itemMeta}>{p.targetApp}</small></span></div></td>
+        <td style={td}><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{capabilityLabels.filter(x=>p.capabilities?.[x.key]).map(x=><span key={x.key} style={capabilityTag}>{x.label}</span>)}</div></td>
+        <td style={td}>{p.actions?.filter(a=>a.enabled).map(a=>a.name).join("、")||"—"}</td>
+        <td style={td}><span style={statusPill(p.enabled)}>{p.enabled?"正常":"已停用"}</span></td>
+        <td style={td}><button onClick={e=>{e.stopPropagation();setSelectedId(p.id);}} style={secondary}><Settings2 size={13}/>配置</button></td>
+       </tr>)}
+      </tbody></table><div style={paginationBar}><span>共 {visiblePlatforms.length} 个平台</span><span style={pageNumber}>1</span><span>20 条/页</span></div></div>
+      {!selected?<div style={empty}>选择一个平台查看详细配置。</div>:<section style={expandedPanel}>
+       <div style={expandedHeader}><div><h3 style={expandedTitle}>{selected.name}</h3><p style={muted}>维护平台能力和可用任务动作。</p></div><button onClick={()=>setSelectedId("")} style={secondary}>关闭</button></div>
+       <div style={expandedActions}>
+        <button onClick={()=>openPlatformEdit(selected)} style={secondary}><Pencil size={13}/>修改平台</button>
+        <button onClick={()=>void togglePlatform(selected)} disabled={busy} style={selected.enabled?primary:secondary}><Power size={13}/>{selected.enabled?"停用平台":"启用平台"}</button>
+        {capabilityLabels.map(cap=><button key={cap.key} onClick={()=>{setPlatformEditing(selected.id);setPlatformForm({name:selected.name,code:selected.code,targetApp:selected.targetApp,description:selected.description??"",appSupport:!!selected.capabilities?.appSupport,nodeSupport:!!selected.capabilities?.nodeSupport,visualReview:!!selected.capabilities?.visualReview,backendSupport:!!selected.capabilities?.backendSupport,[cap.key]:!selected.capabilities?.[cap.key]});setPlatformModal(true);}} style={secondary}>{cap.label}</button>)}
+        <span style={{...statusPill(selected.enabled),marginLeft:"auto"}}>{selected.enabled?"允许发布":"暂停发布"}</span>
+       </div>
+       <section style={subPanel}><div style={sectionHeader}><div><h3 style={subTitle}>任务动作</h3><p style={muted}>配置此平台下可发布的任务动作、凭证类型和执行要求。</p></div><button onClick={openActionCreate} disabled={!selected.enabled} style={primary}><Plus size={13}/>新增动作</button></div>
+        <div style={tableWrap}><table style={{...table,minWidth:700}}><thead><tr>{["任务动作","证据类型","能力","状态","操作"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>
+         {!selected.actions?.length?<tr><td colSpan={5} style={{...td,textAlign:"center",padding:24,color:"#98a2b3"}}>暂无任务动作</td></tr>:selected.actions.map(a=><tr key={a.id}><td style={td}><strong>{a.name}</strong><small style={itemMeta}>{a.code}</small></td><td style={td}>{a.evidenceType==="SCREENSHOT"?"截图":a.evidenceType??"截图"}</td><td style={td}>{[a.requiresTargetPhone?"目标号码":"",a.requiresDeliveryStatus?"送达校验":"",a.requiresMessageTemplate?"话术模板":""].filter(Boolean).join(" · ")||"—"}</td><td style={td}><span style={statusPill(a.enabled)}>{a.enabled?"启用":"停用"}</span></td><td style={td}><div style={{display:"flex",gap:10}}><button onClick={()=>openActionEdit(a)} style={linkButton}><Pencil size={13}/>编辑</button><button onClick={()=>void toggleAction(a)} disabled={busy} style={linkButton}><Power size={13}/>{a.enabled?"停用":"启用"}</button></div></td></tr>)}
+        </tbody></table><div style={paginationBar}><span>共 {selected.actions?.length??0} 个动作</span><span style={pageNumber}>1</span><span>20 条/页</span></div></div>
+       </section>
+       <section style={subPanel}><div style={sectionHeader}><div><h3 style={subTitle}>应用目录</h3></div><button onClick={()=>openPlatformEdit(selected)} style={secondary}><Plus size={13}/>新建应用</button></div>
+        <div style={tableWrap}><table style={{...table,minWidth:600}}><thead><tr>{["应用名称","应用标识","关联平台","操作"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody><tr><td style={td}>{selected.targetApp}</td><td style={td}>{selected.code}</td><td style={td}>{selected.name}</td><td style={td}><button onClick={()=>openPlatformEdit(selected)} style={linkButton}><Pencil size={13}/>编辑</button></td></tr></tbody></table></div>
+       </section>
+      </section>}
+     </>}
+    </>tab==="claim-limits"?<div style={{padding:"22px 8px",maxWidth:760}}><h2 style={sectionTitle}>任务领取限制</h2><p style={muted}>设置全局默认的每日领取上限、领取间隔和任务完成时限。</p><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}<input type="number" min="1" value={String(limits[f.key]??"")} onChange={e=>setLimits(v=>({...v,[f.key]:e.target.value}))} style={input}/></label>)}</div><p style={muted}>保存后将参与用户领取任务、领取间隔和超时回收校验。</p><button onClick={()=>void saveLimits()} disabled={busy} style={primary}><Save size={14}/>保存限制</button></div>:<>
      <div style={toolbar}><div><h2 style={sectionTitle}>{active.title}</h2><p style={muted}>管理任务运营配置。</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><div style={searchWrap}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索配置…" style={searchInput}/></div><button onClick={startCreate} style={primary}><Plus size={14}/>新增</button></div></div>
      {formOpen&&<section style={formCard}><h3 style={subTitle}>{editing===null?"新增":"编辑"}{active.title}</h3><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}{f.type==="textarea"?<textarea rows={4} value={String(form[f.key]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} style={{...input,resize:"vertical"}}/>:f.type==="select"?<select value={String(form[f.key]??f.options?.[0]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} style={input}>{f.options?.map(o=><option key={o}>{o}</option>)}</select>:<input required={f.required} type={f.type==="number"?"number":"text"} value={String(form[f.key]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} placeholder={f.placeholder} style={input}/>}</label>)}</div><div style={modalFooter}><button onClick={()=>setFormOpen(false)} style={secondary}>取消</button><button onClick={()=>void saveRow()} disabled={busy} style={primary}><Save size={14}/>保存</button></div></section>}
      <div style={tableWrap}>{loading?<div style={empty}>正在加载…</div>:filtered.length===0?<div style={empty}>暂无数据。</div>:<table style={table}><thead><tr>{[...active.columns,"操作"].map(c=><th key={c} style={th}>{fieldName(c)}</th>)}</tr></thead><tbody>{filtered.map((row,index)=><tr key={String(row.id??index)}>{active.columns.map(c=><td key={c} style={td}>{c==="enabled"?<span style={statusPill(Boolean(row.enabled))}>{row.enabled?"已启用":"已停用"}</span>:c==="content"?<span title={String(row[c]??"")} style={truncate}>{String(row[c]??"—")}</span>:String(row[c]??"—")}</td>)}<td style={td}><div style={{display:"flex",gap:12}}><button style={linkButton} onClick={()=>startEdit(row,index)}><Pencil size={13}/>编辑</button>{row.enabled!==undefined&&<button style={linkButton} disabled={busy} onClick={()=>void toggleGeneric(index)}><Power size={13}/>{row.enabled?"停用":"启用"}</button>}</div></td></tr>)}</tbody></table>}</div>
@@ -241,7 +250,7 @@ export default function TaskConfigurationPage(){
  </main></div>;
 }
 function fieldName(key:string){return ({name:"名称",platform:"平台 / 类型",action:"任务动作",enabled:"状态",countries:"适用国家/地区",amount:"用户奖励",currency:"奖励币种",content:"话术内容"} as Record<string,string>)[key]??key;}
-const panel={background:"#fff",border:"1px solid #e7ebf2",borderRadius:12,padding:18,minHeight:"calc(100vh - 112px)"} as const;
+const panel={background:"#fff",border:"1px solid #e7ebf2",borderRadius:9,padding:14,minHeight:"calc(100vh - 112px)"} as const;
 const pageHeader={display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"4px 2px 18px",flexWrap:"wrap" as const};
 const eyebrow={fontSize:10,fontWeight:700,letterSpacing:1.2,color:"#94a3b8",marginBottom:6};
 const pageTitle={fontSize:22,fontWeight:700,color:"#182230",margin:0};
@@ -255,7 +264,21 @@ const tabActive={background:"#eef4ff",border:"1px solid #c9dcff",color:"#2563eb"
 const toolbar={display:"flex",justifyContent:"space-between",alignItems:"center",gap:14,flexWrap:"wrap" as const,marginBottom:16};
 const searchWrap={display:"flex",alignItems:"center",gap:8,border:"1px solid #e1e7ef",borderRadius:7,padding:"0 10px",height:36,color:"#98a2b3",background:"#fff",minWidth:220};
 const searchInput={border:0,outline:"none",fontSize:12,color:"#344054",width:"100%",background:"transparent"};
-const platformLayout={display:"grid",gridTemplateColumns:"minmax(230px, 290px) minmax(0,1fr)",gap:14,alignItems:"start"};
+const statsGrid={display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10,margin:"8px 0 14px"};
+const statCard={display:"flex",alignItems:"center",gap:10,border:"1px solid #e7ebf2",borderRadius:7,padding:"10px 12px",minHeight:44};
+const statIcon={width:32,height:32,display:"grid",placeItems:"center",borderRadius:7,flexShrink:0};
+const statLabel={display:"block",fontSize:10,color:"#8a95a5"};
+const statValue={display:"block",fontSize:18,fontWeight:700,color:"#172033",lineHeight:1.25};
+const platformToolbar={display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,margin:"12px 0"};
+const capabilityTag={fontSize:10,fontWeight:600,color:"#475467",background:"#f1f4f8",borderRadius:5,padding:"4px 7px",whiteSpace:"nowrap" as const};
+const paginationBar={display:"flex",alignItems:"center",justifyContent:"flex-end",gap:12,padding:"9px 12px",fontSize:11,color:"#8a95a5",borderTop:"1px solid #edf0f5"};
+const pageNumber={display:"inline-grid",placeItems:"center",width:24,height:24,borderRadius:5,background:"#3478f6",color:"#fff",fontWeight:700};
+const expandedPanel={border:"1px solid #e7ebf2",borderRadius:8,marginTop:12,overflow:"hidden",background:"#fff"};
+const expandedHeader={display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:"1px solid #edf0f5"};
+const expandedTitle={fontSize:14,fontWeight:700,color:"#172033",margin:0};
+const expandedActions={display:"flex",alignItems:"center",gap:7,flexWrap:"wrap" as const,padding:"11px 13px",borderBottom:"1px solid #edf0f5"};
+const subPanel={padding:"12px",borderTop:"1px solid #edf0f5"};
+const platformLayout={display:"grid",gridTemplateColumns:"minmax(0,1fr)",gap:14,alignItems:"start"};
 const platformList={border:"1px solid #e8edf3",borderRadius:10,overflow:"hidden",background:"#fff"};
 const listHeader={display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 14px",fontSize:13,fontWeight:700,color:"#344054",background:"#f8fafc",borderBottom:"1px solid #edf0f5"};
 const count={fontSize:11,color:"#64748b",background:"#f1f5f9",padding:"3px 8px",borderRadius:20};
