@@ -796,6 +796,7 @@ model MessageTemplate {
   id        String   @id @default(uuid()) @db.Uuid
   name      String   @db.VarChar(160)
   platform  String   @default("WhatsApp") @db.VarChar(40)
+  platformCode String? @map("platform_code") @db.VarChar(40)
   action    String   @default("MESSAGE") @db.VarChar(40)
   content   String   @db.Text
   language  String?  @db.VarChar(40)
