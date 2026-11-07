@@ -508,7 +508,7 @@ export class TaskAdminService {
           id: event.id, action: event.action, createdAt: event.createdAt.toISOString(), metadata: event.metadata,
         })),
       },
-      supplements: [],
+      supplements: auditEvents.filter((event) => /SUPPLEMENT|RESEND|REISSUE/i.test(event.action)).map((event) => ({ id: event.id, action: event.action, createdAt: event.createdAt.toISOString(), metadata: event.metadata })),
     };
   }
 
