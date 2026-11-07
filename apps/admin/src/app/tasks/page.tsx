@@ -407,7 +407,7 @@ export default function AdminTasksPage() {
           <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{
             const headers=["任务名称","任务号码","任务组","奖励","话术","国家/地区","任务状态","创建时间"];
-            const labels={AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"};
+            const labels={AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"};
             const rows=visibleRecords.map((item)=>[item.taskName,item.phoneNumber,item.groupName,item.rewardAmount+" "+item.currency,item.messageTemplate,item.countryRegion,labels[item.status],new Date(item.createdAt).toLocaleString("zh-CN")]);
             const csv=[headers,...rows].map((row)=>row.map((value)=>'"'+String(value).replace(/"/g,'""')+'"').join(",")).join("\r\n");
             const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="任务管理.csv";link.click();URL.revokeObjectURL(url);
@@ -435,7 +435,7 @@ export default function AdminTasksPage() {
                 <td className="tasks-title-cell" title={record.taskName}>{record.taskName}</td>
                 <td>{record.phoneNumber}</td><td>{record.groupName}</td><td>{record.rewardAmount} {record.currency}</td>
                 <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
-                <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已完成",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[record.status]}</span></td>
+                <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[record.status]}</span></td>
                 <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
                 <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(record.status) || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":!["AVAILABLE","CLOSED"].includes(record.status)?"仅未领取的可用记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
                   if(!window.confirm("确定删除这条未领取的任务号码记录吗？"))return;
