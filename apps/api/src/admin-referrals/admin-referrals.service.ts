@@ -40,11 +40,11 @@ export class AdminReferralsService {
     const directActive = directActiveResult ?? [];
     const activeMap = new Map<string, number>();
     for (const row of directActive) activeMap.set(row.inviterUserId, (activeMap.get(row.inviterUserId) ?? 0) + 1);
-    const rewardMap = new Map<string, string>();
+    const rewardMap = new Map<string, Array<{ currency: string; amountMinor: string }>>();
     for (const row of rewardGroups) {
-      const key = row.beneficiaryId;
-      const amount = row._sum.amountMinor ?? 0n;
-      rewardMap.set(key, (BigInt(rewardMap.get(key) ?? "0") + amount).toString());
+      const current = rewardMap.get(row.beneficiaryId) ?? [];
+      current.push({ currency: row.currency.trim(), amountMinor: (row._sum.amountMinor ?? 0n).toString() });
+      rewardMap.set(row.beneficiaryId, current);
     }
     return {
       total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)),
@@ -53,13 +53,14 @@ export class AdminReferralsService {
         createdAt: user.createdAt.toISOString(), directInvites: user.invitees.length,
         activeInvites: activeMap.get(user.id) ?? 0,
         teamCounts: {
-          level1: user.descendants.filter((x) => x.depth === 1).length,
+          level1: user.invitees.length,
           level2: user.descendants.filter((x) => x.depth === 2).length,
           level3: user.descendants.filter((x) => x.depth === 3).length,
         },
         teamCount: user.descendants.length,
-        totalCommissionMinor: rewardMap.get(user.id) ?? "0",
-        commissionCurrency: rewardGroups.find((x) => x.beneficiaryId === user.id)?.currency.trim() ?? "USD",
+        totalCommissionByCurrency: rewardMap.get(user.id) ?? [],
+        totalCommissionMinor: (rewardMap.get(user.id) ?? []).length === 1 ? rewardMap.get(user.id)![0].amountMinor : "0",
+        commissionCurrency: (rewardMap.get(user.id) ?? []).length === 1 ? rewardMap.get(user.id)![0].currency : "—",
         inviteStatus: user.status === "ACTIVE" ? "可邀请" : "不可邀请",
         commissionEligible: user.status === "ACTIVE",
       })),
