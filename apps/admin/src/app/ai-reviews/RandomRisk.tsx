@@ -49,8 +49,7 @@ export default function RandomRisk(){
   if(deleting)return;
   const message=clearAll
    ?"确定清空整个抽检号码库吗？此操作会删除全部抽检号码及其号码关联记录，任务审核、钱包和任务主记录会保留。"
-   ?`确定删除选中的 ${ids.length} 条抽检号码吗？`
-   :"";
+   :`确定删除选中的 ${ids.length} 条抽检号码吗？`;
   if(!window.confirm(message))return;
   setDeleting(true);setError("");
   try{
