@@ -99,7 +99,7 @@ export class TaskAdminController {
   async updateMessageTemplate(
     @Req() request: Request,
     @Param("id") id: string,
-    @Body() body: { name?: string; platform?: string; action?: string; content?: string; enabled?: boolean },
+    @Body() body: { name?: string; platform?: string; platformCode?: string; action?: string; content?: string; language?: string; keywords?: string; enabled?: boolean },
   ) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
     return this.tasks.updateMessageTemplate(id, body);
