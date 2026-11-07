@@ -17,7 +17,7 @@ const tabs:Config[] = [
  {key:"rewards",label:"4. 奖励规则",icon:Coins,title:"奖励规则列表",fields:[{key:"name",label:"规则名称",required:true},{key:"platform",label:"任务平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"action",label:"任务动作",type:"select",options:["向目标号码发送私信","创建群组","加入群组","其他"]},{key:"countries",label:"适用国家/地区",placeholder:"留空表示全部国家"},{key:"amount",label:"用户奖励",type:"number",required:true},{key:"currency",label:"奖励币种",placeholder:"USD"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","action","countries","amount","currency","enabled"]},
  {key:"messages",label:"5. 话术模板",icon:MessageSquare,title:"话术模板列表",fields:[{key:"name",label:"模板名称",required:true},{key:"platform",label:"任务类型",type:"select",options:["WhatsApp 私信任务","WhatsApp 群组任务","Telegram 任务","通用"]},{key:"language",label:"语言",placeholder:"中文 / English"},{key:"content",label:"话术内容",type:"textarea",required:true}],columns:["name","platform","language","content","enabled"]},
  {key:"claim-limits",label:"6. 领取限制",icon:Clock3,title:"任务领取限制",fields:[{key:"dailyLimit",label:"每日任务上限",type:"number",required:true},{key:"minimumIntervalSeconds",label:"最小领取间隔（秒）",type:"number",required:true},{key:"taskTimeLimitMinutes",label:"任务时限（分钟）",type:"number",required:true}],columns:[]},
- {key:"reviews",label:"7. 审核配置",icon:ShieldCheck,title:"审核配置列表",fields:[{key:"name",label:"配置名称",required:true},{key:"platform",label:"平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"referenceImage",label:"成功参考图 URL"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","referenceImage","enabled"]},
+ {key:"reviews",label:"7. 任务审核方案",icon:ShieldCheck,title:"任务审核方案列表",fields:[{key:"name",label:"方案名称",required:true},{key:"platform",label:"适用平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"referenceImage",label:"任务成功参考图 URL"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","referenceImage","enabled"]},
 ];
 
 const defaults:Record<string,Row[]> = {
@@ -162,7 +162,7 @@ export default function TaskConfigurationPage(){
     </div>:<>
      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",paddingTop:12}}>
       <div style={{display:"flex",gap:8,flex:1,minWidth:240}}><div style={{position:"relative",flex:1,maxWidth:600}}><Search size={14} style={{position:"absolute",left:10,top:10,color:"#98a2b3"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={"搜索"+active.title+"…"} style={{...input,paddingLeft:32}}/></div></div>
-      <div style={{display:"flex",gap:8}}><button onClick={()=>void load()} disabled={loading||busy} style={secondary}><RefreshCw size={14}/>刷新</button><button onClick={startCreate} style={primary}><Plus size={14}/>{tab==="messages"?"新增模板":tab==="reviews"?"新建 AI 视觉审核配置":tab==="countries"?"选择国家":tab==="sources"?"新增业务来源":tab==="rewards"?"新建奖励规则":"新建平台"}</button></div>
+      <div style={{display:"flex",gap:8}}><button onClick={()=>void load()} disabled={loading||busy} style={secondary}><RefreshCw size={14}/>刷新</button><button onClick={startCreate} style={primary}><Plus size={14}/>{tab==="messages"?"新增模板":tab==="reviews"?"新建任务审核方案":tab==="countries"?"选择国家":tab==="sources"?"新增业务来源":tab==="rewards"?"新建奖励规则":"新建平台"}</button></div>
      </div>
      {formOpen&&<section style={{...subPanel,marginTop:12}}>
       <h3 style={{margin:"0 0 14px",fontSize:15}}>{editing===null?"新增":"编辑"}{active.title}</h3>
