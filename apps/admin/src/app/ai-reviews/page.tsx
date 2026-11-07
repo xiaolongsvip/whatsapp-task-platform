@@ -73,6 +73,21 @@ export default function AiReviewsPage() {
     finally { setBusy(false); }
   }
 
+  async function retryAi() {
+    if (!selected || busy) return;
+    if (!window.confirm("确定重新触发这条提交的 AI 审核吗？")) return;
+    setBusy(true); setActionError("");
+    try {
+      const response = await fetch(`/api/v1/admin/task-submissions/${selected.id}/retry-ai`, {
+        method: "POST", credentials: "include",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof body.message === "string" ? body.message : "重新触发 AI 审核失败");
+      setSelected(null); await load();
+    } catch (e) { setActionError(e instanceof Error ? e.message : "重新触发 AI 审核失败"); }
+    finally { setBusy(false); }
+  }
+
   const pages = Math.max(1, Math.ceil(data.total / 20));
   const stats = data.stats || emptyStats;
   const statCards = [
@@ -166,10 +181,16 @@ export default function AiReviewsPage() {
           <div className="muted">AI 状态：{selected.ai?.status || "未启用"} · 尝试次数：{selected.ai?.attemptCount ?? 0}</div>
         </section>
         {actionError && <div className="notice error">{actionError}</div>}
-        {selected.status === "MANUAL_REVIEW" && <div className="action-row" style={{ position: "sticky", bottom: -22, background: "white", padding: "14px 0", borderTop: "1px solid #e2e8f0" }}>
-          <button className="primary-btn" disabled={busy} onClick={() => void decide("APPROVE")}>{busy ? "处理中…" : "通过"}</button>
-          <button className="secondary-btn" disabled={busy} onClick={() => void decide("REJECT")}>拒绝</button>
-        </div>}
+        <div className="action-row" style={{ position: "sticky", bottom: -22, background: "white", padding: "14px 0", borderTop: "1px solid #e2e8f0" }}>
+          {selected.status === "MANUAL_REVIEW" && <>
+            <button className="primary-btn" disabled={busy} onClick={() => void decide("APPROVE")}>{busy ? "处理中…" : "通过"}</button>
+            <button className="secondary-btn" disabled={busy} onClick={() => void decide("REJECT")}>拒绝</button>
+          </>}
+          {selected.ai && ["SUBMITTED", "UNDER_REVIEW"].includes(selected.submissionStatus) &&
+            <button className="secondary-btn" disabled={busy || selected.ai.status === "PROCESSING"} onClick={() => void retryAi()}>
+              {selected.ai.status === "PROCESSING" ? "AI 正在处理" : "重新 AI 审核"}
+            </button>}
+        </div>
       </aside>
     </div>}
   </main>;
