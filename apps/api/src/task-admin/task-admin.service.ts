@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import type { Prisma } from "@wtp/database";
 import type { CreateAdminTaskDto, UpdateAdminTaskDto } from "./task-admin.dto";
@@ -996,6 +996,119 @@ export class TaskAdminService {
     const existing = await prisma.messageTemplate.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("话术模板不存在。");
     return prisma.messageTemplate.update({ where: { id }, data: { enabled: false } });
+  }
+
+  private async readPlatforms(): Promise<Array<Record<string, unknown>>> {
+    const value = await this.getConfiguration("platforms");
+    return Array.isArray(value) ? value as Array<Record<string, unknown>> : [];
+  }
+
+  async listPlatforms() {
+    const platforms = await this.readPlatforms();
+    return { items: platforms, total: platforms.length };
+  }
+
+  async createPlatform(input: { name?: string; code?: string; targetApp?: string; description?: string; capabilities?: Record<string, unknown> }) {
+    const name = input.name?.trim() ?? "";
+    const code = input.code?.trim().toUpperCase() ?? "";
+    const targetApp = input.targetApp?.trim() ?? "";
+    if (name.length < 2 || name.length > 80) throw new BadRequestException("平台名称需要为 2 至 80 个字符。");
+    if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(code)) throw new BadRequestException("平台代码格式无效，请使用大写英文、数字或下划线。");
+    if (!targetApp || targetApp.length > 100) throw new BadRequestException("目标 APP 名称不能为空。");
+    const platforms = await this.readPlatforms();
+    if (platforms.some((item) => item.code === code)) throw new ConflictException("平台代码已存在。");
+    const platform = {
+      id: randomUUID(), code, name, targetApp,
+      description: input.description?.trim() ?? "",
+      capabilities: {
+        appSupport: input.capabilities?.appSupport === true,
+        nodeSupport: input.capabilities?.nodeSupport === true,
+        visualReview: input.capabilities?.visualReview === true,
+        backendSupport: input.capabilities?.backendSupport === true,
+      },
+      enabled: true, archived: false, actions: [],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    platforms.push(platform);
+    await this.saveConfiguration("platforms", platforms);
+    return platform;
+  }
+
+  async updatePlatform(id: string, input: { name?: string; targetApp?: string; description?: string; capabilities?: Record<string, unknown>; enabled?: boolean }) {
+    const platforms = await this.readPlatforms();
+    const index = platforms.findIndex((item) => item.id === id);
+    if (index < 0) throw new NotFoundException("平台不存在。");
+    const current = platforms[index];
+    const next = {
+      ...current,
+      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+      ...(input.targetApp !== undefined ? { targetApp: input.targetApp.trim() } : {}),
+      ...(input.description !== undefined ? { description: input.description.trim() } : {}),
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.capabilities !== undefined ? { capabilities: {
+        appSupport: input.capabilities.appSupport === true,
+        nodeSupport: input.capabilities.nodeSupport === true,
+        visualReview: input.capabilities.visualReview === true,
+        backendSupport: input.capabilities.backendSupport === true,
+      } } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+    if (typeof next.name !== "string" || next.name.trim().length < 2 || next.name.length > 80) throw new BadRequestException("平台名称无效。");
+    if (typeof next.targetApp !== "string" || !next.targetApp.trim()) throw new BadRequestException("目标 APP 名称不能为空。");
+    platforms[index] = next;
+    await this.saveConfiguration("platforms", platforms);
+    return next;
+  }
+
+  async createPlatformAction(platformId: string, input: { name?: string; code?: string; evidenceType?: string; requiresTargetPhone?: boolean; requiresDeliveryStatus?: boolean; requiresMessageTemplate?: boolean }) {
+    const platforms = await this.readPlatforms();
+    const index = platforms.findIndex((item) => item.id === platformId);
+    if (index < 0) throw new NotFoundException("平台不存在。");
+    const platform = platforms[index];
+    if (platform.enabled !== true || platform.archived === true) throw new BadRequestException("请先启用平台，再添加任务动作。");
+    const name = input.name?.trim() ?? "";
+    const code = input.code?.trim().toUpperCase() ?? "";
+    if (name.length < 2 || name.length > 100) throw new BadRequestException("任务动作名称需要为 2 至 100 个字符。");
+    if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(code)) throw new BadRequestException("动作代码格式无效。");
+    const actions = Array.isArray(platform.actions) ? platform.actions as Array<Record<string, unknown>> : [];
+    if (actions.some((item) => item.code === code)) throw new ConflictException("该平台下已存在相同动作代码。");
+    const action = {
+      id: randomUUID(), code, name,
+      evidenceType: input.evidenceType?.trim() || "SCREENSHOT",
+      requiresTargetPhone: input.requiresTargetPhone === true,
+      requiresDeliveryStatus: input.requiresDeliveryStatus === true,
+      requiresMessageTemplate: input.requiresMessageTemplate === true,
+      enabled: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    platforms[index] = { ...platform, actions: [...actions, action], updatedAt: new Date().toISOString() };
+    await this.saveConfiguration("platforms", platforms);
+    return action;
+  }
+
+  async updatePlatformAction(platformId: string, actionId: string, input: { name?: string; evidenceType?: string; requiresTargetPhone?: boolean; requiresDeliveryStatus?: boolean; requiresMessageTemplate?: boolean; enabled?: boolean }) {
+    const platforms = await this.readPlatforms();
+    const platformIndex = platforms.findIndex((item) => item.id === platformId);
+    if (platformIndex < 0) throw new NotFoundException("平台不存在。");
+    const platform = platforms[platformIndex];
+    const actions = Array.isArray(platform.actions) ? platform.actions as Array<Record<string, unknown>> : [];
+    const actionIndex = actions.findIndex((item) => item.id === actionId);
+    if (actionIndex < 0) throw new NotFoundException("任务动作不存在。");
+    const old = actions[actionIndex];
+    const action = {
+      ...old,
+      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+      ...(input.evidenceType !== undefined ? { evidenceType: input.evidenceType.trim() } : {}),
+      ...(input.requiresTargetPhone !== undefined ? { requiresTargetPhone: input.requiresTargetPhone } : {}),
+      ...(input.requiresDeliveryStatus !== undefined ? { requiresDeliveryStatus: input.requiresDeliveryStatus } : {}),
+      ...(input.requiresMessageTemplate !== undefined ? { requiresMessageTemplate: input.requiresMessageTemplate } : {}),
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+    if (typeof action.name !== "string" || action.name.trim().length < 2 || action.name.length > 100) throw new BadRequestException("任务动作名称无效。");
+    actions[actionIndex] = action;
+    platforms[platformIndex] = { ...platform, actions, updatedAt: new Date().toISOString() };
+    await this.saveConfiguration("platforms", platforms);
+    return action;
   }
 
   async getConfiguration(key: string) {
