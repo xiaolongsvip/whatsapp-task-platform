@@ -806,3 +806,10 @@ model MessageTemplate {
   @@index([name])
   @@map("message_templates")
 }
+
+model TaskConfiguration {
+  key       String   @id @db.VarChar(80)
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@map("task_configurations")
+}
