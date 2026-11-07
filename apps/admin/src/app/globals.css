@@ -290,6 +290,8 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .sidebar-submenu { display:grid; gap:3px; margin:-1px 0 4px 27px; padding-left:10px; border-left:1px solid #e7edf4; }
 .sidebar-submenu a { min-height:29px; display:flex; align-items:center; padding:0 7px; border-radius:6px; color:#718198; text-decoration:none; font-size:11px; }
 .sidebar-submenu a:hover { color:#0d956d; background:#f1faf6; }
+.sidebar-submenu a.active { color:#0d956d; background:#eafaf4; font-weight:700; }
+.sidebar-submenu a.active svg { color:#0d956d; }
 @media (max-width:760px) {
  .dashboard-sidebar { overflow-y:auto; }
  .sidebar-nav { padding-bottom:20px; }
