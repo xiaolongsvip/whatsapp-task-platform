@@ -56,6 +56,8 @@ export default function TaskConfigurationPage(){
  const [templateCategory,setTemplateCategory]=useState("全部模板");
  const [templateStatus,setTemplateStatus]=useState("all");
  const [templatePreview,setTemplatePreview]=useState<Template|null>(null);
+ const [bulkModal,setBulkModal]=useState(false);
+ const [bulkForm,setBulkForm]=useState({messageTemplate:"",keyword:"",groupName:"",countryRegion:""});
  const [limits,setLimits]=useState<Row>({dailyLimit:"20",minimumIntervalSeconds:"60",taskTimeLimitMinutes:"3"});
  const [selectedId,setSelectedId]=useState("");
  const [loading,setLoading]=useState(false);
@@ -181,6 +183,14 @@ export default function TaskConfigurationPage(){
   }catch(e){setError(e instanceof Error?e.message:"保存失败");}
   finally{setBusy(false);}
  }
+ async function runBulkTemplateUpdate(){
+  setBusy(true);setError("");setNotice("");
+  try{
+   const result=await api<{matchedTasks:number;updatedTasks:number;message:string}>("/api/v1/admin/tasks/records/bulk-message",{method:"POST",body:JSON.stringify(bulkForm)});
+   setBulkModal(false);setNotice(result.message||("已更新 "+result.updatedTasks+" 个任务。"));
+  }catch(e){setError(e instanceof Error?e.message:"批量更换话术失败");}
+  finally{setBusy(false);}
+ }
  async function deleteTemplate(t:Template){
   if(!window.confirm("确定删除这个话术模板吗？删除后将停用该模板。"))return;
   setBusy(true);setError("");setNotice("");
@@ -258,7 +268,7 @@ export default function TaskConfigurationPage(){
       <button onClick={()=>{setSearch("");setTemplateStatus("all");setTemplateCategory("全部模板");}} style={secondary}><RotateCcw size={13}/>重置</button>
       <button onClick={()=>setNotice("可通过模板名称、任务类型和状态进行筛选。")} style={secondary}><Filter size={13}/>更多筛选⌄</button>
       <span style={{flex:1}}/>
-      <button onClick={()=>setNotice("批量更换话术针对任务记录执行，不会批量修改模板内容。")} style={secondary}>批量更换话术</button>
+      <button onClick={()=>{setBulkForm(v=>({...v,messageTemplate:templates[0]?.content??""}));setBulkModal(true);}} style={secondary}>批量更换话术</button>
       <button onClick={startCreate} style={primary}><Plus size={14}/>新增模板</button>
      </div>
      <div style={templateLayout}>
@@ -288,6 +298,7 @@ export default function TaskConfigurationPage(){
       </div>
       <div style={modalFooter}><button onClick={()=>setFormOpen(false)} style={secondary}>取消</button><button onClick={()=>void saveRow()} disabled={busy||String(form.name??"").trim().length<2||!String(form.platform??"")||!String(form.platformCode??"")||!String(form.action??"")||!String(form.content??"").trim()} style={primary}><Save size={14}/>{busy?"保存中…":editing===null?"新增模板":"保存修改"}</button></div>
      </section></div>}
+     {bulkModal&&<div style={overlay} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setBulkModal(false);}}><section style={{...modal,width:"min(560px,100%)"}} role="dialog" aria-modal="true"><div style={modalHeader}><div><h2 style={modalTitle}>批量更换话术</h2><p style={muted}>仅更新尚未领取、且所属任务为草稿或暂停状态的任务。</p></div><button onClick={()=>setBulkModal(false)} style={closeButton}><X size={17}/></button></div><div style={templateFormGrid}><label style={label}>新的话术内容 *<textarea rows={5} value={bulkForm.messageTemplate} onChange={e=>setBulkForm(v=>({...v,messageTemplate:e.target.value}))} style={{...input,resize:"vertical"}}/></label><label style={label}>关键词筛选<input value={bulkForm.keyword} onChange={e=>setBulkForm(v=>({...v,keyword:e.target.value}))} placeholder="可选：任务名称、分类或号码关键词" style={input}/></label><label style={label}>任务分组<input value={bulkForm.groupName} onChange={e=>setBulkForm(v=>({...v,groupName:e.target.value}))} placeholder="留空表示全部分组" style={input}/></label><label style={label}>国家/地区<input value={bulkForm.countryRegion} onChange={e=>setBulkForm(v=>({...v,countryRegion:e.target.value}))} placeholder="例如 KE" style={input}/></label></div><div style={modalFooter}><button onClick={()=>setBulkModal(false)} style={secondary}>取消</button><button onClick={()=>void runBulkTemplateUpdate()} disabled={busy||!bulkForm.messageTemplate.trim()} style={primary}><Save size={14}/>执行批量更换</button></div></section></div>}
      {templatePreview&&<div style={overlay} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setTemplatePreview(null);}}><section style={{...modal,width:"min(520px,100%)"}} role="dialog" aria-modal="true"><div style={modalHeader}><h2 style={modalTitle}>话术预览</h2><button onClick={()=>setTemplatePreview(null)} style={closeButton}><X size={17}/></button></div><strong>{templatePreview.name}</strong><p style={muted}>{templatePreview.platform} · {templatePreview.language||"未设置语言"}</p><div style={previewContent}>{templatePreview.content}</div>{templatePreview.keywords&&<p style={muted}>关键词：{templatePreview.keywords}</p>}</section></div>}
     </>:tab==="claim-limits"?<div style={{padding:"22px 8px",maxWidth:760}}><h2 style={sectionTitle}>任务领取限制</h2><p style={muted}>设置全局默认的每日领取上限、领取间隔和任务完成时限。</p><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}<input type="number" min="1" value={String(limits[f.key]??"")} onChange={e=>setLimits(v=>({...v,[f.key]:e.target.value}))} style={input}/></label>)}</div><p style={muted}>保存后将参与用户领取任务、领取间隔和超时回收校验。</p><button onClick={()=>void saveLimits()} disabled={busy} style={primary}><Save size={14}/>保存限制</button></div>:<>
      <div style={toolbar}><div><h2 style={sectionTitle}>{active.title}</h2><p style={muted}>管理任务运营配置。</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><div style={searchWrap}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索配置…" style={searchInput}/></div><button onClick={startCreate} style={primary}><Plus size={14}/>新增</button></div></div>
