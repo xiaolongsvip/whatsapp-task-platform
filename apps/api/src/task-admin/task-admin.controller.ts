@@ -34,6 +34,18 @@ export class TaskAdminController {
   ) {}
 
 
+  @Post("records/dev-test-data")
+  async createExecutionTestData(@Req() request: Request) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.createExecutionTestData(admin.id);
+  }
+
+  @Delete("records/dev-test-data")
+  async deleteExecutionTestData(@Req() request: Request) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.deleteExecutionTestData();
+  }
+
   @Get("records")
   async listRecords(
     @Req() request: Request,
