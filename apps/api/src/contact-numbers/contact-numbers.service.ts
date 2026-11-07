@@ -260,6 +260,90 @@ export class ContactNumbersService {
     return { total, page, pageSize, records: batches.map(batch => ({ id: batch.id, fileName: batch.fileName || "手动导入", status: batch.importedCount > 0 ? "SUCCESS" : "FAILED", importedCount: batch.importedCount, duplicateCount: batch.duplicateCount, invalidCount: batch.invalidCount, totalRows: batch.totalRows, updatedAt: batch.createdAt.toISOString(), operator: batch.createdBy?.email || "—" })) };
   }
 
+  /**
+   * Permanently removes sampling-number inventory and its number-specific
+   * assignment/consent/slot rows. Active assignments are protected so a
+   * delete cannot silently invalidate a task currently being performed.
+   */
+  async deleteSamplingNumbers(adminId: string, requestedIds?: string[], all = false) {
+    const ids = all
+      ? (await prisma.contactNumber.findMany({ select: { id: true } })).map((row) => row.id)
+      : [...new Set((requestedIds || []).filter((id) => typeof id === "string" && id.length > 0))];
+
+    if (!all && ids.length === 0) throw new BadRequestException("请先选择要删除的抽检号码。");
+    if (ids.length > 5000) throw new BadRequestException("单次最多删除 5000 条号码，请分批操作。");
+    if (ids.length === 0) return { success: true, deletedCount: 0 };
+
+    return prisma.$transaction(async (tx) => {
+      // Match the allocation/blocking lock order: claims first, then numbers.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_claims
+        WHERE id IN (
+          SELECT claim_id FROM contact_assignments
+          WHERE contact_number_id = ANY(${ids}::uuid[]) AND status = 'ASSIGNED'
+          UNION
+          SELECT claim_id FROM task_slots
+          WHERE contact_number_id = ANY(${ids}::uuid[]) AND status = 'ASSIGNED' AND claim_id IS NOT NULL
+        )
+        ORDER BY id
+        FOR UPDATE
+      `;
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM contact_numbers
+        WHERE id = ANY(${ids}::uuid[])
+        ORDER BY id
+        FOR UPDATE
+      `;
+
+      const existing = await tx.contactNumber.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, phoneE164: true },
+      });
+      if (existing.length === 0) {
+        return { success: true, deletedCount: 0 };
+      }
+      const existingIds = existing.map((row) => row.id);
+      const [activeAssignments, activeSlots] = await Promise.all([
+        tx.contactAssignment.count({
+          where: { contactNumberId: { in: existingIds }, status: "ASSIGNED" },
+        }),
+        tx.taskSlot.count({
+          where: { contactNumberId: { in: existingIds }, status: "ASSIGNED" },
+        }),
+      ]);
+      if (activeAssignments > 0 || activeSlots > 0) {
+        throw new ConflictException(
+          `所选号码中有 ${activeAssignments + activeSlots} 条正在执行任务的关联记录。请先完成或取消相关任务，再删除号码。`,
+        );
+      }
+
+      // Remove only rows owned by these phone records. Claims, submissions,
+      // reviews, wallets and task history are deliberately retained.
+      await tx.taskSlot.deleteMany({ where: { contactNumberId: { in: existingIds } } });
+      await tx.contactAssignment.deleteMany({ where: { contactNumberId: { in: existingIds } } });
+      await tx.contactConsentEvent.deleteMany({ where: { contactNumberId: { in: existingIds } } });
+      await tx.contactNumber.deleteMany({ where: { id: { in: existingIds } } });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN",
+          actorId: adminId,
+          action: all ? "CONTACT_SAMPLING_NUMBERS_CLEARED" : "CONTACT_SAMPLING_NUMBERS_DELETED",
+          targetType: "CONTACT_NUMBER",
+          metadata: {
+            deletedCount: existingIds.length,
+            numberIds: existingIds,
+            maskedPhones: existing.map((row) =>
+              row.phoneE164.length > 7
+                ? row.phoneE164.slice(0, 4) + "••••" + row.phoneE164.slice(-3)
+                : "••••",
+            ),
+          },
+        },
+      });
+      return { success: true, deletedCount: existingIds.length };
+    });
+  }
+
   async block(numberId: string, adminId: string) {
     return prisma.$transaction(async (tx) => {
       // Match claim cancellation/expiry lock order: claim first, then number,
