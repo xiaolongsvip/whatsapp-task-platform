@@ -55,7 +55,8 @@ export default function TaskSettingsListPage() {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [detail, setDetail] = useState<FullDetail | null>(null);\n  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<FullDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword: appliedKeyword, status });
