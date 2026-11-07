@@ -93,27 +93,27 @@ export default function AiReviewsPage() {
   const pages = Math.max(1, Math.ceil(data.total / pageSize));
   const stats = data.stats || emptyStats;
   const statCards = [
-    ["审核中心", stats.manualReview + stats.smartReview + stats.approved + stats.rejected, "当前提交记录"],
-    ["人工复核", stats.manualReview, "等待人工处理"],
-    ["风险", stats.risk, "风险记录"],
+    ["审核中心", stats.manualReview + stats.smartReview + stats.approved + stats.rejected, "审核状态", "#f97316"],
+    ["人工复核", stats.manualReview, "全部", "#f97316"],
+    ["风险", stats.risk, "风险", "#f43f5e"],
   ];
+  const columns = ["审核编号", "用户", "状态", "建议结论", "风险", "证据来源", "创建时间", "操作"];
 
-  return <main className="admin-shell" style={{ maxWidth: "none", padding: 20 }}>
-    <header className="admin-header">
-      <div><div className="admin-brand">审核中心</div><div className="admin-subtitle">任务提交审核 · AI 识别 · 人工复核 · 证据追踪</div></div>
-      <button className="secondary-btn" onClick={() => void load()} disabled={loading}>刷新</button>
-    </header>
-
-    <section style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12, marginBottom: 16 }}>
-      {statCards.map(([label, value, desc]) => <div className="panel" key={String(label)} style={{ margin: 0, padding: 18 }}>
-        <div className="muted">{label}</div><div style={{ fontSize: 28, fontWeight: 700 }}>{value}</div><div className="muted">{desc}</div>
+  return <main className="admin-shell" style={{ maxWidth: "none", padding: "14px 16px 18px", minHeight: "calc(100vh - 20px)", background: "#f8fafc" }}>
+    <section style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginBottom: 13 }}>
+      {statCards.map(([label, value, desc, color]) => <div key={String(label)} style={{ padding: "15px 18px", minHeight: 82, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 7, display: "flex", alignItems: "center", gap: 13 }}>
+        <span style={{ width: 38, height: 38, borderRadius: "50%", background: String(color), color: "#fff", display: "grid", placeItems: "center", flexShrink: 0, fontSize: 18 }}>♢</span>
+        <div><div style={{ color: "#64748b", fontSize: 12 }}>{label}</div><div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.25, color: "#0f172a" }}>{Number(value).toLocaleString()}</div><div style={{ color: "#64748b", fontSize: 11 }}>{desc}</div></div>
       </div>)}
     </section>
-
-    <section className="panel" style={{ padding: 12 }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", border: "1px solid #e2e8f0", borderRadius: 8, padding: 8, background: "#f8fafc" }}>
-        {tabs.map((item) => <button key={item.key} className={tab === item.key ? "primary-btn" : "secondary-btn"} onClick={() => { setPage(1); setTab(item.key); }}>{item.label}</button>)}
+    <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 7, padding: 12, minHeight: "calc(100vh - 175px)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 2, flex: 1, minWidth: 0, overflowX: "auto", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 7, padding: 4 }}>
+          {tabs.map((item) => <button key={item.key} onClick={() => { setPage(1); setTab(item.key); }} style={{ flexShrink: 0, border: 0, borderRadius: 5, padding: "8px 12px", background: tab === item.key ? "#2563eb" : "transparent", color: tab === item.key ? "#fff" : "#475569", fontSize: 12, cursor: "pointer" }}>{item.label}</button>)}
+        </div>
+        <button onClick={() => setShowColumns(v => !v)} style={{ flexShrink: 0, border: "1px solid #e2e8f0", borderRadius: 6, padding: "8px 11px", background: "#fff", color: "#475569", cursor: "pointer", fontSize: 12 }}>▥ 显示列</button>
       </div>
+      {showColumns && <div style={{ padding: 10, border: "1px solid #e2e8f0", borderRadius: 6, marginBottom: 10, color: "#64748b", fontSize: 12 }}>{columns.join("　·　")}</div>}
       {error && <div className="notice error" style={{ marginTop: 12 }}>{error}</div>}
       {(tab === "NEEDS_RESUBMIT" || tab === "FROZEN") ? <div style={{ padding: "70px 20px", textAlign: "center" }}>
         <strong>{tab === "FROZEN" ? "暂无冻结记录" : "暂无要求重新提交的记录"}</strong>
@@ -126,17 +126,19 @@ export default function AiReviewsPage() {
             <td style={{ padding: "11px 9px", color: "#31547d" }}>{item.user.phone}</td>
             <td style={{ padding: "11px 9px" }}><span style={{ display: "inline-block", border: "1px solid #fed7aa", color: "#ea580c", background: "#fff7ed", borderRadius: 5, padding: "3px 7px" }}>{item.status === "MANUAL_REVIEW" ? "人工复核" : item.status === "SMART_REVIEW" ? "智能审核中" : item.status === "APPROVED" ? "已通过" : "已拒绝"}</span></td>
             <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>{item.latestReview?.decision || item.ai?.decision || "人工复核"}</td>
-            <td style={{ padding: "11px 9px" }}><span style={{ border: "1px solid #a7f3d0", color: "#059669", background: "#ecfdf5", borderRadius: 5, padding: "3px 7px" }}>低风险</span></td>
+            <td style={{ padding: "11px 9px" }}><span style={{ border: "1px solid #a7f3d0", color: "#059669", background: "#ecfdf5", borderRadius: 5, padding: "3px 7px" }}>待接入风险规则</span></td>
             <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>APP 任务截图</td>
             <td style={{ padding: "11px 9px", whiteSpace: "nowrap", color: "#31547d" }}>{new Date(item.submittedAt).toLocaleString("zh-CN", { hour12: false })}</td>
             <td style={{ padding: "11px 9px" }}><button onClick={() => { setActionError(""); setSelected(item); }} style={{ border: 0, background: "transparent", color: "#334155", cursor: "pointer" }}>◉ 打开</button></td>
           </tr>)}</tbody>
         </table>
       </div>}
-      <div className="action-row" style={{ justifyContent: "space-between" }}><span className="muted">共 {data.total} 条 · 第 {page} / {pages} 页</span><div className="action-row" style={{ marginTop: 0 }}>
-        <button className="secondary-btn" disabled={page <= 1 || loading} onClick={() => setPage(v => v - 1)}>上一页</button>
-        <button className="secondary-btn" disabled={page >= pages || loading} onClick={() => setPage(v => v + 1)}>下一页</button>
-      </div></div>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 7, paddingTop: 13, fontSize: 12, color: "#64748b" }}>
+        <button disabled={page <= 1 || loading} onClick={() => setPage(v => v - 1)} style={{ border: "1px solid #e2e8f0", borderRadius: 5, background: "#fff", padding: "6px 9px", cursor: "pointer" }}>‹</button>
+        <span style={{ background: "#2563eb", color: "#fff", borderRadius: 5, padding: "6px 10px" }}>{page}</span>
+        <button disabled={page >= pages || loading} onClick={() => setPage(v => v + 1)} style={{ border: "1px solid #e2e8f0", borderRadius: 5, background: "#fff", padding: "6px 9px", cursor: "pointer" }}>›</button>
+        <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }} style={{ border: "1px solid #e2e8f0", borderRadius: 5, background: "#fff", padding: "6px 8px", color: "#334155" }}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select>
+      </div>
     </section>
 
     {selected && <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.25)", zIndex: 50 }}>
