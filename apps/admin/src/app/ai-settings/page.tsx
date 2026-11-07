@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../components/AdminSidebar";
+import AdminTopbar from "../../components/AdminTopbar";
 
 type ReviewScheme = { name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean };
 
@@ -154,12 +155,9 @@ export default function AiSettingsPage() {
 
   return (
     <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
-      <header className="admin-header">
-        <div>
-          <div className="admin-brand">AI 审核引擎设置</div>
-          <div className="admin-subtitle">统一管理 OpenAI API、模型连接与自动审核策略</div>
-        </div>
-      </header>
+      <AdminTopbar />
+      <div className="dashboard-content" style={{padding:"18px 20px 28px",display:"grid",gap:14}}>
+      <header className="tasks-page-heading"><div><h1>AI 审核引擎设置</h1><p>统一管理 OpenAI API、模型连接、自动审核策略与任务审核方案。</p></div></header>
 
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
@@ -242,6 +240,7 @@ export default function AiSettingsPage() {
           {schemes.length === 0 && <p className="muted">暂无审核方案，请在上方创建。</p>}
         </div>
       </section>}
+      </div>
     </main></div>
   );
 }
