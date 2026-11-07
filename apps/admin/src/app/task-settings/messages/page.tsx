@@ -264,7 +264,7 @@ export default function TaskConfigurationPage(){
     </>:tab==="messages"?<>
      <div style={templateToolbar}>
       <div style={templateSearch}><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="请输入模板名称" style={searchInput}/></div>
-      <div style={filterGroup}>{[["all","全部"],["enabled","使用中"],["disabled","未使用"]].map(([v,label])=><button key={v} onClick={()=>setTemplateStatus(v)} style={{...filterButton,...(templateStatus===v?filterButtonActive:{})}}>{label}</button>)}</div>
+      <div style={filterGroup}>{[["all","全部"],["enabled","启用"],["disabled","停用"]].map(([v,label])=><button key={v} onClick={()=>setTemplateStatus(v)} style={{...filterButton,...(templateStatus===v?filterButtonActive:{})}}>{label}</button>)}</div>
       <button onClick={()=>{setSearch("");setTemplateStatus("all");setTemplateCategory("全部模板");}} style={secondary}><RotateCcw size={13}/>重置</button>
       <button onClick={()=>setNotice("可通过模板名称、任务类型和状态进行筛选。")} style={secondary}><Filter size={13}/>更多筛选⌄</button>
       <span style={{flex:1}}/>
