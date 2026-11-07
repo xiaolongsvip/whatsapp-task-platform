@@ -73,19 +73,23 @@ export class AdminReferralsService {
         invitedBy: { select: { inviter: { select: { id: true, phone: true, referralCode: true } } } } },
     });
     if (!user) throw new NotFoundException("用户不存在。");
-    const [direct, descendants, rewards] = await Promise.all([
-      prisma.referralEdge.findMany({ where: { inviterUserId: userId }, orderBy: { createdAt: "desc" }, take: 200,
+    const [directCount, direct, ancestorCounts, descendants, rewards] = await Promise.all([
+      prisma.referralEdge.count({ where: { inviterUserId: userId } }),
+      prisma.referralEdge.findMany({ where: { inviterUserId: userId }, orderBy: { createdAt: "desc" },
         select: { createdAt: true, invitee: { select: { id: true, phone: true, referralCode: true, status: true } } } }),
-      prisma.referralAncestor.findMany({ where: { ancestorUserId: userId, depth: { in: [2, 3] } }, orderBy: { createdAt: "desc" }, take: 300,
+      prisma.referralAncestor.groupBy({ by: ["depth"], where: { ancestorUserId: userId, depth: { in: [2, 3] } }, _count: { _all: true } }),
+      prisma.referralAncestor.findMany({ where: { ancestorUserId: userId, depth: { in: [2, 3] } }, orderBy: { createdAt: "desc" },
         select: { descendantUserId: true, depth: true, createdAt: true } }),
       prisma.referralReward.groupBy({ by: ["depth", "currency"], where: { beneficiaryId: userId }, _sum: { amountMinor: true }, _count: { _all: true } }),
     ]);
     const descendantIds = descendants.map((row) => row.descendantUserId);
     const descendantUsers = descendantIds.length ? await prisma.user.findMany({ where: { id: { in: descendantIds } }, select: { id: true, phone: true, referralCode: true, status: true } }) : [];
     const userMap = new Map(descendantUsers.map((row) => [row.id, row]));
+    const countByDepth = new Map(ancestorCounts.map((row) => [row.depth, row._count._all]));
     return {
       user: { ...user, createdAt: user.createdAt.toISOString() },
       inviter: user.invitedBy?.inviter ?? null,
+      teamCounts: { level1: directCount, level2: countByDepth.get(2) ?? 0, level3: countByDepth.get(3) ?? 0, total: directCount + (countByDepth.get(2) ?? 0) + (countByDepth.get(3) ?? 0) },
       direct: direct.map((row) => ({ ...row.invitee, invitedAt: row.createdAt.toISOString(), depth: 1 })),
       indirect: descendants.map((row) => ({ ...(userMap.get(row.descendantUserId) ?? { id: row.descendantUserId, phone: "未知用户", referralCode: "", status: "UNKNOWN" }), depth: row.depth, invitedAt: row.createdAt.toISOString() })),
       commissionByLevel: rewards.map((row) => ({ depth: row.depth, currency: row.currency.trim(), amountMinor: (row._sum.amountMinor ?? 0n).toString(), count: row._count._all })),
@@ -93,53 +97,64 @@ export class AdminReferralsService {
   }
 
   async listCommissions(searchInput?: string, statusInput?: string, depthInput?: string, fromInput?: string, toInput?: string, pageInput?: string, pageSizeInput?: string) {
-    void statusInput;
     const page = Math.max(1, Number.parseInt(pageInput ?? "1", 10) || 1);
     const pageSize = Math.min(100, Math.max(10, Number.parseInt(pageSizeInput ?? "20", 10) || 20));
+    const status = statusInput?.trim().toUpperCase() || "ALL";
+    if (!["ALL", "CREDITED", "PENDING"].includes(status)) throw new BadRequestException("佣金入账状态筛选无效。");
     const depth = depthInput ? Number.parseInt(depthInput, 10) : undefined;
     if (depth !== undefined && ![1, 2, 3].includes(depth)) throw new BadRequestException("分佣层级筛选无效。");
     const from = fromInput ? new Date(fromInput) : undefined;
     const to = toInput ? new Date(toInput) : undefined;
     if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) throw new BadRequestException("日期筛选格式无效。");
-    if (from && to && from > to) throw new BadRequestException("开始日期不能晚于结束日期。");
     if (to && /^\\d{4}-\\d{2}-\\d{2}$/.test(toInput ?? "")) to.setHours(23, 59, 59, 999);
+    if (from && to && from > to) throw new BadRequestException("开始日期不能晚于结束日期。");
     const search = searchInput?.trim();
     const matchedUsers = search ? await prisma.user.findMany({
-      where: { phone: { contains: search, mode: "insensitive" } },
-      select: { id: true },
-      take: 500,
+      where: { OR: [{ phone: { contains: search, mode: "insensitive" } }, { referralCode: { contains: search, mode: "insensitive" } }] },
+      select: { id: true }, take: 500,
     }) : [];
     const where: Prisma.ReferralRewardWhereInput = {
       ...(depth ? { depth } : {}),
       ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
       ...(search ? { OR: [
         { sourceEventId: { contains: search, mode: "insensitive" } },
-        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search) ? [{ sourceUserId: search }, { beneficiaryId: search }] : []),
+        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search) ? [{ sourceEventId: search }, { sourceUserId: search }, { beneficiaryId: search }] : []),
         ...(matchedUsers.length ? [{ sourceUserId: { in: matchedUsers.map((user) => user.id) } }, { beneficiaryId: { in: matchedUsers.map((user) => user.id) } }] : []),
       ] } : {}),
     };
-    const [total, rows] = await prisma.$transaction([
-      prisma.referralReward.count({ where }),
-      prisma.referralReward.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize,
-        select: { id: true, beneficiaryId: true, sourceUserId: true, sourceEventId: true, depth: true, amountMinor: true, currency: true, idempotencyKey: true, createdAt: true } }),
-    ]);
+    const rows = await prisma.referralReward.findMany({ where, orderBy: { createdAt: "desc" },
+      select: { id: true, beneficiaryId: true, sourceUserId: true, sourceEventId: true, depth: true, amountMinor: true, currency: true, idempotencyKey: true, createdAt: true } });
     const keys = rows.map((row) => row.idempotencyKey);
-    const sourceIds = [...new Set(rows.map((row) => row.sourceEventId).filter((id) => /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)))];
-    const [credits, people, sourceClaims] = await Promise.all([
-      keys.length ? prisma.ledgerEntry.findMany({ where: { idempotencyKey: { in: keys }, direction: "CREDIT" }, select: { idempotencyKey: true, createdAt: true } }) : [],
-      prisma.user.findMany({ where: { id: { in: [...new Set(rows.flatMap((row) => [row.beneficiaryId, row.sourceUserId]))] } }, select: { id: true, phone: true } }),
+    const credits = keys.length ? await prisma.ledgerEntry.findMany({ where: { idempotencyKey: { in: keys }, direction: "CREDIT" }, select: { idempotencyKey: true, createdAt: true } }) : [];
+    const creditMap = new Map(credits.map((row) => [row.idempotencyKey, row.createdAt]));
+    const allItems = rows.map((row) => ({ ...row,
+      status: creditMap.has(row.idempotencyKey) ? "CREDITED" as const : "PENDING" as const,
+      creditedAt: creditMap.get(row.idempotencyKey) ?? null,
+    }));
+    const matching = status === "ALL" ? allItems : allItems.filter((row) => row.status === status);
+    const total = matching.length;
+    const pageRows = matching.slice((page - 1) * pageSize, page * pageSize);
+    const peopleIds = [...new Set(pageRows.flatMap((row) => [row.beneficiaryId, row.sourceUserId]))];
+    const sourceIds = [...new Set(pageRows.map((row) => row.sourceEventId).filter((id) => /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)))];
+    const [people, sourceClaims] = await Promise.all([
+      peopleIds.length ? prisma.user.findMany({ where: { id: { in: peopleIds } }, select: { id: true, phone: true } }) : [],
       sourceIds.length ? prisma.taskClaim.findMany({ where: { id: { in: sourceIds } }, select: { id: true, task: { select: { title: true } } } }) : [],
     ]);
-    const creditMap = new Map(credits.map((row) => [row.idempotencyKey, row.createdAt]));
     const peopleMap = new Map(people.map((row) => [row.id, row.phone]));
     const taskMap = new Map(sourceClaims.map((row) => [row.id, row.task.title]));
-    const items = rows.map((row) => ({ id: row.id, beneficiaryId: row.beneficiaryId, beneficiaryPhone: peopleMap.get(row.beneficiaryId) ?? "—",
+    const items = pageRows.map((row) => ({ id: row.id, beneficiaryId: row.beneficiaryId, beneficiaryPhone: peopleMap.get(row.beneficiaryId) ?? "—",
       sourceUserId: row.sourceUserId, sourcePhone: peopleMap.get(row.sourceUserId) ?? "—", sourceEventId: row.sourceEventId, sourceTaskTitle: taskMap.get(row.sourceEventId) ?? null,
-      depth: row.depth, amountMinor: row.amountMinor.toString(), currency: row.currency.trim(),
-      status: creditMap.has(row.idempotencyKey) ? "CREDITED" : "PENDING",
-      creditedAt: creditMap.get(row.idempotencyKey)?.toISOString() ?? null, createdAt: row.createdAt.toISOString() }));
-    const filtered = items;
-    return { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), items: filtered, note: "任务来源目前按佣金记录中的 sourceEventId 展示；记录模型未保存任务标题。" };
+      depth: row.depth, amountMinor: row.amountMinor.toString(), currency: row.currency.trim(), status: row.status,
+      creditedAt: row.creditedAt?.toISOString() ?? null, createdAt: row.createdAt.toISOString() }));
+    const totals = new Map<string, { creditedCount: number; pendingCount: number; creditedMinor: bigint; pendingMinor: bigint }>();
+    for (const row of allItems) {
+      const value = totals.get(row.currency) ?? { creditedCount: 0, pendingCount: 0, creditedMinor: 0n, pendingMinor: 0n };
+      if (row.status === "CREDITED") { value.creditedCount += 1; value.creditedMinor += row.amountMinor; }
+      else { value.pendingCount += 1; value.pendingMinor += row.amountMinor; }
+      totals.set(row.currency, value);
+    }
+    return { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), items,
+      statistics: [...totals.entries()].map(([currency, value]) => ({ currency, ...value, creditedMinor: value.creditedMinor.toString(), pendingMinor: value.pendingMinor.toString(), totalCount: value.creditedCount + value.pendingCount, totalMinor: (value.creditedMinor + value.pendingMinor).toString() })) };
   }
 
   async getSettings() {
