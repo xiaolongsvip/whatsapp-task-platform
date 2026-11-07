@@ -17,6 +17,7 @@ const reviewItems = [
   { href: "/ai-reviews?view=evidence", label: "截图证据", Icon: Image },
   { href: "/ai-reviews?view=risk", label: "风控记录", Icon: ShieldAlert },
   { href: "/ai-reviews?view=random", label: "抽检风控", Icon: Sprout },
+  { href: "/ai-settings", label: "AI 审核设置", Icon: Settings },
 ];
 const settingItems = [
   { href: "/task-settings", label: "任务列表", Icon: ClipboardList },
@@ -35,7 +36,7 @@ function AdminSidebarContent() {
     <nav className="sidebar-nav">
       {primary.map(({href,label,Icon}) => <Link key={href} className={"sidebar-link " + (pathname === href ? "active" : "")} href={href}><Icon size={16}/>{label}</Link>)}
       <button type="button" className="sidebar-link" onClick={() => setReviewOpen(v => !v)}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} style={{marginLeft:"auto",transform:reviewOpen?"rotate(180deg)":"none"}}/></button>
-      {reviewOpen && <div className="sidebar-submenu">{reviewItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === "/ai-reviews" && ((href === "/ai-reviews" && reviewView === "manual") || (href.includes("view=evidence") && reviewView === "evidence") || (href.includes("view=risk") && reviewView === "risk") || (href.includes("view=random") && reviewView === "random"))) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
+      {reviewOpen && <div className="sidebar-submenu">{reviewItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === "/ai-reviews" && ((href === "/ai-reviews" && reviewView === "manual") || (href.includes("view=evidence") && reviewView === "evidence") || (href.includes("view=risk") && reviewView === "risk") || (href.includes("view=random") && reviewView === "random") || href === "/ai-settings" && pathname === "/ai-settings")) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
       <button type="button" className="sidebar-link" onClick={() => setTaskOpen(v => !v)}><ClipboardList size={16}/>任务设置<ChevronDown size={14} style={{marginLeft:"auto",transform:taskOpen?"rotate(180deg)":"none"}}/></button>
       {taskOpen && <div className="sidebar-submenu">{settingItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === href || (href === "/task-settings/messages" && pathname.startsWith("/task-settings/messages"))) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
       <Link className="sidebar-link" href="/wallet-holds"><HandCoins size={16}/>邀请与分佣</Link>
