@@ -11,6 +11,12 @@ type TaskRecord = {
   status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null;
   claimedUserId: string | null;
 };
+type ExecutionDetail = {
+ id:string;task:{id:string;title:string;category:string;status:string;groupName:string;messageTemplate:string|null;linkUrl:string|null};phone:{id:string;number:string;countryCode:string|null;countryName:string|null;status:string;consentStatus:string};status:string;rewardAmount:string;currency:string;createdAt:string;assignedAt:string|null;usedAt:string|null;releasedAt:string|null;
+ claim:{id:string;status:string;claimedAt:string;expiresAt:string|null;user:{id:string;phone:string};assignment:{status:string;assignedAt:string;releasedAt:string|null;completedAt:string|null}|null}|null;
+ submissions:Array<{id:string;status:string;originalName:string|null;mimeType:string|null;sizeBytes:number|null;note:string|null;submittedAt:string;evidenceUrl:string;aiReview:{status:string;decision:string|null;confidence:number|null;reason:string|null;extractedText:string|null;lastError:string|null}|null;reviews:Array<{decision:string;reason:string|null;reviewedAt:string;reviewer:string}>}>;
+ behavior:Array<{key:string;title:string;at:string;detail:unknown}>;auditEvents:Array<{id:string;action:string;actorType:string;createdAt:string;metadata:unknown}>;risk:{level:string;score:number|null;events:Array<{id:string;action:string;createdAt:string;metadata:unknown}>};supplements:Array<unknown>;
+};
 type ResponseData = {
   items: TaskRecord[];
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
@@ -54,7 +60,7 @@ const statusStyle: Record<RecordStatus, React.CSSProperties> = {
   VOIDED: { color: "#dc2626", background: "#fef2f2", borderColor: "#fecaca" },
 };
 
-export default function ExecutionRecordsPage() {
+function EmptyDetail({text}:{text:string}) { return <div style={{border:"1px solid #e2e8f0",borderRadius:7,padding:34,textAlign:"center",color:"#64748b"}}>{text}</div>; }\n\nexport default function ExecutionRecordsPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -68,7 +74,7 @@ export default function ExecutionRecordsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [selected, setSelected] = useState<TaskRecord | null>(null);
+  const [selected, setSelected] = useState<TaskRecord | null>(null);\n  const [detail, setDetail] = useState<ExecutionDetail | null>(null);\n  const [detailLoading, setDetailLoading] = useState(false);\n  const [detailTab, setDetailTab] = useState("基本信息");
 
   const load = useCallback(async () => {
     const apiStatus: Partial<Record<TabKey, RecordStatus>> = { CREATED: "AVAILABLE", ASSIGNED: "IN_PROGRESS", OPENED: "IN_PROGRESS", REVIEW: "REVIEW", MANUAL: "REVIEW", REJECTED: "VOIDED", RESUBMIT: "CLOSED", FROZEN: "FROZEN", SETTLED: "COMPLETED", EXPIRED: "CLOSED", CANCELLED: "CLOSED" };
@@ -109,6 +115,8 @@ export default function ExecutionRecordsPage() {
     if (tab === "EXPIRED" || tab === "CANCELLED") return item.status === "CLOSED";
     return true;
   }), [items, tab]);
+
+  async function openDetail(item: TaskRecord) { setSelected(item); setDetail(null); setDetailTab("基本信息"); setDetailLoading(true); try { setDetail(await api<ExecutionDetail>("/api/v1/admin/tasks/records/" + item.id + "/detail")); } catch(e) { setError(e instanceof Error ? e.message : "详情加载失败"); } finally { setDetailLoading(false); } }
 
   const summary = [
     { key: "ALL" as TabKey, title: "全部记录", value: stats.total, note: "所选范围的全部状态", color: "#2563eb", icon: "▤" },
@@ -166,13 +174,26 @@ export default function ExecutionRecordsPage() {
             <td style={{ padding: "12px 9px" }}><span style={{ border: "1px solid "+statusStyle[item.status].borderColor, color: statusStyle[item.status].color, background: statusStyle[item.status].background, borderRadius: 5, padding: "3px 7px" }}>{statusText[item.status]}</span></td>
             <td style={{ padding: "12px 9px", color: "#059669" }}>—</td><td style={{ padding: "12px 9px" }}>{item.status==="COMPLETED"?"已通过":item.status==="REVIEW"?"待审核":"—"}</td>
             <td style={{ padding: "12px 9px" }}>{item.rewardAmount} {item.currency}</td><td style={{ padding: "12px 9px" }}>{new Date(item.claimedAt || item.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
-            <td style={{ padding: "12px 9px" }}><button onClick={()=>setSelected(item)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}><Eye size={14} style={{verticalAlign:"middle",marginRight:4}}/>详情</button></td>
+            <td style={{ padding: "12px 9px" }}><button onClick={()=>openDetail(item)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}><Eye size={14} style={{verticalAlign:"middle",marginRight:4}}/>详情</button></td>
           </tr>)}</tbody>
         </table></div>
         {filtered.length===0 && <div style={{ textAlign: "center", padding: 70, color: "#64748b" }}>暂无任务记录</div>}
         <footer style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, color: "#64748b", fontSize: 12 }}><span>共 {total.toLocaleString()} 条</span><div style={{ display: "flex", alignItems: "center", gap: 8 }}><button disabled={page<=1} onClick={()=>setPage((p)=>Math.max(1,p-1))} style={{ padding: 7, border: "1px solid #cbd5e1", borderRadius: 5, background: "#fff" }}><ChevronLeft size={15}/></button><span>{page} / {totalPages}</span><button disabled={page>=totalPages} onClick={()=>setPage((p)=>Math.min(totalPages,p+1))} style={{ padding: 7, border: "1px solid #cbd5e1", borderRadius: 5, background: "#fff" }}><ChevronRight size={15}/></button><select value={pageSize} onChange={(e)=>{setPageSize(Number(e.target.value));setPage(1);}} style={{ padding: 7, border: "1px solid #cbd5e1", borderRadius: 5 }}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select></div></footer>
       </section>
-      {selected && <div onClick={()=>setSelected(null)} style={{ position:"fixed",inset:0,background:"#0f172a66",display:"grid",placeItems:"center",zIndex:50,padding:20 }}><div onClick={(e)=>e.stopPropagation()} style={{ background:"#fff",borderRadius:10,padding:22,width:"min(560px,100%)",maxHeight:"80vh",overflow:"auto" }}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{margin:0,fontSize:18}}>执行记录详情</h2><button onClick={()=>setSelected(null)} style={{border:0,background:"transparent",fontSize:22,cursor:"pointer"}}>×</button></div><dl style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:12,fontSize:13}}>{[["任务名称",selected.taskName],["任务账号",selected.claimId||selected.id],["目标手机号",selected.phoneNumber],["任务分组",selected.groupName],["任务状态",statusText[selected.status]],["奖励金额",selected.rewardAmount+" "+selected.currency],["国家/地区",selected.countryRegion||"—"],["领取时间",selected.claimedAt?new Date(selected.claimedAt).toLocaleString():"—"],["创建时间",new Date(selected.createdAt).toLocaleString()]].map(([k,v])=><><dt key={k+"-k"} style={{color:"#64748b"}}>{k}</dt><dd key={k+"-v"} style={{margin:0,wordBreak:"break-word"}}>{v}</dd></>)}</dl></div></div>}
-    </main>
+      {selected && <div onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,zIndex:60,background:"rgba(15,23,42,.22)"}}>
+<aside onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:0,bottom:0,width:"min(730px,94vw)",background:"#fff",boxShadow:"-8px 0 28px #0f172a20",display:"flex",flexDirection:"column"}}>
+<header style={{padding:"15px 20px",borderBottom:"1px solid #e2e8f0"}}><div style={{display:"flex",justifyContent:"space-between",gap:10}}><strong>{detail?.task.title??selected.taskName} <span style={{color:"#059669",fontSize:11}}>{detail?.claim?.status??statusText[selected.status]}</span></strong><button onClick={()=>setSelected(null)} style={{border:0,background:"transparent",fontSize:22,cursor:"pointer"}}>×</button></div><div style={{fontSize:12,color:"#64748b",marginTop:6}}>{detail?.phone.number??selected.phoneNumber}</div></header>
+<nav style={{display:"flex",gap:3,padding:"10px 18px 0",borderBottom:"1px solid #e2e8f0",overflowX:"auto"}}>{["基本信息","行为链路","证据截图","审核结果","风险记录","任务补发"].map(t=><button key={t} onClick={()=>setDetailTab(t)} style={{whiteSpace:"nowrap",padding:"10px 12px",border:0,borderBottom:detailTab===t?"2px solid #2563eb":"2px solid transparent",background:detailTab===t?"#eff6ff":"transparent",color:detailTab===t?"#2563eb":"#475569",cursor:"pointer"}}>{t}</button>)}</nav>
+<div style={{padding:18,overflowY:"auto",flex:1,fontSize:12}}>
+{detailLoading&&<p style={{textAlign:"center",padding:40,color:"#64748b"}}>正在加载详情记录…</p>}
+{!detailLoading&&!detail&&<p style={{textAlign:"center",padding:40,color:"#dc2626"}}>详情加载失败，请关闭后重新打开。</p>}
+{detail&&detailTab==="基本信息"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>{[["目标手机号",detail.phone.number],["任务账号",detail.claim?.user.phone??"—"],["任务名称",detail.task.title],["用户ID",detail.claim?.user.id??"—"],["操作时间",new Date(detail.createdAt).toLocaleString()],["打开 WhatsApp",detail.claim?"已领取":"—"],["补图请求时间","—"],["补图截止时间","—"],["设备摘要","当前数据未关联设备信息"],["芯片/ABI","—"],["安全补丁","—"],["奖励金额",detail.rewardAmount+" "+detail.currency]].map(([k,v])=><div key={k}><div style={{color:"#64748b",marginBottom:5}}>{k}</div><div style={{overflowWrap:"anywhere"}}>{v}</div></div>)}</div>}
+{detail&&detailTab==="行为链路"&&<div style={{display:"grid",gap:9}}>{detail.behavior.length?detail.behavior.map((ev,i)=><div key={i} style={{border:"1px solid #e2e8f0",borderRadius:6,padding:12}}><div style={{display:"flex",justifyContent:"space-between",gap:10}}><strong>{ev.title}</strong><span style={{color:"#64748b"}}>{new Date(ev.at).toLocaleString()}</span></div><p style={{color:"#64748b",marginBottom:0,overflowWrap:"anywhere"}}>{typeof ev.detail==="string"?ev.detail:JSON.stringify(ev.detail)}</p></div>):<EmptyDetail text="暂无行为链路记录"/>}</div>}
+{detail&&detailTab==="证据截图"&&<div style={{display:"grid",gap:16}}>{detail.submissions.length?detail.submissions.map(s=><section key={s.id} style={{border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}><div style={{padding:12,background:"#f8fafc",display:"flex",justifyContent:"space-between"}}><strong>截图查看器</strong><span>{new Date(s.submittedAt).toLocaleString()}</span></div><div style={{padding:14,background:"#f8fafc",textAlign:"center"}}>{s.mimeType?.startsWith("image/")?<img src={s.evidenceUrl} alt="任务截图" style={{maxWidth:"100%",maxHeight:520,objectFit:"contain"}}/>:<span>暂无可预览图片</span>}</div><div style={{padding:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div>文件名称：{s.originalName??"—"}</div><div>文件大小：{s.sizeBytes?Math.round(s.sizeBytes/1024)+" KB":"—"}</div><div>提交状态：{s.status}</div><div>提交时间：{new Date(s.submittedAt).toLocaleString()}</div></div></section>):<EmptyDetail text="当前任务没有提交截图"/>}</div>}
+{detail&&detailTab==="审核结果"&&<div style={{border:"1px solid #e2e8f0",borderRadius:7,padding:14,display:"grid",gap:14}}>{detail.submissions.length?detail.submissions.map(s=><div key={s.id} style={{display:"grid",gap:12}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><div style={{color:"#64748b"}}>当前状态</div>{s.status}</div><div><div style={{color:"#64748b"}}>AI 建议</div>{s.aiReview?.decision??"—"}</div></div><div style={{background:"#f8fafc",padding:12,borderRadius:6}}><strong>AI 原始说明</strong><p style={{whiteSpace:"pre-wrap",lineHeight:1.7}}>{s.aiReview?.reason??"暂无 AI 审核说明"}</p><div>AI 图像识别置信度：{s.aiReview?.confidence==null?"—":Math.round(s.aiReview.confidence*100)+"%"}</div>{s.aiReview?.extractedText&&<p style={{whiteSpace:"pre-wrap"}}>{s.aiReview.extractedText}</p>}</div><strong>人工审核记录</strong>{s.reviews.length?s.reviews.map((rv,i)=><div key={i} style={{padding:10,border:"1px solid #e2e8f0",borderRadius:6}}>{rv.decision==="APPROVE"?"审核通过":"审核拒绝"} · {rv.reviewer}<p style={{color:"#64748b"}}>{new Date(rv.reviewedAt).toLocaleString()} · {rv.reason??"—"}</p></div>):<EmptyDetail text="暂无人工审核记录"/>}</div>):<EmptyDetail text="当前任务没有审核记录"/>}</div>}
+{detail&&detailTab==="风险记录"&&<div style={{display:"grid",gap:14}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><div><div style={{color:"#64748b"}}>风险等级</div><strong>{detail.risk.level}</strong></div><div><div style={{color:"#64748b"}}>风险分</div><strong>{detail.risk.score??"—"}</strong></div></div><strong>风险原因说明</strong>{detail.risk.events.length?detail.risk.events.map(ev=><div key={ev.id} style={{padding:12,borderBottom:"1px solid #e2e8f0"}}>{ev.action}<p style={{color:"#64748b"}}>{new Date(ev.createdAt).toLocaleString()} · {JSON.stringify(ev.metadata)}</p></div>):<EmptyDetail text="当前没有关联的风险事件记录"/>}</div>}
+{detail&&detailTab==="任务补发"&&<EmptyDetail text="当前任务没有补发记录。只有系统产生补发记录后才会显示在这里。"/>}
+</div></aside></div>}
+</main>
   </div>;
 }
