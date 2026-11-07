@@ -242,6 +242,106 @@ export class TaskAdminService {
   }
 
 
+  async getTaskRecordDetail(slotId: string) {
+    const slot = await prisma.taskSlot.findUnique({
+      where: { id: slotId },
+      include: {
+        task: { include: { group: { select: { name: true } } } },
+        contactNumber: { select: { id: true, phoneE164: true, countryCode: true, countryName: true, status: true, consentStatus: true } },
+        claim: {
+          include: {
+            user: { select: { id: true, phone: true } },
+            contactAssignment: true,
+            submissions: {
+              orderBy: { submittedAt: "asc" },
+              include: {
+                aiReviewJob: true,
+                reviews: {
+                  orderBy: { reviewedAt: "asc" },
+                  include: { reviewer: { select: { email: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!slot) throw new NotFoundException("执行记录不存在。");
+    const targetIds = [slot.id, slot.claimId, ...(slot.claim?.submissions.map((item) => item.id) ?? [])]
+      .filter((id): id is string => Boolean(id));
+    const auditEvents = targetIds.length
+      ? await prisma.auditEvent.findMany({
+          where: { targetId: { in: targetIds } },
+          orderBy: { createdAt: "asc" },
+          take: 200,
+        })
+      : [];
+    const submissions = slot.claim?.submissions ?? [];
+    const behavior = [
+      { key: "created", title: "创建任务记录", at: slot.createdAt, detail: slot.task.title },
+      ...(slot.assignedAt ? [{ key: "assigned", title: "分配号码", at: slot.assignedAt, detail: slot.contactNumber.phoneE164 }] : []),
+      ...(slot.claim ? [{ key: "claimed", title: "用户领取任务", at: slot.claim.claimedAt, detail: slot.claim.user.phone }] : []),
+      ...submissions.map((item) => ({ key: "submitted", title: "提交任务截图", at: item.submittedAt, detail: item.originalName ?? "已提交证据" })),
+      ...submissions.flatMap((item) => item.reviews.map((review) => ({
+        key: "review", title: review.decision === "APPROVE" ? "人工审核通过" : "人工审核拒绝",
+        at: review.reviewedAt, detail: review.reason ?? "—",
+      }))),
+      ...auditEvents.map((event) => ({ key: event.action, title: event.action, at: event.createdAt, detail: event.metadata ?? "—" })),
+      ...(slot.usedAt ? [{ key: "settled", title: "任务完成/结算", at: slot.usedAt, detail: "任务号码已使用" }] : []),
+    ].sort((a, b) => a.at.getTime() - b.at.getTime());
+    return {
+      id: slot.id,
+      task: { id: slot.task.id, title: slot.task.title, category: slot.task.category, status: slot.task.status, groupName: slot.task.group?.name ?? "未分组", messageTemplate: slot.task.messageTemplate, linkUrl: slot.task.linkUrl },
+      phone: { id: slot.contactNumber.id, number: slot.contactNumber.phoneE164, countryCode: slot.contactNumber.countryCode, countryName: slot.contactNumber.countryName, status: slot.contactNumber.status, consentStatus: slot.contactNumber.consentStatus },
+      status: slot.status,
+      rewardAmount: (Number(slot.task.rewardMinor) / 100).toFixed(3),
+      currency: slot.task.currency.trim(),
+      createdAt: slot.createdAt.toISOString(),
+      assignedAt: slot.assignedAt?.toISOString() ?? null,
+      usedAt: slot.usedAt?.toISOString() ?? null,
+      releasedAt: slot.releasedAt?.toISOString() ?? null,
+      claim: slot.claim ? {
+        id: slot.claim.id, status: slot.claim.status, claimedAt: slot.claim.claimedAt.toISOString(),
+        expiresAt: slot.claim.expiresAt?.toISOString() ?? null,
+        user: slot.claim.user,
+        assignment: slot.claim.contactAssignment ? {
+          status: slot.claim.contactAssignment.status,
+          assignedAt: slot.claim.contactAssignment.assignedAt.toISOString(),
+          releasedAt: slot.claim.contactAssignment.releasedAt?.toISOString() ?? null,
+          completedAt: slot.claim.contactAssignment.completedAt?.toISOString() ?? null,
+        } : null,
+      } : null,
+      submissions: submissions.map((item) => ({
+        id: item.id, status: item.status, originalName: item.originalName, mimeType: item.mimeType,
+        sizeBytes: item.sizeBytes, note: item.note, submittedAt: item.submittedAt.toISOString(),
+        evidenceUrl: "/api/v1/admin/task-submissions/" + item.id + "/evidence",
+        aiReview: item.aiReviewJob ? {
+          status: item.aiReviewJob.status, decision: item.aiReviewJob.decision,
+          confidence: item.aiReviewJob.confidence, reason: item.aiReviewJob.reason,
+          extractedText: item.aiReviewJob.extractedText, lastError: item.aiReviewJob.lastError,
+        } : null,
+        reviews: item.reviews.map((review) => ({
+          decision: review.decision, reason: review.reason, reviewedAt: review.reviewedAt.toISOString(),
+          reviewer: review.reviewer?.email ?? "—",
+        })),
+      })),
+      behavior,
+      auditEvents: auditEvents.map((event) => ({
+        id: event.id, action: event.action, actorType: event.actorType,
+        createdAt: event.createdAt.toISOString(), metadata: event.metadata,
+      })),
+      risk: {
+        level: auditEvents.some((event) => /RISK|FRAUD|BLOCK/i.test(event.action)) ? "需关注" : "待评估",
+        score: null,
+        events: auditEvents.filter((event) => /RISK|FRAUD|BLOCK/i.test(event.action)).map((event) => ({
+          id: event.id, action: event.action, createdAt: event.createdAt.toISOString(), metadata: event.metadata,
+        })),
+      },
+      supplements: [],
+    };
+  }
+
+
 
   async voidTaskRecord(slotId: string, actorId?: string) {
     return prisma.$transaction(async (tx) => {
