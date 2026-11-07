@@ -10,7 +10,8 @@ type TransactionClient = Prisma.TransactionClient;
 export async function allocateAvailableNumbersToOldestPublishedTask(
   tx: TransactionClient,
 ): Promise<{ taskId: string | null; allocatedCount: number; reassignedCount: number }> {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(1732050807)`;
+  // The lock function returns PostgreSQL VOID; project it to a boolean so Prisma can deserialize the result.
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(1732050807) IS NULL AS locked`;
 
   const now = new Date();
   const targetTask = await tx.task.findFirst({
