@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Download, Filter, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, SlidersHorizontal, UserRound, Users, WalletCards, X } from "lucide-react";
 
 type UserRow = {
@@ -162,23 +163,7 @@ export default function AdminUsersPage() {
   const shownColumns = useMemo(() => columns.filter(c => visibleColumns.includes(c[0])), [visibleColumns]);
 
   return <div className="dashboard-app">
-    <aside className={`dashboard-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
-      <div className="sidebar-brand"><div className="sidebar-brand-mark">E</div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
-      <nav className="sidebar-nav">
-        <Link className="sidebar-link" href="/"><LayoutDashboard size={16}/>控制台</Link>
-        <Link className="sidebar-link active" href="/users"><Users size={16}/>用户管理</Link>
-        <Link className="sidebar-link" href="/tasks"><Phone size={16}/>任务管理</Link>
-        <button className="sidebar-link" disabled><ClipboardList size={16}/>执行记录</button>
-        <button className="sidebar-link" disabled><Shield size={16}/>审核中心<ChevronDown size={14}/></button>
-        <button className="sidebar-link" disabled><ClipboardList size={16}/>任务设置<ChevronDown size={14}/></button>
-        <button className="sidebar-link" disabled><Users size={16}/>邀请与分佣</button>
-        <button className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
-        <button className="sidebar-link" disabled><WalletCards size={16}/>财务管理</button>
-        <button className="sidebar-link" disabled><BarChart3Icon/>数据报表</button>
-        <button className="sidebar-link" disabled><Shield size={16}/>权限管理</button>
-        <button className="sidebar-link" disabled><Settings size={16}/>系统设置</button>
-      </nav><div className="sidebar-version">EasyEarn v1.0.0</div>
-    </aside>
+    <AdminSidebar />
     <main className="dashboard-main">
       <header className="dashboard-topbar"><button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button><div className="topbar-search"><Search size={16}/><input value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)} placeholder="搜索任务、用户、手机号码..." onKeyDown={e=>{if(e.key==="Enter"){setSearchInput(globalSearch);setPage(1);setSearch(globalSearch.trim())}}}/></div><div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>Administrator</strong><small>超级管理员</small></span></div><button className="topbar-icon" title="退出登录" onClick={() => void logout()}><LogOut size={17}/></button></div></header>
       <section className="users-page">
