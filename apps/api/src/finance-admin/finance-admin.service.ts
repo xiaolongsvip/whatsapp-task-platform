@@ -60,6 +60,51 @@ export class FinanceAdminService {
     })) };
   }
 
+  async withdrawalDetail(id: string) {
+    if (!isUuid(id)) throw new BadRequestException("提现单 ID 格式不正确");
+    const row = await prisma.withdrawalRequest.findUnique({
+      where: { id },
+      include: {
+        wallet: { select: { id: true, userId: true, currency: true, user: { select: { phone: true } } } },
+        payoutAccount: { select: { id: true, countryCode: true, currency: true, providerCode: true, methodCode: true, accountHolder: true, maskedAccount: true, status: true } },
+        paymentTransactions: { orderBy: { createdAt: "desc" }, select: { id: true, providerCode: true, flow: true, status: true, amountMinor: true, currency: true, providerTransactionId: true, providerReference: true, failureCode: true, failureMessage: true, createdAt: true, updatedAt: true } },
+      },
+    });
+    if (!row) throw new NotFoundException("提现申请不存在");
+    return {
+      id: row.id, userId: row.wallet.userId, phone: row.wallet.user.phone, walletId: row.walletId,
+      amountMinor: row.amountMinor.toString(), currency: row.currency.trim(), status: row.status,
+      payoutReference: row.payoutReference, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
+      payoutAccount: row.payoutAccount ? { ...row.payoutAccount, countryCode: row.payoutAccount.countryCode.trim(), currency: row.payoutAccount.currency.trim() } : null,
+      paymentTransactions: row.paymentTransactions.map(x => ({ ...x, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() })),
+    };
+  }
+
+  async reviewWithdrawal(id: string, action: string, adminId: string, note?: string) {
+    if (!isUuid(id)) throw new BadRequestException("提现单 ID 格式不正确");
+    if (!["START_REVIEW", "APPROVE"].includes(action)) throw new BadRequestException("当前仅支持开始审核和审核通过");
+    const current = await prisma.withdrawalRequest.findUnique({ where: { id }, select: { id: true, status: true, walletId: true, amountMinor: true, currency: true } });
+    if (!current) throw new NotFoundException("提现申请不存在");
+    const expected = action === "START_REVIEW" ? "REQUESTED" : "UNDER_REVIEW";
+    const next = action === "START_REVIEW" ? "UNDER_REVIEW" : "APPROVED";
+    if (current.status !== expected) throw new ConflictException(`提现单当前状态为 ${current.status}，不能执行此操作`);
+    await prisma.$transaction(async tx => {
+      const changed = await tx.withdrawalRequest.updateMany({
+        where: { id, status: expected },
+        data: { status: next, reviewedById: adminId },
+      });
+      if (changed.count !== 1) throw new ConflictException("提现单状态已变化，请刷新后重试");
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId, action: action === "START_REVIEW" ? "WITHDRAWAL_REVIEW_STARTED" : "WITHDRAWAL_APPROVED",
+          targetType: "WITHDRAWAL_REQUEST", targetId: id,
+          metadata: { fromStatus: expected, toStatus: next, amountMinor: current.amountMinor.toString(), currency: current.currency.trim(), note: typeof note === "string" ? note.slice(0, 500) : null },
+        },
+      });
+    });
+    return { id, status: next };
+  }
+
   async wallets(query: { search?: string; currency?: string; page?: string; pageSize?: string }) {
     const pg = pageArgs(query.page, query.pageSize);
     const where: Prisma.WalletWhereInput = {
