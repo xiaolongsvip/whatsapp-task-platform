@@ -343,8 +343,29 @@ export class TaskAdminService {
             actorType: "SYSTEM", actorId: adminId, action: "OPEN_WHATSAPP",
             targetType: "TaskSlot", targetId: slot.id,
             createdAt: new Date(now.getTime() - 25 * 60000),
-            metadata: { testData: true, testBatch: token, source: "模拟打开 WhatsApp" },
+            metadata: { testData: true, testBatch: token, source: "模拟打开 WhatsApp", result: "OPENED", whatsappInstalled: true, skippedSteps: false, skipReason: "", targetPackage: "com.whatsapp.w4b", intentType: "APP_LAUNCHER", title: "打开 WhatsApp", detail: "打开结果：OPENED｜已安装 WhatsApp：是｜跳过打开步骤：否｜目标应用包名：com.whatsapp.w4b｜打开方式：APP_LAUNCHER" },
           } });
+        }
+        if (definition.suffix === "执行中") {
+          const events = [
+            ["START_TASK", "开始任务", 35],
+            ["ASSIGN_NUMBER", "分配号码", 34],
+            ["SHOW_TASK_FLOAT", "显示任务悬浮窗", 33],
+            ["LEAVE_TASK_PAGE", "用户暂时离开任务页", 32],
+            ["COPY_NUMBER", "从任务悬浮窗复制号码", 31],
+            ["SUBMIT_SCREENSHOT_FLOAT", "通过任务悬浮窗提交截图", 29],
+            ["SCREENSHOT_UPLOAD_SUCCESS", "截图上传成功", 5],
+            ["SHOW_TASK_FLOAT_AGAIN", "显示任务悬浮窗", 4],
+            ["RETURN_TASK_PAGE", "用户返回任务页", 3],
+          ] as const;
+          for (const [action, title, minutesAgo] of events) {
+            await tx.auditEvent.create({ data: {
+              actorType: "SYSTEM", actorId: adminId, action,
+              targetType: "TaskSlot", targetId: slot.id,
+              createdAt: new Date(now.getTime() - minutesAgo * 60000),
+              metadata: { testData: true, testBatch: token, title, detail: "【测试数据】模拟行为链路事件。" },
+            } });
+          }
         }
         if (definition.suffix === "审核中") {
           const requestedAt = new Date(now.getTime() - 12 * 60000);
@@ -468,7 +489,7 @@ export class TaskAdminService {
         key: "review", title: review.decision === "APPROVE" ? "人工审核通过" : "人工审核拒绝",
         at: review.reviewedAt, detail: review.reason ?? "—",
       }))),
-      ...auditEvents.map((event) => ({ key: event.action, title: event.action, at: event.createdAt, detail: event.metadata ?? "—" })),
+      ...auditEvents.map((event) => { const metadata = event.metadata && typeof event.metadata === "object" ? event.metadata as Record<string, unknown> : {}; return { key: event.action, title: typeof metadata.title === "string" ? metadata.title : event.action, at: event.createdAt, detail: metadata.detail ?? metadata.note ?? event.metadata ?? "—" }; }),
       ...(slot.usedAt ? [{ key: "settled", title: "任务完成/结算", at: slot.usedAt, detail: "任务号码已使用" }] : []),
     ].sort((a, b) => a.at.getTime() - b.at.getTime());
     return {
