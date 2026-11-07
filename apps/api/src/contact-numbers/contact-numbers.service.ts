@@ -203,6 +203,25 @@ export class ContactNumbersService {
     return { id: created.number.id, phoneE164: created.number.phoneE164, countryCode, countryName, allocatedCount: created.allocation.allocatedCount + created.allocation.reassignedCount };
   }
 
+
+  async samplingNumbers(limitInput?: string, searchInput?: string) {
+    const parsedLimit = Number.parseInt(limitInput ?? "200", 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(500, Math.max(1, parsedLimit)) : 200;
+    const search = searchInput?.trim();
+    const rows = await prisma.contactNumber.findMany({
+      where: search ? { phoneE164: { contains: search.replace(/\\D/g, "") } } : undefined,
+      orderBy: { importOrder: "asc" },
+      take,
+      include: { assignments: { include: { claim: { select: { status: true } } }, orderBy: { assignedAt: "desc" } } },
+    });
+    return { numbers: rows.map(row => {
+      const passed = row.assignments.filter(a => a.claim.status === "APPROVED").length;
+      const failed = row.assignments.filter(a => ["REJECTED", "EXPIRED", "CANCELLED"].includes(a.claim.status)).length;
+      const phone = row.phoneE164;
+      return { id: row.id, phoneMasked: phone.length > 7 ? phone.slice(0, 4) + "••••" + phone.slice(-3) : "••••", countryCode: row.countryCode, countryName: row.countryName, status: row.status, passedCount: passed, failedCount: failed, totalCount: row.assignments.length, updatedAt: row.updatedAt.toISOString() };
+    }) };
+  }
+
   async samplingResults(pageInput?: string, pageSizeInput?: string, statusInput?: string) {
     const page = Math.max(1, Number(pageInput) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(pageSizeInput) || 20));
