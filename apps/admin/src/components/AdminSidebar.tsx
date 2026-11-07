@@ -17,7 +17,7 @@ const reviewItems = [
   { href: "/ai-reviews?view=evidence", label: "截图证据", Icon: Image },
   { href: "/ai-reviews?view=risk", label: "风控记录", Icon: ShieldAlert },
   { href: "/ai-reviews?view=random", label: "抽检风控", Icon: Sprout },
-  { href: "/ai-settings", label: "AI 审核设置", Icon: Settings },
+  { href: "/ai-settings", label: "AI 引擎设置", Icon: Settings },
 ];
 const settingItems = [
   { href: "/task-settings", label: "任务列表", Icon: ClipboardList },
