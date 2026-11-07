@@ -32,7 +32,6 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export default function AiSettingsPage() {
   const [config, setConfig] = useState<AiConfig | null>(null);
-  const [adminEmail, setAdminEmail] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -41,11 +40,7 @@ export default function AiSettingsPage() {
   const [message, setMessage] = useState("");
 
   async function refresh() {
-    const [admin, current] = await Promise.all([
-      api<{ id: string; email: string }>("/api/v1/admin-auth/me"),
-      api<AiConfig>("/api/v1/admin/ai-config"),
-    ]);
-    setAdminEmail(admin.email);
+    const current = await api<AiConfig>("/api/v1/admin/ai-config");
     setConfig(current);
   }
 
@@ -108,10 +103,6 @@ export default function AiSettingsPage() {
     }
   }
 
-  async function logout() {
-    await api("/api/v1/admin-auth/logout", { method: "POST", body: "{}" }).catch(() => undefined);
-    window.location.href = "/";
-  }
 
   if (loading) return <main className="admin-shell"><div className="panel">正在读取 AI 配置…</div></main>;
   if (!config) return (
@@ -128,16 +119,8 @@ export default function AiSettingsPage() {
     <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
       <header className="admin-header">
         <div>
-          <div className="admin-brand">WTP 管理后台</div>
-          <div className="admin-subtitle">AI 审核配置 · OpenAI API · 安全设置</div>
-        </div>
-        <div className="action-row" style={{ marginTop: 0 }}>
-          <span className="muted">{adminEmail}</span>
-          <Link className="secondary-btn" href="/">号码池管理</Link>
-          <Link className="secondary-btn" href="/tasks">任务管理</Link>
-          <Link className="secondary-btn" href="/ai-reviews">AI 审核记录</Link>
-          <Link className="secondary-btn" href="/storage-settings">图片存储设置</Link>
-          <button className="secondary-btn" onClick={logout}>退出登录</button>
+          <div className="admin-brand">AI 审核引擎设置</div>
+          <div className="admin-subtitle">统一管理 OpenAI API、模型连接与自动审核策略</div>
         </div>
       </header>
 
