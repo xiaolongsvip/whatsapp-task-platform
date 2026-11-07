@@ -114,14 +114,17 @@ export class AdminReferralsService {
         select: { id: true, beneficiaryId: true, sourceUserId: true, sourceEventId: true, depth: true, amountMinor: true, currency: true, idempotencyKey: true, createdAt: true } }),
     ]);
     const keys = rows.map((row) => row.idempotencyKey);
-    const [credits, people] = await Promise.all([
+    const sourceIds = [...new Set(rows.map((row) => row.sourceEventId).filter((id) => /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)))];
+    const [credits, people, sourceClaims] = await Promise.all([
       keys.length ? prisma.ledgerEntry.findMany({ where: { idempotencyKey: { in: keys }, direction: "CREDIT" }, select: { idempotencyKey: true, createdAt: true } }) : [],
       prisma.user.findMany({ where: { id: { in: [...new Set(rows.flatMap((row) => [row.beneficiaryId, row.sourceUserId]))] } }, select: { id: true, phone: true } }),
+      sourceIds.length ? prisma.taskClaim.findMany({ where: { id: { in: sourceIds } }, select: { id: true, task: { select: { title: true } } } }) : [],
     ]);
     const creditMap = new Map(credits.map((row) => [row.idempotencyKey, row.createdAt]));
     const peopleMap = new Map(people.map((row) => [row.id, row.phone]));
+    const taskMap = new Map(sourceClaims.map((row) => [row.id, row.task.title]));
     const items = rows.map((row) => ({ id: row.id, beneficiaryId: row.beneficiaryId, beneficiaryPhone: peopleMap.get(row.beneficiaryId) ?? "—",
-      sourceUserId: row.sourceUserId, sourcePhone: peopleMap.get(row.sourceUserId) ?? "—", sourceEventId: row.sourceEventId,
+      sourceUserId: row.sourceUserId, sourcePhone: peopleMap.get(row.sourceUserId) ?? "—", sourceEventId: row.sourceEventId, sourceTaskTitle: taskMap.get(row.sourceEventId) ?? null,
       depth: row.depth, amountMinor: row.amountMinor.toString(), currency: row.currency.trim(),
       status: creditMap.has(row.idempotencyKey) ? "CREDITED" : "PENDING",
       creditedAt: creditMap.get(row.idempotencyKey)?.toISOString() ?? null, createdAt: row.createdAt.toISOString() }));
