@@ -203,6 +203,11 @@ export class ContactNumbersService {
     if (exists) throw new ConflictException("该抽检号码已存在，请勿重复添加。");
     const now = new Date();
     const created = await prisma.$transaction(async tx => {
+      // Acquire the inventory lock before inserting, so clear-all cannot miss
+      // a concurrent manual addition that is waiting to enter allocation.
+      await tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pg_advisory_xact_lock(1732050807) IS NULL AS locked
+      `;
       const number = await tx.contactNumber.create({ data: { phoneE164, countryCode, countryName, status: "AVAILABLE", consentStatus: "GRANTED", consentSource: `Admin manual entry: ${adminId}`, consentedAt: now } });
       await tx.contactConsentEvent.create({ data: { contactNumberId: number.id, status: "GRANTED", source: `Admin manual entry: ${adminId}`, recordedAt: now } });
       await tx.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "CONTACT_SAMPLING_NUMBER_ADDED", targetType: "CONTACT_NUMBER", targetId: number.id, metadata: { countryCode, countryName } } });
