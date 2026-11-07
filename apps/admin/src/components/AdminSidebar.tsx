@@ -41,7 +41,7 @@ function AdminSidebarContent() {
       {taskOpen && <div className="sidebar-submenu">{settingItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === href || (href === "/task-settings/messages" && pathname.startsWith("/task-settings/messages"))) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
       <Link className={"sidebar-link " + (pathname === "/referrals" ? "active" : "")} href="/referrals"><HandCoins size={16}/>邀请与分佣</Link>
       <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
-      <Link className="sidebar-link" href="/wallet-holds"><WalletCards size={16}/>财务管理</Link>
+      <Link className="sidebar-link" href="/finance" className={"sidebar-link " + (pathname.startsWith("/finance") ? "active" : "")}><WalletCards size={16}/>财务管理</Link>
       <button type="button" className="sidebar-link" disabled><BarChart3 size={16}/>数据报表</button>
       <button type="button" className="sidebar-link" disabled><Shield size={16}/>权限管理</button>
       <button type="button" className="sidebar-link" disabled><Settings size={16}/>系统设置</button>
