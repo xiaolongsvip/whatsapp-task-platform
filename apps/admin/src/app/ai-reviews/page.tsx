@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { BarChart3, Bell, ChevronDown, CircleHelp, ClipboardCheck, FileClock, HandCoins, LayoutDashboard, MessageSquare, Phone, Search, Settings, Shield, Users, WalletCards, Zap, UserRound } from "lucide-react";
 
 type ReviewRecord = {
   id: string; status: string; submissionStatus: string; submittedAt: string;
@@ -99,7 +101,34 @@ export default function AiReviewsPage() {
   ];
   const columns = ["审核编号", "用户", "状态", "建议结论", "风险", "证据来源", "创建时间", "操作"];
 
-  return <main className="admin-shell" style={{ maxWidth: "none", padding: "14px 16px 18px", minHeight: "calc(100vh - 20px)", background: "#f8fafc" }}>
+  return <div className="dashboard-app">
+    <aside className="dashboard-sidebar">
+      <div className="sidebar-brand"><div className="sidebar-brand-mark"><Zap size={19} fill="currentColor" /></div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
+      <nav className="sidebar-nav">
+        <Link className="sidebar-link" href="/"><LayoutDashboard size={16}/>控制台</Link>
+        <Link className="sidebar-link" href="/users"><Users size={16}/>用户管理</Link>
+        <Link className="sidebar-link" href="/tasks"><Phone size={16}/>任务管理</Link>
+        <Link className="sidebar-link" href="/executions"><FileClock size={16}/>执行记录</Link>
+        <div className="sidebar-link active"><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} style={{marginLeft:"auto"}}/></div>
+        <div className="sidebar-submenu" style={{display:"grid"}}><Link href="/ai-reviews" style={{color:"#0d956d",fontWeight:700}}>AI 审核记录</Link><Link href="/ai-settings">AI 审核设置</Link></div>
+        <div className="sidebar-link"><ClipboardCheck size={16}/>任务设置<ChevronDown size={14} style={{marginLeft:"auto"}}/></div>
+        <div className="sidebar-submenu" style={{display:"grid"}}><Link href="/tasks">任务列表</Link><Link href="/task-settings/messages">话术管理</Link></div>
+        <button type="button" className="sidebar-link" disabled><HandCoins size={16}/>邀请与分佣</button>
+        <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
+        <button type="button" className="sidebar-link" disabled><WalletCards size={16}/>财务管理</button>
+        <button type="button" className="sidebar-link" disabled><BarChart3 size={16}/>数据报表</button>
+        <button type="button" className="sidebar-link" disabled><Shield size={16}/>权限管理</button>
+        <button type="button" className="sidebar-link" disabled><Settings size={16}/>系统设置</button>
+      </nav>
+      <div className="sidebar-version">EasyEarn v1.0.0</div>
+    </aside>
+    <section className="dashboard-main">
+      <header className="dashboard-topbar">
+        <div className="topbar-search"><Search size={16}/><input placeholder="搜索任务、用户、手机号码..." readOnly/></div>
+        <div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>Administrator</strong><small>超级管理员</small></span></div></div>
+      </header>
+      <div className="dashboard-content" style={{padding:"14px 16px 18px",maxWidth:"none"}}>
+      <main className="admin-shell" style={{ maxWidth: "none", margin:0, padding:0, minHeight: "calc(100vh - 76px)", background: "#f8fafc" }}>
     <section style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginBottom: 13 }}>
       {statCards.map(([label, value, desc, color]) => <div key={String(label)} style={{ padding: "15px 18px", minHeight: 82, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 7, display: "flex", alignItems: "center", gap: 13 }}>
         <span style={{ width: 38, height: 38, borderRadius: "50%", background: String(color), color: "#fff", display: "grid", placeItems: "center", flexShrink: 0, fontSize: 18 }}>♢</span>
@@ -203,5 +232,8 @@ export default function AiReviewsPage() {
         </div>
       </aside>
     </div>}
-  </main>;
+      </main>
+      </div>
+    </section>
+  </div>;
 }
