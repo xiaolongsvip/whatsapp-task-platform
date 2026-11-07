@@ -23,8 +23,8 @@ type ResponseData = {
   stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number };
 };
 
-async function api<T>(path: string): Promise<T> {
-  const response = await fetch(path, { credentials: "include", headers: { "Content-Type": "application/json" } });
+async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, { ...init, credentials: "include", headers: { "Content-Type": "application/json", ...(init.headers ?? {}) } });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof data.message === "string" ? data.message : "请求失败，请检查 API 服务。");
   return data as T;
@@ -79,7 +79,7 @@ export default function ExecutionRecordsPage() {
   const [selected, setSelected] = useState<TaskRecord | null>(null);
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailTab, setDetailTab] = useState("基本信息");
+  const [detailTab, setDetailTab] = useState("基本信息");\n  const [testBusy, setTestBusy] = useState(false);\n  const [testMessage, setTestMessage] = useState("");
 
   const load = useCallback(async () => {
     const apiStatus: Partial<Record<TabKey, RecordStatus>> = { CREATED: "AVAILABLE", ASSIGNED: "IN_PROGRESS", OPENED: "IN_PROGRESS", REVIEW: "REVIEW", MANUAL: "REVIEW", REJECTED: "VOIDED", RESUBMIT: "CLOSED", FROZEN: "FROZEN", SETTLED: "COMPLETED", EXPIRED: "CLOSED", CANCELLED: "CLOSED" };
@@ -121,6 +121,22 @@ export default function ExecutionRecordsPage() {
     return true;
   }), [items, tab]);
 
+  async function createTestData() {
+    if (!window.confirm("生成 6 条独立的执行记录测试数据？不会产生真实结算流水。")) return;
+    setTestBusy(true); setTestMessage("");
+    try { const result = await api<{createdCount:number;message:string}>("/api/v1/admin/tasks/records/dev-test-data", { method: "POST" }); setTestMessage(result.message); setPage(1); setPeriod("all"); setTab("ALL"); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : "生成测试数据失败"); }
+    finally { setTestBusy(false); }
+  }
+
+  async function deleteTestData() {
+    if (!window.confirm("确定清理所有带有 DEV-EXEC-TEST 标记的执行记录测试数据？真实业务数据不会被清理。")) return;
+    setTestBusy(true); setTestMessage("");
+    try { const result = await api<{deletedCount:number;message:string}>("/api/v1/admin/tasks/records/dev-test-data", { method: "DELETE" }); setTestMessage(result.message); setSelected(null); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : "清理测试数据失败"); }
+    finally { setTestBusy(false); }
+  }
+
   async function openDetail(item: TaskRecord) { setSelected(item); setDetail(null); setDetailTab("基本信息"); setDetailLoading(true); try { setDetail(await api<ExecutionDetail>("/api/v1/admin/tasks/records/" + item.id + "/detail")); } catch(e) { setError(e instanceof Error ? e.message : "详情加载失败"); } finally { setDetailLoading(false); } }
 
   const summary = [
@@ -154,8 +170,12 @@ export default function ExecutionRecordsPage() {
       </nav>
     </aside>
     <main style={{ flex: 1, minWidth: 0, padding: 18 }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><div><h1 style={{ fontSize: 22, margin: 0 }}>执行记录</h1><p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0" }}>查看任务执行进度、审核结果与结算状态</p></div><button onClick={() => load().catch((e) => setError(e.message))} style={{ border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", padding: "9px 14px", cursor: "pointer" }}><RefreshCw size={14} style={{ verticalAlign: "middle", marginRight: 6 }}/>刷新</button></header>
-      <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><div><h1 style={{ fontSize: 22, margin: 0 }}>执行记录</h1><p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0" }}>查看任务执行进度、审核结果与结算状态</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      <button disabled={testBusy} onClick={createTestData} style={{border:"1px solid #2563eb",borderRadius:6,background:"#eff6ff",color:"#1d4ed8",padding:"9px 12px",cursor:testBusy?"wait":"pointer"}}>{testBusy?"处理中…":"生成测试数据"}</button>
+      <button disabled={testBusy} onClick={deleteTestData} style={{border:"1px solid #fecaca",borderRadius:6,background:"#fff",color:"#dc2626",padding:"9px 12px",cursor:testBusy?"wait":"pointer"}}>清理测试数据</button>
+      <button onClick={() => load().catch((e) => setError(e.message))} style={{ border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", padding: "9px 14px", cursor: "pointer" }}><RefreshCw size={14} style={{ verticalAlign: "middle", marginRight: 6 }}/>刷新</button>
+      </div></header>
+      {testMessage && <p style={{color:"#047857",fontSize:12,margin:"0 0 10px"}}>{testMessage}</p>}\n      <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14, marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}><strong style={{ fontSize: 13 }}>领取时间范围（UTC）</strong><div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{[["all","全部"],["today","今天"],["yesterday","昨天"],["7d","近7天"],["30d","近30天"]].map(([v,l]) => <button key={v} onClick={() => {setPeriod(v);setPage(1);}} style={{ border: 0, borderRadius: 5, padding: "7px 12px", background: period===v?"#2563eb":"#f1f5f9", color: period===v?"#fff":"#475569", cursor: "pointer" }}>{l}</button>)}</div></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 9 }}>
           {summary.map((s) => <button key={s.key} onClick={() => chooseTab(s.key)} style={{ ...card, borderColor: tab===s.key?s.color:"#e2e8f0", boxShadow: tab===s.key?"0 0 0 1px "+s.color+" inset":"none" }}>
