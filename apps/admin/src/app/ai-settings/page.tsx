@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../components/AdminSidebar";
 
+type ReviewScheme = { name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean };
+
 type AiConfig = {
   baseUrl: string;
   model: string;
@@ -32,6 +34,11 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export default function AiSettingsPage() {
   const [config, setConfig] = useState<AiConfig | null>(null);
+  const [activeTab, setActiveTab] = useState<"engine" | "schemes">("engine");
+  const [schemes, setSchemes] = useState<ReviewScheme[]>([]);
+  const [schemeForm, setSchemeForm] = useState<ReviewScheme>({ name: "", platform: "WhatsApp", referenceImage: "", instructions: "", enabled: true });
+  const [editingScheme, setEditingScheme] = useState<number | null>(null);
+  const [schemeBusy, setSchemeBusy] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,8 +47,12 @@ export default function AiSettingsPage() {
   const [message, setMessage] = useState("");
 
   async function refresh() {
-    const current = await api<AiConfig>("/api/v1/admin/ai-config");
+    const [current, reviewSchemes] = await Promise.all([
+      api<AiConfig>("/api/v1/admin/ai-config"),
+      api<ReviewScheme[]>("/api/v1/admin/tasks/configuration/reviews"),
+    ]);
     setConfig(current);
+    setSchemes(Array.isArray(reviewSchemes) ? reviewSchemes : []);
   }
 
   useEffect(() => {
@@ -86,6 +97,32 @@ export default function AiSettingsPage() {
     }
   }
 
+  async function saveScheme(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSchemeBusy(true); setError(""); setMessage("");
+    try {
+      const next = [...schemes];
+      if (editingScheme === null) next.push(schemeForm);
+      else next[editingScheme] = schemeForm;
+      await api("/api/v1/admin/tasks/configuration/reviews", { method: "PATCH", body: JSON.stringify({ value: next }) });
+      setSchemes(next);
+      setSchemeForm({ name: "", platform: "WhatsApp", referenceImage: "", instructions: "", enabled: true });
+      setEditingScheme(null);
+      setMessage("审核方案已保存。");
+    } catch (err) { setError(err instanceof Error ? err.message : "审核方案保存失败。"); }
+    finally { setSchemeBusy(false); }
+  }
+
+  async function toggleScheme(index: number) {
+    const next = schemes.map((item, i) => i === index ? { ...item, enabled: !item.enabled } : item);
+    setSchemeBusy(true); setError("");
+    try {
+      await api("/api/v1/admin/tasks/configuration/reviews", { method: "PATCH", body: JSON.stringify({ value: next }) });
+      setSchemes(next);
+    } catch (err) { setError(err instanceof Error ? err.message : "状态更新失败。"); }
+    finally { setSchemeBusy(false); }
+  }
+
   async function testConnection() {
     setBusy(true);
     setError("");
@@ -126,8 +163,11 @@ export default function AiSettingsPage() {
 
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
-
-      <form onSubmit={save}>
+      <nav style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: "1px solid #e5eaf2", paddingBottom: 12 }}>
+        <button type="button" className={activeTab === "engine" ? "primary-btn" : "secondary-btn"} onClick={() => setActiveTab("engine")}>AI 引擎与自动审核</button>
+        <button type="button" className={activeTab === "schemes" ? "primary-btn" : "secondary-btn"} onClick={() => setActiveTab("schemes")}>任务审核方案</button>
+      </nav>
+      {activeTab === "engine" ? <form onSubmit={save}>
         <section className="panel">
           <h2>OpenAI 服务连接</h2>
           <p className="muted">API Key 只在服务端加密保存，读取配置时不会返回明文。</p>
@@ -182,7 +222,26 @@ export default function AiSettingsPage() {
             <span className="muted">最后更新：{new Date(config.updatedAt).toLocaleString()}</span>
           </div>
         </section>
-      </form>
+      </form> : <section className="panel">
+        <h2>任务审核方案管理</h2>
+        <p className="muted">在这里统一维护不同平台和任务类型的审核参考资料。启用的方案可供审核流程选择；AI 引擎连接和自动审核策略在上一个标签中配置。</p>
+        <form onSubmit={saveScheme}>
+          <div className="form-grid">
+            <div className="field"><label>方案名称</label><input required value={schemeForm.name} onChange={e => setSchemeForm(v => ({ ...v, name: e.target.value }))} placeholder="例如：WhatsApp 私信截图审核" /></div>
+            <div className="field"><label>适用平台</label><select value={schemeForm.platform} onChange={e => setSchemeForm(v => ({ ...v, platform: e.target.value }))}><option>WhatsApp</option><option>Telegram</option><option>Facebook</option><option>通用</option></select></div>
+            <div className="field" style={{ gridColumn: "1 / -1" }}><label>成功参考图 URL</label><input value={schemeForm.referenceImage} onChange={e => setSchemeForm(v => ({ ...v, referenceImage: e.target.value }))} placeholder="https://..." /></div>
+            <div className="field" style={{ gridColumn: "1 / -1" }}><label>审核要求 / 判断规则</label><textarea rows={4} value={schemeForm.instructions} onChange={e => setSchemeForm(v => ({ ...v, instructions: e.target.value }))} placeholder="描述必须识别的截图内容、成功条件和拒绝条件。" /></div>
+            <div className="field"><label><input type="checkbox" checked={schemeForm.enabled} onChange={e => setSchemeForm(v => ({ ...v, enabled: e.target.checked }))} /> 启用此审核方案</label></div>
+          </div>
+          <div className="action-row"><button className="primary-btn" disabled={schemeBusy} type="submit">{schemeBusy ? "保存中…" : editingScheme === null ? "新增审核方案" : "保存修改"}</button><button className="secondary-btn" type="button" onClick={() => { setEditingScheme(null); setSchemeForm({ name: "", platform: "WhatsApp", referenceImage: "", instructions: "", enabled: true }); }}>重置表单</button></div>
+        </form>
+        <div style={{ overflowX: "auto", marginTop: 18 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr>{["方案名称", "平台", "成功参考图", "审核要求", "状态", "操作"].map(x => <th key={x} style={{ textAlign: "left", padding: 10, background: "#f8fafc", fontSize: 12 }}>{x}</th>)}</tr></thead>
+            <tbody>{schemes.map((item, index) => <tr key={index}><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.name}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.platform}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{item.referenceImage || "—"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", maxWidth: 300 }}>{item.instructions || "—"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.enabled ? "已启用" : "已停用"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", whiteSpace: "nowrap" }}><button type="button" className="secondary-btn" onClick={() => { setEditingScheme(index); setSchemeForm({ ...item }); }}>编辑</button> <button type="button" className="secondary-btn" disabled={schemeBusy} onClick={() => void toggleScheme(index)}>{item.enabled ? "停用" : "启用"}</button></td></tr>)}</tbody>
+          </table>
+          {schemes.length === 0 && <p className="muted">暂无审核方案，请在上方创建。</p>}
+        </div>
+      </section>}
     </main></div>
   );
 }
