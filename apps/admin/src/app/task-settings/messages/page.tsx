@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminSidebar from "../../../components/AdminSidebar";
 import { Layers, Globe2, FileText, Coins, MessageSquare, Clock3, ShieldCheck, Plus, RefreshCw, Search, Save, Pencil, Power } from "lucide-react";
 
-type Row = Record<string, string | boolean>;
+type Row = Record<string, unknown>;
 type Template = { id:string; name:string; platform:string; action:string; content:string; enabled:boolean; updatedAt:string };
 type Tab = "platforms" | "countries" | "sources" | "rewards" | "messages" | "claim-limits" | "reviews";
 type Field = { key:string; label:string; placeholder?:string; type?:"text"|"number"|"textarea"|"select"; options?:string[]; required?:boolean };
 type Config = { key:Tab; label:string; icon:typeof Layers; title:string; fields:Field[]; columns:string[] };
 
 const tabs:Config[] = [
- {key:"platforms",label:"1. 平台与目标 APP",icon:Layers,title:"平台列表",fields:[{key:"name",label:"平台名称",required:true},{key:"appName",label:"目标 APP",required:true},{key:"capabilities",label:"能力（逗号分隔）",placeholder:"APP, 节点支持, 视频审核"},{key:"action",label:"默认任务动作",placeholder:"向目标号码发送私信"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","appName","capabilities","action","enabled"]},
+ {key:"platforms",label:"1. 平台与目标 APP",icon:Layers,title:"平台列表",fields:[{key:"name",label:"平台名称",required:true},{key:"code",label:"平台代码（唯一）",required:true,placeholder:"WHATSAPP"},{key:"targetApp",label:"目标 Android APP",required:true,placeholder:"WhatsApp"},{key:"capabilities",label:"能力（逗号分隔）",placeholder:"APP, 节点支持, 视觉审核"},{key:"action",label:"任务动作",placeholder:"向目标号码发送私信"},{key:"actionCode",label:"动作代码",placeholder:"SEND_MESSAGE"}],columns:["name","targetApp","capabilities","action","enabled"]},
  {key:"countries",label:"2. 国家配置",icon:Globe2,title:"国家列表",fields:[{key:"name",label:"国家名称",required:true},{key:"code",label:"国家代码",required:true},{key:"dialCode",label:"国际区号",required:true},{key:"currency",label:"默认货币",required:true},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","code","dialCode","currency","enabled"]},
  {key:"sources",label:"3. 任务来源",icon:FileText,title:"业务来源列表",fields:[{key:"name",label:"业务来源名称",required:true},{key:"category",label:"业务分类",type:"select",options:["全部分类","推广活动","社群运营","私信任务","其他"]},{key:"note",label:"内部备注",type:"textarea"},{key:"task",label:"关联任务"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","category","note","task","enabled"]},
  {key:"rewards",label:"4. 奖励规则",icon:Coins,title:"奖励规则列表",fields:[{key:"name",label:"规则名称",required:true},{key:"platform",label:"任务平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"action",label:"任务动作",type:"select",options:["向目标号码发送私信","创建群组","加入群组","其他"]},{key:"countries",label:"适用国家/地区",placeholder:"留空表示全部国家"},{key:"amount",label:"用户奖励",type:"number",required:true},{key:"currency",label:"奖励币种",placeholder:"USD"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","action","countries","amount","currency","enabled"]},
@@ -55,7 +55,7 @@ export default function TaskConfigurationPage(){
     const data=await api<Template[]>("/api/v1/admin/tasks/message-templates");
     setTemplates(data);return;
    }
-   const value=await api<unknown>("/api/v1/admin/tasks/configuration/"+tab);
+   if(tab==="platforms"){\n    const result=await api<{items:Array<Record<string,unknown>>}>("/api/v1/admin/tasks/configuration/platforms");\n    setRows(prev=>({...prev,platforms:result.items.map(item=>{const caps=item.capabilities&&typeof item.capabilities==="object"?Object.entries(item.capabilities as Record<string,unknown>).filter(([,v])=>v===true).map(([k])=>({appSupport:"APP",nodeSupport:"节点支持",visualReview:"视觉审核",backendSupport:"后台支持"}[k]??k)):[];const actions=Array.isArray(item.actions)?item.actions as Array<Record<string,unknown>>:[];return {...item,targetApp:item.targetApp,capabilities:caps.join(", "),action:String(actions[0]?.name??""),actionCode:String(actions[0]?.code??"")};})}));\n    return;\n   }\n   const value=await api<unknown>("/api/v1/admin/tasks/configuration/"+tab);
    if(tab==="claim-limits"){
     const v=(value&&typeof value==="object"?value:{}) as Record<string,unknown>;
     setLimits({dailyLimit:String(v.dailyLimit??20),minimumIntervalSeconds:String(v.minimumIntervalSeconds??60),taskTimeLimitMinutes:String(v.taskTimeLimitMinutes??3)});
@@ -70,7 +70,7 @@ export default function TaskConfigurationPage(){
  useEffect(()=>{void load();},[load]);
 
  function startCreate(){
-  setEditing(null);setForm(tab==="messages"?{name:"",platform:"WhatsApp 私信任务",language:"中文",content:"",enabled:true}:{enabled:"启用"});
+  setEditing(null);setForm(tab==="messages"?{name:"",platform:"WhatsApp 私信任务",language:"中文",content:"",enabled:true}:tab==="platforms"?{name:"",code:"",targetApp:"",capabilities:"APP, 节点支持, 视觉审核",action:"",actionCode:"SEND_MESSAGE"}:{enabled:"启用"});
   setFormOpen(true);setError("");setNotice("");
  }
  function startEdit(row:Row,index:number){
@@ -83,6 +83,26 @@ export default function TaskConfigurationPage(){
     const payload={name:String(form.name??""),platform:String(form.platform??"WhatsApp"),action:"MESSAGE",content:String(form.content??""),enabled:true};
     if(editing!==null){const item=templates[editing];await api("/api/v1/admin/tasks/message-templates/"+item.id,{method:"PATCH",body:JSON.stringify(payload)});}
     else await api("/api/v1/admin/tasks/message-templates",{method:"POST",body:JSON.stringify(payload)});
+   }else if(tab==="platforms"){
+    const capabilitiesText=String(form.capabilities??"");
+    const capabilities={appSupport:/APP/i.test(capabilitiesText),nodeSupport:/节点|node/i.test(capabilitiesText),visualReview:/视觉|视频|审核|review/i.test(capabilitiesText),backendSupport:/后台|backend/i.test(capabilitiesText)};
+    const payload={name:String(form.name??""),targetApp:String(form.targetApp??""),description:"",capabilities};
+    let platformId="";
+    if(editing!==null){
+     const old=rows.platforms[editing];platformId=String(old.id);
+     await api("/api/v1/admin/tasks/configuration/platforms/"+platformId,{method:"PATCH",body:JSON.stringify(payload)});
+     const oldActions=Array.isArray(old.actions)?old.actions as Array<Record<string,unknown>>:[];
+     const actionName=String(form.action??"").trim();
+     if(actionName){const actionPayload={name:actionName,evidenceType:"SCREENSHOT",requiresTargetPhone:true,requiresDeliveryStatus:true,requiresMessageTemplate:true};
+      if(oldActions[0]?.id)await api("/api/v1/admin/tasks/configuration/platforms/"+platformId+"/actions/"+String(oldActions[0].id),{method:"PATCH",body:JSON.stringify(actionPayload)});
+      else await api("/api/v1/admin/tasks/configuration/platforms/"+platformId+"/actions",{method:"POST",body:JSON.stringify({...actionPayload,code:String(form.actionCode??"SEND_MESSAGE")})});
+     }
+    }else{
+     const created=await api<{id:string}>("/api/v1/admin/tasks/configuration/platforms",{method:"POST",body:JSON.stringify({...payload,code:String(form.code??"" )})});
+     platformId=created.id;
+     const actionName=String(form.action??"").trim();
+     if(actionName)await api("/api/v1/admin/tasks/configuration/platforms/"+platformId+"/actions",{method:"POST",body:JSON.stringify({name:actionName,code:String(form.actionCode??"SEND_MESSAGE"),evidenceType:"SCREENSHOT",requiresTargetPhone:true,requiresDeliveryStatus:true,requiresMessageTemplate:true})});
+    }
    }else{
     const list=[...(rows[tab]??defaults[tab]??[])];
     const normalized={...form,enabled:form.enabled==="停用"?false:form.enabled==="启用"?true:form.enabled};
@@ -99,6 +119,8 @@ export default function TaskConfigurationPage(){
   try{
    if(tab==="messages"){
     const item=templates[index];await api("/api/v1/admin/tasks/message-templates/"+item.id,{method:"PATCH",body:JSON.stringify({enabled:!item.enabled})});
+   }else if(tab==="platforms"){
+    const item=rows.platforms[index];await api("/api/v1/admin/tasks/configuration/platforms/"+String(item.id),{method:"PATCH",body:JSON.stringify({enabled:!Boolean(item.enabled)})});
    }else{
     const list=[...(rows[tab]??[])];list[index]={...list[index],enabled:!Boolean(list[index].enabled)};
     await api("/api/v1/admin/tasks/configuration/"+tab,{method:"PATCH",body:JSON.stringify({value:list})});setRows(prev=>({...prev,[tab]:list}));
@@ -153,7 +175,7 @@ export default function TaskConfigurationPage(){
  </main></div>;
 }
 
-function fieldName(config:Config,key:string){return config.fields.find(f=>f.key===key)?.label??({name:"名称",appName:"目标 APP",capabilities:"能力",action:"任务动作",enabled:"状态",code:"国家代码",dialCode:"国际区号",currency:"默认货币",category:"业务分类",note:"内部备注",task:"关联任务",platform:"平台 / 类型",countries:"适用国家/地区",amount:"用户奖励",language:"语言",content:"话术内容",referenceImage:"成功参考图"} as Record<string,string>)[key]??key;}
+function fieldName(config:Config,key:string){return config.fields.find(f=>f.key===key)?.label??({name:"名称",appName:"目标 APP",targetApp:"目标 APP",code:"平台代码",actionCode:"动作代码",capabilities:"能力",action:"任务动作",enabled:"状态",code:"国家代码",dialCode:"国际区号",currency:"默认货币",category:"业务分类",note:"内部备注",task:"关联任务",platform:"平台 / 类型",countries:"适用国家/地区",amount:"用户奖励",language:"语言",content:"话术内容",referenceImage:"成功参考图"} as Record<string,string>)[key]??key;}
 function badge(enabled:boolean){return {display:"inline-block",padding:"3px 8px",borderRadius:5,fontSize:11,color:enabled?"#059669":"#64748b",background:enabled?"#ecfdf5":"#f1f5f9",border:"1px solid "+(enabled?"#a7f3d0":"#cbd5e1")};}
 const panel={background:"#fff",border:"1px solid #e5eaf2",borderRadius:9,padding:10,minHeight:"calc(100vh - 110px)"} as const;
 const subPanel={background:"#fbfcfe",border:"1px solid #e5eaf2",borderRadius:8,padding:16} as const;
