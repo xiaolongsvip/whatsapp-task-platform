@@ -89,7 +89,7 @@ export default function FinancePage(){
  <button style={btn} onClick={()=>{setInputSearch("");setSearch("");setStatus("ALL");setCountry("ALL");setPage(1);}}>重置</button>
  <button style={btn} disabled={busy} onClick={()=>{void loadSummary();void load();}}><RefreshCw size={13}/>刷新</button>
  </section>}
- {tab!=="withdrawals"&&<section style={{...box,padding:12,marginBottom:12,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+ {tab!=="withdrawals"&&tab!=="settlement"&&<section style={{...box,padding:12,marginBottom:12,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
   {tab==="providers"&&<button style={{...btn,background:"#2868ee",color:"#fff"}} onClick={()=>editProvider()}>＋ 新增代付方式</button>}
   <div style={{position:"relative"}}><Search size={14} style={{position:"absolute",left:9,top:11,color:"#8492a6"}}/><input style={{...input,width:240,paddingLeft:29}} placeholder={tab==="accounts"?"搜索用户手机号、账号或持有人":tab==="wallets"?"输入用户手机号或钱包 ID 搜索":"输入用户、手机号、单号搜索"} value={inputSearch} onChange={e=>setInputSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setPage(1);setSearch(inputSearch.trim());}}}/></div>
   {tab==="wallets"&&<select style={input} value={currency} onChange={e=>{setCurrency(e.target.value);setPage(1);}}><option value="ALL">全部币种</option>{(summary?.walletBalances||[]).map(x=><option key={x.currency} value={x.currency}>{x.currency}</option>)}</select>}
