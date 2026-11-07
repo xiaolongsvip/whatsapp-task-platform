@@ -323,19 +323,19 @@ export class TaskAdminService {
           releasedAt: definition.slot === "VOIDED" ? now : null,
         } });
         ids.push(slot.id);
-        if (claimId && ["UNDER_REVIEW", "APPROVED", "REJECTED"].includes(definition.claim ?? "")) {
-          const submissionStatus = definition.claim === "UNDER_REVIEW" ? "UNDER_REVIEW" : definition.claim === "APPROVED" ? "APPROVED" : "REJECTED";
+        if (claimId && ["IN_PROGRESS", "UNDER_REVIEW", "APPROVED", "REJECTED"].includes(definition.claim ?? "")) {
+          const submissionStatus = definition.claim === "IN_PROGRESS" ? "SUBMITTED" : definition.claim === "UNDER_REVIEW" ? "UNDER_REVIEW" : definition.claim === "APPROVED" ? "APPROVED" : "REJECTED";
           const submission = await tx.taskSubmission.create({ data: {
             claimId, objectKey: "dev-execution-test/" + suffix + ".svg",
             originalName: "测试任务截图-" + definition.suffix + ".svg",
-            mimeType: "image/svg+xml", sizeBytes: 420, note: "开发测试模拟提交，不是真实用户上传。",
+            mimeType: "image/svg+xml", sizeBytes: Buffer.byteLength(DEV_EXECUTION_TEST_SCREENSHOT, "utf8"), note: "APP 自动提交（测试模拟），不是真实用户上传。",
             status: submissionStatus,
           } });
           await tx.aiReviewJob.create({ data: {
-            submissionId: submission.id, status: "COMPLETED",
-            decision: definition.claim === "REJECTED" ? "REJECT" : "APPROVE",
-            confidence: 0.98,
-            reason: "【测试数据】模拟 AI 审核说明，仅用于页面展示。",
+            submissionId: submission.id, status: definition.claim === "IN_PROGRESS" ? "PENDING" : "COMPLETED",
+            decision: definition.claim === "IN_PROGRESS" ? null : definition.claim === "REJECTED" ? "REJECT" : "APPROVE",
+            confidence: definition.claim === "IN_PROGRESS" ? null : 0.98,
+            reason: definition.claim === "IN_PROGRESS" ? "【测试数据】截图已提交，等待 AI 审核。" : "【测试数据】模拟 AI 审核说明，仅用于页面展示。",
             extractedText: "DEV TEST · " + definition.suffix,
           } });
           if (definition.claim !== "UNDER_REVIEW") {
