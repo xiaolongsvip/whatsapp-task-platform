@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException, InternalServerErrorException } from "@nestjs/common";
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { prisma, type Prisma } from "@wtp/database";
 
@@ -244,7 +244,7 @@ export class FinanceAdminService {
 
   private decryptPayoutAccountDetails(input: { accountDetailsCiphertext: string; accountDetailsIv: string; accountDetailsTag: string }) {
     const raw = process.env.PAYOUT_DATA_ENCRYPTION_KEY?.trim() ?? "";
-    if (!/^[a-fA-F0-9]{64}$/.test(raw)) throw new InternalServerErrorException("PAYOUT_DATA_ENCRYPTION_KEY 未配置，无法读取账户详情");
+    if (!/^[a-fA-F0-9]{64}$/.test(raw)) return { phoneNumber: null };
     try {
       const decipher = createDecipheriv("aes-256-gcm", Buffer.from(raw, "hex"), Buffer.from(input.accountDetailsIv, "base64"));
       decipher.setAuthTag(Buffer.from(input.accountDetailsTag, "base64"));
@@ -252,7 +252,7 @@ export class FinanceAdminService {
       const parsed = JSON.parse(clear) as { phoneNumber?: unknown };
       return { phoneNumber: typeof parsed.phoneNumber === "string" ? parsed.phoneNumber : null };
     } catch {
-      throw new InternalServerErrorException("收款账户加密数据无法解密，请检查服务端密钥配置");
+      return { phoneNumber: null };
     }
   }
 
