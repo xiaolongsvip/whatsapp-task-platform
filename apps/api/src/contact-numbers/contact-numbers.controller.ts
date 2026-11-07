@@ -54,6 +54,31 @@ export class ContactNumbersController {
     return this.contacts.importNumbers(admin.id, body);
   }
 
+
+  @Post("single")
+  async addSingle(@Req() request: Request, @Body() body: { phone: string; countryCode: string; countryName: string; consentConfirmed: boolean }) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.addSingle(admin.id, body);
+  }
+
+  @Get("sampling-results")
+  async samplingResults(@Req() request: Request, @Query("page") page?: string, @Query("pageSize") pageSize?: string, @Query("status") status?: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.samplingResults(page, pageSize, status);
+  }
+
+  @Post("sampling-results")
+  async saveSamplingResult(@Req() request: Request, @Body() body: { claimId: string; actualResult: string; handlingStatus: string }) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.saveSamplingResult(admin.id, body);
+  }
+
+  @Get("import-history")
+  async importHistory(@Req() request: Request, @Query("page") page?: string, @Query("pageSize") pageSize?: string, @Query("status") status?: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.importHistory(page, pageSize, status);
+  }
+
   @Post(":id/block")
   async block(@Req() request: Request, @Param("id") id: string) {
     const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
