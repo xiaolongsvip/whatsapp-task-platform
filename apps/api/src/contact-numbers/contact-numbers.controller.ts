@@ -61,6 +61,13 @@ export class ContactNumbersController {
     return this.contacts.addSingle(admin.id, body);
   }
 
+
+  @Get("sampling-numbers")
+  async samplingNumbers(@Req() request: Request, @Query("limit") limit?: string, @Query("search") search?: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.samplingNumbers(limit, search);
+  }
+
   @Get("sampling-results")
   async samplingResults(@Req() request: Request, @Query("page") page?: string, @Query("pageSize") pageSize?: string, @Query("status") status?: string) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
