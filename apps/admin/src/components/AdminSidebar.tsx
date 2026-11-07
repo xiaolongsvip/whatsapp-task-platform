@@ -19,7 +19,7 @@ const reviewItems = [
   { href: "/ai-reviews?view=random", label: "抽检风控", Icon: Sprout },
 ];
 const settingItems = [
-  { href: "/tasks", label: "任务列表", Icon: ClipboardList },
+  { href: "/task-settings", label: "任务列表", Icon: ClipboardList },
   { href: "/task-settings/messages", label: "任务配置", Icon: Settings },
 ];
 
@@ -37,7 +37,7 @@ function AdminSidebarContent() {
       <button type="button" className="sidebar-link" onClick={() => setReviewOpen(v => !v)}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} style={{marginLeft:"auto",transform:reviewOpen?"rotate(180deg)":"none"}}/></button>
       {reviewOpen && <div className="sidebar-submenu">{reviewItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === "/ai-reviews" && ((href === "/ai-reviews" && reviewView === "manual") || (href.includes("view=evidence") && reviewView === "evidence") || (href.includes("view=risk") && reviewView === "risk") || (href.includes("view=random") && reviewView === "random"))) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
       <button type="button" className="sidebar-link" onClick={() => setTaskOpen(v => !v)}><ClipboardList size={16}/>任务设置<ChevronDown size={14} style={{marginLeft:"auto",transform:taskOpen?"rotate(180deg)":"none"}}/></button>
-      {taskOpen && <div className="sidebar-submenu">{settingItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === href && (href !== "/tasks" || pathname === "/tasks") || pathname.startsWith("/task-settings") && href === "/task-settings/messages") ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
+      {taskOpen && <div className="sidebar-submenu">{settingItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === href || pathname.startsWith("/task-settings") && href === "/task-settings") ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
       <Link className="sidebar-link" href="/wallet-holds"><HandCoins size={16}/>邀请与分佣</Link>
       <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
       <Link className="sidebar-link" href="/wallet-holds"><WalletCards size={16}/>财务管理</Link>
