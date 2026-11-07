@@ -309,6 +309,29 @@ export class TaskAdminService {
           releasedAt: definition.slot === "VOIDED" ? now : null,
         } });
         ids.push(slot.id);
+        if (claimId && ["UNDER_REVIEW", "APPROVED", "REJECTED"].includes(definition.claim ?? "")) {
+          const submissionStatus = definition.claim === "UNDER_REVIEW" ? "UNDER_REVIEW" : definition.claim === "APPROVED" ? "APPROVED" : "REJECTED";
+          const submission = await tx.taskSubmission.create({ data: {
+            claimId, objectKey: "dev-execution-test/" + suffix + ".svg",
+            originalName: "测试任务截图-" + definition.suffix + ".svg",
+            mimeType: "image/svg+xml", sizeBytes: 420, note: "开发测试模拟提交，不是真实用户上传。",
+            status: submissionStatus,
+          } });
+          await tx.aiReviewJob.create({ data: {
+            submissionId: submission.id, status: "COMPLETED",
+            decision: definition.claim === "REJECTED" ? "REJECT" : "APPROVE",
+            confidence: 0.98,
+            reason: "【测试数据】模拟 AI 审核说明，仅用于页面展示。",
+            extractedText: "DEV TEST · " + definition.suffix,
+          } });
+          if (definition.claim !== "UNDER_REVIEW") {
+            await tx.taskReview.create({ data: {
+              submissionId: submission.id, reviewerAdminId: adminId,
+              decision: definition.claim === "APPROVED" ? "APPROVE" : "REJECT",
+              reason: "【测试数据】模拟人工审核意见。",
+            } });
+          }
+        }
         await tx.auditEvent.create({ data: {
           actorType: "SYSTEM", actorId: adminId, action: "DEV_TEST_" + definition.suffix,
           targetType: "TaskSlot", targetId: slot.id,
@@ -438,7 +461,7 @@ export class TaskAdminService {
       submissions: submissions.map((item) => ({
         id: item.id, status: item.status, originalName: item.originalName, mimeType: item.mimeType,
         sizeBytes: item.sizeBytes, note: item.note, submittedAt: item.submittedAt.toISOString(),
-        evidenceUrl: "/api/v1/admin/task-submissions/" + item.id + "/evidence",
+        evidenceUrl: item.objectKey.startsWith("dev-execution-test/") ? "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420"><rect width="720" height="420" fill="#f1f5f9"/><rect x="24" y="24" width="672" height="372" rx="16" fill="white" stroke="#cbd5e1"/><text x="360" y="185" text-anchor="middle" font-size="30" fill="#0f172a">执行记录测试截图</text><text x="360" y="230" text-anchor="middle" font-size="20" fill="#64748b">DEV TEST · 非真实用户证据</text></svg>') : "/api/v1/admin/task-submissions/" + item.id + "/evidence",
         aiReview: item.aiReviewJob ? {
           status: item.aiReviewJob.status, decision: item.aiReviewJob.decision,
           confidence: item.aiReviewJob.confidence, reason: item.aiReviewJob.reason,
