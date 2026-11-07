@@ -102,6 +102,7 @@ export class AiConfigService {
       baseUrl: config.baseUrl,
       model: config.model,
       enabled: config.enabled,
+      workerEnabled: process.env.AI_REVIEW_WORKER_ENABLED === "true",
       approveThreshold: config.approveThreshold,
       rejectThreshold: config.rejectThreshold,
       systemPrompt: config.systemPrompt,
