@@ -21,7 +21,7 @@ const td:React.CSSProperties={padding:"11px 10px",fontSize:12,color:"#34445b",bo
 function Tag({children,tone="green"}:{children:React.ReactNode;tone?:"green"|"blue"|"orange"|"gray"}){const colors={green:["#e9fbf1","#15945b","#baf0d0"],blue:["#edf4ff","#2868ee","#cfe0ff"],orange:["#fff6e9","#c27a16","#f8dfb7"],gray:["#f2f4f7","#667085","#e4e7ec"]};const c=colors[tone];return <span style={{display:"inline-block",padding:"3px 7px",borderRadius:5,fontSize:10,color:c[1],background:c[0],border:"1px solid "+c[2]}}>{children}</span>;}
 export default function ReferralsPage(){
  const [tab,setTab]=useState<Tab>("invites");const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [notice,setNotice]=useState("");
- const [adminEmail,setAdminEmail]=useState("Administrator");const [profileOpen,setProfileOpen]=useState(false);
+ const [adminEmail,setAdminEmail]=useState("Administrator");const [profileOpen,setProfileOpen]=useState(false);const [topbarSearch,setTopbarSearch]=useState("");
  const [items,setItems]=useState<Invite[]>([]);const [total,setTotal]=useState(0);const [page,setPage]=useState(1);const [searchInput,setSearchInput]=useState("");const [search,setSearch]=useState("");const [status,setStatus]=useState("ALL");
  const [relationSearch,setRelationSearch]=useState("");const [selectedId,setSelectedId]=useState("");const [relation,setRelation]=useState<Relation|null>(null);
  const [commissions,setCommissions]=useState<Commission[]>([]);const [commissionSearch,setCommissionSearch]=useState("");const [commissionStatus,setCommissionStatus]=useState("ALL");const [depth,setDepth]=useState("ALL");const [from,setFrom]=useState("");const [to,setTo]=useState("");
@@ -43,7 +43,7 @@ export default function ReferralsPage(){
  return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main" style={{minWidth:0,background:"#f7f9fc"}}>
   <header className="dashboard-topbar">
    <button className="mobile-menu-btn" aria-label="打开菜单"><Menu size={20}/></button>
-   <div className="topbar-search"><Search size={16}/><input aria-label="后台搜索" placeholder="搜索任务、用户、手机号码..." disabled /></div>
+   <div className="topbar-search"><Search size={16}/><input aria-label="搜索用户或邀请码" value={topbarSearch} onChange={e=>setTopbarSearch(e.target.value)} placeholder="搜索用户、手机号、邀请码..." onKeyDown={e=>{if(e.key==="Enter"){setSearchInput(topbarSearch);setSearch(topbarSearch.trim());setPage(1);setTab("invites");}}}/></div>
    <div className="topbar-actions">
     <span className="topbar-language">文</span>
     <button className="topbar-icon" type="button" title="帮助"><CircleHelp size={19}/></button>
