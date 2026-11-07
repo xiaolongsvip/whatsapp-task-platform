@@ -373,7 +373,6 @@ export class AiReviewAdminService {
       sizeBytes: item.sizeBytes,
       note: item.note,
       submittedAt: item.submittedAt.toISOString(),
-      createdAt: item.createdAt.toISOString(),
       objectKey: item.objectKey,
       imageDimensions: null,
       contentHash: null,
