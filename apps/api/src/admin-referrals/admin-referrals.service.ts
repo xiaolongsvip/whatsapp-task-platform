@@ -7,6 +7,69 @@ const SETTINGS_KEY = "referral-commission";
 
 @Injectable()
 export class AdminReferralsService {
+  async auditReferralRelations() {
+    const limit = 50000;
+    const [edges, ancestors, userCount] = await Promise.all([
+      prisma.referralEdge.findMany({ take: limit + 1, select: { inviteeUserId: true, inviterUserId: true } }),
+      prisma.referralAncestor.findMany({ take: limit + 1, select: { descendantUserId: true, ancestorUserId: true, depth: true } }),
+      prisma.user.count(),
+    ]);
+    if (edges.length > limit || ancestors.length > limit) {
+      return { complete: false, limit, userCount, edgeCount: edges.length, ancestorCount: ancestors.length,
+        message: "关系记录超过单次只读审计上限，本次未计算差异；请安排分批审计。" };
+    }
+    const parentByInvitee = new Map(edges.map((edge) => [edge.inviteeUserId, edge.inviterUserId]));
+    const actualByDescendant = new Map<string, Map<number, string>>();
+    for (const row of ancestors) {
+      const byDepth = actualByDescendant.get(row.descendantUserId) ?? new Map<number, string>();
+      byDepth.set(row.depth, row.ancestorUserId);
+      actualByDescendant.set(row.descendantUserId, byDepth);
+    }
+    const descendants = new Set([...parentByInvitee.keys(), ...actualByDescendant.keys()]);
+    const issues: Array<{ type: string; descendantUserId: string; depth?: number; expectedAncestorId?: string; actualAncestorId?: string }> = [];
+    let missing = 0;
+    let unexpected = 0;
+    let mismatched = 0;
+    let cycles = 0;
+    for (const descendantId of descendants) {
+      const expected = new Map<number, string>();
+      const visited = new Set<string>([descendantId]);
+      let current = descendantId;
+      for (let depth = 1; depth <= 3; depth += 1) {
+        const parent = parentByInvitee.get(current);
+        if (!parent) break;
+        if (visited.has(parent)) {
+          cycles += 1;
+          if (issues.length < 100) issues.push({ type: "CYCLE", descendantUserId: descendantId, depth, actualAncestorId: parent });
+          break;
+        }
+        visited.add(parent);
+        expected.set(depth, parent);
+        current = parent;
+      }
+      const actual = actualByDescendant.get(descendantId) ?? new Map<number, string>();
+      for (const [depth, expectedAncestorId] of expected) {
+        const actualAncestorId = actual.get(depth);
+        if (!actualAncestorId) {
+          missing += 1;
+          if (issues.length < 100) issues.push({ type: "MISSING", descendantUserId: descendantId, depth, expectedAncestorId });
+        } else if (actualAncestorId !== expectedAncestorId) {
+          mismatched += 1;
+          if (issues.length < 100) issues.push({ type: "MISMATCH", descendantUserId: descendantId, depth, expectedAncestorId, actualAncestorId });
+        }
+      }
+      for (const [depth, actualAncestorId] of actual) {
+        if (![1, 2, 3].includes(depth) || !expected.has(depth)) {
+          unexpected += 1;
+          if (issues.length < 100) issues.push({ type: "UNEXPECTED", descendantUserId: descendantId, depth, actualAncestorId });
+        }
+      }
+    }
+    return { complete: true, userCount, edgeCount: edges.length, ancestorCount: ancestors.length,
+      summary: { missing, unexpected, mismatched, cycles, issueCount: missing + unexpected + mismatched + cycles },
+      sampleLimit: 100, issues };
+  }
+
   async listInvites(searchInput?: string, statusInput?: string, pageInput?: string, pageSizeInput?: string) {
     const page = Math.max(1, Number.parseInt(pageInput ?? "1", 10) || 1);
     const pageSize = Math.min(100, Math.max(10, Number.parseInt(pageSizeInput ?? "20", 10) || 20));
