@@ -111,18 +111,18 @@ export class FinanceAdminService {
     if (!isUuid(id)) throw new BadRequestException("提现单 ID 格式不正确");
     const reference = typeof input.reference === "string" ? input.reference.trim().slice(0, 160) : "";
     const note = typeof input.note === "string" ? input.note.trim().slice(0, 500) : "";
-    const providerCode = typeof input.providerCode === "string" ? input.providerCode.trim() : "";
-    if (outcome === "PAID" && (!reference || !providerCode)) throw new BadRequestException("确认付款必须填写服务商代码和付款凭证/流水号");
+    const requestedProviderCode = typeof input.providerCode === "string" ? input.providerCode.trim() : "";
+    if (outcome === "PAID" && (!reference || !requestedProviderCode)) throw new BadRequestException("确认付款必须填写服务商代码和付款凭证/流水号");
     if (outcome === "FAILED" && !note) throw new BadRequestException("登记付款失败必须填写失败原因");
     return prisma.$transaction(async tx => {
       const withdrawal = await tx.withdrawalRequest.findUnique({
         where: { id },
-        include: { wallet: { select: { userId: true } } },
+        include: { wallet: { select: { userId: true } }, payoutAccount: { select: { providerCode: true } } },
       });
       if (!withdrawal) throw new NotFoundException("提现申请不存在");
       if (withdrawal.status !== "APPROVED" && withdrawal.status !== "PROCESSING") throw new ConflictException("只有已通过、待付款或付款处理中状态可以登记付款结果");
       if (outcome === "PAID") {
-        const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true } });
+        const providerCode = requestedProviderCode;\n        const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true } });
         if (!provider) throw new BadRequestException("服务商配置不存在");
         const existing = await tx.paymentTransaction.findFirst({ where: { withdrawalRequestId: id, status: "SUCCEEDED" }, select: { id: true } });
         if (existing) throw new ConflictException("该提现单已经登记成功付款，不能重复入账");
@@ -148,11 +148,11 @@ export class FinanceAdminService {
       }
       const transaction = await tx.paymentTransaction.create({ data: {
         userId: withdrawal.wallet.userId, walletId: withdrawal.walletId, withdrawalRequestId: id,
-        providerCode: providerCode || "MANUAL", flow: "PAYOUT", status: "FAILED",
+        providerCode: withdrawal.payoutAccount.providerCode, flow: "PAYOUT", status: "FAILED",
         amountMinor: withdrawal.amountMinor, currency: withdrawal.currency,
         idempotencyKey: "manual-payout-failed:" + id + ":" + Date.now(),
         failureCode: "MANUAL_PAYOUT_FAILED", failureMessage: note,
-        metadata: { mode: "MANUAL_CONFIRMATION", confirmedBy: adminId },
+        metadata: { mode: "MANUAL_CONFIRMATION", confirmedBy: adminId, providerCode: withdrawal.payoutAccount.providerCode },
       }});
       const changed = await tx.withdrawalRequest.updateMany({ where: { id, status: withdrawal.status }, data: { status: "FAILED", reviewedById: adminId } });
       if (changed.count !== 1) throw new ConflictException("提现状态已变化，请刷新后重试");
