@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { BarChart3, ChevronDown, ClipboardCheck, ClipboardList, FileClock, HandCoins, LayoutDashboard, MessageSquare, Phone, Settings, Shield, Users, WalletCards, Image, ShieldAlert, Sprout } from "lucide-react";
@@ -22,7 +23,7 @@ const settingItems = [
   { href: "/task-settings/messages", label: "任务配置", Icon: Settings },
 ];
 
-export default function AdminSidebar() {
+function AdminSidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const reviewView = searchParams.get("view") ?? "manual";
@@ -46,4 +47,9 @@ export default function AdminSidebar() {
     </nav>
     <div className="sidebar-version">EasyEarn v1.0.0</div>
   </aside>;
+}
+
+
+export default function AdminSidebar() {
+  return <Suspense fallback={<aside className="dashboard-sidebar" aria-label="后台导航" />}><AdminSidebarContent /></Suspense>;
 }
