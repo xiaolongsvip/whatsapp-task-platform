@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 import { ArrowLeft, Plus, RefreshCw, Save, ToggleLeft, ToggleRight } from "lucide-react";
 
 type MessageTemplate = {
@@ -105,7 +106,7 @@ export default function MessageTemplatesPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f5f7fb", color: "#172033", padding: 24 }}>
+    <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, borderBottom: "1px solid #e4e9f1", paddingBottom: 18 }}>
           <div>
@@ -161,7 +162,7 @@ export default function MessageTemplatesPage() {
             </div>}
         </section>
       </div>
-    </main>
+    </main></div>
   );
 }
 
