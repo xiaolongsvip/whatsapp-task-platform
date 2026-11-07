@@ -20,6 +20,10 @@ export class FinanceAdminController {
   async summary(@Req() req: Request) { await this.authorize(req); return this.finance.summary(); }
   @Get("withdrawals")
   async withdrawals(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.withdrawals(query); }
+  @Get("withdrawals/:id")
+  async withdrawalDetail(@Req() req: Request, @Param("id") id: string) { await this.authorize(req); return this.finance.withdrawalDetail(id); }
+  @Post("withdrawals/:id/review")
+  async reviewWithdrawal(@Req() req: Request, @Param("id") id: string, @Body() body: { action?: string; note?: string }) { const admin = await this.authorize(req); return this.finance.reviewWithdrawal(id, body.action || "", admin.id, body.note); }
   @Get("wallets")
   async wallets(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.wallets(query); }
   @Get("wallets/:id/ledger")
