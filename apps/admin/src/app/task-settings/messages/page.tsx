@@ -56,6 +56,7 @@ export default function TaskConfigurationPage(){
  const [templateCategory,setTemplateCategory]=useState("全部模板");
  const [templateStatus,setTemplateStatus]=useState("all");
  const [templatePreview,setTemplatePreview]=useState<Template|null>(null);
+ const [selectedTemplateIds,setSelectedTemplateIds]=useState<string[]>([]);
  const [bulkModal,setBulkModal]=useState(false);
  const [bulkForm,setBulkForm]=useState({messageTemplate:"",keyword:"",groupName:"",countryRegion:""});
  const [limits,setLimits]=useState<Row>({dailyLimit:"20",minimumIntervalSeconds:"60",taskTimeLimitMinutes:"3"});
@@ -183,6 +184,16 @@ export default function TaskConfigurationPage(){
   }catch(e){setError(e instanceof Error?e.message:"保存失败");}
   finally{setBusy(false);}
  }
+ async function bulkDisableTemplates(){
+  if(!selectedTemplateIds.length)return;
+  if(!window.confirm("确定停用选中的 "+selectedTemplateIds.length+" 个模板吗？"))return;
+  setBusy(true);setError("");setNotice("");
+  try{
+   await Promise.all(selectedTemplateIds.map(id=>api("/api/v1/admin/tasks/message-templates/"+id,{method:"PATCH",body:JSON.stringify({enabled:false})})));
+   setSelectedTemplateIds([]);setNotice("选中的模板已批量停用。");await load();
+  }catch(e){setError(e instanceof Error?e.message:"批量停用失败");}
+  finally{setBusy(false);}
+ }
  async function runBulkTemplateUpdate(){
   setBusy(true);setError("");setNotice("");
   try{
@@ -268,7 +279,7 @@ export default function TaskConfigurationPage(){
       <button onClick={()=>{setSearch("");setTemplateStatus("all");setTemplateCategory("全部模板");}} style={secondary}><RotateCcw size={13}/>重置</button>
       <button onClick={()=>setNotice("可通过模板名称、任务类型和状态进行筛选。")} style={secondary}><Filter size={13}/>更多筛选⌄</button>
       <span style={{flex:1}}/>
-      <button onClick={()=>{setBulkForm(v=>({...v,messageTemplate:templates[0]?.content??""}));setBulkModal(true);}} style={secondary}>批量更换话术</button>
+      {selectedTemplateIds.length>0&&<button onClick={()=>void bulkDisableTemplates()} disabled={busy} style={warningButton}>批量停用（{selectedTemplateIds.length}）</button>}<button onClick={()=>{setBulkForm(v=>({...v,messageTemplate:templates[0]?.content??""}));setBulkModal(true);}} style={secondary}>批量更换话术</button>
       <button onClick={startCreate} style={primary}><Plus size={14}/>新增模板</button>
      </div>
      <div style={templateLayout}>
@@ -279,8 +290,8 @@ export default function TaskConfigurationPage(){
        <button onClick={()=>setNotice("自定义分组尚未接入后端数据结构，当前按任务类型自动分类。")} style={categoryAdd}>自定义分组 ＋</button>
       </aside>
       <div style={templateTablePanel}>
-       <table style={{...table,minWidth:980}}><thead><tr><th style={th}><input type="checkbox" aria-label="选择全部模板"/></th>{["模板名称","任务类型","语言","状态","使用状态","操作"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>
-        {loading?<tr><td colSpan={7} style={{...td,textAlign:"center",padding:32}}>正在加载模板…</td></tr>:templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).length===0?<tr><td colSpan={7} style={{...td,textAlign:"center",padding:42,color:"#98a2b3"}}>暂无话术模板</td></tr>:templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).map(t=><tr key={t.id}><td style={td}><input type="checkbox" aria-label={"选择"+t.name}/></td><td style={td}><strong>{t.name}</strong></td><td style={td}><span style={templateTypePill}>{t.platform}</span></td><td style={td}>{t.language||"—"}</td><td style={td}><span style={statusPill(t.enabled)}>{t.enabled?"正常":"已停用"}</span></td><td style={td}><span style={{color:"#64748b"}}>未统计</span></td><td style={td}><div style={{display:"flex",gap:10}}><button style={linkButton} onClick={()=>setTemplatePreview(t)}><Eye size={13}/>预览</button><button style={linkButton} onClick={()=>startEdit(t,templates.findIndex(x=>x.id===t.id))}><Pencil size={13}/>编辑模板</button><button style={{...linkButton,color:"#dc5555"}} disabled={busy} onClick={()=>void deleteTemplate(t)}><Trash2 size={13}/>删除</button></div></td></tr>)}
+       <table style={{...table,minWidth:980}}><thead><tr><th style={th}><input type="checkbox" aria-label="选择全部模板" checked={templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).length>0&&templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).every(t=>selectedTemplateIds.includes(t.id))} onChange={e=>{const visible=templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled)));setSelectedTemplateIds(ids=>e.target.checked?Array.from(new Set([...ids,...visible.map(t=>t.id)])):ids.filter(id=>!visible.some(t=>t.id===id)));}}/></th>{["模板名称","任务类型","语言","状态","使用状态","操作"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>
+        {loading?<tr><td colSpan={7} style={{...td,textAlign:"center",padding:32}}>正在加载模板…</td></tr>:templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).length===0?<tr><td colSpan={7} style={{...td,textAlign:"center",padding:42,color:"#98a2b3"}}>暂无话术模板</td></tr>:templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).map(t=><tr key={t.id}><td style={td}><input type="checkbox" aria-label={"选择"+t.name} checked={selectedTemplateIds.includes(t.id)} onChange={e=>setSelectedTemplateIds(ids=>e.target.checked?[...ids,t.id]:ids.filter(id=>id!==t.id))}/></td><td style={td}><strong>{t.name}</strong></td><td style={td}><span style={templateTypePill}>{t.platform}</span></td><td style={td}>{t.language||"—"}</td><td style={td}><span style={statusPill(t.enabled)}>{t.enabled?"正常":"已停用"}</span></td><td style={td}><span style={{color:"#64748b"}}>未统计</span></td><td style={td}><div style={{display:"flex",gap:10}}><button style={linkButton} onClick={()=>setTemplatePreview(t)}><Eye size={13}/>预览</button><button style={linkButton} onClick={()=>startEdit(t,templates.findIndex(x=>x.id===t.id))}><Pencil size={13}/>编辑模板</button><button style={{...linkButton,color:"#dc5555"}} disabled={busy} onClick={()=>void deleteTemplate(t)}><Trash2 size={13}/>删除</button></div></td></tr>)}
        </tbody></table>
        <div style={paginationBar}><span>共 {templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).length} 条</span><span style={pageNumber}>1</span><span>20 条/页</span></div>
       </div>
