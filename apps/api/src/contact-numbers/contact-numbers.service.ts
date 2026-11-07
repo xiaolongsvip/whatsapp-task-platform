@@ -50,6 +50,12 @@ export class ContactNumbersService {
     }
 
     return prisma.$transaction(async (tx) => {
+      // Serialize imports with clear-all and task allocation transactions.
+      // PostgreSQL advisory lock returns VOID, so project it to a boolean for Prisma.
+      await tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pg_advisory_xact_lock(1732050807) IS NULL AS locked
+      `;
+
       const batch = await tx.contactImportBatch.create({
         data: {
           fileName: input.fileName?.trim() || null,
@@ -113,8 +119,11 @@ export class ContactNumbersService {
         },
       });
 
-      // Newly imported numbers immediately join the oldest published task.
-      const allocation = await allocateAvailableNumbersToOldestPublishedTask(tx);
+      // Only newly inserted numbers trigger allocation. Duplicate-only or
+      // invalid-only imports must not reassign unrelated existing inventory.
+      const allocation = inserted.length
+        ? await allocateAvailableNumbersToOldestPublishedTask(tx)
+        : { taskId: null, allocatedCount: 0, reassignedCount: 0 };
 
       return {
         batchId: finalBatch.id,
