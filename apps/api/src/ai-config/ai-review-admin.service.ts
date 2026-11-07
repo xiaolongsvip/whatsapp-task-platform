@@ -327,4 +327,55 @@ export class AiReviewAdminService {
     });
     return { page: currentPage, pageSize: take, total, stats: { manualReview, smartReview, approved, rejected, risk: 0 }, records };
   }
+
+  async rerunAiReview(submissionId: string, adminId: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_submissions WHERE id = ${submissionId}::uuid FOR UPDATE
+      `;
+      const submission = await tx.taskSubmission.findUnique({
+        where: { id: submissionId },
+        include: { aiReviewJob: true, claim: true },
+      });
+      if (!submission) throw new NotFoundException("任务提交记录不存在。");
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
+          !["SUBMITTED", "UNDER_REVIEW"].includes(submission.claim.status)) {
+        throw new ConflictException("只有尚未完成审核的提交才能重新触发 AI 审核，已通过或已拒绝的记录不能重审。");
+      }
+      if (!submission.aiReviewJob) {
+        throw new ConflictException("该提交没有 AI 审核任务，不能从此处重新触发。");
+      }
+      if (submission.aiReviewJob.status === "PROCESSING") {
+        throw new ConflictException("AI 正在处理该提交，请勿重复触发。");
+      }
+      const job = await tx.aiReviewJob.update({
+        where: { id: submission.aiReviewJob.id },
+        data: {
+          status: "PENDING",
+          attemptCount: 0,
+          nextAttemptAt: new Date(),
+          lockedAt: null,
+          lastError: null,
+          decision: null,
+          confidence: null,
+          reason: null,
+          extractedText: null,
+        },
+      });
+      await tx.taskSubmission.update({ where: { id: submission.id }, data: { status: "SUBMITTED" } });
+      await tx.taskClaim.update({ where: { id: submission.claimId }, data: { status: "SUBMITTED" } });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN",
+          actorId: adminId,
+          action: "AI_REVIEW_RERUN",
+          targetType: "TaskSubmission",
+          targetId: submission.id,
+          metadata: { jobId: job.id, previousStatus: submission.aiReviewJob.status },
+        },
+      });
+      return { success: true, submissionId: submission.id, jobId: job.id, status: job.status };
+    });
+  }
+
 }
