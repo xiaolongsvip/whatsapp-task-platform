@@ -67,6 +67,12 @@ export class AiReviewAdminController {
     });
   }
 
+  @Get("evidence/:id/detail")
+  async evidenceDetail(@Req() request: Request, @Param("id") id: string) {
+    await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.getEvidenceDetail(id);
+  }
+
   @Post(":id/review")
   async review(
     @Req() request: Request,
