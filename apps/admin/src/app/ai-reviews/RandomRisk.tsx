@@ -83,7 +83,7 @@ export default function RandomRisk(){
     <div><div style={{fontSize:12,color:"#52647d",marginBottom:8}}>所属国家</div><select value={country} onChange={e=>setCountry(e.target.value)} style={field}><option value="">请选择国家</option>{countries.map(x=><option key={x[1]} value={x[1]}>{x[0]}（{x[1]} / {x[2]}）</option>)}</select></div>
    </div>
    {error&&<div style={{margin:"0 14px 12px",padding:10,color:"#b91c1c",background:"#fef2f2",borderRadius:6,fontSize:13}}>{error}</div>}
-   <div style={{display:"flex",justifyContent:"flex-end",padding:"0 14px 14px"}}><button disabled={!importFile||!country||saving} onClick={()=>void importBatch()} style={{...btn,background:"#3478f6",borderColor:"#3478f6",color:"#fff",opacity:!importFile||!country||saving?.55:1}}><Upload size={14}/>{saving?"正在上传导入…":"上传并导入"}</button></div>
+   <div style={{display:"flex",justifyContent:"flex-end",padding:"0 14px 14px"}}><button disabled={!importFile||!country||saving} onClick={()=>void importBatch()} style={{...btn,background:"#3478f6",borderColor:"#3478f6",color:"#fff",opacity:!importFile||!country||saving ? 0.55 : 1}}><Upload size={14}/>{saving?"正在上传导入…":"上传并导入"}</button></div>
   </section>
  </div>:<>
  <div className="dashboard-content" style={{maxWidth:"none",padding:"14px 18px 24px"}}>
