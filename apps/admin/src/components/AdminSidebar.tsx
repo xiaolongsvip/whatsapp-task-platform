@@ -39,7 +39,7 @@ function AdminSidebarContent() {
       {reviewOpen && <div className="sidebar-submenu">{reviewItems.map(({href,label,Icon}) => <Link key={href} className={((pathname === "/ai-reviews" && ((href === "/ai-reviews" && reviewView === "manual") || (href.includes("view=evidence") && reviewView === "evidence") || (href.includes("view=risk") && reviewView === "risk") || (href.includes("view=random") && reviewView === "random"))) || (href === "/ai-settings" && pathname === "/ai-settings")) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
       <button type="button" className="sidebar-link" onClick={() => setTaskOpen(v => !v)}><ClipboardList size={16}/>任务设置<ChevronDown size={14} style={{marginLeft:"auto",transform:taskOpen?"rotate(180deg)":"none"}}/></button>
       {taskOpen && <div className="sidebar-submenu">{settingItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === href || (href === "/task-settings/messages" && pathname.startsWith("/task-settings/messages"))) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
-      <Link className="sidebar-link" href="/wallet-holds"><HandCoins size={16}/>邀请与分佣</Link>
+      <Link className={"sidebar-link " + (pathname === "/referrals" ? "active" : "")} href="/referrals"><HandCoins size={16}/>邀请与分佣</Link>
       <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
       <Link className="sidebar-link" href="/wallet-holds"><WalletCards size={16}/>财务管理</Link>
       <button type="button" className="sidebar-link" disabled><BarChart3 size={16}/>数据报表</button>
