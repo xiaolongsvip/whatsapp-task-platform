@@ -310,8 +310,8 @@ export class TaskAdminService {
           releasedAt: definition.slot === "VOIDED" ? now : null,
         } });
         ids.push(slot.id);
-        if (claimId && ["UNDER_REVIEW", "APPROVED", "REJECTED"].includes(definition.claim ?? "")) {
-          const submissionStatus = definition.claim === "UNDER_REVIEW" ? "UNDER_REVIEW" : definition.claim === "APPROVED" ? "APPROVED" : "REJECTED";
+        if (claimId && ["IN_PROGRESS", "UNDER_REVIEW", "APPROVED", "REJECTED"].includes(definition.claim ?? "")) {
+          const submissionStatus = definition.claim === "IN_PROGRESS" ? "SUBMITTED" : definition.claim === "UNDER_REVIEW" ? "UNDER_REVIEW" : definition.claim === "APPROVED" ? "APPROVED" : "REJECTED";
           const submission = await tx.taskSubmission.create({ data: {
             claimId, objectKey: "dev-execution-test/" + suffix + ".svg",
             originalName: "测试任务截图-" + definition.suffix + ".svg",
@@ -319,9 +319,9 @@ export class TaskAdminService {
             status: submissionStatus,
           } });
           await tx.aiReviewJob.create({ data: {
-            submissionId: submission.id, status: "COMPLETED",
-            decision: definition.claim === "REJECTED" ? "REJECT" : "APPROVE",
-            confidence: 0.98,
+            submissionId: submission.id, status: definition.claim === "IN_PROGRESS" ? "PENDING" : "COMPLETED",
+            decision: definition.claim === "IN_PROGRESS" ? null : definition.claim === "REJECTED" ? "REJECT" : "APPROVE",
+            confidence: definition.claim === "IN_PROGRESS" ? null : 0.98,
             reason: "【测试数据】模拟 AI 审核说明，仅用于页面展示。",
             extractedText: "DEV TEST · " + definition.suffix,
           } });
@@ -355,7 +355,7 @@ export class TaskAdminService {
             metadata: { testData: true, testBatch: token, reason: "模拟要求补充清晰截图", deadlineAt: deadlineAt.toISOString() },
           } });
         }
-        if (definition.suffix === "已拒绝") {
+        if (definition.suffix === "已拒绝" || definition.suffix === "已冻结") {
           await tx.auditEvent.create({ data: {
             actorType: "SYSTEM", actorId: adminId, action: "DEV_TEST_RISK_REVIEW",
             targetType: "TaskSlot", targetId: slot.id,
