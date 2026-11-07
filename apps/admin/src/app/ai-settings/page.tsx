@@ -162,8 +162,8 @@ export default function AiSettingsPage() {
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
       <nav className="ai-settings-tabs">
-        <button type="button" className={activeTab === "engine" ? "primary-btn" : "secondary-btn"} onClick={() => setActiveTab("engine")}>AI 引擎与自动审核</button>
-        <button type="button" className={activeTab === "schemes" ? "primary-btn" : "secondary-btn"} onClick={() => setActiveTab("schemes")}>任务审核方案</button>
+        <button type="button" className={`ai-tab-button ${activeTab === "engine" ? "active" : ""}`} onClick={() => setActiveTab("engine")}>AI 引擎与自动审核</button>
+        <button type="button" className={`ai-tab-button ${activeTab === "schemes" ? "active" : ""}`} onClick={() => setActiveTab("schemes")}>任务审核方案</button>
       </nav>
       {activeTab === "engine" ? <form onSubmit={save}>
         <section className="ai-settings-card">
