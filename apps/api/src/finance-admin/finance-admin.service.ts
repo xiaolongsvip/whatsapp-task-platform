@@ -40,7 +40,7 @@ export class FinanceAdminService {
       ...(query.from || query.to ? { createdAt: dateRange(query.from, query.to) } : {}),
       ...(query.country ? { payoutAccount: { countryCode: query.country.toUpperCase() } } : {}),
       ...(query.search ? { OR: [
-        { ...(isUuid(query.search) ? { id: query.search } : {}) },
+        ...(isUuid(query.search) ? [{ id: query.search }] : []),
         { wallet: { user: { phone: { contains: query.search, mode: "insensitive" } } } },
         { payoutAccount: { accountHolder: { contains: query.search, mode: "insensitive" } } },
       ] } : {}),
