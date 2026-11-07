@@ -425,10 +425,16 @@ export class TaskAdminService {
         })
       : [];
     const submissions = slot.claim?.submissions ?? [];
+    const openedEvent = auditEvents.find((event) => /OPEN_WHATSAPP|WHATSAPP_OPENED|OPENED_WHATSAPP/i.test(event.action));
+    const supplementEvent = auditEvents.find((event) => /SUPPLEMENT_REQUESTED|REQUEST_SUPPLEMENT|SUPPLEMENT_REQUIRED/i.test(event.action));
+    const openedAt = openedEvent?.createdAt ?? null;
+    const supplementMetadata = supplementEvent?.metadata && typeof supplementEvent.metadata === "object" ? supplementEvent.metadata as Record<string, unknown> : {};
+    const supplementRequestedAt = supplementEvent?.createdAt ?? null;
+    const supplementDeadlineAt = typeof supplementMetadata.deadlineAt === "string" ? supplementMetadata.deadlineAt : typeof supplementMetadata.deadline === "string" ? supplementMetadata.deadline : null;
     const behavior = [
       { key: "created", title: "创建任务记录", at: slot.createdAt, detail: slot.task.title },
       ...(slot.assignedAt ? [{ key: "assigned", title: "分配号码", at: slot.assignedAt, detail: slot.contactNumber.phoneE164 }] : []),
-      ...(slot.claim ? [{ key: "claimed", title: "用户领取任务", at: slot.claim.claimedAt, detail: slot.claim.user.phone }] : []),
+      ...(slot.claim ? [{ key: "claimed", title: "用户领取任务", at: slot.claim.claimedAt, detail: slot.claim.user.phone }] : []),\n      ...(openedAt ? [{ key: "opened", title: "打开 WhatsApp", at: openedAt, detail: "用户已打开 WhatsApp" }] : []),\n      ...(supplementRequestedAt ? [{ key: "supplement", title: "请求补图", at: supplementRequestedAt, detail: supplementMetadata.reason ?? "管理员请求补充截图" }] : []),
       ...submissions.map((item) => ({ key: "submitted", title: "提交任务截图", at: item.submittedAt, detail: item.originalName ?? "已提交证据" })),
       ...submissions.flatMap((item) => item.reviews.map((review) => ({
         key: "review", title: review.decision === "APPROVE" ? "人工审核通过" : "人工审核拒绝",
