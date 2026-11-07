@@ -18,9 +18,9 @@ function part(start, end) {
 test("import normalizes, rejects invalid entries and counts in-file duplicates", () => {
   const body = part("async importNumbers(", "async summary(");
   assert.match(body, /normalizePhone\(item\.phone\)/);
-  assert.match(body, /invalidCount\+\+/);
+  assert.match(body, /invalidCount\s*\+=\s*1/);
   assert.match(body, /seen\.has\(phone\)/);
-  assert.match(body, /duplicateCount\+\+/);
+  assert.match(body, /duplicateCount\s*\+=\s*1/);
 });
 
 test("import locks inventory before writing batch and filters existing numbers", () => {
