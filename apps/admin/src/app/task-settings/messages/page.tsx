@@ -6,7 +6,7 @@ import AdminTopbar from "../../../components/AdminTopbar";
 import {
   Layers, Coins, MessageSquare, Clock3, Plus, RefreshCw, Search, Save,
   Pencil, Power, Smartphone, Server, Eye, Settings2,
-  ChevronRight, Check, X, ListChecks, Package, CircleDot,
+  ChevronRight, Check, X, ListChecks, Package, CircleDot, Filter, RotateCcw, Trash2,
 } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -20,7 +20,7 @@ type PlatformAction = {
   requiresTargetPhone?: boolean; requiresDeliveryStatus?: boolean;
   requiresMessageTemplate?: boolean; enabled: boolean;
 };
-type Template = { id:string; name:string; platform:string; action:string; content:string; enabled:boolean; updatedAt:string };
+type Template = { id:string; name:string; platform:string; platformCode?:string|null; action:string; content:string; language?:string|null; keywords?:string|null; enabled:boolean; updatedAt:string };
 type Tab = "platforms" | "rewards" | "messages" | "claim-limits";
 type Field = { key:string; label:string; placeholder?:string; type?:"text"|"number"|"textarea"|"select"; options?:string[]; required?:boolean };
 type Config = { key:Tab; label:string; icon:typeof Layers; title:string; fields:Field[]; columns:string[] };
@@ -52,6 +52,10 @@ export default function TaskConfigurationPage(){
  const [platforms,setPlatforms]=useState<Platform[]>([]);
  const [rows,setRows]=useState<Record<string,Row[]>>({});
  const [templates,setTemplates]=useState<Template[]>([]);
+ const [templatePlatforms,setTemplatePlatforms]=useState<Platform[]>([]);
+ const [templateCategory,setTemplateCategory]=useState("全部模板");
+ const [templateStatus,setTemplateStatus]=useState("all");
+ const [templatePreview,setTemplatePreview]=useState<Template|null>(null);
  const [limits,setLimits]=useState<Row>({dailyLimit:"20",minimumIntervalSeconds:"60",taskTimeLimitMinutes:"3"});
  const [selectedId,setSelectedId]=useState("");
  const [loading,setLoading]=useState(false);
@@ -81,7 +85,9 @@ export default function TaskConfigurationPage(){
     setPlatforms(items);
     setSelectedId(current=>items.some(p=>p.id===current)?current:(items[0]?.id??""));
    }else if(tab==="messages"){
-    setTemplates(await api<Template[]>("/api/v1/admin/tasks/message-templates"));
+    const [templateItems,platformResult]=await Promise.all([api<Template[]>("/api/v1/admin/tasks/message-templates"),api<{items:Platform[]}>("/api/v1/admin/tasks/configuration/platforms")]);
+    setTemplates(templateItems);
+    setTemplatePlatforms(Array.isArray(platformResult.items)?platformResult.items:[]);
    }else if(tab==="claim-limits"){
     const v=await api<Row>("/api/v1/admin/tasks/configuration/claim-limits");
     setLimits({dailyLimit:String(v.dailyLimit??20),minimumIntervalSeconds:String(v.minimumIntervalSeconds??60),taskTimeLimitMinutes:String(v.taskTimeLimitMinutes??3)});
@@ -154,15 +160,15 @@ export default function TaskConfigurationPage(){
   finally{setBusy(false);}
  }
  function startCreate(){
-  setEditing(null);setForm(tab==="messages"?{name:"",platform:"WhatsApp 私信任务",content:"",enabled:true}:{enabled:"启用"});
+  setEditing(null);setForm(tab==="messages"?{name:"",platform:"WhatsApp 私信任务",platformCode:templatePlatforms[0]?.code??"",action:templatePlatforms[0]?.actions?.[0]?.code??"MESSAGE",language:"",content:"",keywords:"",enabled:true}:{enabled:"启用"});
   setFormOpen(true);setError("");setNotice("");
  }
- function startEdit(row:Row,index:number){setEditing(index);setForm({...row});setFormOpen(true);setError("");}
+ function startEdit(row:Row,index:number){const actualIndex=tab==="messages"?templates.findIndex(t=>t.id===row.id):index;setEditing(actualIndex);setForm({...row});setFormOpen(true);setError("");}
  async function saveRow(){
   setBusy(true);setError("");setNotice("");
   try{
    if(tab==="messages"){
-    const payload={name:String(form.name??""),platform:String(form.platform??"通用"),action:"MESSAGE",content:String(form.content??""),enabled:true};
+    const payload={name:String(form.name??"").trim(),platform:String(form.platform??"通用"),platformCode:String(form.platformCode??""),action:String(form.action??"MESSAGE"),language:String(form.language??""),keywords:String(form.keywords??""),content:String(form.content??""),enabled:true};
     if(editing!==null)await api("/api/v1/admin/tasks/message-templates/"+templates[editing].id,{method:"PATCH",body:JSON.stringify(payload)});
     else await api("/api/v1/admin/tasks/message-templates",{method:"POST",body:JSON.stringify(payload)});
    }else{
@@ -173,6 +179,13 @@ export default function TaskConfigurationPage(){
    }
    setFormOpen(false);setNotice("配置已保存。");await load();
   }catch(e){setError(e instanceof Error?e.message:"保存失败");}
+  finally{setBusy(false);}
+ }
+ async function deleteTemplate(t:Template){
+  if(!window.confirm("确定删除这个话术模板吗？删除后将停用该模板。"))return;
+  setBusy(true);setError("");setNotice("");
+  try{await api("/api/v1/admin/tasks/message-templates/"+t.id,{method:"DELETE"});setNotice("模板已删除（已停用）。");await load();}
+  catch(e){setError(e instanceof Error?e.message:"删除失败");}
   finally{setBusy(false);}
  }
  async function toggleGeneric(index:number){
