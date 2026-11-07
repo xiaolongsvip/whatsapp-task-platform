@@ -131,6 +131,12 @@ export class TaskAdminController {
 
 
 
+  @Get("records/:id/detail")
+  async getRecordDetail(@Req() request: Request, @Param("id") id: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.getTaskRecordDetail(id);
+  }
+
   @Post("records/:id/void")
   async voidRecord(@Req() request: Request, @Param("id") id: string) {
     const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
