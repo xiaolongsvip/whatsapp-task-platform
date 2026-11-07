@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 
 type AiConfig = {
   baseUrl: string;
@@ -123,7 +124,7 @@ export default function AiSettingsPage() {
   );
 
   return (
-    <main className="admin-shell">
+    <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
       <header className="admin-header">
         <div>
           <div className="admin-brand">WTP 管理后台</div>
@@ -198,6 +199,6 @@ export default function AiSettingsPage() {
           </div>
         </section>
       </form>
-    </main>
+    </main></div>
   );
 }
