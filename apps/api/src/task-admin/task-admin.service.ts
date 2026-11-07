@@ -338,6 +338,23 @@ export class TaskAdminService {
           targetType: "TaskSlot", targetId: slot.id,
           metadata: { testData: true, testBatch: token, note: "开发测试事件，不代表真实用户行为" },
         } });
+        if (definition.suffix === "执行中") {
+          await tx.auditEvent.create({ data: {
+            actorType: "SYSTEM", actorId: adminId, action: "OPEN_WHATSAPP",
+            targetType: "TaskSlot", targetId: slot.id,
+            createdAt: new Date(now.getTime() - 25 * 60000),
+            metadata: { testData: true, testBatch: token, source: "模拟打开 WhatsApp" },
+          } });
+        }
+        if (definition.suffix === "审核中") {
+          const requestedAt = new Date(now.getTime() - 12 * 60000);
+          const deadlineAt = new Date(now.getTime() + 48 * 3600000);
+          await tx.auditEvent.create({ data: {
+            actorType: "SYSTEM", actorId: adminId, action: "SUPPLEMENT_REQUESTED",
+            targetType: "TaskSlot", targetId: slot.id, createdAt: requestedAt,
+            metadata: { testData: true, testBatch: token, reason: "模拟要求补充清晰截图", deadlineAt: deadlineAt.toISOString() },
+          } });
+        }
         if (definition.suffix === "已拒绝") {
           await tx.auditEvent.create({ data: {
             actorType: "SYSTEM", actorId: adminId, action: "DEV_TEST_RISK_REVIEW",
