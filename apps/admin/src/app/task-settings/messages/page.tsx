@@ -180,7 +180,7 @@ export default function TaskConfigurationPage(){
  </main></div>;
 }
 
-function fieldName(config:Config,key:string){return config.fields.find(f=>f.key===key)?.label??({name:"名称",appName:"目标 APP",targetApp:"目标 APP",code:"平台代码",actionCode:"动作代码",capabilities:"能力",action:"任务动作",enabled:"状态",code:"国家代码",dialCode:"国际区号",currency:"默认货币",category:"业务分类",note:"内部备注",task:"关联任务",platform:"平台 / 类型",countries:"适用国家/地区",amount:"用户奖励",language:"语言",content:"话术内容",referenceImage:"成功参考图"} as Record<string,string>)[key]??key;}
+function fieldName(config:Config,key:string){return config.fields.find(f=>f.key===key)?.label??({name:"名称",appName:"目标 APP",targetApp:"目标 APP",code:"平台代码",actionCode:"动作代码",capabilities:"能力",action:"任务动作",enabled:"状态",dialCode:"国际区号",currency:"默认货币",category:"业务分类",note:"内部备注",task:"关联任务",platform:"平台 / 类型",countries:"适用国家/地区",amount:"用户奖励",language:"语言",content:"话术内容",referenceImage:"成功参考图"} as Record<string,string>)[key]??key;}
 function badge(enabled:boolean){return {display:"inline-block",padding:"3px 8px",borderRadius:5,fontSize:11,color:enabled?"#059669":"#64748b",background:enabled?"#ecfdf5":"#f1f5f9",border:"1px solid "+(enabled?"#a7f3d0":"#cbd5e1")};}
 const panel={background:"#fff",border:"1px solid #e5eaf2",borderRadius:9,padding:10,minHeight:"calc(100vh - 110px)"} as const;
 const subPanel={background:"#fbfcfe",border:"1px solid #e5eaf2",borderRadius:8,padding:16} as const;
