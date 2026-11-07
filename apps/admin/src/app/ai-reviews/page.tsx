@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import EvidenceRecords from "./EvidenceRecords";
+import RiskRecords from "./RiskRecords";
 import Image from "next/image";
 import Link from "next/link";
 import AdminSidebar from "../../components/AdminSidebar";
@@ -97,6 +98,7 @@ export default function AiReviewsPage() {
   }
 
   if (searchParams.get("view") === "evidence") return <EvidenceRecords />;
+  if (searchParams.get("view") === "risk") return <RiskRecords />;
 
   const pages = Math.max(1, Math.ceil(data.total / pageSize));
   const stats = data.stats || emptyStats;
