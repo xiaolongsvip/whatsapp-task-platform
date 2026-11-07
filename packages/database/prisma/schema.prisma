@@ -800,6 +800,23 @@ model AuditEvent {
   @@map("audit_events")
 }
 
+model FinanceReconciliationRun {
+  id                String   @id @default(uuid()) @db.Uuid
+  triggerType       String   @default("MANUAL") @map("trigger_type") @db.VarChar(30)
+  status            String   @default("SUCCESS") @db.VarChar(30)
+  checkedCount      Int      @default(0) @map("checked_count")
+  exceptionCount    Int      @default(0) @map("exception_count")
+  summary           Json?
+  items             Json?
+  createdByAdminId  String   @map("created_by_admin_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  completedAt       DateTime? @map("completed_at")
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@map("finance_reconciliation_runs")
+}
+
 model MessageTemplate {
   id        String   @id @default(uuid()) @db.Uuid
   name      String   @db.VarChar(160)
