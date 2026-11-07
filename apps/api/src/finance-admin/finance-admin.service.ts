@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
 import { prisma, type Prisma } from "@wtp/database";
 
 const RESERVED = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
@@ -398,4 +398,180 @@ export class FinanceAdminService {
     ]);
     return { ...pg, total, items: rows.map(x => ({ ...x, phone: x.user.phone, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString(), user: undefined })) };
   }
-}
+
+  async taskSettlements(query: { search?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
+    const pg = pageArgs(query.page, query.pageSize);
+    const rows = await prisma.taskSubmission.findMany({
+      where: { status: "APPROVED", ...(query.from || query.to ? { submittedAt: dateRange(query.from, query.to) } : {}) },
+      orderBy: { submittedAt: "desc" }, take: 5000,
+      include: { claim: { include: { task: { select: { id: true, title: true, rewardMinor: true, currency: true } }, user: { select: { id: true, phone: true } } } } },
+    });
+    const claimIds = [...new Set(rows.map(x => x.claimId))];
+    const paid = claimIds.length ? await prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } }, select: { sourceId: true, amountMinor: true, currency: true, createdAt: true } }) : [];
+    const paidMap = new Map(paid.map(x => [x.sourceId, x]));
+    const missing = rows.filter(x => !paidMap.has(x.claimId)).map(x => ({
+      id: x.id, claimId: x.claimId, userId: x.claim.user.id, phone: x.claim.user.phone,
+      taskId: x.claim.task.id, taskTitle: x.claim.task.title, amountMinor: x.claim.task.rewardMinor.toString(),
+      currency: x.claim.task.currency.trim(), status: "PENDING_SETTLEMENT", submittedAt: x.submittedAt.toISOString(),
+    })).filter(x => !query.search || [x.phone, x.taskTitle, x.claimId, x.id].some(v => String(v ?? "").toLowerCase().includes(query.search!.toLowerCase())));
+    return { ...pg, total: missing.length, items: missing.slice(pg.skip, pg.skip + pg.take) };
+  }
+
+  async pendingPayouts(query: { search?: string; status?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
+    const pg = pageArgs(query.page, query.pageSize);
+    const allowed = ["APPROVED", "PROCESSING"];
+    const where: Prisma.WithdrawalRequestWhereInput = {
+      status: query.status && allowed.includes(query.status) ? query.status as Prisma.EnumWithdrawalStatusFilter["equals"] : { in: allowed as never[] },
+      ...(query.from || query.to ? { createdAt: dateRange(query.from, query.to) } : {}),
+      ...(query.search ? { OR: [
+        ...(isUuid(query.search) ? [{ id: query.search }] : []),
+        { wallet: { user: { phone: { contains: query.search, mode: "insensitive" } } } },
+        { payoutAccount: { accountHolder: { contains: query.search, mode: "insensitive" } } },
+      ] } : {}),
+    };
+    const [total, rows] = await prisma.$transaction([
+      prisma.withdrawalRequest.count({ where }),
+      prisma.withdrawalRequest.findMany({ where, orderBy: { createdAt: "desc" }, skip: pg.skip, take: pg.take,
+        include: { wallet: { select: { userId: true, user: { select: { phone: true } } } },
+          payoutAccount: { select: { countryCode: true, methodCode: true, providerCode: true, accountHolder: true, maskedAccount: true } } } }),
+    ]);
+    return { ...pg, total, items: rows.map(x => ({
+      id: x.id, userId: x.wallet.userId, phone: x.wallet.user.phone, amountMinor: x.amountMinor.toString(),
+      receiveAmountMinor: null, currency: x.currency.trim(), status: x.status,
+      channel: x.payoutAccount?.methodCode ?? "未绑定收款账户", providerCode: x.payoutAccount?.providerCode ?? null,
+      accountHolder: x.payoutAccount?.accountHolder ?? null, maskedAccount: x.payoutAccount?.maskedAccount ?? null,
+      createdAt: x.createdAt.toISOString(), reviewedAt: null,
+    })) };
+  }
+
+  async taskAdjustments(query: { search?: string; page?: string; pageSize?: string }) {
+    const pg = pageArgs(query.page, query.pageSize);
+    const where: Prisma.LedgerEntryWhereInput = {
+      sourceType: "ADMIN_ADJUSTMENT",
+      ...(query.search ? { OR: [
+        { wallet: { user: { phone: { contains: query.search, mode: "insensitive" } } } },
+        { sourceId: { contains: query.search, mode: "insensitive" } },
+      ] } : {}),
+    };
+    const [total, rows] = await prisma.$transaction([
+      prisma.ledgerEntry.count({ where }),
+      prisma.ledgerEntry.findMany({ where, orderBy: { createdAt: "desc" }, skip: pg.skip, take: pg.take,
+        include: { wallet: { select: { userId: true, currency: true, user: { select: { phone: true } } } } } }),
+    ]);
+    const ids = rows.map(x => x.sourceId);
+    const events = ids.length ? await prisma.auditEvent.findMany({ where: { targetType: "WALLET_ADJUSTMENT", targetId: { in: ids } }, select: { targetId: true, metadata: true, actorId: true } }) : [];
+    const eventMap = new Map(events.map(x => [x.targetId, x]));
+    return { ...pg, total, items: rows.map(x => {
+      const event = eventMap.get(x.sourceId);
+      const metadata = event?.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata) ? event.metadata as Record<string, unknown> : {};
+      return { id: x.sourceId, ledgerEntryId: x.id, userId: x.wallet.userId, phone: x.wallet.user.phone,
+        amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), direction: x.direction,
+        reason: typeof metadata.reason === "string" ? metadata.reason : "—", taskTitle: typeof metadata.taskTitle === "string" ? metadata.taskTitle : "—",
+        adminId: event?.actorId ?? null, status: "COMPLETED", createdAt: x.createdAt.toISOString() };
+    }) };
+  }
+
+  async createTaskAdjustment(adminId: string, input: { user?: string; currency?: string; amount?: string; direction?: string; reason?: string; taskTitle?: string }) {
+    const identity = typeof input.user === "string" ? input.user.trim() : "";
+    const currency = typeof input.currency === "string" ? input.currency.trim().toUpperCase() : "";
+    const amount = typeof input.amount === "string" ? input.amount.trim() : "";
+    const direction = input.direction === "DEBIT" ? "DEBIT" : input.direction === "CREDIT" ? "CREDIT" : "";
+    const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+    const taskTitle = typeof input.taskTitle === "string" ? input.taskTitle.trim().slice(0, 160) : "";
+    if (!identity) throw new BadRequestException("请输入用户手机号或用户 ID");
+    if (!/^[A-Z]{3}$/.test(currency)) throw new BadRequestException("请输入有效的三位币种代码");
+    if (!/^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,2})?$/.test(amount) || Number(amount) <= 0) throw new BadRequestException("金额必须大于 0，最多保留两位小数");
+    if (!direction) throw new BadRequestException("请选择增加或扣减");
+    if (!reason || reason.length > 500) throw new BadRequestException("调账原因必填，最多 500 个字符");
+    const [whole, fraction = ""] = amount.split(".");
+    const amountMinor = BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2));
+    const adjustmentId = randomUUID();
+    return prisma.$transaction(async tx => {
+      const user = await tx.user.findFirst({ where: isUuid(identity) ? { id: identity } : { phone: identity }, select: { id: true, phone: true } });
+      if (!user) throw new NotFoundException("未找到该用户");
+      const wallet = await tx.wallet.upsert({ where: { userId_currency: { userId: user.id, currency } }, create: { userId: user.id, currency }, update: {} });
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM wallets WHERE id = ${wallet.id}::uuid FOR UPDATE`;
+      if (direction === "DEBIT") {
+        const [credits, debits, holds, reserved] = await Promise.all([
+          tx.ledgerEntry.aggregate({ where: { walletId: wallet.id, direction: "CREDIT" }, _sum: { amountMinor: true } }),
+          tx.ledgerEntry.aggregate({ where: { walletId: wallet.id, direction: "DEBIT" }, _sum: { amountMinor: true } }),
+          tx.walletHold.aggregate({ where: { walletId: wallet.id, status: "ACTIVE" }, _sum: { amountMinor: true } }),
+          tx.withdrawalRequest.aggregate({ where: { walletId: wallet.id, status: { in: [...RESERVED] } }, _sum: { amountMinor: true } }),
+        ]);
+        const available = (credits._sum.amountMinor ?? 0n) - (debits._sum.amountMinor ?? 0n) - (holds._sum.amountMinor ?? 0n) - (reserved._sum.amountMinor ?? 0n);
+        if (amountMinor > available) throw new BadRequestException("扣减金额超过用户当前可用余额");
+      }
+      await tx.ledgerEntry.create({ data: {
+        walletId: wallet.id, sourceType: "ADMIN_ADJUSTMENT", sourceId: adjustmentId,
+        direction, amountMinor, currency, idempotencyKey: "admin-adjustment:" + adjustmentId,
+      } });
+      await tx.auditEvent.create({ data: {
+        actorType: "ADMIN", actorId: adminId, action: "WALLET_MANUAL_ADJUSTMENT",
+        targetType: "WALLET_ADJUSTMENT", targetId: adjustmentId,
+        metadata: { userId: user.id, phone: user.phone, currency, amountMinor: amountMinor.toString(), direction, reason, taskTitle: taskTitle || null },
+      } });
+      return { id: adjustmentId, userId: user.id, phone: user.phone, currency, amountMinor: amountMinor.toString(), direction, status: "COMPLETED" };
+    }, { isolationLevel: "Serializable" });
+  }
+
+  async runFinanceReconciliation(adminId: string) {
+    const startedAt = new Date();
+    const items: Array<Record<string, unknown>> = [];
+    const [approvedSubmissions, paidWithdrawals, successfulPayouts] = await Promise.all([
+      prisma.taskSubmission.findMany({ where: { status: "APPROVED" }, take: 5000, orderBy: { submittedAt: "desc" },
+        include: { claim: { include: { task: { select: { title: true, rewardMinor: true, currency: true } }, user: { select: { phone: true } } } } } }),
+      prisma.withdrawalRequest.findMany({ where: { status: "PAID" }, take: 5000, select: { id: true, walletId: true, amountMinor: true, currency: true, createdAt: true } }),
+      prisma.paymentTransaction.findMany({ where: { flow: "PAYOUT", status: "SUCCEEDED" }, take: 5000, select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, providerCode: true } }),
+    ]);
+    const claimIds = [...new Set(approvedSubmissions.map(x => x.claimId))];
+    const withdrawalIds = [...new Set(paidWithdrawals.map(x => x.id))];
+    const [taskEntries, payoutEntries, payoutTransactions] = await Promise.all([
+      claimIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } }, select: { sourceId: true } }) : [],
+      withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } }, select: { sourceId: true } }) : [],
+      withdrawalIds.length ? prisma.paymentTransaction.findMany({ where: { withdrawalRequestId: { in: withdrawalIds }, flow: "PAYOUT", status: "SUCCEEDED" }, select: { withdrawalRequestId: true } }) : [],
+    ]);
+    const taskEntrySet = new Set(taskEntries.map(x => x.sourceId));
+    const payoutEntrySet = new Set(payoutEntries.map(x => x.sourceId));
+    const payoutTransactionSet = new Set(payoutTransactions.map(x => x.withdrawalRequestId));
+    for (const x of approvedSubmissions) if (!taskEntrySet.has(x.claimId)) items.push({
+      type: "TASK_REWARD_MISSING", recordId: x.id, user: x.claim.user.phone, task: x.claim.task.title,
+      amountMinor: x.claim.task.rewardMinor.toString(), currency: x.claim.task.currency.trim(), message: "审核已通过，但未找到任务奖励入账流水",
+    });
+    for (const x of paidWithdrawals) {
+      if (!payoutEntrySet.has(x.id)) items.push({ type: "WITHDRAWAL_LEDGER_MISSING", recordId: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "提现已标记付款成功，但未找到钱包扣款流水" });
+      if (!payoutTransactionSet.has(x.id)) items.push({ type: "WITHDRAWAL_TRANSACTION_MISSING", recordId: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "提现已标记付款成功，但未找到成功的代付交易记录" });
+    }
+    const paidWithdrawalSet = new Set(paidWithdrawals.map(x => x.id));
+    for (const x of successfulPayouts) if (x.withdrawalRequestId && !paidWithdrawalSet.has(x.withdrawalRequestId)) items.push({
+      type: "PAYOUT_STATUS_MISMATCH", recordId: x.id, providerCode: x.providerCode,
+      amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "代付交易成功，但关联提现单并非已付款状态",
+    });
+    const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length;
+    const exceptionCount = items.length;
+    const completedAt = new Date();
+    const status = exceptionCount === 0 ? "SUCCESS" : "FAILED";
+    const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length, exceptionCount };
+    const run = await prisma.financeReconciliationRun.create({ data: {
+      triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500),
+      createdByAdminId: adminId, createdAt: startedAt, completedAt,
+    } });
+    return { id: run.id, status: run.status, checkedCount: run.checkedCount, exceptionCount: run.exceptionCount, summary, items: items.slice(0, 500), createdAt: run.createdAt.toISOString(), completedAt: run.completedAt?.toISOString() ?? null };
+  }
+
+  async reconciliationRuns(query: { page?: string; pageSize?: string }) {
+    const pg = pageArgs(query.page, query.pageSize);
+    const [total, rows] = await prisma.$transaction([
+      prisma.financeReconciliationRun.count(),
+      prisma.financeReconciliationRun.findMany({ orderBy: { createdAt: "desc" }, skip: pg.skip, take: pg.take,
+        select: { id: true, triggerType: true, status: true, checkedCount: true, exceptionCount: true, summary: true, createdByAdminId: true, createdAt: true, completedAt: true } }),
+    ]);
+    return { ...pg, total, items: rows.map(x => ({ ...x, createdAt: x.createdAt.toISOString(), completedAt: x.completedAt?.toISOString() ?? null })) };
+  }
+
+  async reconciliationRunDetail(id: string) {
+    if (!isUuid(id)) throw new BadRequestException("对账运行 ID 格式不正确");
+    const row = await prisma.financeReconciliationRun.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException("对账运行记录不存在");
+    return { ...row, createdAt: row.createdAt.toISOString(), completedAt: row.completedAt?.toISOString() ?? null };
+  }
+\n}\n
