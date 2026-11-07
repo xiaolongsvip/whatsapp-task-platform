@@ -1,5 +1,5 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
-import { createCipheriv, randomBytes } from "node:crypto";
+import { Injectable, BadRequestException, ConflictException, NotFoundException, InternalServerErrorException } from "@nestjs/common";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { prisma, type Prisma } from "@wtp/database";
 
 const RESERVED = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
@@ -220,11 +220,18 @@ export class FinanceAdminService {
       items: rows.map(x => ({ id: x.id, sourceType: x.sourceType, sourceId: x.sourceId, direction: x.direction, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString() })) };
   }
 
-  async payoutAccounts(query: { search?: string; status?: string; country?: string; page?: string; pageSize?: string }) {
+  async payoutAccountSummary() {
+    const groups = await prisma.payoutAccount.groupBy({ by: ["status"], _count: { _all: true } });
+    const count = (status: string) => groups.find(x => x.status === status)?._count._all ?? 0;
+    return { total: groups.reduce((n, x) => n + x._count._all, 0), active: count("ACTIVE"), disabled: count("DISABLED"), pendingReview: null };
+  }
+
+  async payoutAccounts(query: { search?: string; status?: string; country?: string; methodCode?: string; page?: string; pageSize?: string }) {
     const pg = pageArgs(query.page, query.pageSize);
     const where: Prisma.PayoutAccountWhereInput = {
-      ...(query.status && query.status !== "ALL" ? { status: query.status === "DISABLED" ? "DISABLED" : "ACTIVE" } : {}),
+      ...(query.status && query.status !== "ALL" && ["ACTIVE", "DISABLED"].includes(query.status) ? { status: query.status as Prisma.EnumPayoutAccountStatusFilter["equals"] } : {}),
       ...(query.country ? { countryCode: query.country.toUpperCase() } : {}),
+      ...(query.methodCode ? { methodCode: query.methodCode.toLowerCase() } : {}),
       ...(query.search ? { OR: [{ user: { phone: { contains: query.search, mode: "insensitive" } } }, { accountHolder: { contains: query.search, mode: "insensitive" } }, { maskedAccount: { contains: query.search, mode: "insensitive" } }] } : {}),
     };
     const [total, rows] = await prisma.$transaction([
@@ -232,7 +239,51 @@ export class FinanceAdminService {
       prisma.payoutAccount.findMany({ where, orderBy: { updatedAt: "desc" }, skip: pg.skip, take: pg.take,
         select: { id: true, userId: true, countryCode: true, currency: true, providerCode: true, methodCode: true, accountHolder: true, maskedAccount: true, status: true, isDefault: true, createdAt: true, updatedAt: true, user: { select: { phone: true } } } }),
     ]);
-    return { ...pg, total, items: rows.map(x => ({ ...x, countryCode: x.countryCode.trim(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() })) };
+    return { ...pg, total, items: rows.map(x => ({ ...x, accountType: x.methodCode, phone: x.user.phone, countryCode: x.countryCode.trim(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString(), riskLevel: null })) };
+  }
+
+  private decryptPayoutAccountDetails(input: { accountDetailsCiphertext: string; accountDetailsIv: string; accountDetailsTag: string }) {
+    const raw = process.env.PAYOUT_DATA_ENCRYPTION_KEY?.trim() ?? "";
+    if (!/^[a-fA-F0-9]{64}$/.test(raw)) throw new InternalServerErrorException("PAYOUT_DATA_ENCRYPTION_KEY 未配置，无法读取账户详情");
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", Buffer.from(raw, "hex"), Buffer.from(input.accountDetailsIv, "base64"));
+      decipher.setAuthTag(Buffer.from(input.accountDetailsTag, "base64"));
+      const clear = Buffer.concat([decipher.update(Buffer.from(input.accountDetailsCiphertext, "base64")), decipher.final()]).toString("utf8");
+      const parsed = JSON.parse(clear) as { phoneNumber?: unknown };
+      return { phoneNumber: typeof parsed.phoneNumber === "string" ? parsed.phoneNumber : null };
+    } catch {
+      throw new InternalServerErrorException("收款账户加密数据无法解密，请检查服务端密钥配置");
+    }
+  }
+
+  async payoutAccountDetail(id: string) {
+    if (!isUuid(id)) throw new BadRequestException("收款账户 ID 格式不正确");
+    const row = await prisma.payoutAccount.findUnique({
+      where: { id },
+      select: { id: true, userId: true, countryCode: true, currency: true, providerCode: true, methodCode: true, accountHolder: true, maskedAccount: true, status: true, isDefault: true, accountDetailsCiphertext: true, accountDetailsIv: true, accountDetailsTag: true, createdAt: true, updatedAt: true, user: { select: { phone: true } } },
+    });
+    if (!row) throw new NotFoundException("收款账户不存在");
+    const details = this.decryptPayoutAccountDetails(row);
+    return { id: row.id, userId: row.userId, phone: row.user.phone, accountType: row.methodCode, countryCode: row.countryCode.trim(), currency: row.currency.trim(), providerCode: row.providerCode, methodCode: row.methodCode, accountHolder: row.accountHolder, maskedAccount: row.maskedAccount, phoneNumber: details.phoneNumber, status: row.status, isDefault: row.isDefault, riskLevel: null, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+  }
+
+  async payoutAccountHistory(id: string, query: { status?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
+    if (!isUuid(id)) throw new BadRequestException("收款账户 ID 格式不正确");
+    const account = await prisma.payoutAccount.findUnique({ where: { id }, select: { id: true } });
+    if (!account) throw new NotFoundException("收款账户不存在");
+    const pg = pageArgs(query.page, query.pageSize);
+    const allowed = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "PROCESSING", "PAID", "FAILED", "CANCELLED"];
+    const where: Prisma.WithdrawalRequestWhereInput = {
+      payoutAccountId: id,
+      ...(query.status && query.status !== "ALL" && allowed.includes(query.status) ? { status: query.status as Prisma.EnumWithdrawalStatusFilter["equals"] } : {}),
+      ...(query.from || query.to ? { createdAt: dateRange(query.from, query.to) } : {}),
+    };
+    const [total, rows] = await prisma.$transaction([
+      prisma.withdrawalRequest.count({ where }),
+      prisma.withdrawalRequest.findMany({ where, orderBy: { createdAt: "desc" }, skip: pg.skip, take: pg.take,
+        select: { id: true, amountMinor: true, currency: true, status: true, payoutReference: true, createdAt: true, updatedAt: true } }),
+    ]);
+    return { ...pg, total, items: rows.map(x => ({ ...x, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() })) };
   }
 
   private encryptProviderSecret(value: string): { ciphertext: string; iv: string; tag: string } {
