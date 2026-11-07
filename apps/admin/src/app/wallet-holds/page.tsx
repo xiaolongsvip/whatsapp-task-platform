@@ -85,7 +85,7 @@ export default function WalletHoldsPage() {
   if (loading) return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><div className="panel">正在检查管理员登录状态…</div></main></div>;
   if (!authenticated) return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><section className="panel"><h2>尚未登录管理后台</h2><p className="muted">冻结资金管理需要管理员会话。</p><Link href="/" className="primary-btn" style={{ display: "inline-block", textDecoration: "none" }}>前往管理员登录</Link></section></main></div>;
   const activeTotal = items.filter((x) => x.status === "ACTIVE").length;
-  return <main className="admin-shell">
+  return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
     <header className="admin-header"><div><div className="admin-brand">WTP 管理后台</div><div className="admin-subtitle">钱包管理 · 冻结资金 · 操作审计</div></div>
       <div className="action-row" style={{ marginTop: 0 }}><span className="muted">{email}</span><Link className="secondary-btn" href="/">号码池管理</Link><Link className="secondary-btn" href="/tasks">任务管理</Link><Link className="secondary-btn" href="/ai-settings">AI 审核设置</Link><button className="secondary-btn" onClick={logout}>退出登录</button></div>
     </header>
