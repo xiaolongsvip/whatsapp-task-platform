@@ -955,7 +955,7 @@ export class TaskAdminService {
     });
   }
 
-  async createMessageTemplate(input: { name?: string; platform?: string; action?: string; content?: string; enabled?: boolean }) {
+  async createMessageTemplate(input: { name?: string; platform?: string; action?: string; content?: string; language?: string; keywords?: string; enabled?: boolean }) {
     const name = input.name?.trim() ?? "";
     const platform = input.platform?.trim() ?? "";
     const action = input.action?.trim() || "MESSAGE";
@@ -965,11 +965,11 @@ export class TaskAdminService {
     if (action.length > 40) throw new BadRequestException("模板动作名称不能超过 40 个字符。");
     if (!content || content.length > 10000) throw new BadRequestException("话术内容不能为空且不能超过 10000 个字符。");
     return prisma.messageTemplate.create({
-      data: { name, platform, action, content, enabled: input.enabled ?? true },
+      data: { name, platform, action, content, language: input.language?.trim() || null, keywords: input.keywords?.trim() || null, enabled: input.enabled ?? true },
     });
   }
 
-  async updateMessageTemplate(id: string, input: { name?: string; platform?: string; action?: string; content?: string; enabled?: boolean }) {
+  async updateMessageTemplate(id: string, input: { name?: string; platform?: string; action?: string; content?: string; language?: string; keywords?: string; enabled?: boolean }) {
     const existing = await prisma.messageTemplate.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("话术模板不存在。");
     const name = input.name?.trim();
@@ -987,6 +987,8 @@ export class TaskAdminService {
         ...(platform !== undefined ? { platform } : {}),
         ...(action !== undefined ? { action } : {}),
         ...(content !== undefined ? { content } : {}),
+        ...(input.language !== undefined ? { language: input.language.trim() || null } : {}),
+        ...(input.keywords !== undefined ? { keywords: input.keywords.trim() || null } : {}),
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
       },
     });
