@@ -30,7 +30,7 @@ export default function FinancePage(){
   const p=new URLSearchParams({page:String(page),pageSize:String(size),search});
   if(status!=="ALL")p.set("status",status);if(country!=="ALL")p.set("country",country);if(tab==="wallets"&&currency!=="ALL")p.set("currency",currency);if(tab==="accounts"&&methodFilter!=="ALL")p.set("methodCode",methodFilter);
   const endpoint=tab==="withdrawals"?"withdrawals":tab==="wallets"?"wallets":tab==="accounts"?"payout-accounts":tab==="providers"?"providers":"transactions";
-  if(tab==="providers"){const d=await get<Row[]>("/api/v1/admin/finance/providers");setRows(d);setTotal(d.length);}
+  if(tab==="providers"){const d=await get<Row[]>("/api/v1/admin/finance/providers");setRows(d);setProviderCards(d);setTotal(d.length);}
   else {const d=await get<PageData>("/api/v1/admin/finance/"+endpoint+"?"+p);setRows(d.items);setTotal(d.total);}
  }catch(e){setError(e instanceof Error?e.message:"读取财务数据失败");}finally{setBusy(false);}},[tab,page,size,search,status,country,currency,methodFilter]);
  useEffect(()=>{void loadSummary();void loadProviderCards();},[loadSummary,loadProviderCards]);useEffect(()=>{void load();},[load]);useEffect(()=>{if(tab==="accounts"){void get<{total:number;active:number;disabled:number;pendingReview:number|null}>("/api/v1/admin/finance/payout-accounts/summary").then(setAccountStats).catch(e=>setError(e instanceof Error?e.message:"账户统计读取失败"));}},[tab]);
@@ -88,7 +88,7 @@ export default function FinancePage(){
   {tab==="accounts"&&<><select style={input} value={country} onChange={e=>{setCountry(e.target.value);setPage(1);}}><option value="ALL">全部国家</option><option value="PK">巴基斯坦</option><option value="NG">尼日利亚</option><option value="BD">孟加拉国</option></select><select style={input} value={methodFilter} onChange={e=>{setMethodFilter(e.target.value);setPage(1);}}><option value="ALL">全部收款方式</option><option value="jazzcash">JazzCash</option><option value="easypaisa">Easypaisa</option><option value="bank_transfer">Bank Transfer</option></select></>}
   <button style={{...btn,background:"#2868ee",color:"#fff"}} onClick={()=>{setPage(1);setSearch(inputSearch.trim());}}>搜索</button>
   <button style={btn} onClick={()=>{setInputSearch("");setSearch("");setStatus("ALL");setCountry("ALL");setCurrency("ALL");setMethodFilter("ALL");setPage(1);}}>重置</button>
-  <span style={{marginLeft:"auto",fontSize:11,color:"#8492a6"}}>共 {total} 条</span>
+  <span style={{marginLeft:"auto",fontSize:11,color:"#8492a6"}}>共 {tab==="providers"?visibleRows.length:total} 条</span>
   </section>}
  {error&&<div className="notice error" style={{marginBottom:12}}>{error}</div>}
  <section style={{...box,overflow:"hidden"}}><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}><thead><tr>{columns.map(c=><th style={th} key={c}>{c}</th>)}</tr></thead><tbody>
