@@ -163,7 +163,7 @@ export default function ExecutionRecordsPage() {
 
   return <div style={{ minHeight: "100vh", background: "#f8fafc", color: "#0f172a", display: "flex" }}>
     <AdminSidebar />
-    <main style={{ flex: 1, minWidth: 0, padding: 18 }}>
+    <main className="dashboard-main" style={{ minHeight: "100vh", padding: 18 }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><div><h1 style={{ fontSize: 22, margin: 0 }}>执行记录</h1><p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0" }}>查看任务执行进度、审核结果与结算状态</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       <button disabled={testBusy} onClick={createTestData} style={{border:"1px solid #2563eb",borderRadius:6,background:"#eff6ff",color:"#1d4ed8",padding:"9px 12px",cursor:testBusy?"wait":"pointer"}}>{testBusy?"处理中…":"生成测试数据"}</button>
       <button disabled={testBusy} onClick={deleteTestData} style={{border:"1px solid #fecaca",borderRadius:6,background:"#fff",color:"#dc2626",padding:"9px 12px",cursor:testBusy?"wait":"pointer"}}>清理测试数据</button>
