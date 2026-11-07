@@ -3,21 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
-import { Layers, Globe2, FileText, Coins, MessageSquare, Clock3, Plus, RefreshCw, Search, Save, Pencil, Power } from "lucide-react";
+import { Layers, Coins, MessageSquare, Clock3, Plus, RefreshCw, Search, Save, Pencil, Power } from "lucide-react";
 
 type Row = Record<string, unknown>;
 type Template = { id:string; name:string; platform:string; action:string; content:string; enabled:boolean; updatedAt:string };
-type Tab = "platforms" | "countries" | "sources" | "rewards" | "messages" | "claim-limits";
+type Tab = "platforms" | "rewards" | "messages" | "claim-limits";
 type Field = { key:string; label:string; placeholder?:string; type?:"text"|"number"|"textarea"|"select"; options?:string[]; required?:boolean };
 type Config = { key:Tab; label:string; icon:typeof Layers; title:string; fields:Field[]; columns:string[] };
 
 const tabs:Config[] = [
  {key:"platforms",label:"1. 平台与目标 APP",icon:Layers,title:"平台列表",fields:[{key:"name",label:"平台名称",required:true},{key:"code",label:"平台代码（唯一）",required:true,placeholder:"WHATSAPP"},{key:"targetApp",label:"目标 Android APP",required:true,placeholder:"WhatsApp"},{key:"capabilities",label:"能力（逗号分隔）",placeholder:"APP, 节点支持, 视觉审核"},{key:"action",label:"任务动作",placeholder:"向目标号码发送私信"},{key:"actionCode",label:"动作代码",placeholder:"SEND_MESSAGE"}],columns:["name","targetApp","capabilities","action","enabled"]},
- {key:"countries",label:"2. 国家配置",icon:Globe2,title:"国家列表",fields:[{key:"name",label:"国家名称",required:true},{key:"code",label:"国家代码",required:true},{key:"dialCode",label:"国际区号",required:true},{key:"currency",label:"默认货币",required:true},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","code","dialCode","currency","enabled"]},
- {key:"sources",label:"3. 任务来源",icon:FileText,title:"业务来源列表",fields:[{key:"name",label:"业务来源名称",required:true},{key:"category",label:"业务分类",type:"select",options:["全部分类","推广活动","社群运营","私信任务","其他"]},{key:"note",label:"内部备注",type:"textarea"},{key:"task",label:"关联任务"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","category","note","task","enabled"]},
- {key:"rewards",label:"4. 奖励规则",icon:Coins,title:"奖励规则列表",fields:[{key:"name",label:"规则名称",required:true},{key:"platform",label:"任务平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"action",label:"任务动作",type:"select",options:["向目标号码发送私信","创建群组","加入群组","其他"]},{key:"countries",label:"适用国家/地区",placeholder:"留空表示全部国家"},{key:"amount",label:"用户奖励",type:"number",required:true},{key:"currency",label:"奖励币种",placeholder:"USD"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","action","countries","amount","currency","enabled"]},
- {key:"messages",label:"5. 话术模板",icon:MessageSquare,title:"话术模板列表",fields:[{key:"name",label:"模板名称",required:true},{key:"platform",label:"任务类型",type:"select",options:["WhatsApp 私信任务","WhatsApp 群组任务","Telegram 任务","通用"]},{key:"language",label:"语言",placeholder:"中文 / English"},{key:"content",label:"话术内容",type:"textarea",required:true}],columns:["name","platform","language","content","enabled"]},
- {key:"claim-limits",label:"6. 领取限制",icon:Clock3,title:"任务领取限制",fields:[{key:"dailyLimit",label:"每日任务上限",type:"number",required:true},{key:"minimumIntervalSeconds",label:"最小领取间隔（秒）",type:"number",required:true},{key:"taskTimeLimitMinutes",label:"任务时限（分钟）",type:"number",required:true}],columns:[]},
+
+ {key:"rewards",label:"3. 奖励预设",icon:Coins,title:"奖励预设列表",fields:[{key:"name",label:"规则名称",required:true},{key:"platform",label:"任务平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"action",label:"任务动作",type:"select",options:["向目标号码发送私信","创建群组","加入群组","其他"]},{key:"countries",label:"适用国家/地区",placeholder:"留空表示全部国家"},{key:"amount",label:"用户奖励",type:"number",required:true},{key:"currency",label:"奖励币种",placeholder:"USD"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","action","countries","amount","currency","enabled"]},
+ {key:"messages",label:"2. 话术模板",icon:MessageSquare,title:"话术模板列表",fields:[{key:"name",label:"模板名称",required:true},{key:"platform",label:"任务类型",type:"select",options:["WhatsApp 私信任务","WhatsApp 群组任务","Telegram 任务","通用"]},{key:"language",label:"语言",placeholder:"中文 / English"},{key:"content",label:"话术内容",type:"textarea",required:true}],columns:["name","platform","language","content","enabled"]},
+ {key:"claim-limits",label:"4. 领取与完成限制",icon:Clock3,title:"领取与完成限制",fields:[{key:"dailyLimit",label:"每日任务上限",type:"number",required:true},{key:"minimumIntervalSeconds",label:"最小领取间隔（秒）",type:"number",required:true},{key:"taskTimeLimitMinutes",label:"任务完成时限（分钟）",type:"number",required:true}],columns:[]},
 ];
 
 const defaults:Record<string,Row[]> = {
@@ -156,9 +155,9 @@ export default function TaskConfigurationPage(){
     {error&&<div role="alert" style={alert}>{error}</div>}
     {notice&&<div role="status" style={success}>{notice}</div>}
     {tab==="claim-limits"?<div style={{padding:"18px 10px",maxWidth:620}}>
-      <h2 style={heading}>任务领取限制</h2><p style={muted}>设置系统默认的每日领取上限、最小领取间隔和任务时限；用户等级限制仍按现有规则执行。</p>
+      <h2 style={heading}>任务领取限制</h2><p style={muted}>设置全局默认的每日领取上限、领取间隔和任务完成时限。用户个人配置优先于全局默认值。</p>
       <div style={formGrid}>{active.fields.map(field=><label key={field.key} style={label}>{field.label}<input type="number" min="1" value={String(limits[field.key]??"")} onChange={e=>setLimits(v=>({...v,[field.key]:e.target.value}))} style={input}/></label>)}</div>
-      <p style={muted}>以上限制保存后作为系统配置项使用。具体任务仍可受任务自身有效期约束。</p>
+      <p style={muted}>保存后将直接参与用户领取任务、领取间隔和超时回收校验；任务自身开始和结束时间仍然优先生效。</p>
       <button onClick={()=>void saveLimits()} disabled={busy} style={primary}><Save size={14}/>保存限制</button>
     </div>:<>
      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",paddingTop:12}}>
