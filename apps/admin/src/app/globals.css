@@ -676,3 +676,27 @@ body { margin: 0; }
 @media (max-width: 760px) {
   .dashboard-main { width: 100%; margin-left: 0; }
 }
+
+
+/* Readability pass: enlarge interface text consistently across every admin module. */
+.dashboard-app { font-size: 15px !important; }
+.dashboard-sidebar .sidebar-link {
+  font-size: 15px !important;
+  min-height: 42px;
+  gap: 10px;
+}
+.dashboard-sidebar .sidebar-submenu a {
+  font-size: 14px !important;
+  min-height: 36px;
+  gap: 8px;
+}
+.dashboard-sidebar .sidebar-brand strong { font-size: 17px !important; }
+.dashboard-sidebar .sidebar-brand span { font-size: 12px !important; }
+.dashboard-sidebar .sidebar-version { font-size: 11px !important; }
+.dashboard-main :where(p, span, label, th, td, a, button, input, select, textarea, small, dt, dd, summary) {
+  font-size: max(14px, 1em) !important;
+}
+.dashboard-main :where(h1) { font-size: max(21px, 1em) !important; }
+.dashboard-main :where(h2) { font-size: max(18px, 1em) !important; }
+.dashboard-main :where(h3) { font-size: max(16px, 1em) !important; }
+.dashboard-main :where(svg) { flex-shrink: 0; }
