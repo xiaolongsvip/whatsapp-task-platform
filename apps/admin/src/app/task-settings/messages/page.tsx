@@ -55,7 +55,12 @@ export default function TaskConfigurationPage(){
     const data=await api<Template[]>("/api/v1/admin/tasks/message-templates");
     setTemplates(data);return;
    }
-   if(tab==="platforms"){\n    const result=await api<{items:Array<Record<string,unknown>>}>("/api/v1/admin/tasks/configuration/platforms");\n    setRows(prev=>({...prev,platforms:result.items.map(item=>{const caps=item.capabilities&&typeof item.capabilities==="object"?Object.entries(item.capabilities as Record<string,unknown>).filter(([,v])=>v===true).map(([k])=>({appSupport:"APP",nodeSupport:"节点支持",visualReview:"视觉审核",backendSupport:"后台支持"}[k]??k)):[];const actions=Array.isArray(item.actions)?item.actions as Array<Record<string,unknown>>:[];return {...item,targetApp:item.targetApp,capabilities:caps.join(", "),action:String(actions[0]?.name??""),actionCode:String(actions[0]?.code??"")};})}));\n    return;\n   }\n   const value=await api<unknown>("/api/v1/admin/tasks/configuration/"+tab);
+   if(tab==="platforms"){
+    const result=await api<{items:Array<Record<string,unknown>>}>("/api/v1/admin/tasks/configuration/platforms");
+    setRows(prev=>({...prev,platforms:result.items.map(item=>{const caps=item.capabilities&&typeof item.capabilities==="object"?Object.entries(item.capabilities as Record<string,unknown>).filter(([,v])=>v===true).map(([k])=>({appSupport:"APP",nodeSupport:"节点支持",visualReview:"视觉审核",backendSupport:"后台支持"}[k]??k)):[];const actions=Array.isArray(item.actions)?item.actions as Array<Record<string,unknown>>:[];return {...item,targetApp:item.targetApp,capabilities:caps.join(", "),action:String(actions[0]?.name??""),actionCode:String(actions[0]?.code??"")};})}));
+    return;
+   }
+   const value=await api<unknown>("/api/v1/admin/tasks/configuration/"+tab);
    if(tab==="claim-limits"){
     const v=(value&&typeof value==="object"?value:{}) as Record<string,unknown>;
     setLimits({dailyLimit:String(v.dailyLimit??20),minimumIntervalSeconds:String(v.minimumIntervalSeconds??60),taskTimeLimitMinutes:String(v.taskTimeLimitMinutes??3)});
