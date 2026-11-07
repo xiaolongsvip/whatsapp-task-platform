@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminSidebar from "../../../components/AdminSidebar";
+import AdminTopbar from "../../../components/AdminTopbar";
 import { Layers, Globe2, FileText, Coins, MessageSquare, Clock3, Plus, RefreshCw, Search, Save, Pencil, Power } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -146,7 +147,8 @@ export default function TaskConfigurationPage(){
  const filtered=dataRows.filter(row=>!search||JSON.stringify(row).toLowerCase().includes(search.toLowerCase()));
 
  return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main" style={{minWidth:0}}>
-  <div style={{padding:"12px 16px 22px",display:"grid",gap:14}}>
+  <AdminTopbar />
+  <div className="dashboard-content" style={{padding:"12px 16px 22px",display:"grid",gap:14}}>
    <section style={panel}>
     <nav style={{display:"flex",gap:6,flexWrap:"wrap",borderBottom:"1px solid #e8edf5",paddingBottom:10}}>
      {tabs.map(item=>{const Icon=item.icon;return <button key={item.key} onClick={()=>{setTab(item.key);setFormOpen(false);setSearch("");setNotice("");setError("");}} style={{...tabButton,...(tab===item.key?tabActive:{})}}><Icon size={13}/>{item.label}<span style={{color:"#94a3b8"}}>ⓘ</span></button>;})}
