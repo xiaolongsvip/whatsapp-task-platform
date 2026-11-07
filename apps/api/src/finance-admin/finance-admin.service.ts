@@ -10,8 +10,8 @@ const pageArgs = (page?: string, pageSize?: string) => {
   return { page: p, pageSize: size, skip: (p - 1) * size, take: size };
 };
 const dateRange = (from?: string, to?: string) => ({
-  ...(from && /^\\d{4}-\\d{2}-\\d{2}$/.test(from) ? { gte: new Date(from + "T00:00:00.000Z") } : {}),
-  ...(to && /^\\d{4}-\\d{2}-\\d{2}$/.test(to) ? { lte: new Date(to + "T23:59:59.999Z") } : {}),
+  ...(from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? { gte: new Date(from + "T00:00:00.000Z") } : {}),
+  ...(to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? { lte: new Date(to + "T23:59:59.999Z") } : {}),
 });
 
 @Injectable()
