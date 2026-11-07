@@ -14,7 +14,7 @@ type EvidenceDetail = EvidenceRecord & {
   submissionStatus: string; captureMode: string; trustLevel: string;
   reviewDecision: string | null; reviewReason: string | null; reviewedAt: string | null;
   aiConfidence: number | null; aiReason: string | null; extractedText: string | null;
-  note: string | null; createdAt: string; objectKey: string;
+  note: string | null; objectKey: string;
   imageDimensions: string | null; contentHash: string | null;
   retentionUntil: string | null; deletionAttempts: number; archivedAt: string | null;
   nextRetryAt: string | null; lastStorageError: string | null;
@@ -136,7 +136,7 @@ export default function EvidenceRecords() {
             <section className="evidence-detail-card"><h3>文件规格与时间</h3><div className="evidence-detail-grid">
               {field("图片尺寸",detail.imageDimensions || "未记录")}{field("重试/补图", "0 / 0")}
               {field("文件类型",detail.mimeType || "未知")}{field("文件大小",bytes(detail.sizeBytes))}
-              {field("提交时间",fmt(detail.submittedAt))}{field("创建时间",fmt(detail.createdAt))}
+              {field("提交时间",fmt(detail.submittedAt))}{field("证据记录时间",fmt(detail.submittedAt))}
               {field("读取 URL 过期","由授权接口实时读取")}
             </div></section>
             <section className="evidence-detail-card"><h3>存储与生命周期</h3><div className="evidence-detail-grid">
