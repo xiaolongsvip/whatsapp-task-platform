@@ -71,12 +71,14 @@ export class FinanceAdminService {
       },
     });
     if (!row) throw new NotFoundException("提现申请不存在");
+    const reviewHistory = await prisma.auditEvent.findMany({ where: { targetType: "WITHDRAWAL_REQUEST", targetId: id }, orderBy: { createdAt: "desc" }, take: 20, select: { action: true, metadata: true, actorId: true, createdAt: true } });
     return {
       id: row.id, userId: row.wallet.userId, phone: row.wallet.user.phone, walletId: row.walletId,
       amountMinor: row.amountMinor.toString(), currency: row.currency.trim(), status: row.status,
       payoutReference: row.payoutReference, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
       payoutAccount: row.payoutAccount ? { ...row.payoutAccount, countryCode: row.payoutAccount.countryCode.trim(), currency: row.payoutAccount.currency.trim() } : null,
       paymentTransactions: row.paymentTransactions.map(x => ({ ...x, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() })),
+      reviewHistory: reviewHistory.map(x => ({ action: x.action, metadata: x.metadata, actorId: x.actorId, createdAt: x.createdAt.toISOString() })),
     };
   }
 
