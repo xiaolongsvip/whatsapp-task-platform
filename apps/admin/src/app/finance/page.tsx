@@ -1,9 +1,10 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
 import {RefreshCw,Search,Wallet,ArrowDownToLine,CreditCard,Settings2,Scale,ChevronLeft,ChevronRight,Eye,X} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import AdminSidebar from "../../components/AdminSidebar";
 type Tab="withdrawals"|"wallets"|"accounts"|"providers"|"settlement";
-type Row=Record<string,any>;
+// API rows have different shapes per finance tab; rendering is centralized by the active tab.\n// eslint-disable-next-line @typescript-eslint/no-explicit-any\ntype Row=Record<string,any>;
 type PageData={items:Row[];total:number;page:number;pageSize:number};
 type Summary={walletCount:number;providerCount:number;enabledProviderCount:number;withdrawals:Array<{status:string;currency:string;count:number;amountMinor:string}>};
 const box:React.CSSProperties={background:"#fff",border:"1px solid #e4eaf2",borderRadius:8};
@@ -18,7 +19,7 @@ function Pill({value}:{value:string}){const ok=["PAID","SUCCEEDED","ACTIVE","已
 export default function FinancePage(){
  const [tab,setTab]=useState<Tab>("withdrawals"),[summary,setSummary]=useState<Summary|null>(null),[rows,setRows]=useState<Row[]>([]),[total,setTotal]=useState(0),[page,setPage]=useState(1),[size,setSize]=useState(20),[search,setSearch]=useState(""),[inputSearch,setInputSearch]=useState(""),[status,setStatus]=useState("ALL"),[country,setCountry]=useState("ALL"),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [detail,setDetail]=useState<Row|null>(null),[ledger,setLedger]=useState<Row[]>([]),[ledgerTotal,setLedgerTotal]=useState(0),[ledgerPage,setLedgerPage]=useState(1);
- const tabs:[Tab,string,any][]=[["withdrawals","提现处理",ArrowDownToLine],["wallets","钱包流水",Wallet],["accounts","收款账户",CreditCard],["providers","代付配置",Settings2],["settlement","结算与对账",Scale]];
+ const tabs:[Tab,string,LucideIcon][]=[["withdrawals","提现处理",ArrowDownToLine],["wallets","钱包流水",Wallet],["accounts","收款账户",CreditCard],["providers","代付配置",Settings2],["settlement","结算与对账",Scale]];
  const loadSummary=useCallback(async()=>{try{setSummary(await get<Summary>("/api/v1/admin/finance/summary"));}catch(e){setError(e instanceof Error?e.message:"统计读取失败");}},[]);
  const load=useCallback(async()=>{setBusy(true);setError("");try{
   const p=new URLSearchParams({page:String(page),pageSize:String(size),search});
