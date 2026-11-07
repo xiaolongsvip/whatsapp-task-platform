@@ -161,9 +161,9 @@ export default function AiSettingsPage() {
 
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
-      <nav className="ai-settings-tabs">
-        <button type="button" className={`ai-tab-button ${activeTab === "engine" ? "active" : ""}`} onClick={() => setActiveTab("engine")}>AI 引擎与自动审核</button>
-        <button type="button" className={`ai-tab-button ${activeTab === "schemes" ? "active" : ""}`} onClick={() => setActiveTab("schemes")}>任务审核方案</button>
+      <nav style={{display:"flex",alignItems:"center",gap:4,marginBottom:2,paddingBottom:10,borderBottom:"1px solid #e5eaf2",overflowX:"auto"}}>
+        <button type="button" onClick={() => setActiveTab("engine")} style={{display:"inline-flex",alignItems:"center",gap:6,border:activeTab==="engine"?"1px solid #bfdbfe":"1px solid transparent",borderRadius:7,padding:"8px 10px",background:activeTab==="engine"?"#eff6ff":"#f8fafc",color:activeTab==="engine"?"#2563eb":"#64748b",fontSize:12,fontWeight:activeTab==="engine"?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>AI 引擎与自动审核</button>
+        <button type="button" onClick={() => setActiveTab("schemes")} style={{display:"inline-flex",alignItems:"center",gap:6,border:activeTab==="schemes"?"1px solid #bfdbfe":"1px solid transparent",borderRadius:7,padding:"8px 10px",background:activeTab==="schemes"?"#eff6ff":"#f8fafc",color:activeTab==="schemes"?"#2563eb":"#64748b",fontSize:12,fontWeight:activeTab==="schemes"?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>任务审核方案</button>
       </nav>
       {activeTab === "engine" ? <form onSubmit={save}>
         <section className="ai-settings-card">
