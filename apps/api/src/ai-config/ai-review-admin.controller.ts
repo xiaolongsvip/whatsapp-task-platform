@@ -34,6 +34,21 @@ export class AiReviewAdminController {
       Math.min(100, Math.max(1, Number.parseInt(pageSize || "20", 10) || 20)),
     );
   }
+  @Get("center")
+  async center(
+    @Req() request: Request,
+    @Query("status") status?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+  ) {
+    await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.listCenter(
+      status,
+      Math.max(1, Number.parseInt(page || "1", 10) || 1),
+      Math.min(100, Math.max(1, Number.parseInt(pageSize || "20", 10) || 20)),
+    );
+  }
+
   @Post(":id/review")
   async review(
     @Req() request: Request,
