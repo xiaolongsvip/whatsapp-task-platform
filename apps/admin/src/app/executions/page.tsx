@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../components/AdminSidebar";
 import { Search, RefreshCw, Eye, ChevronLeft, ChevronRight, PackageOpen } from "lucide-react";
@@ -142,6 +142,16 @@ export default function ExecutionRecordsPage() {
   }
 
   async function openDetail(item: TaskRecord) { setSelected(item); setDetail(null); setDetailTab("基本信息"); setDetailLoading(true); try { setDetail(await api<ExecutionDetail>("/api/v1/admin/tasks/records/" + item.id + "/detail")); } catch(e) { setError(e instanceof Error ? e.message : "详情加载失败"); } finally { setDetailLoading(false); } }
+  const autoOpenedRecord = useRef(false);
+  useEffect(() => {
+    if (!authenticated || !items.length || autoOpenedRecord.current) return;
+    const recordId = new URLSearchParams(window.location.search).get("recordId");
+    if (!recordId) return;
+    const target = items.find((item) => item.id === recordId);
+    if (!target) return;
+    autoOpenedRecord.current = true;
+    void openDetail(target);
+  }, [authenticated, items]);
 
   const summary = [
     { key: "ALL" as TabKey, title: "全部记录", value: stats.total, note: "所选范围的全部状态", color: "#2563eb", icon: "▤" },
