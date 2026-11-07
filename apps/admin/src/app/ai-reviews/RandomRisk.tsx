@@ -105,5 +105,5 @@ export default function RandomRisk(){
  {modal==="result"&&resultRow&&<><p style={{fontSize:12,color:"#71839b"}}>任务：{resultRow.taskTitle}　号码：{masked(resultRow.phone)}</p><label style={{display:"block",fontSize:13,marginBottom:14}}>实际收件结果 *<textarea required rows={4} value={actualResult} onChange={e=>setActualResult(e.target.value)} placeholder="请填写实际收件情况、联系结果或异常说明" style={{...field,height:"auto",padding:10,marginTop:7}}/></label><label style={{display:"block",fontSize:13}}>处理状态<select value={handlingStatus} onChange={e=>setHandlingStatus(e.target.value)} style={{...field,display:"block",marginTop:7}}><option value="PENDING">待处理</option><option value="COMPLETED">已完成</option><option value="FAILED">失败</option><option value="REVIEW">待复核</option></select></label></>}
  <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:20}}><button type="button" onClick={()=>setModal(null)} style={btn}>取消</button><button disabled={saving||(modal==="single"&&(!consent||!country))} type="submit" style={{...btn,background:"#3478f6",borderColor:"#3478f6",color:"#fff"}}>{saving?"提交中…":modal==="single"?"新增抽检号码":"保存结果"}</button></div>
  </form></div>}
- </section></> }</section></div>;
+ </> }</section></div>;
 }
