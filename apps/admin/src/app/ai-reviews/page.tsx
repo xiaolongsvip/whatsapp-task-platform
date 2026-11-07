@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import EvidenceRecords from "./EvidenceRecords";
 import RiskRecords from "./RiskRecords";
@@ -32,7 +32,7 @@ const tabs = [
 ];
 const emptyStats = { manualReview: 0, smartReview: 0, approved: 0, rejected: 0, risk: 0 };
 
-export default function AiReviewsPage() {
+function AiReviewsContent() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState("MANUAL_REVIEW");
   const [page, setPage] = useState(1);
@@ -227,4 +227,9 @@ export default function AiReviewsPage() {
       </div>
     </section>
   </div>;
+}
+
+
+export default function AiReviewsPage() {
+  return <Suspense fallback={<div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><section className="panel">正在加载审核中心…</section></main></div>}><AiReviewsContent /></Suspense>;
 }
