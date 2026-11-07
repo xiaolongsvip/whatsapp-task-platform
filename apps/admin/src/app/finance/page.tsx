@@ -3,6 +3,7 @@ import {useCallback,useEffect,useState} from "react";
 import {RefreshCw,Search,Wallet,ArrowDownToLine,CreditCard,Settings2,Scale,ChevronLeft,ChevronRight,Eye,X} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import AdminSidebar from "../../components/AdminSidebar";
+import AdminTopbar from "../../components/AdminTopbar";
 type Tab="withdrawals"|"wallets"|"accounts"|"providers"|"settlement";
 // API rows have different shapes per finance tab; rendering is centralized by the active tab.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,7 +37,8 @@ export default function FinancePage(){
  const stateText=(s:string)=>({REQUESTED:"待审核",UNDER_REVIEW:"审核中",APPROVED:"已通过待付款",REJECTED:"已拒绝",PROCESSING:"付款处理中",PAID:"已付款",FAILED:"付款失败",CANCELLED:"已取消",SUCCEEDED:"成功",CREATED:"已创建",PENDING:"待处理"} as Record<string,string>)[s]||s;
  const columns=tab==="withdrawals"?["用户 / 提现单","申请金额","收款渠道","提现状态","申请时间","操作"]:tab==="wallets"?["用户","可用余额","冻结金额","提现中金额","操作"]:tab==="accounts"?["用户","国家 / 地区","收款方式","持有人","脱敏账户","币种","状态","更新时间"]:tab==="providers"?["代付方式","服务商代码","环境","出款币种","配置开关","更新时间"]:["交易 ID","用户","类型","服务商","金额","状态","失败原因","创建时间"];
  return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main" style={{minWidth:0,background:"#f7f9fc"}}>
- <header className="dashboard-topbar"><b style={{fontSize:15}}>财务管理</b><button style={{...btn,marginLeft:"auto"}} onClick={()=>{void loadSummary();void load();}} disabled={busy}><RefreshCw size={14}/>刷新</button></header>
+ <AdminTopbar/>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 18px 0",background:"#fff"}}><b style={{fontSize:14,color:"#23354d"}}>财务管理</b><button style={btn} onClick={()=>{void loadSummary();void load();}} disabled={busy}><RefreshCw size={14}/>刷新</button></div>
  <div style={{padding:18}}>
  <nav style={{display:"flex",gap:4,borderBottom:"1px solid #e1e8f0",marginBottom:14,overflowX:"auto"}}>{tabs.map(([key,label,Icon])=><button key={key} onClick={()=>{setTab(key);setPage(1);setStatus("ALL");setCountry("ALL");setSearch("");setInputSearch("");}} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"12px 16px",border:0,borderBottom:tab===key?"2px solid #2868ee":"2px solid transparent",background:tab===key?"#edf4ff":"transparent",color:tab===key?"#2868ee":"#53647c",fontSize:12,whiteSpace:"nowrap",cursor:"pointer"}}><Icon size={15}/>{label}</button>)}</nav>
  {summary&&<section style={{...box,padding:12,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>{[["钱包账户总数",summary.walletCount],["代付方式总数",summary.providerCount],["启用代付方式",summary.enabledProviderCount],["提现申请总数",summary.withdrawals.reduce((n,x)=>n+x.count,0)]].map(([k,v])=><div key={String(k)} style={{padding:10,border:"1px solid #e8edf4",borderRadius:6}}><div style={{fontSize:11,color:"#718096"}}>{k}</div><b style={{fontSize:21,color:"#1c2e47"}}>{v}</b></div>)}</section>}
