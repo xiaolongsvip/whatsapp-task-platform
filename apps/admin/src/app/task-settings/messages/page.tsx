@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import AdminSidebar from "../../components/AdminSidebar";
+import AdminSidebar from "../../../components/AdminSidebar";
 import { ArrowLeft, Plus, RefreshCw, Save, ToggleLeft, ToggleRight } from "lucide-react";
 
 type MessageTemplate = {
