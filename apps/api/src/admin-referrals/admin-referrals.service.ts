@@ -93,6 +93,7 @@ export class AdminReferralsService {
   }
 
   async listCommissions(searchInput?: string, statusInput?: string, depthInput?: string, fromInput?: string, toInput?: string, pageInput?: string, pageSizeInput?: string) {
+    void statusInput;
     const page = Math.max(1, Number.parseInt(pageInput ?? "1", 10) || 1);
     const pageSize = Math.min(100, Math.max(10, Number.parseInt(pageSizeInput ?? "20", 10) || 20));
     const depth = depthInput ? Number.parseInt(depthInput, 10) : undefined;
