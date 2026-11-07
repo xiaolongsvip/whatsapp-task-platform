@@ -14,6 +14,11 @@ function sessionToken(request: Request): string | undefined {
 @Controller("admin/referrals")
 export class AdminReferralsController {
   constructor(private readonly auth: AdminAuthService, private readonly referrals: AdminReferralsService) {}
+  @Get("relations/audit")
+  async auditRelations(@Req() req: Request) {
+    await this.auth.getCurrentAdmin(sessionToken(req));
+    return this.referrals.auditReferralRelations();
+  }
   @Get("invites")
   async invites(@Req() req: Request, @Query("search") search?: string, @Query("status") status?: string, @Query("page") page?: string, @Query("pageSize") pageSize?: string) {
     await this.auth.getCurrentAdmin(sessionToken(req));
