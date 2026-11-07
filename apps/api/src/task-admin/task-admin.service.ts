@@ -239,7 +239,7 @@ export class TaskAdminService {
       else if (slot.status !== "VOIDED" && slot.status === "AVAILABLE" && slot.task.status === "PUBLISHED" && slot.contactNumber.status === "AVAILABLE" && slot.contactNumber.consentStatus === "GRANTED") status = "AVAILABLE";
       return {
         id: slot.id, taskId: slot.task.id, taskStatus: slot.task.status, taskName: slot.task.title,
-        phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.group?.name ?? "未分组",
+        category: slot.task.category, phoneNumber: slot.contactNumber.phoneE164, groupName: slot.task.group?.name ?? "未分组",
         rewardAmount: (Number(slot.task.rewardMinor) / 100).toFixed(3),
         currency: slot.task.currency.trim(), messageTemplate: slot.task.messageTemplate ?? "",
         countryRegion: slot.contactNumber.countryName ?? slot.contactNumber.countryCode ?? "未标记", status, createdAt: slot.createdAt.toISOString(),
