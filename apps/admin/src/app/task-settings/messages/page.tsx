@@ -3,131 +3,183 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
-import { Layers, Coins, MessageSquare, Clock3, Plus, RefreshCw, Search, Save, Pencil, Power } from "lucide-react";
+import {
+  Layers, Coins, MessageSquare, Clock3, Plus, RefreshCw, Search, Save,
+  Pencil, Power, Smartphone, Server, Eye, Settings2, Trash2, ChevronDown,
+  ChevronRight, Check, X, ListChecks, Package, CircleDot,
+} from "lucide-react";
 
 type Row = Record<string, unknown>;
+type Platform = {
+  id: string; code: string; name: string; targetApp: string; description?: string;
+  capabilities?: { appSupport?: boolean; nodeSupport?: boolean; visualReview?: boolean; backendSupport?: boolean };
+  enabled: boolean; archived?: boolean; actions?: PlatformAction[];
+};
+type PlatformAction = {
+  id: string; code: string; name: string; evidenceType?: string;
+  requiresTargetPhone?: boolean; requiresDeliveryStatus?: boolean;
+  requiresMessageTemplate?: boolean; enabled: boolean;
+};
 type Template = { id:string; name:string; platform:string; action:string; content:string; enabled:boolean; updatedAt:string };
 type Tab = "platforms" | "rewards" | "messages" | "claim-limits";
 type Field = { key:string; label:string; placeholder?:string; type?:"text"|"number"|"textarea"|"select"; options?:string[]; required?:boolean };
 type Config = { key:Tab; label:string; icon:typeof Layers; title:string; fields:Field[]; columns:string[] };
 
 const tabs:Config[] = [
- {key:"platforms",label:"1. 平台与目标 APP",icon:Layers,title:"平台列表",fields:[{key:"name",label:"平台名称",required:true},{key:"code",label:"平台代码（唯一）",required:true,placeholder:"WHATSAPP"},{key:"targetApp",label:"目标 Android APP",required:true,placeholder:"WhatsApp"},{key:"capabilities",label:"能力（逗号分隔）",placeholder:"APP, 节点支持, 视觉审核"},{key:"action",label:"任务动作",placeholder:"向目标号码发送私信"},{key:"actionCode",label:"动作代码",placeholder:"SEND_MESSAGE"}],columns:["name","targetApp","capabilities","action","enabled"]},
- {key:"messages",label:"2. 话术模板",icon:MessageSquare,title:"话术模板列表",fields:[{key:"name",label:"模板名称",required:true},{key:"platform",label:"任务类型",type:"select",options:["WhatsApp 私信任务","WhatsApp 群组任务","Telegram 任务","通用"]},{key:"language",label:"语言",placeholder:"中文 / English"},{key:"content",label:"话术内容",type:"textarea",required:true}],columns:["name","platform","language","content","enabled"]},
- {key:"rewards",label:"3. 奖励预设",icon:Coins,title:"奖励预设列表",fields:[{key:"name",label:"规则名称",required:true},{key:"platform",label:"任务平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"action",label:"任务动作",type:"select",options:["向目标号码发送私信","创建群组","加入群组","其他"]},{key:"countries",label:"适用国家/地区",placeholder:"留空表示全部国家"},{key:"amount",label:"用户奖励",type:"number",required:true},{key:"currency",label:"奖励币种",placeholder:"USD"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","action","countries","amount","currency","enabled"]},
- {key:"claim-limits",label:"4. 领取与完成限制",icon:Clock3,title:"领取与完成限制",fields:[{key:"dailyLimit",label:"每日任务上限",type:"number",required:true},{key:"minimumIntervalSeconds",label:"最小领取间隔（秒）",type:"number",required:true},{key:"taskTimeLimitMinutes",label:"任务完成时限（分钟）",type:"number",required:true}],columns:[]},
+ {key:"platforms",label:"平台配置",icon:Layers,title:"平台列表",fields:[],columns:[]},
+ {key:"messages",label:"话术模板",icon:MessageSquare,title:"话术模板列表",fields:[{key:"name",label:"模板名称",required:true},{key:"platform",label:"任务类型",type:"select",options:["WhatsApp 私信任务","WhatsApp 群组任务","Telegram 任务","通用"]},{key:"content",label:"话术内容",type:"textarea",required:true}],columns:["name","platform","content","enabled"]},
+ {key:"rewards",label:"奖励预设",icon:Coins,title:"奖励预设列表",fields:[{key:"name",label:"规则名称",required:true},{key:"platform",label:"任务平台",type:"select",options:["WhatsApp","Telegram","Facebook","通用"]},{key:"action",label:"任务动作",type:"select",options:["向目标号码发送私信","创建群组","加入群组","其他"]},{key:"countries",label:"适用国家/地区",placeholder:"留空表示全部国家"},{key:"amount",label:"用户奖励",type:"number",required:true},{key:"currency",label:"奖励币种",placeholder:"USD"},{key:"enabled",label:"状态",type:"select",options:["启用","停用"]}],columns:["name","platform","action","countries","amount","currency","enabled"]},
+ {key:"claim-limits",label:"领取限制",icon:Clock3,title:"领取与完成限制",fields:[{key:"dailyLimit",label:"每日任务上限",type:"number",required:true},{key:"minimumIntervalSeconds",label:"最小领取间隔（秒）",type:"number",required:true},{key:"taskTimeLimitMinutes",label:"任务完成时限（分钟）",type:"number",required:true}],columns:[]},
 ];
-
-const defaults:Record<string,Row[]> = {
- platforms:[{name:"WhatsApp",appName:"WhatsApp",capabilities:"APP, 节点支持, 视频审核",action:"加载详情",enabled:true}],
- countries:[{name:"巴基斯坦",code:"PK",dialCode:"+92",currency:"USD",enabled:true}],
- sources:[], rewards:[]
-};
-
+const defaults:Record<string,Row[]>={rewards:[]};
 async function api<T>(url:string,init:RequestInit={}):Promise<T>{
  const response=await fetch(url,{...init,credentials:"include",headers:{"Content-Type":"application/json",...init.headers}});
  const data=await response.json().catch(()=>({}));
  if(!response.ok) throw new Error(typeof data.message==="string"?data.message:"请求失败");
  return data as T;
 }
+const capabilityLabels=[
+ {key:"appSupport",label:"APP 支持",icon:Smartphone},
+ {key:"nodeSupport",label:"节点支持",icon:Server},
+ {key:"visualReview",label:"视觉审核",icon:Eye},
+ {key:"backendSupport",label:"后台支持",icon:Settings2},
+] as const;
+const blankPlatform={name:"",code:"",targetApp:"",description:"",appSupport:true,nodeSupport:false,visualReview:false,backendSupport:false};
+const blankAction={name:"",code:"",evidenceType:"SCREENSHOT",requiresTargetPhone:true,requiresDeliveryStatus:true,requiresMessageTemplate:true};
 
 export default function TaskConfigurationPage(){
  const [tab,setTab]=useState<Tab>("platforms");
+ const [platforms,setPlatforms]=useState<Platform[]>([]);
  const [rows,setRows]=useState<Record<string,Row[]>>({});
  const [templates,setTemplates]=useState<Template[]>([]);
  const [limits,setLimits]=useState<Row>({dailyLimit:"20",minimumIntervalSeconds:"60",taskTimeLimitMinutes:"3"});
+ const [selectedId,setSelectedId]=useState("");
  const [loading,setLoading]=useState(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
  const [search,setSearch]=useState("");
+ const [platformModal,setPlatformModal]=useState(false);
+ const [platformEditing,setPlatformEditing]=useState<string|null>(null);
+ const [platformForm,setPlatformForm]=useState<Row>({...blankPlatform});
+ const [actionModal,setActionModal]=useState(false);
+ const [actionEditing,setActionEditing]=useState<string|null>(null);
+ const [actionForm,setActionForm]=useState<Row>({...blankAction});
  const [formOpen,setFormOpen]=useState(false);
  const [editing,setEditing]=useState<number|null>(null);
  const [form,setForm]=useState<Row>({});
  const active=useMemo(()=>tabs.find(t=>t.key===tab)!,[tab]);
+ const selected=platforms.find(p=>p.id===selectedId)??platforms[0]??null;
+ const visiblePlatforms=platforms.filter(p=>!p.archived&&(!search||[p.name,p.code,p.targetApp].join(" ").toLowerCase().includes(search.toLowerCase())));
 
  const load=useCallback(async()=>{
   setLoading(true);setError("");
   try{
-   if(tab==="messages"){
-    const data=await api<Template[]>("/api/v1/admin/tasks/message-templates");
-    setTemplates(data);return;
-   }
    if(tab==="platforms"){
-    const result=await api<{items:Array<Record<string,unknown>>}>("/api/v1/admin/tasks/configuration/platforms");
-    setRows(prev=>({...prev,platforms:result.items.map(item=>{const caps=item.capabilities&&typeof item.capabilities==="object"?Object.entries(item.capabilities as Record<string,unknown>).filter(([,v])=>v===true).map(([k])=>({appSupport:"APP",nodeSupport:"节点支持",visualReview:"视觉审核",backendSupport:"后台支持"}[k]??k)):[];const actions=Array.isArray(item.actions)?item.actions as Array<Record<string,unknown>>:[];return {...item,targetApp:item.targetApp,capabilities:caps.join(", "),action:String(actions[0]?.name??""),actionCode:String(actions[0]?.code??"")};})}));
-    return;
-   }
-   const value=await api<unknown>("/api/v1/admin/tasks/configuration/"+tab);
-   if(tab==="claim-limits"){
-    const v=(value&&typeof value==="object"?value:{}) as Record<string,unknown>;
+    const result=await api<{items:Platform[]}>("/api/v1/admin/tasks/configuration/platforms");
+    const items=Array.isArray(result.items)?result.items:[];
+    setPlatforms(items);
+    setSelectedId(current=>items.some(p=>p.id===current)?current:(items[0]?.id??""));
+   }else if(tab==="messages"){
+    setTemplates(await api<Template[]>("/api/v1/admin/tasks/message-templates"));
+   }else if(tab==="claim-limits"){
+    const v=await api<Row>("/api/v1/admin/tasks/configuration/claim-limits");
     setLimits({dailyLimit:String(v.dailyLimit??20),minimumIntervalSeconds:String(v.minimumIntervalSeconds??60),taskTimeLimitMinutes:String(v.taskTimeLimitMinutes??3)});
    }else{
-    const list=Array.isArray(value)?value as Row[]:(defaults[tab]??[]);
-    setRows(prev=>({...prev,[tab]:list.length?list:(defaults[tab]??[])}));
+    const value=await api<unknown>("/api/v1/admin/tasks/configuration/"+tab);
+    setRows(prev=>({...prev,[tab]:Array.isArray(value)?value as Row[]:(defaults[tab]??[])}));
    }
   }catch(e){setError(e instanceof Error?e.message:"配置加载失败");}
   finally{setLoading(false);}
  },[tab]);
-
  useEffect(()=>{void load();},[load]);
 
+ function openPlatformCreate(){
+  setPlatformEditing(null);setPlatformForm({...blankPlatform});setPlatformModal(true);setError("");setNotice("");
+ }
+ function openPlatformEdit(p:Platform){
+  setPlatformEditing(p.id);
+  setPlatformForm({name:p.name,code:p.code,targetApp:p.targetApp,description:p.description??"",appSupport:!!p.capabilities?.appSupport,nodeSupport:!!p.capabilities?.nodeSupport,visualReview:!!p.capabilities?.visualReview,backendSupport:!!p.capabilities?.backendSupport});
+  setPlatformModal(true);setError("");setNotice("");
+ }
+ async function savePlatform(){
+  setBusy(true);setError("");setNotice("");
+  try{
+   const payload={name:String(platformForm.name??"").trim(),targetApp:String(platformForm.targetApp??"").trim(),description:String(platformForm.description??""),capabilities:{appSupport:!!platformForm.appSupport,nodeSupport:!!platformForm.nodeSupport,visualReview:!!platformForm.visualReview,backendSupport:!!platformForm.backendSupport}};
+   if(platformEditing){
+    await api("/api/v1/admin/tasks/configuration/platforms/"+platformEditing,{method:"PATCH",body:JSON.stringify(payload)});
+   }else{
+    await api("/api/v1/admin/tasks/configuration/platforms",{method:"POST",body:JSON.stringify({...payload,code:String(platformForm.code??"").trim().toUpperCase()})});
+   }
+   setPlatformModal(false);setNotice(platformEditing?"平台信息已更新。":"平台已创建。");await load();
+  }catch(e){setError(e instanceof Error?e.message:"平台保存失败");}
+  finally{setBusy(false);}
+ }
+ async function togglePlatform(p:Platform){
+  setBusy(true);setError("");setNotice("");
+  try{
+   await api("/api/v1/admin/tasks/configuration/platforms/"+p.id,{method:"PATCH",body:JSON.stringify({enabled:!p.enabled})});
+   setNotice(!p.enabled?"平台已启用。":"平台已停用。");await load();
+  }catch(e){setError(e instanceof Error?e.message:"状态更新失败");}
+  finally{setBusy(false);}
+ }
+ function openActionCreate(){
+  if(!selected)return;
+  setActionEditing(null);setActionForm({...blankAction});setActionModal(true);setError("");
+ }
+ function openActionEdit(a:PlatformAction){
+  setActionEditing(a.id);setActionForm({name:a.name,code:a.code,evidenceType:a.evidenceType??"SCREENSHOT",requiresTargetPhone:!!a.requiresTargetPhone,requiresDeliveryStatus:!!a.requiresDeliveryStatus,requiresMessageTemplate:!!a.requiresMessageTemplate});setActionModal(true);setError("");
+ }
+ async function saveAction(){
+  if(!selected)return;
+  setBusy(true);setError("");
+  try{
+   const common={name:String(actionForm.name??"").trim(),evidenceType:String(actionForm.evidenceType??"SCREENSHOT"),requiresTargetPhone:!!actionForm.requiresTargetPhone,requiresDeliveryStatus:!!actionForm.requiresDeliveryStatus,requiresMessageTemplate:!!actionForm.requiresMessageTemplate};
+   if(actionEditing){
+    await api("/api/v1/admin/tasks/configuration/platforms/"+selected.id+"/actions/"+actionEditing,{method:"PATCH",body:JSON.stringify(common)});
+   }else{
+    await api("/api/v1/admin/tasks/configuration/platforms/"+selected.id+"/actions",{method:"POST",body:JSON.stringify({...common,code:String(actionForm.code??"").trim().toUpperCase()})});
+   }
+   setActionModal(false);setNotice(actionEditing?"任务动作已更新。":"任务动作已添加。");await load();
+  }catch(e){setError(e instanceof Error?e.message:"动作保存失败");}
+  finally{setBusy(false);}
+ }
+ async function toggleAction(a:PlatformAction){
+  if(!selected)return;
+  setBusy(true);setError("");
+  try{
+   await api("/api/v1/admin/tasks/configuration/platforms/"+selected.id+"/actions/"+a.id,{method:"PATCH",body:JSON.stringify({enabled:!a.enabled})});
+   await load();
+  }catch(e){setError(e instanceof Error?e.message:"动作状态更新失败");}
+  finally{setBusy(false);}
+ }
  function startCreate(){
-  setEditing(null);setForm(tab==="messages"?{name:"",platform:"WhatsApp 私信任务",language:"中文",content:"",enabled:true}:tab==="platforms"?{name:"",code:"",targetApp:"",capabilities:"APP, 节点支持, 视觉审核",action:"",actionCode:"SEND_MESSAGE"}:{enabled:"启用"});
+  setEditing(null);setForm(tab==="messages"?{name:"",platform:"WhatsApp 私信任务",content:"",enabled:true}:{enabled:"启用"});
   setFormOpen(true);setError("");setNotice("");
  }
- function startEdit(row:Row,index:number){
-  setEditing(index);setForm({...row});setFormOpen(true);setError("");setNotice("");
- }
+ function startEdit(row:Row,index:number){setEditing(index);setForm({...row});setFormOpen(true);setError("");}
  async function saveRow(){
   setBusy(true);setError("");setNotice("");
   try{
    if(tab==="messages"){
-    const payload={name:String(form.name??""),platform:String(form.platform??"WhatsApp"),action:"MESSAGE",content:String(form.content??""),enabled:true};
-    if(editing!==null){const item=templates[editing];await api("/api/v1/admin/tasks/message-templates/"+item.id,{method:"PATCH",body:JSON.stringify(payload)});}
+    const payload={name:String(form.name??""),platform:String(form.platform??"通用"),action:"MESSAGE",content:String(form.content??""),enabled:true};
+    if(editing!==null)await api("/api/v1/admin/tasks/message-templates/"+templates[editing].id,{method:"PATCH",body:JSON.stringify(payload)});
     else await api("/api/v1/admin/tasks/message-templates",{method:"POST",body:JSON.stringify(payload)});
-   }else if(tab==="platforms"){
-    const capabilitiesText=String(form.capabilities??"");
-    const capabilities={appSupport:/APP/i.test(capabilitiesText),nodeSupport:/节点|node/i.test(capabilitiesText),visualReview:/视觉|视频|审核|review/i.test(capabilitiesText),backendSupport:/后台|backend/i.test(capabilitiesText)};
-    const payload={name:String(form.name??""),targetApp:String(form.targetApp??""),description:"",capabilities};
-    let platformId="";
-    if(editing!==null){
-     const old=rows.platforms[editing];platformId=String(old.id);
-     await api("/api/v1/admin/tasks/configuration/platforms/"+platformId,{method:"PATCH",body:JSON.stringify(payload)});
-     const oldActions=Array.isArray(old.actions)?old.actions as Array<Record<string,unknown>>:[];
-     const actionName=String(form.action??"").trim();
-     if(actionName){const actionPayload={name:actionName,evidenceType:"SCREENSHOT",requiresTargetPhone:true,requiresDeliveryStatus:true,requiresMessageTemplate:true};
-      if(oldActions[0]?.id)await api("/api/v1/admin/tasks/configuration/platforms/"+platformId+"/actions/"+String(oldActions[0].id),{method:"PATCH",body:JSON.stringify(actionPayload)});
-      else await api("/api/v1/admin/tasks/configuration/platforms/"+platformId+"/actions",{method:"POST",body:JSON.stringify({...actionPayload,code:String(form.actionCode??"SEND_MESSAGE")})});
-     }
-    }else{
-     const created=await api<{id:string}>("/api/v1/admin/tasks/configuration/platforms",{method:"POST",body:JSON.stringify({...payload,code:String(form.code??"" )})});
-     platformId=created.id;
-     const actionName=String(form.action??"").trim();
-     if(actionName)await api("/api/v1/admin/tasks/configuration/platforms/"+platformId+"/actions",{method:"POST",body:JSON.stringify({name:actionName,code:String(form.actionCode??"SEND_MESSAGE"),evidenceType:"SCREENSHOT",requiresTargetPhone:true,requiresDeliveryStatus:true,requiresMessageTemplate:true})});
-    }
    }else{
-    const list=[...(rows[tab]??defaults[tab]??[])];
-    const normalized={...form,enabled:form.enabled==="停用"?false:form.enabled==="启用"?true:form.enabled};
+    const list=[...(rows[tab]??[])];const normalized={...form,enabled:form.enabled==="停用"?false:form.enabled==="启用"?true:form.enabled};
     if(editing!==null)list[editing]=normalized;else list.push(normalized);
     await api("/api/v1/admin/tasks/configuration/"+tab,{method:"PATCH",body:JSON.stringify({value:list})});
     setRows(prev=>({...prev,[tab]:list}));
    }
-   setFormOpen(false);setNotice(editing===null?"已新增并保存。":"修改已保存。");await load();
+   setFormOpen(false);setNotice("配置已保存。");await load();
   }catch(e){setError(e instanceof Error?e.message:"保存失败");}
   finally{setBusy(false);}
  }
- async function toggleRow(index:number){
+ async function toggleGeneric(index:number){
   setBusy(true);setError("");
   try{
-   if(tab==="messages"){
-    const item=templates[index];await api("/api/v1/admin/tasks/message-templates/"+item.id,{method:"PATCH",body:JSON.stringify({enabled:!item.enabled})});
-   }else if(tab==="platforms"){
-    const item=rows.platforms[index];await api("/api/v1/admin/tasks/configuration/platforms/"+String(item.id),{method:"PATCH",body:JSON.stringify({enabled:!Boolean(item.enabled)})});
-   }else{
-    const list=[...(rows[tab]??[])];list[index]={...list[index],enabled:!Boolean(list[index].enabled)};
-    await api("/api/v1/admin/tasks/configuration/"+tab,{method:"PATCH",body:JSON.stringify({value:list})});setRows(prev=>({...prev,[tab]:list}));
-   }
+   if(tab==="messages"){const t=templates[index];await api("/api/v1/admin/tasks/message-templates/"+t.id,{method:"PATCH",body:JSON.stringify({enabled:!t.enabled})});}
+   else{const list=[...(rows[tab]??[])];list[index]={...list[index],enabled:!Boolean(list[index].enabled)};await api("/api/v1/admin/tasks/configuration/"+tab,{method:"PATCH",body:JSON.stringify({value:list})});}
    await load();
   }catch(e){setError(e instanceof Error?e.message:"状态更新失败");}
   finally{setBusy(false);}
@@ -136,64 +188,126 @@ export default function TaskConfigurationPage(){
   setBusy(true);setError("");setNotice("");
   try{
    const value={dailyLimit:Number(limits.dailyLimit),minimumIntervalSeconds:Number(limits.minimumIntervalSeconds),taskTimeLimitMinutes:Number(limits.taskTimeLimitMinutes)};
-   await api("/api/v1/admin/tasks/configuration/claim-limits",{method:"PATCH",body:JSON.stringify({value})});
-   setNotice("领取限制已保存。");
+   await api("/api/v1/admin/tasks/configuration/claim-limits",{method:"PATCH",body:JSON.stringify({value})});setNotice("领取限制已保存。");
   }catch(e){setError(e instanceof Error?e.message:"保存失败");}
   finally{setBusy(false);}
  }
- const dataRows=tab==="messages"?templates.map(t=>({...t,language:"—"} as unknown as Row)):(rows[tab]??defaults[tab]??[]);
+ const dataRows=tab==="messages"?templates as unknown as Row[]:(rows[tab]??[]);
  const filtered=dataRows.filter(row=>!search||JSON.stringify(row).toLowerCase().includes(search.toLowerCase()));
 
- return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main" style={{minWidth:0}}>
-  <AdminTopbar />
-  <div className="dashboard-content" style={{padding:"12px 16px 22px",display:"grid",gap:14}}>
+ return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main" style={{minWidth:0}}><AdminTopbar/>
+  <div className="dashboard-content" style={{padding:"14px 18px 24px",display:"grid",gap:14}}>
    <section style={panel}>
-    <nav style={{display:"flex",gap:6,flexWrap:"wrap",borderBottom:"1px solid #e8edf5",paddingBottom:10}}>
-     {tabs.map(item=>{const Icon=item.icon;return <button key={item.key} onClick={()=>{setTab(item.key);setFormOpen(false);setSearch("");setNotice("");setError("");}} style={{...tabButton,...(tab===item.key?tabActive:{})}}><Icon size={13}/>{item.label}<span style={{color:"#94a3b8"}}>ⓘ</span></button>;})}
-    </nav>
-    {error&&<div role="alert" style={alert}>{error}</div>}
-    {notice&&<div role="status" style={success}>{notice}</div>}
-    {tab==="claim-limits"?<div style={{padding:"18px 10px",maxWidth:620}}>
-      <h2 style={heading}>任务领取限制</h2><p style={muted}>设置全局默认的每日领取上限、领取间隔和任务完成时限。用户个人配置优先于全局默认值。</p>
-      <div style={formGrid}>{active.fields.map(field=><label key={field.key} style={label}>{field.label}<input type="number" min="1" value={String(limits[field.key]??"")} onChange={e=>setLimits(v=>({...v,[field.key]:e.target.value}))} style={input}/></label>)}</div>
-      <p style={muted}>保存后将直接参与用户领取任务、领取间隔和超时回收校验；任务自身开始和结束时间仍然优先生效。</p>
-      <button onClick={()=>void saveLimits()} disabled={busy} style={primary}><Save size={14}/>保存限制</button>
-    </div>:<>
-     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",paddingTop:12}}>
-      <div style={{display:"flex",gap:8,flex:1,minWidth:240}}><div style={{position:"relative",flex:1,maxWidth:600}}><Search size={14} style={{position:"absolute",left:10,top:10,color:"#98a2b3"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={"搜索"+active.title+"…"} style={{...input,paddingLeft:32}}/></div></div>
-      <div style={{display:"flex",gap:8}}><button onClick={()=>void load()} disabled={loading||busy} style={secondary}><RefreshCw size={14}/>刷新</button><button onClick={startCreate} style={primary}><Plus size={14}/>{tab==="messages"?"新增模板":tab==="countries"?"选择国家":tab==="sources"?"新增业务来源":tab==="rewards"?"新建奖励规则":"新建平台"}</button></div>
-     </div>
-     {formOpen&&<section style={{...subPanel,marginTop:12}}>
-      <h3 style={{margin:"0 0 14px",fontSize:15}}>{editing===null?"新增":"编辑"}{active.title}</h3>
-      <div style={formGrid}>{active.fields.map(field=><label key={field.key} style={label}>{field.label}{field.type==="textarea"?<textarea rows={4} required={field.required} value={String(form[field.key]??"")} onChange={e=>setForm(v=>({...v,[field.key]:e.target.value}))} placeholder={field.placeholder} style={{...input,resize:"vertical"}}/>:field.type==="select"?<select value={String(form[field.key]??field.options?.[0]??"")} onChange={e=>setForm(v=>({...v,[field.key]:e.target.value}))} style={input}>{field.options?.map(o=><option key={o}>{o}</option>)}</select>:<input required={field.required} type={field.type==="number"?"number":"text"} value={String(form[field.key]??"")} onChange={e=>setForm(v=>({...v,[field.key]:e.target.value}))} placeholder={field.placeholder} style={input}/>}</label>)}</div>
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14}}><button onClick={()=>setFormOpen(false)} style={secondary}>取消</button><button onClick={()=>void saveRow()} disabled={busy} style={primary}><Save size={14}/>保存</button></div>
-     </section>}
-     <div style={{border:"1px solid #e5eaf2",borderRadius:8,overflow:"hidden",marginTop:12}}>
-      <div style={{padding:"11px 14px",background:"#f8fafc",borderBottom:"1px solid #e5eaf2",fontSize:13,fontWeight:600}}>{active.title}<span style={{float:"right",fontWeight:400,color:"#718096"}}>共 {filtered.length} 条</span></div>
-      {loading?<div style={{padding:30,textAlign:"center",color:"#718096"}}>正在加载…</div>:filtered.length===0?<div style={{padding:52,textAlign:"center",color:"#718096"}}>暂无数据，请点击右上角新增。</div>:<div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:850}}><thead><tr>{[...active.columns,"操作"].map(col=><th key={col} style={th}>{fieldName(active,col)}</th>)}</tr></thead><tbody>{filtered.map((row,index)=><tr key={String(row.id??index)}>{active.columns.map(col=><td key={col} style={td}>{col==="enabled"?<span style={badge(Boolean(row.enabled))}>{row.enabled?"已启用":"已停用"}</span>:col==="content"?<span title={String(row[col]??"")} style={{display:"block",maxWidth:320,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{String(row[col]??"—")}</span>:String(row[col]??"—")}</td>)}<td style={td}><div style={{display:"flex",gap:10,whiteSpace:"nowrap"}}><button style={linkBtn} onClick={()=>startEdit(row,index)}><Pencil size={13}/>编辑</button>{row.enabled!==undefined&&<button style={linkBtn} disabled={busy} onClick={()=>void toggleRow(index)}><Power size={13}/>{row.enabled?"停用":"启用"}</button>}{tab==="messages"&&<button style={linkBtn} onClick={()=>{const t=templates[index];setForm({name:t.name+" - 新版本",platform:t.platform,content:t.content,language:"中文"});setEditing(null);setFormOpen(true);}}>新建版本</button>}{tab==="messages"&&<button style={linkBtn} onClick={()=>window.alert(String(row.content??"暂无内容"))}>预览</button>}</div></td></tr>)}</tbody></table></div>}
-      <div style={{padding:"12px 14px",borderTop:"1px solid #edf0f5",fontSize:12,color:"#718096"}}>共 {filtered.length} 条记录</div>
-     </div>
+    <header style={pageHeader}><div><div style={eyebrow}>TASK CENTER / CONFIGURATION</div><h1 style={pageTitle}>任务配置</h1><p style={muted}>统一管理任务平台、目标应用、执行动作与奖励规则。</p></div><button onClick={()=>void load()} disabled={loading||busy} style={secondary}><RefreshCw size={14}/>刷新数据</button></header>
+    <nav style={tabsBar}>{tabs.map(item=>{const Icon=item.icon;return <button key={item.key} onClick={()=>{setTab(item.key);setFormOpen(false);setSearch("");setNotice("");setError("");}} style={{...tabButton,...(tab===item.key?tabActive:{})}}><Icon size={15}/>{item.label}</button>;})}</nav>
+    {error&&<div role="alert" style={alert}><CircleDot size={15}/>{error}</div>}
+    {notice&&<div role="status" style={success}><Check size={15}/>{notice}</div>}
+    {tab==="platforms"?<>
+     <div style={toolbar}><div><h2 style={sectionTitle}>平台与目标 APP</h2><p style={muted}>平台配置、应用目录和任务动作在同一页面内维护。</p></div><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><div style={searchWrap}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索平台 / APP / 代码" style={searchInput}/></div><button onClick={openPlatformCreate} style={primary}><Plus size={15}/>创建平台</button></div></div>
+     {loading?<div style={empty}>正在加载平台配置…</div>:<div style={platformLayout}>
+      <aside style={platformList}><div style={listHeader}><span>平台列表</span><span style={count}>{visiblePlatforms.length}</span></div>
+       {visiblePlatforms.length===0?<div style={emptySmall}>暂无平台，点击“创建平台”添加。</div>:visiblePlatforms.map(p=><button key={p.id} onClick={()=>setSelectedId(p.id)} style={{...platformItem,...(selected?.id===p.id?platformItemActive:{})}}>
+        <span style={appIcon}><Package size={18}/></span><span style={{minWidth:0,flex:1,textAlign:"left"}}><strong style={itemName}>{p.name}</strong><small style={itemMeta}>{p.targetApp} · {p.code}</small></span><span style={{...statusDot,background:p.enabled?"#16a34a":"#94a3b8"}}/><ChevronRight size={15} color="#98a2b3"/>
+       </button>)}
+      </aside>
+      <div style={detailColumn}>
+       {!selected?<div style={empty}>选择一个平台查看详细配置。</div>:<>
+        <section style={detailCard}>
+         <div style={detailTop}><div style={{display:"flex",gap:12,alignItems:"center",minWidth:0}}><div style={heroIcon}><Layers size={23}/></div><div style={{minWidth:0}}><h3 style={detailTitle}>{selected.name}</h3><div style={itemMeta}>{selected.code}　·　目标应用：{selected.targetApp}</div></div></div><span style={statusPill(selected.enabled)}>{selected.enabled?"运行中":"已停用"}</span></div>
+         {selected.description&&<p style={description}>{selected.description}</p>}
+         <div style={capabilityGrid}>{capabilityLabels.map(c=>{const Icon=c.icon;const on=!!selected.capabilities?.[c.key];return <div key={c.key} style={capabilityCard}><span style={{...capIcon,color:on?"#2563eb":"#98a2b3",background:on?"#eff6ff":"#f5f6f8"}}><Icon size={17}/></span><span style={{flex:1,fontSize:13,color:"#344054",fontWeight:600}}>{c.label}</span><span style={{...tinyPill(on)}}>{on?"已支持":"未配置"}</span></div>;})}</div>
+         <div style={detailActions}><button onClick={()=>openPlatformEdit(selected)} style={secondary}><Pencil size={14}/>编辑平台</button><button onClick={()=>void togglePlatform(selected)} disabled={busy} style={selected.enabled?warningButton:primary}><Power size={14}/>{selected.enabled?"停用平台":"启用平台"}</button></div>
+        </section>
+        <section style={detailCard}>
+         <div style={sectionHeader}><div><h3 style={subTitle}><Smartphone size={17}/>应用目录</h3><p style={muted}>此平台绑定的目标 APP 信息，可通过编辑平台进行维护。</p></div><span style={count}>1 个应用</span></div>
+         <div style={directoryRow}><div style={directoryIcon}><Smartphone size={20}/></div><div style={{flex:1,minWidth:0}}><strong style={itemName}>{selected.targetApp}</strong><div style={itemMeta}>关联平台：{selected.name} · 应用标识：{selected.code}</div></div><button onClick={()=>openPlatformEdit(selected)} style={linkButton}><Pencil size={13}/>编辑</button></div>
+        </section>
+        <section style={detailCard}>
+         <div style={sectionHeader}><div><h3 style={subTitle}><ListChecks size={17}/>任务动作</h3><p style={muted}>配置该平台允许发布的任务类型及执行凭证要求。</p></div><button onClick={openActionCreate} disabled={!selected.enabled} style={primary}><Plus size={14}/>添加动作</button></div>
+         {!selected.actions?.length?<div style={emptySmall}>当前平台还没有任务动作。添加动作后，任务发布时即可选择对应执行类型。</div>:<div style={{display:"grid",gap:9}}>{selected.actions.map(a=><div key={a.id} style={actionRow}><div style={actionGlyph}><ListChecks size={17}/></div><div style={{flex:1,minWidth:0}}><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><strong style={itemName}>{a.name}</strong><code style={codeTag}>{a.code}</code><span style={tinyPill(a.enabled)}>{a.enabled?"启用":"停用"}</span></div><div style={itemMeta}>{[a.requiresTargetPhone?"需要目标号码":"无需目标号码",a.requiresDeliveryStatus?"校验送达状态":"不校验送达状态",a.requiresMessageTemplate?"关联话术模板":"不关联话术模板",a.evidenceType==="SCREENSHOT"?"截图凭证":a.evidenceType??"截图凭证"].join(" · ")}</div></div><button onClick={()=>openActionEdit(a)} style={iconButton} aria-label="编辑动作"><Pencil size={14}/></button><button onClick={()=>void toggleAction(a)} disabled={busy} style={iconButton} aria-label={a.enabled?"停用动作":"启用动作"}><Power size={14}/></button></div>)}</div>}
+        </section>
+       </>}
+      </div>
+     </div>}
+    </>:tab==="claim-limits"?<div style={{padding:"22px 8px",maxWidth:760}}><h2 style={sectionTitle}>任务领取限制</h2><p style={muted}>设置全局默认的每日领取上限、领取间隔和任务完成时限。</p><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}<input type="number" min="1" value={String(limits[f.key]??"")} onChange={e=>setLimits(v=>({...v,[f.key]:e.target.value}))} style={input}/></label>)}</div><p style={muted}>保存后将参与用户领取任务、领取间隔和超时回收校验。</p><button onClick={()=>void saveLimits()} disabled={busy} style={primary}><Save size={14}/>保存限制</button></div>:<>
+     <div style={toolbar}><div><h2 style={sectionTitle}>{active.title}</h2><p style={muted}>管理任务运营配置。</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><div style={searchWrap}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索配置…" style={searchInput}/></div><button onClick={startCreate} style={primary}><Plus size={14}/>新增</button></div></div>
+     {formOpen&&<section style={formCard}><h3 style={subTitle}>{editing===null?"新增":"编辑"}{active.title}</h3><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}{f.type==="textarea"?<textarea rows={4} value={String(form[f.key]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} style={{...input,resize:"vertical"}}/>:f.type==="select"?<select value={String(form[f.key]??f.options?.[0]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} style={input}>{f.options?.map(o=><option key={o}>{o}</option>)}</select>:<input required={f.required} type={f.type==="number"?"number":"text"} value={String(form[f.key]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} placeholder={f.placeholder} style={input}/>}</label>)}</div><div style={modalFooter}><button onClick={()=>setFormOpen(false)} style={secondary}>取消</button><button onClick={()=>void saveRow()} disabled={busy} style={primary}><Save size={14}/>保存</button></div></section>}
+     <div style={tableWrap}>{loading?<div style={empty}>正在加载…</div>:filtered.length===0?<div style={empty}>暂无数据。</div>:<table style={table}><thead><tr>{[...active.columns,"操作"].map(c=><th key={c} style={th}>{fieldName(c)}</th>)}</tr></thead><tbody>{filtered.map((row,index)=><tr key={String(row.id??index)}>{active.columns.map(c=><td key={c} style={td}>{c==="enabled"?<span style={statusPill(Boolean(row.enabled))}>{row.enabled?"已启用":"已停用"}</span>:c==="content"?<span title={String(row[c]??"")} style={truncate}>{String(row[c]??"—")}</span>:String(row[c]??"—")}</td>)}<td style={td}><div style={{display:"flex",gap:12}}><button style={linkButton} onClick={()=>startEdit(row,index)}><Pencil size={13}/>编辑</button>{row.enabled!==undefined&&<button style={linkButton} disabled={busy} onClick={()=>void toggleGeneric(index)}><Power size={13}/>{row.enabled?"停用":"启用"}</button>}</div></td></tr>)}</tbody></table>}</div>
     </>}
    </section>
   </div>
+  {platformModal&&<div style={overlay} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setPlatformModal(false);}}><section style={modal} role="dialog" aria-modal="true" aria-labelledby="platform-modal-title"><div style={modalHeader}><div><div style={eyebrow}>PLATFORM MANAGEMENT</div><h2 id="platform-modal-title" style={modalTitle}>{platformEditing?"编辑平台":"创建平台"}</h2></div><button onClick={()=>setPlatformModal(false)} style={closeButton}><X size={18}/></button></div><div style={formGrid}><label style={label}>平台名称 *<input value={String(platformForm.name??"")} onChange={e=>setPlatformForm(v=>({...v,name:e.target.value}))} placeholder="例如 WhatsApp" style={input}/></label><label style={label}>平台包名 / 唯一代码 *<input disabled={!!platformEditing} value={String(platformForm.code??"")} onChange={e=>setPlatformForm(v=>({...v,code:e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g,"_")}))} placeholder="例如 WHATSAPP" style={{...input,background:platformEditing?"#f5f6f8":"#fff"}}/><small style={helper}>创建后作为唯一标识，不可修改。</small></label><label style={label}>目标 APP 名称 *<input value={String(platformForm.targetApp??"")} onChange={e=>setPlatformForm(v=>({...v,targetApp:e.target.value}))} placeholder="例如 WhatsApp Messenger" style={input}/></label><label style={{...label,gridColumn:"1 / -1"}}>平台说明<textarea rows={3} value={String(platformForm.description??"")} onChange={e=>setPlatformForm(v=>({...v,description:e.target.value}))} placeholder="填写平台用途或备注" style={{...input,resize:"vertical"}}/></label></div><div style={fieldSection}><strong style={fieldSectionTitle}>平台能力</strong><div style={checkGrid}>{capabilityLabels.map(c=>{const Icon=c.icon;return <label key={c.key} style={checkOption}><input type="checkbox" checked={!!platformForm[c.key]} onChange={e=>setPlatformForm(v=>({...v,[c.key]:e.target.checked}))}/><Icon size={16}/>{c.label}</label>;})}</div></div><div style={modalFooter}><button onClick={()=>setPlatformModal(false)} style={secondary}>取消</button><button onClick={()=>void savePlatform()} disabled={busy||String(platformForm.name??"").trim().length<2||!String(platformForm.targetApp??"").trim()||(!platformEditing&&!/^[A-Z][A-Z0-9_]{1,39}$/.test(String(platformForm.code??"")))} style={primary}><Save size={14}/>{busy?"保存中…":"确认保存"}</button></div></section></div>}
+  {actionModal&&<div style={overlay} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setActionModal(false);}}><section style={modal} role="dialog" aria-modal="true" aria-labelledby="action-modal-title"><div style={modalHeader}><div><div style={eyebrow}>TASK ACTION</div><h2 id="action-modal-title" style={modalTitle}>{actionEditing?"编辑任务动作":"添加任务动作"}</h2></div><button onClick={()=>setActionModal(false)} style={closeButton}><X size={18}/></button></div><div style={formGrid}><label style={label}>动作名称 *<input value={String(actionForm.name??"")} onChange={e=>setActionForm(v=>({...v,name:e.target.value}))} placeholder="例如发送私信" style={input}/></label><label style={label}>动作代码 *<input disabled={!!actionEditing} value={String(actionForm.code??"")} onChange={e=>setActionForm(v=>({...v,code:e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g,"_")}))} placeholder="例如 SEND_MESSAGE" style={{...input,background:actionEditing?"#f5f6f8":"#fff"}}/></label><label style={label}>凭证类型<select value={String(actionForm.evidenceType??"SCREENSHOT")} onChange={e=>setActionForm(v=>({...v,evidenceType:e.target.value}))} style={input}><option value="SCREENSHOT">截图</option><option value="TEXT">文本</option><option value="URL">链接</option></select></label></div><div style={fieldSection}><strong style={fieldSectionTitle}>执行要求</strong><div style={checkGrid}>{[{key:"requiresTargetPhone",label:"需要目标号码"},{key:"requiresDeliveryStatus",label:"校验送达状态"},{key:"requiresMessageTemplate",label:"关联话术模板"}].map(c=><label key={c.key} style={checkOption}><input type="checkbox" checked={!!actionForm[c.key]} onChange={e=>setActionForm(v=>({...v,[c.key]:e.target.checked}))}/>{c.label}</label>)}</div></div><div style={modalFooter}><button onClick={()=>setActionModal(false)} style={secondary}>取消</button><button onClick={()=>void saveAction()} disabled={busy||String(actionForm.name??"").trim().length<2||(!actionEditing&&!/^[A-Z][A-Z0-9_]{1,39}$/.test(String(actionForm.code??"")))} style={primary}><Save size={14}/>保存动作</button></div></section></div>}
  </main></div>;
 }
-
-function fieldName(config:Config,key:string){return config.fields.find(f=>f.key===key)?.label??({name:"名称",appName:"目标 APP",targetApp:"目标 APP",code:"平台代码",actionCode:"动作代码",capabilities:"能力",action:"任务动作",enabled:"状态",dialCode:"国际区号",currency:"默认货币",category:"业务分类",note:"内部备注",task:"关联任务",platform:"平台 / 类型",countries:"适用国家/地区",amount:"用户奖励",language:"语言",content:"话术内容",referenceImage:"成功参考图"} as Record<string,string>)[key]??key;}
-function badge(enabled:boolean){return {display:"inline-block",padding:"3px 8px",borderRadius:5,fontSize:11,color:enabled?"#059669":"#64748b",background:enabled?"#ecfdf5":"#f1f5f9",border:"1px solid "+(enabled?"#a7f3d0":"#cbd5e1")};}
-const panel={background:"#fff",border:"1px solid #e5eaf2",borderRadius:9,padding:10,minHeight:"calc(100vh - 110px)"} as const;
-const subPanel={background:"#fbfcfe",border:"1px solid #e5eaf2",borderRadius:8,padding:16} as const;
-const tabButton={display:"inline-flex",alignItems:"center",gap:6,border:"1px solid transparent",borderRadius:7,padding:"8px 10px",background:"#f8fafc",color:"#64748b",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"} as const;
-const tabActive={background:"#eff6ff",border:"1px solid #bfdbfe",color:"#2563eb",fontWeight:600} as const;
-const input={width:"100%",boxSizing:"border-box" as const,border:"1px solid #d9e1ec",borderRadius:6,padding:"8px 10px",background:"#fff",color:"#344054",fontSize:12,minHeight:34} as const;
-const label={display:"flex",flexDirection:"column" as const,gap:7,fontSize:12,color:"#475467",fontWeight:600} as const;
-const formGrid={display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:16} as const;
-const heading={fontSize:17,margin:"0 0 8px",color:"#172033"} as const;
-const muted={fontSize:12,color:"#718096",lineHeight:1.7} as const;
-const primary={display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:0,borderRadius:6,padding:"8px 13px",background:"#3478f6",color:"#fff",fontSize:12,cursor:"pointer"} as const;
-const secondary={display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:"1px solid #d9e1ec",borderRadius:6,padding:"8px 12px",background:"#fff",color:"#344054",fontSize:12,cursor:"pointer"} as const;
-const th={textAlign:"left" as const,padding:"11px 12px",fontSize:11,color:"#667085",background:"#f8fafc",borderBottom:"1px solid #e5eaf2",whiteSpace:"nowrap"};
+function fieldName(key:string){return ({name:"名称",platform:"平台 / 类型",action:"任务动作",enabled:"状态",countries:"适用国家/地区",amount:"用户奖励",currency:"奖励币种",content:"话术内容"} as Record<string,string>)[key]??key;}
+const panel={background:"#fff",border:"1px solid #e7ebf2",borderRadius:12,padding:18,minHeight:"calc(100vh - 112px)"} as const;
+const pageHeader={display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"4px 2px 18px",flexWrap:"wrap" as const};
+const eyebrow={fontSize:10,fontWeight:700,letterSpacing:1.2,color:"#94a3b8",marginBottom:6};
+const pageTitle={fontSize:22,fontWeight:700,color:"#182230",margin:0};
+const sectionTitle={fontSize:17,fontWeight:700,color:"#182230",margin:"0 0 5px"};
+const subTitle={display:"flex",alignItems:"center",gap:8,fontSize:15,fontWeight:700,color:"#263445",margin:0};
+const modalTitle={fontSize:19,fontWeight:700,color:"#172033",margin:0};
+const muted={fontSize:12,color:"#8792a2",lineHeight:1.6,margin:"4px 0 0"};
+const tabsBar={display:"flex",gap:7,borderBottom:"1px solid #edf0f5",paddingBottom:13,marginBottom:18,flexWrap:"wrap" as const};
+const tabButton={display:"inline-flex",alignItems:"center",gap:7,border:"1px solid #e8edf4",borderRadius:7,padding:"9px 13px",background:"#fff",color:"#64748b",fontSize:12,fontWeight:600,cursor:"pointer"};
+const tabActive={background:"#eef4ff",border:"1px solid #c9dcff",color:"#2563eb"};
+const toolbar={display:"flex",justifyContent:"space-between",alignItems:"center",gap:14,flexWrap:"wrap" as const,marginBottom:16};
+const searchWrap={display:"flex",alignItems:"center",gap:8,border:"1px solid #e1e7ef",borderRadius:7,padding:"0 10px",height:36,color:"#98a2b3",background:"#fff",minWidth:220};
+const searchInput={border:0,outline:"none",fontSize:12,color:"#344054",width:"100%",background:"transparent"};
+const platformLayout={display:"grid",gridTemplateColumns:"minmax(230px, 290px) minmax(0,1fr)",gap:14,alignItems:"start"};
+const platformList={border:"1px solid #e8edf3",borderRadius:10,overflow:"hidden",background:"#fff"};
+const listHeader={display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 14px",fontSize:13,fontWeight:700,color:"#344054",background:"#f8fafc",borderBottom:"1px solid #edf0f5"};
+const count={fontSize:11,color:"#64748b",background:"#f1f5f9",padding:"3px 8px",borderRadius:20};
+const platformItem={width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 11px",border:0,borderBottom:"1px solid #f0f2f6",background:"#fff",cursor:"pointer",textAlign:"left" as const};
+const platformItemActive={background:"#f2f6ff",boxShadow:"inset 3px 0 #3478f6"};
+const appIcon={width:36,height:36,display:"grid",placeItems:"center",borderRadius:9,background:"#eff4ff",color:"#3478f6",flexShrink:0};
+const heroIcon={width:46,height:46,display:"grid",placeItems:"center",borderRadius:12,background:"#edf4ff",color:"#3478f6",flexShrink:0};
+const itemName={display:"block",fontSize:13,fontWeight:650,color:"#263445",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const};
+const itemMeta={display:"block",fontSize:11,color:"#8a95a5",marginTop:4,overflowWrap:"anywhere" as const};
+const statusDot={width:7,height:7,borderRadius:20,flexShrink:0};
+const detailColumn={display:"grid",gap:13,minWidth:0};
+const detailCard={border:"1px solid #e8edf3",borderRadius:10,padding:16,background:"#fff",minWidth:0};
+const detailTop={display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap" as const};
+const detailTitle={fontSize:18,fontWeight:700,color:"#182230",margin:0};
+const description={fontSize:12,color:"#64748b",lineHeight:1.7,margin:"12px 0 0"};
+const capabilityGrid={display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:9,marginTop:16};
+const capabilityCard={display:"flex",alignItems:"center",gap:8,border:"1px solid #edf0f5",borderRadius:8,padding:"9px 10px"};
+const capIcon={width:30,height:30,display:"grid",placeItems:"center",borderRadius:7};
+const tinyPill=(on:boolean)=>({fontSize:10,fontWeight:600,padding:"3px 7px",borderRadius:20,color:on?"#15803d":"#64748b",background:on?"#effaf2":"#f1f5f9",whiteSpace:"nowrap" as const});
+const detailActions={display:"flex",justifyContent:"flex-end",gap:8,marginTop:16,paddingTop:13,borderTop:"1px solid #f0f2f6"};
+const sectionHeader={display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap" as const,marginBottom:13};
+const directoryRow={display:"flex",alignItems:"center",gap:12,border:"1px solid #edf0f5",borderRadius:8,padding:12};
+const directoryIcon={width:38,height:38,display:"grid",placeItems:"center",borderRadius:8,background:"#f0f7ff",color:"#3478f6"};
+const actionRow={display:"flex",alignItems:"center",gap:10,border:"1px solid #edf0f5",borderRadius:8,padding:"11px 10px"};
+const actionGlyph={width:34,height:34,display:"grid",placeItems:"center",borderRadius:8,background:"#f5f7fb",color:"#64748b",flexShrink:0};
+const codeTag={fontSize:10,color:"#64748b",background:"#f5f7fa",border:"1px solid #e7ebf0",padding:"3px 6px",borderRadius:5};
+const statusPill=(on:boolean)=>({display:"inline-flex",alignItems:"center",fontSize:11,fontWeight:600,color:on?"#15803d":"#64748b",background:on?"#effaf2":"#f1f5f9",border:"1px solid "+(on?"#c9efd2":"#e2e8f0"),borderRadius:20,padding:"4px 9px",whiteSpace:"nowrap" as const});
+const empty={padding:42,textAlign:"center" as const,color:"#98a2b3",fontSize:12,border:"1px dashed #e2e8f0",borderRadius:9};
+const emptySmall={padding:20,textAlign:"center" as const,color:"#98a2b3",fontSize:12};
+const primary={display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:0,borderRadius:7,padding:"9px 13px",background:"#3478f6",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap" as const};
+const secondary={display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:"1px solid #dce3ec",borderRadius:7,padding:"8px 12px",background:"#fff",color:"#475467",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap" as const};
+const warningButton={...secondary,color:"#b45309",borderColor:"#f4d6a6",background:"#fffaf2"};
+const linkButton={display:"inline-flex",alignItems:"center",gap:5,border:0,background:"transparent",color:"#3478f6",fontSize:12,cursor:"pointer",whiteSpace:"nowrap" as const};
+const iconButton={width:30,height:30,display:"grid",placeItems:"center",border:"1px solid #e7ebf0",borderRadius:6,background:"#fff",color:"#64748b",cursor:"pointer",flexShrink:0};
+const alert={display:"flex",alignItems:"center",gap:8,padding:"10px 12px",marginBottom:12,borderRadius:7,background:"#fff1f2",color:"#be123c",fontSize:12};
+const success={display:"flex",alignItems:"center",gap:8,padding:"10px 12px",marginBottom:12,borderRadius:7,background:"#f0fdf4",color:"#15803d",fontSize:12};
+const formCard={border:"1px solid #e5eaf2",borderRadius:9,padding:16,marginBottom:14,background:"#fbfcfe"};
+const formGrid={display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,margin:"16px 0"};
+const label={display:"flex",flexDirection:"column" as const,gap:7,fontSize:12,color:"#475467",fontWeight:600};
+const input={width:"100%",boxSizing:"border-box" as const,border:"1px solid #d9e1ec",borderRadius:7,padding:"9px 10px",background:"#fff",color:"#344054",fontSize:12,minHeight:36};
+const helper={fontSize:10,color:"#98a2b3",fontWeight:400};
+const fieldSection={borderTop:"1px solid #edf0f5",paddingTop:14,marginTop:10};
+const fieldSectionTitle={fontSize:12,color:"#344054"};
+const checkGrid={display:"flex",gap:10,flexWrap:"wrap" as const,marginTop:12};
+const checkOption={display:"inline-flex",alignItems:"center",gap:7,padding:"9px 11px",border:"1px solid #e7ebf0",borderRadius:7,fontSize:12,color:"#475467",background:"#fff",cursor:"pointer"};
+const modalFooter={display:"flex",justifyContent:"flex-end",gap:8,paddingTop:15,borderTop:"1px solid #edf0f5",marginTop:16};
+const overlay={position:"fixed" as const,inset:0,zIndex:1000,display:"grid",placeItems:"center",padding:18,background:"rgba(15,23,42,.42)"};
+const modal={width:"min(680px,100%)",maxHeight:"min(90vh,820px)",overflowY:"auto" as const,background:"#fff",borderRadius:12,padding:22,boxShadow:"0 20px 60px rgba(15,23,42,.2)"};
+const modalHeader={display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18};
+const closeButton={width:32,height:32,display:"grid",placeItems:"center",border:0,borderRadius:7,background:"#f5f7fa",color:"#64748b",cursor:"pointer"};
+const tableWrap={border:"1px solid #e7ebf0",borderRadius:9,overflowX:"auto" as const};
+const table={width:"100%",borderCollapse:"collapse" as const,minWidth:760};
+const th={textAlign:"left" as const,padding:"11px 12px",fontSize:11,color:"#667085",background:"#f8fafc",borderBottom:"1px solid #e5eaf2",whiteSpace:"nowrap" as const};
 const td={padding:"11px 12px",fontSize:12,color:"#344054",borderBottom:"1px solid #edf0f5",maxWidth:300};
-const linkBtn={display:"inline-flex",alignItems:"center",gap:4,border:0,background:"transparent",color:"#2864ed",fontSize:12,cursor:"pointer",padding:0};
-const alert={marginTop:12,padding:10,borderRadius:6,color:"#b42318",background:"#fff1f0",fontSize:12};
-const success={marginTop:12,padding:10,borderRadius:6,color:"#16794b",background:"#eaf8f0",fontSize:12};
+const truncate={display:"block",maxWidth:320,overflow:"hidden",whiteSpace:"nowrap" as const,textOverflow:"ellipsis"};
