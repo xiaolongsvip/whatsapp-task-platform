@@ -242,6 +242,130 @@ export class TaskAdminService {
   }
 
 
+  private readonly executionTestPrefix = "[DEV-EXEC-TEST]";
+
+  async createExecutionTestData(adminId: string) {
+    if (process.env.NODE_ENV === "production") throw new BadRequestException("生产环境禁止生成执行记录测试数据。");
+    const token = Date.now().toString(36).toUpperCase();
+    const groupName = this.executionTestPrefix + token;
+    const now = new Date();
+    const definitions = [
+      { suffix: "执行中", slot: "ASSIGNED" as const, claim: "IN_PROGRESS" as const, contact: "ASSIGNED" as const },
+      { suffix: "审核中", slot: "ASSIGNED" as const, claim: "UNDER_REVIEW" as const, contact: "ASSIGNED" as const },
+      { suffix: "已结算", slot: "USED" as const, claim: "APPROVED" as const, contact: "USED" as const },
+      { suffix: "已拒绝", slot: "VOIDED" as const, claim: "REJECTED" as const, contact: "AVAILABLE" as const },
+      { suffix: "已超时", slot: "VOIDED" as const, claim: "EXPIRED" as const, contact: "AVAILABLE" as const },
+      { suffix: "未领取", slot: "AVAILABLE" as const, claim: null, contact: "AVAILABLE" as const },
+    ];
+    const created = await prisma.$transaction(async (tx) => {
+      const group = await tx.taskGroup.create({ data: { name: groupName, description: "系统自动生成的执行记录测试数据；可通过测试数据清理功能删除。" } });
+      const ids: string[] = [];
+      for (let index = 0; index < definitions.length; index += 1) {
+        const definition = definitions[index];
+        const suffix = token + index;
+        const user = await tx.user.create({ data: {
+          phone: "+254700" + suffix.padStart(6, "0").slice(-6),
+          referralCode: "T" + suffix.padStart(10, "0").slice(-10),
+          passwordHash: "DEV_TEST_ONLY_NOT_A_REAL_PASSWORD_HASH",
+          status: "ACTIVE",
+        } });
+        const contact = await tx.contactNumber.create({ data: {
+          phoneE164: "+254711" + suffix.padStart(6, "0").slice(-6),
+          countryCode: "KE", countryName: "肯尼亚",
+          status: definition.contact, consentStatus: "GRANTED",
+          consentSource: "开发环境模拟数据",
+          consentedAt: now,
+        } });
+        const task = await tx.task.create({ data: {
+          title: this.executionTestPrefix + " " + definition.suffix,
+          description: "仅供执行记录页面开发验证，不是真实推广任务。",
+          category: "开发测试", groupId: group.id, status: "PUBLISHED",
+          rewardMinor: 100n, currency: "KES", capacity: 1, claimedCount: definition.claim ? 1 : 0,
+          messageTemplate: "【测试话术】此内容仅用于后台页面展示。",
+          linkUrl: "https://example.invalid/dev-test",
+        } });
+        let claimId: string | null = null;
+        if (definition.claim) {
+          const claim = await tx.taskClaim.create({ data: {
+            taskId: task.id, userId: user.id, status: definition.claim,
+            claimedAt: new Date(now.getTime() - (index + 1) * 3600000),
+            expiresAt: definition.claim === "EXPIRED" ? new Date(now.getTime() - 60000) : new Date(now.getTime() + 3600000),
+            idempotencyKey: "dev-execution-test-" + suffix,
+          } });
+          claimId = claim.id;
+          await tx.contactAssignment.create({ data: {
+            contactNumberId: contact.id, claimId: claim.id, userId: user.id,
+            status: definition.claim === "APPROVED" ? "COMPLETED" : definition.claim === "REJECTED" || definition.claim === "EXPIRED" ? "RELEASED" : "ASSIGNED",
+            assignedAt: claim.claimedAt,
+            ...(definition.claim === "APPROVED" ? { completedAt: now } : {}),
+            ...(definition.claim === "REJECTED" || definition.claim === "EXPIRED" ? { releasedAt: now } : {}),
+          } });
+        }
+        const slot = await tx.taskSlot.create({ data: {
+          taskId: task.id, contactNumberId: contact.id, claimId,
+          status: definition.slot,
+          assignedAt: claimId ? new Date(now.getTime() - (index + 1) * 3600000) : null,
+          usedAt: definition.slot === "USED" ? now : null,
+          releasedAt: definition.slot === "VOIDED" ? now : null,
+        } });
+        ids.push(slot.id);
+        await tx.auditEvent.create({ data: {
+          actorType: "SYSTEM", actorId: adminId, action: "DEV_TEST_" + definition.suffix,
+          targetType: "TaskSlot", targetId: slot.id,
+          metadata: { testData: true, testBatch: token, note: "开发测试事件，不代表真实用户行为" },
+        } });
+        if (definition.suffix === "已拒绝") {
+          await tx.auditEvent.create({ data: {
+            actorType: "SYSTEM", actorId: adminId, action: "DEV_TEST_RISK_REVIEW",
+            targetType: "TaskSlot", targetId: slot.id,
+            metadata: { testData: true, riskLevel: "需关注", reason: "模拟风险事件" },
+          } });
+        }
+      }
+      return { groupName, slotIds: ids };
+    });
+    return { createdCount: created.slotIds.length, groupName: created.groupName, message: "已生成 6 条独立测试执行记录。测试数据不会产生真实结算流水。" };
+  }
+
+  async deleteExecutionTestData() {
+    if (process.env.NODE_ENV === "production") throw new BadRequestException("生产环境禁止清理执行记录测试数据。");
+    const tasks = await prisma.task.findMany({
+      where: { title: { startsWith: this.executionTestPrefix } },
+      select: { id: true, groupId: true },
+    });
+    const taskIds = tasks.map((item) => item.id);
+    const groups = await prisma.taskGroup.findMany({
+      where: { name: { startsWith: this.executionTestPrefix } },
+      select: { id: true },
+    });
+    if (!taskIds.length && !groups.length) return { deletedCount: 0, message: "没有找到测试数据。" };
+    const slots = await prisma.taskSlot.findMany({ where: { taskId: { in: taskIds } }, select: { id: true, claimId: true, contactNumberId: true } });
+    const claimIds = slots.map((item) => item.claimId).filter((id): id is string => Boolean(id));
+    const contactIds = slots.map((item) => item.contactNumberId);
+    const users = claimIds.length ? await prisma.taskClaim.findMany({ where: { id: { in: claimIds } }, select: { userId: true } }) : [];
+    const userIds = users.map((item) => item.userId);
+    await prisma.$transaction(async (tx) => {
+      if (slots.length) await tx.auditEvent.deleteMany({ where: { targetType: "TaskSlot", targetId: { in: slots.map((item) => item.id) } } });
+      if (claimIds.length) {
+        const submissions = await tx.taskSubmission.findMany({ where: { claimId: { in: claimIds } }, select: { id: true } });
+        const submissionIds = submissions.map((item) => item.id);
+        if (submissionIds.length) {
+          await tx.taskReview.deleteMany({ where: { submissionId: { in: submissionIds } } });
+          await tx.aiReviewJob.deleteMany({ where: { submissionId: { in: submissionIds } } });
+          await tx.taskSubmission.deleteMany({ where: { id: { in: submissionIds } } });
+        }
+        await tx.contactAssignment.deleteMany({ where: { claimId: { in: claimIds } } });
+      }
+      if (slots.length) await tx.taskSlot.deleteMany({ where: { id: { in: slots.map((item) => item.id) } } });
+      if (claimIds.length) await tx.taskClaim.deleteMany({ where: { id: { in: claimIds } } });
+      if (taskIds.length) await tx.task.deleteMany({ where: { id: { in: taskIds } } });
+      if (contactIds.length) await tx.contactNumber.deleteMany({ where: { id: { in: contactIds } } });
+      if (userIds.length) await tx.user.deleteMany({ where: { id: { in: userIds } } });
+      if (groups.length) await tx.taskGroup.deleteMany({ where: { id: { in: groups.map((item) => item.id) } } });
+    });
+    return { deletedCount: slots.length, message: "测试数据已清理；真实任务和真实用户未被修改。" };
+  }
+
   async getTaskRecordDetail(slotId: string) {
     const slot = await prisma.taskSlot.findUnique({
       where: { id: slotId },
