@@ -87,8 +87,16 @@ export default function ExecutionRecordsPage() {
 
   const load = useCallback(async () => {
     const apiStatus: Partial<Record<TabKey, RecordStatus>> = { CREATED: "AVAILABLE", ASSIGNED: "IN_PROGRESS", OPENED: "IN_PROGRESS", REVIEW: "REVIEW", MANUAL: "REVIEW", REJECTED: "VOIDED", RESUBMIT: "CLOSED", FROZEN: "FROZEN", SETTLED: "COMPLETED", EXPIRED: "CLOSED", CANCELLED: "CLOSED" };
-    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword: appliedKeyword, status: apiStatus[tab] || "ALL" });
-    if (period !== "all") {
+    const linkedRecordId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("recordId") : null;
+    const params = new URLSearchParams({
+      page: linkedRecordId ? "1" : String(page),
+      pageSize: linkedRecordId ? "100" : String(pageSize),
+      keyword: linkedRecordId || appliedKeyword,
+      status: linkedRecordId ? "ALL" : (apiStatus[tab] || "ALL"),
+    });
+    // A detail link must find the exact record regardless of the execution page's
+    // default "today" period, current status tab, or pagination.
+    if (!linkedRecordId && period !== "all") {
       const now = new Date();
       const start = new Date(now);
       if (period === "today") start.setUTCHours(0, 0, 0, 0);
