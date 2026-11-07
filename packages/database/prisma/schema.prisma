@@ -604,8 +604,12 @@ model PaymentProviderConfig {
   id                    String   @id @default(uuid()) @db.Uuid
   providerCode          String   @unique @map("provider_code")
   displayName           String   @map("display_name")
+  serviceProviderName   String   @default("") @map("service_provider_name")
   countryCode           String   @default("GLOBAL") @map("country_code")
   methodCode            String   @default("BANK_TRANSFER") @map("method_code")
+  supportedChannels     String[] @default([]) @map("supported_channels")
+  minimumPayoutMinor    BigInt?  @map("minimum_payout_minor")
+  maximumPayoutMinor    BigInt?  @map("maximum_payout_minor")
   apiBaseUrl            String?  @map("api_base_url")
   merchantId            String?  @map("merchant_id")
   environment           String   @default("SANDBOX")
