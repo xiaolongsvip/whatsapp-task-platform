@@ -169,21 +169,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
   }
 
   async myClaims(userId: string) {
-    // Backfill legacy active claims created before claim-time deadlines were
-    // introduced. Derive the deadline from claimedAt; never start a fresh
-    // three-minute window when the member opens the task screen.
-    await prisma.$executeRaw`
-      UPDATE task_claims AS claim
-      SET expires_at = LEAST(
-        claim.claimed_at + INTERVAL '3 minutes',
-        COALESCE(task.ends_at, 'infinity'::timestamptz)
-      )
-      FROM tasks AS task
-      WHERE claim.task_id = task.id
-        AND claim.user_id = ${userId}::uuid
-        AND claim.expires_at IS NULL
-        AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
-    `;
+    // Expiry recovery applies the current global deadline to legacy claims.
     await this.expireOverdueClaims(userId);
     const claims = await prisma.taskClaim.findMany({
       where: { userId },
@@ -270,9 +256,20 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     try {
       const claim = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
-        const userPolicy = await tx.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } });
-        const dailyTaskLimit = userPolicy?.dailyTaskLimit ?? DAILY_TASK_LIMIT;
-        const minClaimIntervalSeconds = userPolicy?.minClaimIntervalSeconds ?? DEFAULT_MIN_CLAIM_INTERVAL_SECONDS;
+        const [userPolicy, limitsRow] = await Promise.all([
+          tx.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } }),
+          tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } }),
+        ]);
+        const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
+          ? limitsRow.value as Record<string, unknown>
+          : {};
+        const positiveInteger = (value: unknown, fallback: number) => {
+          const parsed = Number(value);
+          return Number.isInteger(parsed) && parsed >= 1 && parsed <= 1000000 ? parsed : fallback;
+        };
+        const dailyTaskLimit = userPolicy?.dailyTaskLimit ?? positiveInteger(globalLimits.dailyLimit, DAILY_TASK_LIMIT);
+        const minClaimIntervalSeconds = userPolicy?.minClaimIntervalSeconds ?? positiveInteger(globalLimits.minimumIntervalSeconds, DEFAULT_MIN_CLAIM_INTERVAL_SECONDS);
+        const taskTimeLimitMinutes = positiveInteger(globalLimits.taskTimeLimitMinutes, 3);
         const slot = await tx.taskSlot.findUnique({
           where: { id: slotId },
           include: { task: true, contactNumber: true },
@@ -344,7 +341,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           data: {
             taskId, userId, status: "CLAIMED", idempotencyKey: key,
             // A claim that is never started must not reserve a phone forever.
-            expiresAt: new Date(now.getTime() + 3 * 60 * 1000),
+            expiresAt: new Date(now.getTime() + taskTimeLimitMinutes * 60 * 1000),
             contactAssignment: {
               create: { contactNumberId: slot.contactNumberId, userId, status: "ASSIGNED" },
             },
@@ -407,8 +404,14 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       // The three-minute deadline starts when the task is claimed, not when
       // the member opens WhatsApp. Starting or restarting never extends it.
       // The fallback only supports legacy claims created without expiresAt.
+      const limitsRow = await tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } });
+      const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
+        ? limitsRow.value as Record<string, unknown>
+        : {};
+      const configuredMinutes = Number(globalLimits.taskTimeLimitMinutes);
+      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000 ? configuredMinutes : 3;
       const expiresAt = claim.expiresAt ?? new Date(Math.min(
-        now.getTime() + 3 * 60 * 1000,
+        now.getTime() + taskTimeLimitMinutes * 60 * 1000,
         claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
       ));
       const started = await tx.taskClaim.update({
@@ -496,6 +499,12 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
   private async expireOverdueClaims(userId?: string) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
+      const limitsRow = await tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } });
+      const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
+        ? limitsRow.value as Record<string, unknown>
+        : {};
+      const configuredMinutes = Number(globalLimits.taskTimeLimitMinutes);
+      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000 ? configuredMinutes : 3;
       // Backfill deadlines for legacy active claims before checking expiry.
       // Without this, expires_at IS NULL rows are invisible to the expiry
       // query but still count as active in claimTask(), permanently blocking
@@ -504,7 +513,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         await tx.$executeRaw`
           UPDATE task_claims AS claim
           SET expires_at = LEAST(
-            claim.claimed_at + INTERVAL '3 minutes',
+            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
             COALESCE(task.ends_at, 'infinity'::timestamptz)
           )
           FROM tasks AS task
@@ -517,7 +526,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         await tx.$executeRaw`
           UPDATE task_claims AS claim
           SET expires_at = LEAST(
-            claim.claimed_at + INTERVAL '3 minutes',
+            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
             COALESCE(task.ends_at, 'infinity'::timestamptz)
           )
           FROM tasks AS task
