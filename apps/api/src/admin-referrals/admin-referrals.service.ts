@@ -57,7 +57,7 @@ export class AdminReferralsService {
           level2: user.descendants.filter((x) => x.depth === 2).length,
           level3: user.descendants.filter((x) => x.depth === 3).length,
         },
-        teamCount: user.descendants.length,
+        teamCount: user.invitees.length + user.descendants.filter((x) => x.depth === 2 || x.depth === 3).length,
         totalCommissionByCurrency: rewardMap.get(user.id) ?? [],
         totalCommissionMinor: (rewardMap.get(user.id) ?? []).length === 1 ? rewardMap.get(user.id)![0].amountMinor : "0",
         commissionCurrency: (rewardMap.get(user.id) ?? []).length === 1 ? rewardMap.get(user.id)![0].currency : "—",
