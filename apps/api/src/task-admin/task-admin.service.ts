@@ -256,6 +256,7 @@ export class TaskAdminService {
       { suffix: "已拒绝", slot: "VOIDED" as const, claim: "REJECTED" as const, contact: "AVAILABLE" as const },
       { suffix: "已超时", slot: "VOIDED" as const, claim: "EXPIRED" as const, contact: "AVAILABLE" as const },
       { suffix: "未领取", slot: "AVAILABLE" as const, claim: null, contact: "AVAILABLE" as const },
+      { suffix: "已冻结", slot: "ASSIGNED" as const, claim: "IN_PROGRESS" as const, contact: "BLOCKED" as const },
     ];
     const created = await prisma.$transaction(async (tx) => {
       const group = await tx.taskGroup.create({ data: { name: groupName, description: "系统自动生成的执行记录测试数据；可通过测试数据清理功能删除。" } });
@@ -347,7 +348,7 @@ export class TaskAdminService {
       }
       return { groupName, slotIds: ids };
     });
-    return { createdCount: created.slotIds.length, groupName: created.groupName, message: "已生成 6 条独立测试执行记录。测试数据不会产生真实结算流水。" };
+    return { createdCount: created.slotIds.length, groupName: created.groupName, message: "已生成 7 条独立测试执行记录。测试数据不会产生真实结算流水。" };
   }
 
   async deleteExecutionTestData() {
