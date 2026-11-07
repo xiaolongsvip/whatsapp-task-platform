@@ -138,7 +138,8 @@ export default function AdminTasksPage() {
   const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");
   const [bulkMessageText, setBulkMessageText] = useState("");
   const [bulkTemplateId, setBulkTemplateId] = useState("");
-  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);\n  const [bulkPlatforms, setBulkPlatforms] = useState<string[]>([]);
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
+  const [bulkPlatforms, setBulkPlatforms] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
