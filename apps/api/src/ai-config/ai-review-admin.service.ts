@@ -211,7 +211,7 @@ export class AiReviewAdminService {
                 direction: "CREDIT",
                 amountMinor: commissionMinor,
                 currency: claim.task.currency,
-                idempotencyKey: `referral-ledger:${claim.id}:L${ancestor.depth}:${ancestor.ancestorUserId}`,
+                idempotencyKey,,
               },
             });
           }
