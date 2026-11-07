@@ -211,7 +211,7 @@ export class AiReviewAdminService {
                 direction: "CREDIT",
                 amountMinor: commissionMinor,
                 currency: claim.task.currency,
-                idempotencyKey,,
+                idempotencyKey,
               },
             });
           }
