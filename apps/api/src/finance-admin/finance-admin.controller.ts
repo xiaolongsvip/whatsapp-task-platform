@@ -46,6 +46,21 @@ export class FinanceAdminController {
   async updateProvider(@Req() req: Request, @Param("providerCode") providerCode: string, @Body() body: Record<string, unknown>) { await this.authorize(req); return this.finance.updateProvider(providerCode, body); }
   @Patch("providers/:providerCode/enabled")
   async setProviderEnabled(@Req() req: Request, @Param("providerCode") providerCode: string, @Body("enabled") enabled: boolean) { await this.authorize(req); return this.finance.setProviderEnabled(providerCode, enabled); }
+  @Get("settlements/tasks")
+  async taskSettlements(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.taskSettlements(query); }
+  @Get("settlements/payouts")
+  async pendingPayouts(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.pendingPayouts(query); }
+  @Get("adjustments")
+  async taskAdjustments(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.taskAdjustments(query); }
+  @Post("adjustments")
+  async createTaskAdjustment(@Req() req: Request, @Body() body: { user?: string; currency?: string; amount?: string; direction?: string; reason?: string; taskTitle?: string }) { const admin = await this.authorize(req); return this.finance.createTaskAdjustment(admin.id, body); }
+  @Get("reconciliations")
+  async reconciliationRuns(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.reconciliationRuns(query); }
+  @Post("reconciliations/run")
+  async runReconciliation(@Req() req: Request) { const admin = await this.authorize(req); return this.finance.runFinanceReconciliation(admin.id); }
+  @Get("reconciliations/:id")
+  async reconciliationRunDetail(@Req() req: Request, @Param("id") id: string) { await this.authorize(req); return this.finance.reconciliationRunDetail(id); }
+
   @Get("transactions")
   async transactions(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.transactions(query); }
 }
