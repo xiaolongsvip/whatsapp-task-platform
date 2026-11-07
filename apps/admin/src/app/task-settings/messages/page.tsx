@@ -251,6 +251,44 @@ export default function TaskConfigurationPage(){
        </section>
       </section>}
      </>}
+    </>:tab==="messages"?<>
+     <div style={templateToolbar}>
+      <div style={templateSearch}><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="请输入模板名称" style={searchInput}/></div>
+      <div style={filterGroup}>{[["all","全部"],["enabled","使用中"],["disabled","未使用"]].map(([v,label])=><button key={v} onClick={()=>setTemplateStatus(v)} style={{...filterButton,...(templateStatus===v?filterButtonActive:{})}}>{label}</button>)}</div>
+      <button onClick={()=>{setSearch("");setTemplateStatus("all");setTemplateCategory("全部模板");}} style={secondary}><RotateCcw size={13}/>重置</button>
+      <button onClick={()=>setNotice("可通过模板名称、任务类型和状态进行筛选。")} style={secondary}><Filter size={13}/>更多筛选⌄</button>
+      <span style={{flex:1}}/>
+      <button onClick={()=>setNotice("批量更换话术针对任务记录执行，不会批量修改模板内容。")} style={secondary}>批量更换话术</button>
+      <button onClick={startCreate} style={primary}><Plus size={14}/>新增模板</button>
+     </div>
+     <div style={templateLayout}>
+      <aside style={categoryPanel}>
+       <strong style={categoryTitle}>模板分类</strong>
+       <button onClick={()=>setTemplateCategory("全部模板")} style={{...categoryItem,...(templateCategory==="全部模板"?categoryActive:{})}}>全部模板 <span>{templates.length}</span></button>
+       {Array.from(new Set(templates.map(t=>t.platform))).map(name=><button key={name} onClick={()=>setTemplateCategory(name)} style={{...categoryItem,...(templateCategory===name?categoryActive:{})}}>{name}<span>{templates.filter(t=>t.platform===name).length}</span></button>)}
+       <button onClick={()=>setNotice("自定义分组尚未接入后端数据结构，当前按任务类型自动分类。")} style={categoryAdd}>自定义分组 ＋</button>
+      </aside>
+      <div style={templateTablePanel}>
+       <table style={{...table,minWidth:980}}><thead><tr><th style={th}><input type="checkbox" aria-label="选择全部模板"/></th>{["模板名称","任务类型","语言","状态","使用状态","操作"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>
+        {loading?<tr><td colSpan={7} style={{...td,textAlign:"center",padding:32}}>正在加载模板…</td></tr>:templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).length===0?<tr><td colSpan={7} style={{...td,textAlign:"center",padding:42,color:"#98a2b3"}}>暂无话术模板</td></tr>:templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).map(t=><tr key={t.id}><td style={td}><input type="checkbox" aria-label={"选择"+t.name}/></td><td style={td}><strong>{t.name}</strong></td><td style={td}><span style={templateTypePill}>{t.platform}</span></td><td style={td}>{t.language||"—"}</td><td style={td}><span style={statusPill(t.enabled)}>{t.enabled?"正常":"已停用"}</span></td><td style={td}><span style={{color:"#64748b"}}>未统计</span></td><td style={td}><div style={{display:"flex",gap:10}}><button style={linkButton} onClick={()=>setTemplatePreview(t)}><Eye size={13}/>预览</button><button style={linkButton} onClick={()=>startEdit(t,templates.findIndex(x=>x.id===t.id))}><Pencil size={13}/>编辑模板</button><button style={{...linkButton,color:"#dc5555"}} disabled={busy} onClick={()=>void deleteTemplate(t)}><Trash2 size={13}/>删除</button></div></td></tr>)}
+       </tbody></table>
+       <div style={paginationBar}><span>共 {templates.filter(t=>(!search||[t.name,t.platform,t.platformCode,t.action,t.content,t.language,t.keywords].join(" ").toLowerCase().includes(search.toLowerCase()))&&(templateCategory==="全部模板"||t.platform===templateCategory)&&(templateStatus==="all"||(templateStatus==="enabled"?t.enabled:!t.enabled))).length} 条</span><span style={pageNumber}>1</span><span>20 条/页</span></div>
+      </div>
+     </div>
+     {formOpen&&<div style={overlay} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setFormOpen(false);}}><section style={{...modal,width:"min(520px,100%)"}} role="dialog" aria-modal="true" aria-labelledby="template-modal-title">
+      <div style={modalHeader}><div><h2 id="template-modal-title" style={modalTitle}>{editing===null?"新增话术模板":"编辑话术模板"}</h2><p style={muted}>可直接编辑模板，后续领取使用保存后的话术。</p></div><button onClick={()=>setFormOpen(false)} style={closeButton}><X size={17}/></button></div>
+      <div style={templateFormGrid}>
+       <label style={label}>模板名称 <b style={requiredMark}>*</b><input value={String(form.name??"")} onChange={e=>setForm(v=>({...v,name:e.target.value}))} style={input}/></label>
+       <label style={label}>任务类型 <b style={requiredMark}>*</b><select value={String(form.platform??"")} onChange={e=>setForm(v=>({...v,platform:e.target.value}))} style={input}><option value="">请选择</option>{Array.from(new Set(["WhatsApp 私信任务",...templates.map(t=>t.platform)])).map(v=><option key={v} value={v}>{v}</option>)}</select></label>
+       <label style={label}>平台代码 <b style={requiredMark}>*</b><select value={String(form.platformCode??"")} onChange={e=>{const p=templatePlatforms.find(x=>x.code===e.target.value);setForm(v=>({...v,platformCode:e.target.value,action:p?.actions?.[0]?.code??"MESSAGE"}));}} style={input}><option value="">请选择</option>{templatePlatforms.map(p=><option key={p.id} value={p.code}>{p.name}（{p.code}）</option>)}</select></label>
+       <label style={label}>任务动作代码 <b style={requiredMark}>*</b><select value={String(form.action??"")} onChange={e=>setForm(v=>({...v,action:e.target.value}))} style={input}><option value="">请选择</option>{(templatePlatforms.find(p=>p.code===String(form.platformCode??""))?.actions??[]).map(a=><option key={a.id} value={a.code}>{a.name}（{a.code}）</option>)}</select></label>
+       <label style={label}>语言<input value={String(form.language??"")} onChange={e=>setForm(v=>({...v,language:e.target.value}))} style={input}/></label>
+       <label style={{...label,gridColumn:"1 / -1"}}>模板正文 <b style={requiredMark}>*</b><textarea rows={6} value={String(form.content??"")} onChange={e=>setForm(v=>({...v,content:e.target.value}))} style={{...input,resize:"vertical"}}/></label>
+       <label style={{...label,gridColumn:"1 / -1"}}>关键词<input value={String(form.keywords??"")} onChange={e=>setForm(v=>({...v,keywords:e.target.value}))} placeholder="多个关键词使用英文逗号分隔" style={input}/></label>
+      </div>
+      <div style={modalFooter}><button onClick={()=>setFormOpen(false)} style={secondary}>取消</button><button onClick={()=>void saveRow()} disabled={busy||String(form.name??"").trim().length<2||!String(form.platform??"")||!String(form.platformCode??"")||!String(form.action??"")||!String(form.content??"").trim()} style={primary}><Save size={14}/>{busy?"保存中…":editing===null?"新增模板":"保存修改"}</button></div>
+     </section></div>}
+     {templatePreview&&<div style={overlay} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setTemplatePreview(null);}}><section style={{...modal,width:"min(520px,100%)"}} role="dialog" aria-modal="true"><div style={modalHeader}><h2 style={modalTitle}>话术预览</h2><button onClick={()=>setTemplatePreview(null)} style={closeButton}><X size={17}/></button></div><strong>{templatePreview.name}</strong><p style={muted}>{templatePreview.platform} · {templatePreview.language||"未设置语言"}</p><div style={previewContent}>{templatePreview.content}</div>{templatePreview.keywords&&<p style={muted}>关键词：{templatePreview.keywords}</p>}</section></div>}
     </>:tab==="claim-limits"?<div style={{padding:"22px 8px",maxWidth:760}}><h2 style={sectionTitle}>任务领取限制</h2><p style={muted}>设置全局默认的每日领取上限、领取间隔和任务完成时限。</p><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}<input type="number" min="1" value={String(limits[f.key]??"")} onChange={e=>setLimits(v=>({...v,[f.key]:e.target.value}))} style={input}/></label>)}</div><p style={muted}>保存后将参与用户领取任务、领取间隔和超时回收校验。</p><button onClick={()=>void saveLimits()} disabled={busy} style={primary}><Save size={14}/>保存限制</button></div>:<>
      <div style={toolbar}><div><h2 style={sectionTitle}>{active.title}</h2><p style={muted}>管理任务运营配置。</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><div style={searchWrap}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索配置…" style={searchInput}/></div><button onClick={startCreate} style={primary}><Plus size={14}/>新增</button></div></div>
      {formOpen&&<section style={formCard}><h3 style={subTitle}>{editing===null?"新增":"编辑"}{active.title}</h3><div style={formGrid}>{active.fields.map(f=><label key={f.key} style={label}>{f.label}{f.type==="textarea"?<textarea rows={4} value={String(form[f.key]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} style={{...input,resize:"vertical"}}/>:f.type==="select"?<select value={String(form[f.key]??f.options?.[0]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} style={input}>{f.options?.map(o=><option key={o}>{o}</option>)}</select>:<input required={f.required} type={f.type==="number"?"number":"text"} value={String(form[f.key]??"")} onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))} placeholder={f.placeholder} style={input}/>}</label>)}</div><div style={modalFooter}><button onClick={()=>setFormOpen(false)} style={secondary}>取消</button><button onClick={()=>void saveRow()} disabled={busy} style={primary}><Save size={14}/>保存</button></div></section>}
@@ -277,6 +315,22 @@ const tabActive={background:"#eef4ff",border:"1px solid #c9dcff",color:"#2563eb"
 const toolbar={display:"flex",justifyContent:"space-between",alignItems:"center",gap:14,flexWrap:"wrap" as const,marginBottom:16};
 const searchWrap={display:"flex",alignItems:"center",gap:8,border:"1px solid #e1e7ef",borderRadius:7,padding:"0 10px",height:36,color:"#98a2b3",background:"#fff",minWidth:220};
 const searchInput={border:0,outline:"none",fontSize:12,color:"#344054",width:"100%",background:"transparent"};
+const templateToolbar={display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" as const,padding:10,border:"1px solid #e7ebf0",borderRadius:8,margin:"8px 0 10px"};
+const templateSearch={display:"flex",alignItems:"center",gap:8,width:180,height:34,padding:"0 9px",border:"1px solid #e1e7ef",borderRadius:6,color:"#98a2b3"};
+const filterGroup={display:"flex",alignItems:"center",gap:3,padding:3,background:"#f2f5fa",borderRadius:7};
+const filterButton={border:0,borderRadius:5,padding:"7px 11px",background:"transparent",color:"#64748b",fontSize:11,cursor:"pointer"};
+const filterButtonActive={background:"#3478f6",color:"#fff"};
+const templateLayout={display:"grid",gridTemplateColumns:"164px minmax(0,1fr)",gap:10,minHeight:"calc(100vh - 290px)"};
+const categoryPanel={border:"1px solid #e7ebf0",borderRadius:7,padding:10,alignSelf:"start",background:"#fff"};
+const categoryTitle={display:"block",fontSize:11,color:"#344054",margin:"2px 0 10px"};
+const categoryItem={display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",border:0,borderRadius:5,padding:"8px 7px",background:"#fff",color:"#475467",fontSize:11,textAlign:"left" as const,cursor:"pointer"};
+const categoryActive={background:"#eef4ff",color:"#2563eb"};
+const categoryAdd={border:0,background:"transparent",color:"#64748b",fontSize:11,padding:"9px 6px",cursor:"pointer"};
+const templateTablePanel={border:"1px solid #e7ebf0",borderRadius:7,overflow:"auto",background:"#fff",minWidth:0};
+const templateTypePill={display:"inline-block",borderRadius:12,padding:"3px 8px",background:"#eff4ff",color:"#3478f6",fontSize:10,whiteSpace:"nowrap" as const};
+const templateFormGrid={display:"grid",gridTemplateColumns:"1fr",gap:12,margin:"4px 0"};
+const requiredMark={color:"#e5484d",fontWeight:600};
+const previewContent={whiteSpace:"pre-wrap" as const,background:"#f8fafc",border:"1px solid #e7ebf0",borderRadius:7,padding:14,marginTop:14,fontSize:13,lineHeight:1.7,color:"#344054",maxHeight:360,overflowY:"auto" as const};
 const statsGrid={display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,margin:"8px 0 14px"};
 const statCard={display:"flex",alignItems:"center",gap:10,border:"1px solid #e7ebf2",borderRadius:7,padding:"10px 12px",minHeight:44};
 const statIcon={width:32,height:32,display:"grid",placeItems:"center",borderRadius:7,flexShrink:0};
