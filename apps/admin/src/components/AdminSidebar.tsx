@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { BarChart3, ChevronDown, ClipboardCheck, ClipboardList, FileClock, HandCoins, LayoutDashboard, MessageSquare, Phone, Settings, Shield, Users, WalletCards, Image, ShieldAlert, Sprout } from "lucide-react";
 
@@ -24,18 +24,19 @@ const settingItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const reviewView = searchParams.get("view") ?? "manual";
   const [reviewOpen, setReviewOpen] = useState(true);
   const [taskOpen, setTaskOpen] = useState(true);
-  const isReview = pathname === "/ai-reviews" || pathname === "/ai-settings";
-  const isTaskSetting = pathname.startsWith("/task-settings");
+
   return <aside className="dashboard-sidebar">
     <div className="sidebar-brand"><div className="sidebar-brand-mark">⚡</div><div><strong>EasyEarn</strong><span>后台管理</span></div></div>
     <nav className="sidebar-nav">
       {primary.map(({href,label,Icon}) => <Link key={href} className={"sidebar-link " + (pathname === href ? "active" : "")} href={href}><Icon size={16}/>{label}</Link>)}
-      <button type="button" className={"sidebar-link " + (isReview ? "active" : "")} onClick={() => setReviewOpen(v => !v)}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} style={{marginLeft:"auto",transform:reviewOpen?"rotate(180deg)":"none"}}/></button>
-      {reviewOpen && <div className="sidebar-submenu">{reviewItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === "/ai-reviews" && href === "/ai-reviews" || pathname === "/ai-settings" && href === "/ai-reviews?view=evidence" ? "active" : "")} href={href}><Icon size={15}/>{label}</Link>)}</div>}
-      <button type="button" className={"sidebar-link " + (isTaskSetting ? "active" : "")} onClick={() => setTaskOpen(v => !v)}><ClipboardList size={16}/>任务设置<ChevronDown size={14} style={{marginLeft:"auto",transform:taskOpen?"rotate(180deg)":"none"}}/></button>
-      {taskOpen && <div className="sidebar-submenu">{settingItems.map(({href,label,Icon}) => <Link key={href} className={pathname === href || pathname.startsWith("/task-settings") && href === "/task-settings/messages" ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
+      <button type="button" className="sidebar-link" onClick={() => setReviewOpen(v => !v)}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} style={{marginLeft:"auto",transform:reviewOpen?"rotate(180deg)":"none"}}/></button>
+      {reviewOpen && <div className="sidebar-submenu">{reviewItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === "/ai-reviews" && ((href === "/ai-reviews" && reviewView === "manual") || (href.includes("view=evidence") && reviewView === "evidence") || (href.includes("view=risk") && reviewView === "risk") || (href.includes("view=random") && reviewView === "random"))) ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
+      <button type="button" className="sidebar-link" onClick={() => setTaskOpen(v => !v)}><ClipboardList size={16}/>任务设置<ChevronDown size={14} style={{marginLeft:"auto",transform:taskOpen?"rotate(180deg)":"none"}}/></button>
+      {taskOpen && <div className="sidebar-submenu">{settingItems.map(({href,label,Icon}) => <Link key={href} className={(pathname === href && (href !== "/tasks" || pathname === "/tasks") || pathname.startsWith("/task-settings") && href === "/task-settings/messages") ? "active" : ""} href={href}><Icon size={15}/>{label}</Link>)}</div>}
       <Link className="sidebar-link" href="/wallet-holds"><HandCoins size={16}/>邀请与分佣</Link>
       <button type="button" className="sidebar-link" disabled><MessageSquare size={16}/>通知管理</button>
       <Link className="sidebar-link" href="/wallet-holds"><WalletCards size={16}/>财务管理</Link>
