@@ -129,6 +129,36 @@ export class TaskAdminController {
     return this.tasks.deleteTaskGroup(id);
   }
 
+  @Get("configuration/platforms")
+  async listPlatforms(@Req() request: Request) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.listPlatforms();
+  }
+
+  @Post("configuration/platforms")
+  async createPlatform(@Req() request: Request, @Body() body: { name?: string; code?: string; targetApp?: string; description?: string; capabilities?: Record<string, unknown> }) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.createPlatform(body);
+  }
+
+  @Patch("configuration/platforms/:id")
+  async updatePlatform(@Req() request: Request, @Param("id") id: string, @Body() body: { name?: string; targetApp?: string; description?: string; capabilities?: Record<string, unknown>; enabled?: boolean }) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.updatePlatform(id, body);
+  }
+
+  @Post("configuration/platforms/:id/actions")
+  async createPlatformAction(@Req() request: Request, @Param("id") id: string, @Body() body: { name?: string; code?: string; evidenceType?: string; requiresTargetPhone?: boolean; requiresDeliveryStatus?: boolean; requiresMessageTemplate?: boolean }) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.createPlatformAction(id, body);
+  }
+
+  @Patch("configuration/platforms/:id/actions/:actionId")
+  async updatePlatformAction(@Req() request: Request, @Param("id") id: string, @Param("actionId") actionId: string, @Body() body: { name?: string; evidenceType?: string; requiresTargetPhone?: boolean; requiresDeliveryStatus?: boolean; requiresMessageTemplate?: boolean; enabled?: boolean }) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.updatePlatformAction(id, actionId, body);
+  }
+
   @Get("configuration/:key")
   async getConfiguration(@Req() request: Request, @Param("key") key: string) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
