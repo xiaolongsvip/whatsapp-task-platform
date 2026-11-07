@@ -83,4 +83,35 @@ export class AiReviewAdminController {
     return this.reviews.review(id, admin.id, body.decision, body.reason);
   }
 
+
+  @Get("risk/events")
+  async riskEvents(@Req() request: Request, @Query("page") page?: string, @Query("pageSize") pageSize?: string, @Query("keyword") keyword?: string, @Query("level") level?: string, @Query("status") status?: string) {
+    await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.listRiskEvents({ page: Number(page || 1), pageSize: Number(pageSize || 20), keyword, level, status });
+  }
+
+  @Get("risk/users")
+  async riskUsers(@Req() request: Request, @Query("keyword") keyword?: string, @Query("page") page?: string, @Query("pageSize") pageSize?: string) {
+    await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.listRiskUsers({ keyword, page: Number(page || 1), pageSize: Number(pageSize || 20) });
+  }
+
+  @Get("risk/rules")
+  async riskRules(@Req() request: Request) {
+    await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.listRiskRules();
+  }
+
+  @Post("risk/rules")
+  async createRiskRule(@Req() request: Request, @Body() body: { name: string; category: string; impactScore: number; executionOrder: number; startsAt?: string; endsAt?: string; status: string; description?: string }) {
+    const admin = await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.createRiskRule(body, admin.id);
+  }
+
+  @Post("risk/rules/:id")
+  async updateRiskRule(@Req() request: Request, @Param("id") id: string, @Body() body: { name?: string; category?: string; impactScore?: number; executionOrder?: number; startsAt?: string | null; endsAt?: string | null; status?: string; description?: string }) {
+    const admin = await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.updateRiskRule(id, body, admin.id);
+  }
+
 }
