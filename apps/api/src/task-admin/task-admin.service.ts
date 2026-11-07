@@ -969,7 +969,7 @@ export class TaskAdminService {
     });
   }
 
-  async updateMessageTemplate(id: string, input: { name?: string; platform?: string; action?: string; content?: string; language?: string; keywords?: string; enabled?: boolean }) {
+  async updateMessageTemplate(id: string, input: { name?: string; platform?: string; platformCode?: string; action?: string; content?: string; language?: string; keywords?: string; enabled?: boolean }) {
     const existing = await prisma.messageTemplate.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("话术模板不存在。");
     const name = input.name?.trim();
