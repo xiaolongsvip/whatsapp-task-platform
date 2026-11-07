@@ -36,6 +36,11 @@ export default function AiReviewsPage() {
   const [actionError, setActionError] = useState("");
 
   const load = useCallback(async () => {
+    if (tab === "NEEDS_RESUBMIT" || tab === "FROZEN") {
+      setData({ records: [], total: 0, page, pageSize: 20, stats: emptyStats });
+      setLoading(false); setError("");
+      return;
+    }
     setLoading(true); setError("");
     try {
       const query = new URLSearchParams({ page: String(page), pageSize: "20" });
