@@ -4,10 +4,23 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import { prisma } from "@wtp/database";
 import type { Prisma } from "@wtp/database";
 import type { CreateAdminTaskDto, UpdateAdminTaskDto } from "./task-admin.dto";
 import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
+
+const DEV_EXECUTION_TEST_SCREENSHOT = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280">
+<defs><pattern id="chatbg" width="72" height="72" patternUnits="userSpaceOnUse"><rect width="72" height="72" fill="#efe9df"/><g fill="none" stroke="#d8d0c4" stroke-width="2" opacity=".55"><circle cx="16" cy="18" r="8"/><path d="M45 12l12 12m-12 0l12-12M8 55q12-15 24 0M48 52h16v12H48z"/></g></pattern></defs>
+<rect width="720" height="1280" fill="#fff"/><text x="42" y="43" font-family="Arial" font-size="23" fill="#6b7280">12:21 PM</text><text x="555" y="43" font-family="Arial" font-size="20" fill="#475569">4G  ▮▮▮  84%</text>
+<rect y="68" width="720" height="110" fill="#fff"/><path d="M42 122l-14 14 14 14" fill="none" stroke="#263238" stroke-width="6"/><circle cx="112" cy="123" r="32" fill="#f5e6c8"/><circle cx="112" cy="113" r="10" fill="#a87936"/><path d="M92 140q20-25 40 0" fill="#a87936"/><text x="165" y="132" font-family="Arial" font-size="31" fill="#17212b">+254 711 300 123</text><circle cx="565" cy="122" r="20" fill="none" stroke="#263238" stroke-width="4"/><path d="M555 122h20M565 112v20" stroke="#263238" stroke-width="4"/><path d="M620 105q-18 16 0 34m-10-25q-8 10 0 20" fill="none" stroke="#263238" stroke-width="4"/>
+<rect y="178" width="720" height="1020" fill="url(#chatbg)"/><rect x="275" y="205" width="170" height="42" rx="20" fill="#fff" opacity=".9"/><text x="360" y="233" text-anchor="middle" font-family="Arial" font-size="22" fill="#65706b">Today</text>
+<rect x="105" y="278" width="510" height="112" rx="18" fill="#fff4d5" opacity=".96"/><text x="360" y="320" text-anchor="middle" font-family="Arial" font-size="20" fill="#52616b">Messages and calls are end-to-end</text><text x="360" y="350" text-anchor="middle" font-family="Arial" font-size="20" fill="#52616b">encrypted. Only people in this chat</text><text x="360" y="378" text-anchor="middle" font-family="Arial" font-size="20" fill="#52616b">can read, listen to, or share them.</text>
+<rect x="145" y="420" width="520" height="500" rx="22" fill="#d9fdd3"/><text x="174" y="468" font-family="Arial" font-size="26" font-weight="bold" fill="#263238">🎁 Welcome! Task completed</text><text x="174" y="520" font-family="Arial" font-size="24" fill="#263238">Hello! This is a demonstration message</text><text x="174" y="557" font-family="Arial" font-size="24" fill="#263238">for the execution-record screenshot.</text><text x="174" y="620" font-family="Arial" font-size="24" fill="#263238">Please review the submitted task details</text><text x="174" y="657" font-family="Arial" font-size="24" fill="#263238">and confirm the required information.</text><text x="174" y="720" font-family="Arial" font-size="24" fill="#263238">Reference: DEMO-EXEC-001</text><text x="174" y="783" font-family="Arial" font-size="24" fill="#16804a">https://example.invalid/demo</text><text x="174" y="870" font-family="Arial" font-size="19" fill="#64746b">2:18 PM  ✓✓</text>
+<rect x="24" y="960" width="672" height="82" rx="18" fill="#fff" opacity=".95"/><circle cx="65" cy="1000" r="20" fill="none" stroke="#64748b" stroke-width="4"/><text x="105" y="1010" font-family="Arial" font-size="24" fill="#94a3b8">Message</text><path d="M585 980v40m-12-20h24" stroke="#64748b" stroke-width="4"/><circle cx="650" cy="1000" r="24" fill="#111827"/><path d="M650 987v26m-10-13a10 10 0 0020 0" stroke="#fff" stroke-width="3" fill="none"/>
+<rect x="0" y="1198" width="720" height="82" fill="#f8fafc"/><path d="M290 1230h30m-15-15v30" stroke="#64748b" stroke-width="4"/><circle cx="360" cy="1240" r="17" fill="none" stroke="#64748b" stroke-width="4"/><path d="M520 1224l20 32h-40z" fill="none" stroke="#64748b" stroke-width="4"/>
+<rect x="18" y="18" width="684" height="1244" rx="8" fill="none" stroke="#cbd5e1" stroke-width="3"/><rect x="420" y="1140" width="270" height="42" rx="10" fill="#fff7ed" stroke="#fdba74"/><text x="555" y="1168" text-anchor="middle" font-family="Arial" font-size="18" fill="#c2410c">DEV TEST · NOT REAL EVIDENCE</text></svg>`;
+const DEV_EXECUTION_TEST_SCREENSHOT_SHA256 = createHash("sha256").update(DEV_EXECUTION_TEST_SCREENSHOT).digest("hex");
 
 function toMinorUnits(value: string): bigint {
   const normalized = value.trim();
@@ -498,7 +511,8 @@ export class TaskAdminService {
       submissions: submissions.map((item) => ({
         id: item.id, status: item.status, originalName: item.originalName, mimeType: item.mimeType,
         sizeBytes: item.sizeBytes, note: item.note, submittedAt: item.submittedAt.toISOString(),
-        evidenceUrl: item.objectKey.startsWith("dev-execution-test/") ? "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420"><rect width="720" height="420" fill="#f1f5f9"/><rect x="24" y="24" width="672" height="372" rx="16" fill="white" stroke="#cbd5e1"/><text x="360" y="185" text-anchor="middle" font-size="30" fill="#0f172a">执行记录测试截图</text><text x="360" y="230" text-anchor="middle" font-size="20" fill="#64748b">DEV TEST · 非真实用户证据</text></svg>') : "/api/v1/admin/task-submissions/" + item.id + "/evidence",
+        evidenceUrl: item.objectKey.startsWith("dev-execution-test/") ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(DEV_EXECUTION_TEST_SCREENSHOT) : "/api/v1/admin/task-submissions/" + item.id + "/evidence",
+        screenshotHash: item.objectKey.startsWith("dev-execution-test/") ? DEV_EXECUTION_TEST_SCREENSHOT_SHA256 : null,
         aiReview: item.aiReviewJob ? {
           status: item.aiReviewJob.status, decision: item.aiReviewJob.decision,
           confidence: item.aiReviewJob.confidence, reason: item.aiReviewJob.reason,
