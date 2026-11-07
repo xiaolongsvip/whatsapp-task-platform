@@ -84,7 +84,7 @@ export default function FinancePage(){
   <button style={{...btn,background:"#2868ee",color:"#fff"}} onClick={()=>{setPage(1);setSearch(inputSearch.trim());}}>搜索</button>
   <button style={btn} onClick={()=>{setInputSearch("");setSearch("");setStatus("ALL");setCountry("ALL");setCurrency("ALL");setPage(1);}}>重置</button>
   <span style={{marginLeft:"auto",fontSize:11,color:"#8492a6"}}>共 {total} 条</span>
-  </section>}}
+  </section>}
  {error&&<div className="notice error" style={{marginBottom:12}}>{error}</div>}
  <section style={{...box,overflow:"hidden"}}><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}><thead><tr>{columns.map(c=><th style={th} key={c}>{c}</th>)}</tr></thead><tbody>
  {rows.length===0&&<tr><td colSpan={columns.length} style={{padding:"42px 16px",textAlign:"center",color:"#8492a6",fontSize:12}}>{busy?"正在加载数据…":search||status!=="ALL"||country!=="ALL"?"没有符合当前筛选条件的记录":tab==="withdrawals"?"当前接口返回 0 条提现记录；如果此环境原本有历史提现数据，需要核对 API 实际连接的数据库及历史数据来源。":"暂无相关记录"}</td></tr>}{rows.map(x=><tr key={x.id||x.providerCode}>
