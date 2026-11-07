@@ -266,15 +266,26 @@ export class ContactNumbersService {
    * delete cannot silently invalidate a task currently being performed.
    */
   async deleteSamplingNumbers(adminId: string, requestedIds?: string[], all = false) {
-    const ids = all
-      ? (await prisma.contactNumber.findMany({ select: { id: true } })).map((row) => row.id)
-      : [...new Set((requestedIds || []).filter((id) => typeof id === "string" && id.length > 0))];
+    const selectedIds = [...new Set((requestedIds || []).filter((id) => typeof id === "string" && id.length > 0))];
 
-    if (!all && ids.length === 0) throw new BadRequestException("请先选择要删除的抽检号码。");
-    if (!all && ids.length > 5000) throw new BadRequestException("单次最多删除 5000 条号码，请分批操作。");
-    if (ids.length === 0) return { success: true, deletedCount: 0 };
+    if (!all && selectedIds.length === 0) throw new BadRequestException("请先选择要删除的抽检号码。");
+    if (!all && selectedIds.length > 5000) throw new BadRequestException("单次最多删除 5000 条号码，请分批操作。");
 
     return prisma.$transaction(async (tx) => {
+      // Serialize inventory deletion with allocation/import/publish transactions.
+      // The lock function returns VOID, so project it to a Prisma-compatible boolean.
+      await tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pg_advisory_xact_lock(1732050807) IS NULL AS locked
+      `;
+
+      // Resolve the clear-all inventory only after acquiring the shared lock.
+      // This prevents a concurrent allocation/import from being silently missed.
+      const ids = all
+        ? (await tx.contactNumber.findMany({ select: { id: true } })).map((row) => row.id)
+        : selectedIds;
+
+      if (ids.length === 0) return { success: true, deletedCount: 0 };
+
       // Match the allocation/blocking lock order: claims first, then numbers.
       await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM task_claims
