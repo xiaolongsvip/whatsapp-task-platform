@@ -129,6 +129,18 @@ export class TaskAdminController {
     return this.tasks.deleteTaskGroup(id);
   }
 
+  @Get("configuration/:key")
+  async getConfiguration(@Req() request: Request, @Param("key") key: string) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.getConfiguration(key);
+  }
+
+  @Patch("configuration/:key")
+  async saveConfiguration(@Req() request: Request, @Param("key") key: string, @Body() body: { value?: unknown }) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.saveConfiguration(key, body.value);
+  }
+
   @Get()
   async list(@Req() request: Request) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
