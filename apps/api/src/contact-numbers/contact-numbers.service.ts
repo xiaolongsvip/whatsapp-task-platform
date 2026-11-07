@@ -180,6 +180,67 @@ export class ContactNumbersService {
     };
   }
 
+
+  async addSingle(adminId: string, input: { phone: string; countryCode: string; countryName: string; consentConfirmed: boolean }) {
+    if (!input.consentConfirmed) throw new BadRequestException("请确认已获得号码持有人的有效授权。");
+    const digits = normalizePhone(input.phone || "");
+    if (!digits) throw new BadRequestException("手机号格式无效，请输入包含国家区号的完整号码。");
+    const countryCode = input.countryCode?.trim().toUpperCase();
+    if (!countryCode || !/^[A-Z]{2}$/.test(countryCode)) throw new BadRequestException("请选择所属国家/地区。");
+    const countryName = input.countryName?.trim();
+    if (!countryName) throw new BadRequestException("请选择所属国家/地区。");
+    const phoneE164 = `+${digits}`;
+    const exists = await prisma.contactNumber.findUnique({ where: { phoneE164 }, select: { id: true } });
+    if (exists) throw new ConflictException("该抽检号码已存在，请勿重复添加。");
+    const now = new Date();
+    const created = await prisma.$transaction(async tx => {
+      const number = await tx.contactNumber.create({ data: { phoneE164, countryCode, countryName, status: "AVAILABLE", consentStatus: "GRANTED", consentSource: `Admin manual entry: ${adminId}`, consentedAt: now } });
+      await tx.contactConsentEvent.create({ data: { contactNumberId: number.id, status: "GRANTED", source: `Admin manual entry: ${adminId}`, recordedAt: now } });
+      await tx.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "CONTACT_SAMPLING_NUMBER_ADDED", targetType: "CONTACT_NUMBER", targetId: number.id, metadata: { countryCode, countryName } } });
+      return number;
+    });
+    const allocation = await allocateAvailableNumbersToOldestPublishedTask(prisma);
+    return { id: created.id, phoneE164: created.phoneE164, countryCode, countryName, allocatedCount: allocation.allocatedCount + allocation.reassignedCount };
+  }
+
+  async samplingResults(pageInput?: string, pageSizeInput?: string, statusInput?: string) {
+    const page = Math.max(1, Number(pageInput) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(pageSizeInput) || 20));
+    const where: any = {};
+    if (statusInput === "ASSIGNED") where.status = "ASSIGNED";
+    if (statusInput === "USED") where.status = "USED";
+    const [total, rows, notes] = await Promise.all([
+      prisma.contactAssignment.count({ where }),
+      prisma.contactAssignment.findMany({ where, include: { contactNumber: true, user: true, claim: { include: { task: true, submissions: { orderBy: { submittedAt: "desc" }, take: 1 } } } }, orderBy: { assignedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.auditEvent.findMany({ where: { targetType: "CONTACT_SAMPLING_RESULT" }, orderBy: { createdAt: "desc" }, take: 500 }),
+    ]);
+    const noteMap = new Map<string, any>();
+    for (const note of notes) { const meta = note.metadata as any; if (meta?.claimId && !noteMap.has(meta.claimId)) noteMap.set(meta.claimId, { actualResult: meta.actualResult, handlingStatus: meta.handlingStatus, updatedAt: note.createdAt.toISOString() }); }
+    return { total, page, pageSize, records: rows.map(row => ({ id: row.id, claimId: row.claimId, taskId: row.claim.taskId, taskTitle: row.claim.task.title, phone: row.contactNumber.phoneE164, userPhone: row.user.phone, assignedAt: row.assignedAt.toISOString(), taskStatus: row.claim.status, actualResult: noteMap.get(row.claimId)?.actualResult ?? row.claim.submissions[0]?.status ?? "", handlingStatus: noteMap.get(row.claimId)?.handlingStatus ?? (row.claim.status === "APPROVED" ? "COMPLETED" : row.claim.status === "REJECTED" ? "FAILED" : "PENDING"), updatedAt: noteMap.get(row.claimId)?.updatedAt ?? row.assignedAt.toISOString() })) };
+  }
+
+  async saveSamplingResult(adminId: string, input: { claimId: string; actualResult: string; handlingStatus: string }) {
+    if (!input.claimId || !input.actualResult?.trim()) throw new BadRequestException("请填写实际收件结果。");
+    const assignment = await prisma.contactAssignment.findUnique({ where: { claimId: input.claimId }, select: { id: true, claimId: true } });
+    if (!assignment) throw new NotFoundException("没有找到对应的抽检任务分配记录。");
+    const allowed = ["PENDING", "COMPLETED", "FAILED", "REVIEW"];
+    if (!allowed.includes(input.handlingStatus)) throw new BadRequestException("处理状态无效。");
+    return prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "CONTACT_SAMPLING_RESULT_UPDATED", targetType: "CONTACT_SAMPLING_RESULT", targetId: assignment.id, metadata: { claimId: input.claimId, actualResult: input.actualResult.trim(), handlingStatus: input.handlingStatus } } });
+  }
+
+  async importHistory(pageInput?: string, pageSizeInput?: string, statusInput?: string) {
+    const page = Math.max(1, Number(pageInput) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(pageSizeInput) || 20));
+    const where: any = {};
+    if (statusInput === "SUCCESS") where.importedCount = { gt: 0 };
+    if (statusInput === "FAILED") where.importedCount = 0;
+    const [total, batches] = await prisma.$transaction([
+      prisma.contactImportBatch.count({ where }),
+      prisma.contactImportBatch.findMany({ where, include: { createdBy: { select: { email: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    ]);
+    return { total, page, pageSize, records: batches.map(batch => ({ id: batch.id, fileName: batch.fileName || "手动导入", status: batch.importedCount > 0 ? "SUCCESS" : "FAILED", importedCount: batch.importedCount, duplicateCount: batch.duplicateCount, invalidCount: batch.invalidCount, totalRows: batch.totalRows, updatedAt: batch.createdAt.toISOString(), operator: batch.createdBy?.email || "—" })) };
+  }
+
   async block(numberId: string, adminId: string) {
     return prisma.$transaction(async (tx) => {
       // Match claim cancellation/expiry lock order: claim first, then number,
