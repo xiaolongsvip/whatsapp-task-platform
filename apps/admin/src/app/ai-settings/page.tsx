@@ -8,6 +8,7 @@ type AiConfig = {
   baseUrl: string;
   model: string;
   enabled: boolean;
+  workerEnabled: boolean;
   approveThreshold: number;
   rejectThreshold: number;
   systemPrompt: string | null;
@@ -176,8 +177,8 @@ export default function AiSettingsPage() {
         <section className="panel">
           <h2>自动审核策略</h2>
           <div className="action-row" style={{ marginTop: 0, marginBottom: 16 }}>
-            <label><input type="checkbox" checked={config.enabled} onChange={(e) => update("enabled", e.target.checked)} /> 启用 AI 自动审核</label>
-            <span className="muted">启用后，新提交会进入持久化 AI 审核队列，由后台工作器识别截图并按置信度处理。部署前必须先执行数据库迁移、生成 Prisma Client 并配置稳定的加密密钥。</span>
+            <label><input type="checkbox" checked={config.enabled} disabled={!config.workerEnabled && !config.enabled} onChange={(e) => update("enabled", e.target.checked)} /> 启用 AI 自动审核</label>
+            <span className="muted">{config.workerEnabled ? "后台 AI 工作器已启动。启用后，新提交会进入审核队列。" : "后台 AI 工作器尚未启动。请先在本地 .env 将 AI_REVIEW_WORKER_ENABLED 设置为 true 并重启 API；否则只会进入队列，不会自动审核。"} 数据库迁移和 Prisma Client 生成也必须完成。</span>
           </div>
           <div className="form-grid">
             <div className="field">
