@@ -32,7 +32,6 @@ const emptyStats = { manualReview: 0, smartReview: 0, approved: 0, rejected: 0, 
 
 export default function AiReviewsPage() {
   const searchParams = useSearchParams();
-  if (searchParams.get("view") === "evidence") return <EvidenceRecords />;
   const [tab, setTab] = useState("MANUAL_REVIEW");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<CenterResponse>({ records: [], total: 0, page: 1, pageSize: 20, stats: emptyStats });
@@ -96,6 +95,8 @@ export default function AiReviewsPage() {
     } catch (e) { setActionError(e instanceof Error ? e.message : "重新触发 AI 审核失败"); }
     finally { setBusy(false); }
   }
+
+  if (searchParams.get("view") === "evidence") return <EvidenceRecords />;
 
   const pages = Math.max(1, Math.ceil(data.total / pageSize));
   const stats = data.stats || emptyStats;
