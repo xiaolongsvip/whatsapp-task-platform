@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 
 type HoldEvent = { id: string; type: string; amountMinor: string; reason: string; adminId: string; createdAt: string };
 type Hold = {
@@ -81,7 +82,7 @@ export default function WalletHoldsPage() {
     await api("/api/v1/admin-auth/logout", { method: "POST", body: "{}" }).catch(() => undefined);
     setAuthenticated(false); setItems([]);
   }
-  if (loading) return <main className="admin-shell"><div className="panel">正在检查管理员登录状态…</div></main>;
+  if (loading) return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><div className="panel">正在检查管理员登录状态…</div></main>;
   if (!authenticated) return <main className="admin-shell"><section className="panel"><h2>尚未登录管理后台</h2><p className="muted">冻结资金管理需要管理员会话。</p><Link href="/" className="primary-btn" style={{ display: "inline-block", textDecoration: "none" }}>前往管理员登录</Link></section></main>;
   const activeTotal = items.filter((x) => x.status === "ACTIVE").length;
   return <main className="admin-shell">
@@ -108,5 +109,5 @@ export default function WalletHoldsPage() {
       </div><div className="field" style={{ marginTop: 14 }}><label>冻结原因</label><textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required /></div>
       <div className="action-row"><button className="primary-btn" disabled={busy}>{busy ? "处理中…" : "确认冻结资金"}</button></div></form>
     </section>
-  </main>;
+  </main></div>;
 }
