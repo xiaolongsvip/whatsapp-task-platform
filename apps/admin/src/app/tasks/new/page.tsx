@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 import { ArrowLeft, Save } from "lucide-react";
 
 type Template = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
@@ -76,7 +77,7 @@ export default function NewTaskPage() {
   if (!authenticated) return <main style={shell}><section style={card}><h2>尚未登录管理后台</h2><Link href="/">前往管理员登录</Link></section></main>;
 
   const applicableTemplates = templates.filter((item) => item.enabled && (item.platform === form.platform || item.platform === "通用"));
-  return <main style={shell}>
+  return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5eaf1", paddingBottom: 14 }}>
         <Link href="/tasks" style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#344054", textDecoration: "none", border: "1px solid #dce3ed", borderRadius: 7, padding: "8px 12px", background: "#fff" }}><ArrowLeft size={15}/>返回号码列表</Link>
@@ -141,7 +142,7 @@ export default function NewTaskPage() {
         </footer>
       </form>
     </div>
-  </main>;
+  </main></div>;
 }
 
 const shell = { minHeight: "100vh", background: "#f5f7fb", color: "#172033", padding: 22, boxSizing: "border-box" as const } as const;
