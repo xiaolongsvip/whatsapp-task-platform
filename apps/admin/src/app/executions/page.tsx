@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, RefreshCw, Eye, ChevronLeft, ChevronRight, LayoutDashboard, Users, Phone, FileClock, ClipboardCheck, Settings, LogOut, CalendarDays } from "lucide-react";
+import { Search, RefreshCw, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
 type TaskRecord = {
