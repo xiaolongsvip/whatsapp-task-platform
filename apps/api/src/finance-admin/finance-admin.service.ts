@@ -300,6 +300,15 @@ export class FinanceAdminService {
   private validateProviderInput(input: Record<string, unknown>) {
     const providerCode = typeof input.providerCode === "string" ? input.providerCode.trim().toUpperCase() : "";
     const displayName = typeof input.displayName === "string" ? input.displayName.trim() : "";
+    const serviceProviderName = typeof input.serviceProviderName === "string" ? input.serviceProviderName.trim() : "";
+    const supportedChannels = Array.isArray(input.supportedChannels) ? [...new Set(input.supportedChannels.map(x => String(x).trim()).filter(Boolean))] : [];
+    const minimumRaw = input.minimumPayoutMinor === undefined || input.minimumPayoutMinor === null || input.minimumPayoutMinor === "" ? null : String(input.minimumPayoutMinor);
+    const maximumRaw = input.maximumPayoutMinor === undefined || input.maximumPayoutMinor === null || input.maximumPayoutMinor === "" ? null : String(input.maximumPayoutMinor);
+    if ((minimumRaw !== null && !/^\\d+$/.test(minimumRaw)) || (maximumRaw !== null && !/^\\d+$/.test(maximumRaw))) throw new BadRequestException("最低和最高到账金额必须是非负整数分");
+    const minimumPayoutMinor = minimumRaw === null ? null : BigInt(minimumRaw);
+    const maximumPayoutMinor = maximumRaw === null ? null : BigInt(maximumRaw);
+    if (minimumPayoutMinor !== null && maximumPayoutMinor !== null && minimumPayoutMinor > maximumPayoutMinor) throw new BadRequestException("最低到账金额不能高于最高到账金额");
+    const enabled = input.enabled === true;
     const countryCode = typeof input.countryCode === "string" ? input.countryCode.trim().toUpperCase() : "";
     const methodCode = typeof input.methodCode === "string" ? input.methodCode.trim().toUpperCase() : "";
     const environment = typeof input.environment === "string" ? input.environment.trim().toUpperCase() : "SANDBOX";
@@ -309,7 +318,9 @@ export class FinanceAdminService {
     const credentials = typeof input.credentials === "string" ? input.credentials.trim() : "";
     const webhookSecret = typeof input.webhookSecret === "string" ? input.webhookSecret.trim() : "";
     if (!/^[A-Z0-9_-]{2,40}$/.test(providerCode)) throw new BadRequestException("服务商代码格式不正确");
-    if (!displayName || displayName.length > 80) throw new BadRequestException("请填写代付方式名称（最多 80 个字符）");
+    if (!displayName || displayName.length > 80) throw new BadRequestException("请填写展示名称（最多 80 个字符）");
+    if (!serviceProviderName || serviceProviderName.length > 80) throw new BadRequestException("请选择或填写服务商名称");
+    if (supportedChannels.length < 1 || supportedChannels.length > 30 || supportedChannels.some(x => x.length > 60)) throw new BadRequestException("请至少选择一个有效收款渠道");
     if (!/^(GLOBAL|PK|NG|BD)$/.test(countryCode)) throw new BadRequestException("国家/地区暂只支持 GLOBAL、PK、NG、BD");
     if (!/^[A-Z0-9_-]{2,40}$/.test(methodCode)) throw new BadRequestException("收款渠道代码格式不正确");
     if (!["SANDBOX","PRODUCTION"].includes(environment)) throw new BadRequestException("环境必须是 SANDBOX 或 PRODUCTION");
@@ -322,7 +333,7 @@ export class FinanceAdminService {
     }
     if (supportedCurrencies.length > 10 || supportedCurrencies.some(x => !/^[A-Z]{3}$/.test(x))) throw new BadRequestException("出款币种必须为 3 位 ISO 币种代码");
     if (credentials.length > 12000 || webhookSecret.length > 4000) throw new BadRequestException("密钥内容过长");
-    return { providerCode, displayName, countryCode, methodCode, environment, apiBaseUrl: apiBaseUrl || null, merchantId: merchantId || null, supportedCurrencies: [...new Set(supportedCurrencies)], credentials, webhookSecret };
+    return { providerCode, displayName, serviceProviderName, countryCode, methodCode, supportedChannels, minimumPayoutMinor, maximumPayoutMinor, enabled, environment, apiBaseUrl: apiBaseUrl || null, merchantId: merchantId || null, supportedCurrencies: [...new Set(supportedCurrencies)], credentials, webhookSecret };
   }
 
   async createProvider(input: Record<string, unknown>) {
@@ -332,13 +343,14 @@ export class FinanceAdminService {
     const credentials = v.credentials ? this.encryptProviderSecret(v.credentials) : null;
     const webhook = v.webhookSecret ? this.encryptProviderSecret(v.webhookSecret) : null;
     const row = await prisma.paymentProviderConfig.create({ data: {
-      providerCode: v.providerCode, displayName: v.displayName, countryCode: v.countryCode, methodCode: v.methodCode,
+      providerCode: v.providerCode, displayName: v.displayName, serviceProviderName: v.serviceProviderName, countryCode: v.countryCode, methodCode: v.methodCode,
+      supportedChannels: v.supportedChannels, minimumPayoutMinor: v.minimumPayoutMinor, maximumPayoutMinor: v.maximumPayoutMinor,
       environment: v.environment, apiBaseUrl: v.apiBaseUrl, merchantId: v.merchantId, supportedCurrencies: v.supportedCurrencies,
-      enabled: false,
+      enabled: v.enabled,
       ...(credentials ? { credentialsCiphertext: credentials.ciphertext, credentialsIv: credentials.iv, credentialsTag: credentials.tag } : {}),
       ...(webhook ? { webhookSecretCiphertext: webhook.ciphertext, webhookSecretIv: webhook.iv, webhookSecretTag: webhook.tag } : {}),
     }});
-    return { ...row, credentialsConfigured: Boolean(credentials), webhookSecretConfigured: Boolean(webhook), credentialsCiphertext: undefined, credentialsIv: undefined, credentialsTag: undefined, webhookSecretCiphertext: undefined, webhookSecretIv: undefined, webhookSecretTag: undefined };
+    return { ...row, minimumPayoutMinor: row.minimumPayoutMinor?.toString() ?? null, maximumPayoutMinor: row.maximumPayoutMinor?.toString() ?? null, credentialsConfigured: Boolean(credentials), webhookSecretConfigured: Boolean(webhook), credentialsCiphertext: undefined, credentialsIv: undefined, credentialsTag: undefined, webhookSecretCiphertext: undefined, webhookSecretIv: undefined, webhookSecretTag: undefined };
   }
 
   async updateProvider(providerCode: string, input: Record<string, unknown>) {
@@ -348,19 +360,20 @@ export class FinanceAdminService {
     const credentials = v.credentials ? this.encryptProviderSecret(v.credentials) : null;
     const webhook = v.webhookSecret ? this.encryptProviderSecret(v.webhookSecret) : null;
     const row = await prisma.paymentProviderConfig.update({ where: { providerCode }, data: {
-      displayName: v.displayName, countryCode: v.countryCode, methodCode: v.methodCode, environment: v.environment,
+      displayName: v.displayName, serviceProviderName: v.serviceProviderName, countryCode: v.countryCode, methodCode: v.methodCode,
+      supportedChannels: v.supportedChannels, minimumPayoutMinor: v.minimumPayoutMinor, maximumPayoutMinor: v.maximumPayoutMinor, enabled: v.enabled, environment: v.environment,
       apiBaseUrl: v.apiBaseUrl, merchantId: v.merchantId, supportedCurrencies: v.supportedCurrencies,
       ...(credentials ? { credentialsCiphertext: credentials.ciphertext, credentialsIv: credentials.iv, credentialsTag: credentials.tag } : {}),
       ...(webhook ? { webhookSecretCiphertext: webhook.ciphertext, webhookSecretIv: webhook.iv, webhookSecretTag: webhook.tag } : {}),
     }});
-    return { ...row, credentialsConfigured: Boolean(credentials || current.credentialsCiphertext), webhookSecretConfigured: Boolean(webhook || current.webhookSecretCiphertext), credentialsCiphertext: undefined, credentialsIv: undefined, credentialsTag: undefined, webhookSecretCiphertext: undefined, webhookSecretIv: undefined, webhookSecretTag: undefined };
+    return { ...row, minimumPayoutMinor: row.minimumPayoutMinor?.toString() ?? null, maximumPayoutMinor: row.maximumPayoutMinor?.toString() ?? null, credentialsConfigured: Boolean(credentials || current.credentialsCiphertext), webhookSecretConfigured: Boolean(webhook || current.webhookSecretCiphertext), credentialsCiphertext: undefined, credentialsIv: undefined, credentialsTag: undefined, webhookSecretCiphertext: undefined, webhookSecretIv: undefined, webhookSecretTag: undefined };
   }
 
   async setProviderEnabled(providerCode: string, enabled: boolean) {
     const current = await prisma.paymentProviderConfig.findUnique({ where: { providerCode } });
     if (!current) throw new NotFoundException("代付配置不存在");
-    if (enabled && (!current.credentialsCiphertext || !current.apiBaseUrl || !current.merchantId || !current.supportedCurrencies.length)) {
-      throw new BadRequestException("启用前必须配置 API 地址、商户号、API 密钥和出款币种");
+    if (enabled && (!current.supportedChannels.length || !current.supportedCurrencies.length)) {
+      throw new BadRequestException("启用前必须至少选择一个收款渠道和出款币种");
     }
     const row = await prisma.paymentProviderConfig.update({ where: { providerCode }, data: { enabled } });
     return { providerCode: row.providerCode, enabled: row.enabled, updatedAt: row.updatedAt.toISOString() };
@@ -368,8 +381,8 @@ export class FinanceAdminService {
 
   async providers() {
     const rows = await prisma.paymentProviderConfig.findMany({ orderBy: { providerCode: "asc" },
-      select: { providerCode: true, displayName: true, countryCode: true, methodCode: true, apiBaseUrl: true, merchantId: true, environment: true, enabled: true, supportedCurrencies: true, credentialsCiphertext: true, webhookSecretCiphertext: true, createdAt: true, updatedAt: true } });
-    return rows.map(x => ({ providerCode: x.providerCode, displayName: x.displayName, countryCode: x.countryCode, methodCode: x.methodCode, apiBaseUrl: x.apiBaseUrl, merchantId: x.merchantId, environment: x.environment, enabled: x.enabled, supportedCurrencies: x.supportedCurrencies, credentialsConfigured: Boolean(x.credentialsCiphertext), webhookSecretConfigured: Boolean(x.webhookSecretCiphertext), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() }));
+      select: { providerCode: true, displayName: true, serviceProviderName: true, countryCode: true, methodCode: true, supportedChannels: true, minimumPayoutMinor: true, maximumPayoutMinor: true, apiBaseUrl: true, merchantId: true, environment: true, enabled: true, supportedCurrencies: true, credentialsCiphertext: true, webhookSecretCiphertext: true, createdAt: true, updatedAt: true } });
+    return rows.map(x => ({ providerCode: x.providerCode, displayName: x.displayName, serviceProviderName: x.serviceProviderName, countryCode: x.countryCode, methodCode: x.methodCode, supportedChannels: x.supportedChannels, minimumPayoutMinor: x.minimumPayoutMinor?.toString() ?? null, maximumPayoutMinor: x.maximumPayoutMinor?.toString() ?? null, apiBaseUrl: x.apiBaseUrl, merchantId: x.merchantId, environment: x.environment, enabled: x.enabled, supportedCurrencies: x.supportedCurrencies, credentialsConfigured: Boolean(x.credentialsCiphertext), webhookSecretConfigured: Boolean(x.webhookSecretCiphertext), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() }));
   }
 
   async transactions(query: { search?: string; status?: string; page?: string; pageSize?: string }) {
