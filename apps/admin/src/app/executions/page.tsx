@@ -60,7 +60,9 @@ const statusStyle: Record<RecordStatus, React.CSSProperties> = {
   VOIDED: { color: "#dc2626", background: "#fef2f2", borderColor: "#fecaca" },
 };
 
-function EmptyDetail({text}:{text:string}) { return <div style={{border:"1px solid #e2e8f0",borderRadius:7,padding:34,textAlign:"center",color:"#64748b"}}>{text}</div>; }\n\nexport default function ExecutionRecordsPage() {
+function EmptyDetail({text}:{text:string}) { return <div style={{border:"1px solid #e2e8f0",borderRadius:7,padding:34,textAlign:"center",color:"#64748b"}}>{text}</div>; }
+
+export default function ExecutionRecordsPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -74,7 +76,10 @@ function EmptyDetail({text}:{text:string}) { return <div style={{border:"1px sol
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [selected, setSelected] = useState<TaskRecord | null>(null);\n  const [detail, setDetail] = useState<ExecutionDetail | null>(null);\n  const [detailLoading, setDetailLoading] = useState(false);\n  const [detailTab, setDetailTab] = useState("基本信息");
+  const [selected, setSelected] = useState<TaskRecord | null>(null);
+  const [detail, setDetail] = useState<ExecutionDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState("基本信息");
 
   const load = useCallback(async () => {
     const apiStatus: Partial<Record<TabKey, RecordStatus>> = { CREATED: "AVAILABLE", ASSIGNED: "IN_PROGRESS", OPENED: "IN_PROGRESS", REVIEW: "REVIEW", MANUAL: "REVIEW", REJECTED: "VOIDED", RESUBMIT: "CLOSED", FROZEN: "FROZEN", SETTLED: "COMPLETED", EXPIRED: "CLOSED", CANCELLED: "CLOSED" };
