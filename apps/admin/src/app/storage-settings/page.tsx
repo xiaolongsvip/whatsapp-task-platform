@@ -35,8 +35,8 @@ export default function StorageSettingsPage() {
     try {
       const saved = await api<Config>("/api/v1/admin/storage-config", {
         method: "PUT", body: JSON.stringify({
-          endpoint: config.endpoint, bucket: config.bucket, region: config.region,
-          enabled: config.enabled,
+          endpoint: currentConfig.endpoint, bucket: currentConfig.bucket, region: currentConfig.region,
+          enabled: currentConfig.enabled,
           ...(accessKey.trim() ? { accessKey: accessKey.trim() } : {}),
           ...(secretKey.trim() ? { secretKey: secretKey.trim() } : {}),
         }),
@@ -54,9 +54,10 @@ export default function StorageSettingsPage() {
     } catch (e) { setError(e instanceof Error ? e.message : "连接测试失败。"); }
     finally { setTesting(false); }
   }
-  if (loading) return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><section className="panel">正在读取配置…</section></main>;
-  if (!config) return <main className="admin-shell"><section className="panel"><h2>无法读取存储配置</h2><div className="notice error">{error}</div><Link href="/">返回管理后台</Link></section></main>;
-  return <main className="admin-shell">
+  if (loading) return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><section className="panel">正在读取配置…</section></main></div>;
+  if (!config) return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><section className="panel"><h2>无法读取存储配置</h2><div className="notice error">{error}</div><Link href="/">返回管理后台</Link></section></main></div>;
+  const currentConfig: Config = config;
+  return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
     <header className="admin-header"><div><div className="admin-brand">WTP 管理后台</div><div className="admin-subtitle">系统设置 · 图片与截图对象存储</div></div>
       <div className="action-row" style={{ marginTop: 0 }}><Link className="secondary-btn" href="/">号码池管理</Link><Link className="secondary-btn" href="/tasks">任务管理</Link><Link className="secondary-btn" href="/ai-settings">AI 设置</Link></div>
     </header>
@@ -65,13 +66,13 @@ export default function StorageSettingsPage() {
       <section className="panel"><h2>R2 / S3 兼容存储配置</h2>
         <p className="muted">可以先保存配置；部署并填写正式凭据后，再启用存储并测试连接。启用后，用户提交的任务截图会保存到此对象存储。</p>
         <div className="form-grid">
-          <div className="field"><label>Endpoint</label><input value={config.endpoint} onChange={e => setConfig({...config, endpoint:e.target.value})} placeholder="https://账户标识.r2.cloudflarestorage.com" required /></div>
-          <div className="field"><label>Bucket</label><input value={config.bucket} onChange={e => setConfig({...config, bucket:e.target.value})} placeholder="wtp-evidence" required /></div>
-          <div className="field"><label>Region</label><input value={config.region} onChange={e => setConfig({...config, region:e.target.value})} placeholder="auto" required /></div>
-          <div className="field"><label>Access Key ID {config.configured ? "（留空保持原值）" : ""}</label><input type="password" autoComplete="new-password" value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder={config.configured ? config.accessKeyMasked : "部署时填写"} /></div>
-          <div className="field"><label>Secret Access Key {config.configured ? "（留空保持原值）" : ""}</label><input type="password" autoComplete="new-password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder={config.configured ? config.secretKeyMasked : "部署时填写"} /></div>
+          <div className="field"><label>Endpoint</label><input value={config.endpoint} onChange={e => setConfig(current => current ? {...current, endpoint:e.target.value} : current)} placeholder="https://账户标识.r2.cloudflarestorage.com" required /></div>
+          <div className="field"><label>Bucket</label><input value={config.bucket} onChange={e => setConfig(current => current ? {...current, bucket:e.target.value} : current)} placeholder="wtp-evidence" required /></div>
+          <div className="field"><label>Region</label><input value={config.region} onChange={e => setConfig(current => current ? {...current, region:e.target.value} : current)} placeholder="auto" required /></div>
+          <div className="field"><label>Access Key ID {currentConfig.configured ? "（留空保持原值）" : ""}</label><input type="password" autoComplete="new-password" value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder={config.configured ? currentConfig.accessKeyMasked : "部署时填写"} /></div>
+          <div className="field"><label>Secret Access Key {config.configured ? "（留空保持原值）" : ""}</label><input type="password" autoComplete="new-password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder={config.configured ? currentConfig.secretKeyMasked : "部署时填写"} /></div>
         </div>
-        <div className="action-row"><label><input type="checkbox" checked={config.enabled} onChange={e => setConfig({...config, enabled:e.target.checked})} /> 启用对象存储配置</label></div>
+        <div className="action-row"><label><input type="checkbox" checked={config.enabled} onChange={e => setConfig(current => current ? {...current, enabled:e.target.checked} : current)} /> 启用对象存储配置</label></div>
         <div className="action-row"><button className="primary-btn" disabled={busy}>{busy ? "正在保存…" : "保存配置"}</button><button type="button" className="secondary-btn" disabled={testing || !config.configured || !config.enabled} onClick={testConnection}>{testing ? "正在测试…" : "测试存储连接"}</button><span className="muted">密钥使用 AES-256-GCM 加密后存入数据库。</span></div>
       </section>
     </form>
