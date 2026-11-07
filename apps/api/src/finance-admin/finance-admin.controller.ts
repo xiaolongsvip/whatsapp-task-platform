@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { FinanceAdminService } from "./finance-admin.service";
@@ -28,6 +28,12 @@ export class FinanceAdminController {
   async payoutAccounts(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.payoutAccounts(query); }
   @Get("providers")
   async providers(@Req() req: Request) { await this.authorize(req); return this.finance.providers(); }
+  @Post("providers")
+  async createProvider(@Req() req: Request, @Body() body: Record<string, unknown>) { await this.authorize(req); return this.finance.createProvider(body); }
+  @Patch("providers/:providerCode")
+  async updateProvider(@Req() req: Request, @Param("providerCode") providerCode: string, @Body() body: Record<string, unknown>) { await this.authorize(req); return this.finance.updateProvider(providerCode, body); }
+  @Patch("providers/:providerCode/enabled")
+  async setProviderEnabled(@Req() req: Request, @Param("providerCode") providerCode: string, @Body("enabled") enabled: boolean) { await this.authorize(req); return this.finance.setProviderEnabled(providerCode, enabled); }
   @Get("transactions")
   async transactions(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.transactions(query); }
 }
