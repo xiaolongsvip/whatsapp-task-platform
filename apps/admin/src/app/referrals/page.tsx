@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Bell, CircleHelp, LogOut, Menu, Search, UserRound, ChevronDown } from "lucide-react";
 import AdminSidebar from "../../components/AdminSidebar";
 
 type Tab = "invites" | "relations" | "commissions" | "settings";
@@ -20,6 +21,7 @@ const td:React.CSSProperties={padding:"11px 10px",fontSize:12,color:"#34445b",bo
 function Tag({children,tone="green"}:{children:React.ReactNode;tone?:"green"|"blue"|"orange"|"gray"}){const colors={green:["#e9fbf1","#15945b","#baf0d0"],blue:["#edf4ff","#2868ee","#cfe0ff"],orange:["#fff6e9","#c27a16","#f8dfb7"],gray:["#f2f4f7","#667085","#e4e7ec"]};const c=colors[tone];return <span style={{display:"inline-block",padding:"3px 7px",borderRadius:5,fontSize:10,color:c[1],background:c[0],border:"1px solid "+c[2]}}>{children}</span>;}
 export default function ReferralsPage(){
  const [tab,setTab]=useState<Tab>("invites");const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [notice,setNotice]=useState("");
+ const [adminEmail,setAdminEmail]=useState("Administrator");const [profileOpen,setProfileOpen]=useState(false);
  const [items,setItems]=useState<Invite[]>([]);const [total,setTotal]=useState(0);const [page,setPage]=useState(1);const [searchInput,setSearchInput]=useState("");const [search,setSearch]=useState("");const [status,setStatus]=useState("ALL");
  const [relationSearch,setRelationSearch]=useState("");const [selectedId,setSelectedId]=useState("");const [relation,setRelation]=useState<Relation|null>(null);
  const [commissions,setCommissions]=useState<Commission[]>([]);const [commissionSearch,setCommissionSearch]=useState("");const [commissionStatus,setCommissionStatus]=useState("ALL");const [depth,setDepth]=useState("ALL");const [from,setFrom]=useState("");const [to,setTo]=useState("");
@@ -30,6 +32,8 @@ export default function ReferralsPage(){
  const refreshSettings=useCallback(async()=>{const result=await api<Settings>("/api/v1/admin/referrals/settings");setSettings(result);setDraft({enabled:result.enabled,level1:result.level1,level2:result.level2,level3:result.level3});},[]);
  const refresh=useCallback(async()=>{setBusy(true);setError("");try{if(tab==="invites")await refreshInvites();else if(tab==="relations"){if(selectedId)await refreshRelation(selectedId);else await refreshInvites();}else if(tab==="commissions")await refreshCommissions();else await refreshSettings();}catch(e){setError(e instanceof Error?e.message:"读取数据失败。");}finally{setBusy(false);setLoading(false);}},[tab,refreshInvites,refreshRelation,refreshCommissions,refreshSettings,selectedId]);
  useEffect(()=>{void refresh();},[refresh]);
+ useEffect(()=>{let active=true;api<{id:string;email:string}>("/api/v1/admin-auth/me").then(admin=>{if(active)setAdminEmail(admin.email||"Administrator");}).catch(()=>{if(active)setAdminEmail("Administrator");});return()=>{active=false;};},[]);
+ async function logout(){setBusy(true);try{await api("/api/v1/admin-auth/logout",{method:"POST",body:"{}"});}catch{}finally{window.location.assign("/");}}
  async function chooseRelation(id:string){setSelectedId(id);setTab("relations");setBusy(true);setError("");try{await refreshRelation(id);}catch(e){setError(e instanceof Error?e.message:"读取关系失败。");}finally{setBusy(false);}}
  async function saveSettings(){setBusy(true);setError("");setNotice("");try{const result=await api<Settings>("/api/v1/admin/referrals/settings",{method:"PATCH",body:JSON.stringify(draft)});setSettings(result);setDraft({enabled:result.enabled,level1:result.level1,level2:result.level2,level3:result.level3});setNotice("分佣设置已保存，新设置已生成版本记录。");}catch(e){setError(e instanceof Error?e.message:"保存失败。");}finally{setBusy(false);}}
  const tabs:[Tab,string][]=[["invites","邀请用户"],["relations","关系管理"],["commissions","佣金流水"],["settings","全局分佣设置"]];
@@ -37,6 +41,23 @@ export default function ReferralsPage(){
  const visibleCommissions=commissions.filter(x=>commissionStatus==="ALL"||x.status===commissionStatus);
  if(loading)return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main"><div className="panel">正在加载邀请与分佣数据…</div></main></div>;
  return <div className="dashboard-app"><AdminSidebar/><main className="dashboard-main" style={{minWidth:0,background:"#f7f9fc"}}>
+  <header className="dashboard-topbar">
+   <button className="mobile-menu-btn" aria-label="打开菜单"><Menu size={20}/></button>
+   <div className="topbar-search"><Search size={16}/><input aria-label="后台搜索" placeholder="搜索任务、用户、手机号码..." disabled /></div>
+   <div className="topbar-actions">
+    <span className="topbar-language">文</span>
+    <button className="topbar-icon" type="button" title="帮助"><CircleHelp size={19}/></button>
+    <button className="topbar-icon" type="button" title="通知"><Bell size={19}/><i/></button>
+    <div style={{position:"relative"}}>
+     <button type="button" className="admin-profile" onClick={()=>setProfileOpen(v=>!v)} aria-expanded={profileOpen} style={{border:0,background:"transparent",cursor:"pointer",textAlign:"left"}}>
+      <span className="profile-avatar"><UserRound size={18}/></span><span><strong>{adminEmail}</strong><small>超级管理员</small></span><ChevronDown size={14}/>
+     </button>
+     {profileOpen&&<div style={{position:"absolute",right:0,top:"calc(100% + 8px)",zIndex:50,minWidth:160,padding:6,border:"1px solid #e3eaf2",borderRadius:8,background:"#fff",boxShadow:"0 8px 24px rgba(20,45,80,.12)"}}>
+      <button type="button" onClick={()=>void logout()} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",border:0,borderRadius:5,background:"#fff",color:"#52627a",fontSize:12,cursor:"pointer"}}><LogOut size={15}/>退出登录</button>
+     </div>}
+    </div>
+   </div>
+  </header>
   <header className="admin-header"><div><div className="admin-brand" style={{fontSize:21}}>邀请与分佣</div><div className="admin-subtitle">邀请关系、佣金流水与全局分佣规则管理</div></div><button style={softBtn} disabled={busy} onClick={()=>void refresh()}>↻ 刷新</button></header>
   <div style={{display:"flex",gap:4,borderBottom:"1px solid #e1e8f0",marginBottom:14,overflowX:"auto"}}>{tabs.map(([key,label])=><button key={key} onClick={()=>{setTab(key);setPage(1);}} style={{padding:"11px 16px",border:0,borderBottom:tab===key?"2px solid #2868ee":"2px solid transparent",background:tab===key?"#edf4ff":"transparent",color:tab===key?"#2868ee":"#53647c",fontSize:12,fontWeight:tab===key?700:500,whiteSpace:"nowrap",cursor:"pointer"}}>{label}</button>)}</div>
   {error&&<div className="notice error">{error}</div>}{notice&&<div className="notice">{notice}</div>}
