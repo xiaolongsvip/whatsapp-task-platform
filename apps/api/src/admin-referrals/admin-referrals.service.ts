@@ -128,7 +128,7 @@ export class AdminReferralsService {
       depth: row.depth, amountMinor: row.amountMinor.toString(), currency: row.currency.trim(),
       status: creditMap.has(row.idempotencyKey) ? "CREDITED" : "PENDING",
       creditedAt: creditMap.get(row.idempotencyKey)?.toISOString() ?? null, createdAt: row.createdAt.toISOString() }));
-    const filtered = statusInput && statusInput !== "ALL" ? items.filter((row) => row.status === statusInput) : items;
+    const filtered = items;
     return { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), items: filtered, note: "任务来源目前按佣金记录中的 sourceEventId 展示；记录模型未保存任务标题。" };
   }
 
