@@ -328,6 +328,54 @@ export class AiReviewAdminService {
     return { page: currentPage, pageSize: take, total, stats: { manualReview, smartReview, approved, rejected, risk: 0 }, records };
   }
 
+
+  async listEvidenceRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; taskType?: string }) {
+    const page = Math.max(1, Math.floor(Number(input.page) || 1));
+    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
+    const keyword = input.keyword?.trim() ?? "";
+    const status = input.status || "ALL";
+    const where: any = {};
+    if (status === "SUBMITTED") where.status = { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] };
+    if (status === "URL_ISSUED") where.status = "PENDING";
+    if (keyword) where.OR = [
+      { id: { contains: keyword, mode: "insensitive" } },
+      { originalName: { contains: keyword, mode: "insensitive" } },
+      { claim: { is: { user: { is: { phone: { contains: keyword } } } } } },
+      { claim: { is: { task: { is: { title: { contains: keyword, mode: "insensitive" } } } } } },
+    ];
+    if (input.taskType === "TASK") where.claim = { is: { task: { is: { category: { not: "" } } } } };
+    const [total, submissions] = await prisma.$transaction([
+      prisma.taskSubmission.count({ where }),
+      prisma.taskSubmission.findMany({
+        where, orderBy: { submittedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize,
+        include: {
+          aiReviewJob: { select: { status: true } },
+          claim: {
+            include: {
+              task: { select: { id: true, title: true, category: true } },
+              user: { select: { id: true, phone: true } },
+              contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
+            },
+          },
+        },
+      }),
+      prisma.taskSubmission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] } } }),
+    ]);
+    return {
+      page, pageSize, total,
+      stats: { total, filtered: total, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 },
+      records: submissions.map((item) => ({
+        id: item.id, userPhone: item.claim.user.phone, targetPhone: item.claim.contactAssignment?.contactNumber.phoneE164 ?? null,
+        status: item.status, retentionStatus: "NORMAL", source: "实时屏幕截图",
+        reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
+          ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
+          item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
+        submittedAt: item.submittedAt.toISOString(), originalName: item.originalName,
+        mimeType: item.mimeType, sizeBytes: item.sizeBytes, taskTitle: item.claim.task.title,
+      })),
+    };
+  }
+
   async rerunAiReview(submissionId: string, adminId: string) {
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw<Array<{ id: string }>>`
