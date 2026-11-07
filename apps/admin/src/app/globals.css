@@ -792,3 +792,34 @@ body { margin: 0; }
 .evidence-detail-loading{padding:70px 20px;text-align:center;color:#94a3b8}
 @media(max-width:1000px){.evidence-detail-content{grid-template-columns:1fr;padding:16px}.evidence-detail-right{position:static;grid-row:1}.evidence-viewer-image{height:55vh}}
 @media(max-width:620px){.evidence-detail-header{padding:10px 14px}.evidence-detail-content{padding:12px;gap:12px}.evidence-detail-grid,.evidence-detail-note-grid{grid-template-columns:1fr}.evidence-detail-card{padding:13px}.evidence-viewer-toolbar{padding:0 8px}.evidence-viewer-toolbar>div{gap:2px}}
+
+
+/* AI settings: use the same compact EasyEarn admin surfaces and controls as other modules. */
+.ai-settings-page { display:grid; gap:12px; color:#334155; }
+.ai-settings-page .tasks-page-heading { margin:0 0 2px; }
+.ai-settings-page .tasks-page-heading h1 { margin:0; color:#172b49; font-size:19px; font-weight:800; }
+.ai-settings-page .tasks-page-heading p { margin:5px 0 0; color:#8795a9; font-size:11px; }
+.ai-settings-card { min-width:0; padding:16px; border:1px solid #e4eaf2; border-radius:9px; background:#fff; box-shadow:none; }
+.ai-settings-card h2 { margin:0 0 10px; color:#26364d; font-size:14px; font-weight:700; }
+.ai-settings-card .muted { color:#8795a9; font-size:11px; line-height:1.6; }
+.ai-settings-card .form-grid { gap:12px; }
+.ai-settings-card .field { gap:6px; }
+.ai-settings-card .field label { color:#52627a; font-size:11px; font-weight:600; }
+.ai-settings-card .field input,.ai-settings-card .field select,.ai-settings-card .field textarea { width:100%; min-height:35px; padding:8px 10px; border:1px solid #dfe6ef; border-radius:7px; outline:0; background:#fff; color:#334155; font-size:12px; box-shadow:none; }
+.ai-settings-card .field textarea { min-height:100px; resize:vertical; line-height:1.6; }
+.ai-settings-card .field input:focus,.ai-settings-card .field select:focus,.ai-settings-card .field textarea:focus { border-color:#3478ef; box-shadow:0 0 0 2px rgba(52,120,239,.09); }
+.ai-settings-page .action-row { gap:8px; margin-top:12px; }
+.ai-primary-btn,.ai-secondary-btn { min-height:33px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 13px; border:1px solid transparent; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; }
+.ai-primary-btn { background:#2868ed; color:#fff; }
+.ai-primary-btn:hover { background:#1f5edc; }
+.ai-secondary-btn { border-color:#e0e6ef; background:#fff; color:#52627a; }
+.ai-secondary-btn:hover { border-color:#cbd7e6; background:#f8fafc; }
+.ai-primary-btn:disabled,.ai-secondary-btn:disabled { opacity:.55; cursor:not-allowed; }
+.ai-settings-tabs { display:flex; align-items:center; gap:4px; margin:0 0 2px; padding:0 0 10px; border-bottom:1px solid #e5eaf2; }
+.ai-tab-button { min-height:34px; padding:0 13px; border:1px solid #e0e6ef; border-radius:6px; background:#fff; color:#52627a; font-size:11px; font-weight:600; cursor:pointer; }
+.ai-tab-button.active { border-color:#2868ed; background:#2868ed; color:#fff; }
+.ai-settings-card table { min-width:760px; }
+.ai-settings-card table th { padding:10px; background:#f8fafc; color:#7a8aa1; font-size:10px; font-weight:600; }
+.ai-settings-card table td { padding:10px; color:#40516a; font-size:11px; }
+.ai-settings-card .notice { border-radius:7px; font-size:11px; }
+@media(max-width:760px) { .ai-settings-page .form-grid { grid-template-columns:1fr; } .ai-settings-card { padding:12px; } .ai-settings-tabs { overflow-x:auto; } }
