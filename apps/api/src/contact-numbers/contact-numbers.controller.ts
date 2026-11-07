@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -84,6 +85,24 @@ export class ContactNumbersController {
   async importHistory(@Req() request: Request, @Query("page") page?: string, @Query("pageSize") pageSize?: string, @Query("status") status?: string) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
     return this.contacts.importHistory(page, pageSize, status);
+  }
+
+  @Delete("sampling-numbers/all")
+  async clearSamplingNumbers(@Req() request: Request) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.deleteSamplingNumbers(admin.id, undefined, true);
+  }
+
+  @Delete("sampling-numbers")
+  async deleteSamplingNumbers(@Req() request: Request, @Body() body: { ids: string[] }) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.deleteSamplingNumbers(admin.id, body.ids, false);
+  }
+
+  @Delete("sampling-numbers/:id")
+  async deleteSamplingNumber(@Req() request: Request, @Param("id") id: string) {
+    const admin = await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.contacts.deleteSamplingNumbers(admin.id, [id], false);
   }
 
   @Post(":id/block")
