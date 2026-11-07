@@ -197,18 +197,18 @@ export class ContactNumbersService {
       const number = await tx.contactNumber.create({ data: { phoneE164, countryCode, countryName, status: "AVAILABLE", consentStatus: "GRANTED", consentSource: `Admin manual entry: ${adminId}`, consentedAt: now } });
       await tx.contactConsentEvent.create({ data: { contactNumberId: number.id, status: "GRANTED", source: `Admin manual entry: ${adminId}`, recordedAt: now } });
       await tx.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "CONTACT_SAMPLING_NUMBER_ADDED", targetType: "CONTACT_NUMBER", targetId: number.id, metadata: { countryCode, countryName } } });
-      return number;
+      const allocation = await allocateAvailableNumbersToOldestPublishedTask(tx);
+      return { number, allocation };
     });
-    const allocation = await allocateAvailableNumbersToOldestPublishedTask(prisma);
-    return { id: created.id, phoneE164: created.phoneE164, countryCode, countryName, allocatedCount: allocation.allocatedCount + allocation.reassignedCount };
+    return { id: created.number.id, phoneE164: created.number.phoneE164, countryCode, countryName, allocatedCount: created.allocation.allocatedCount + created.allocation.reassignedCount };
   }
 
   async samplingResults(pageInput?: string, pageSizeInput?: string, statusInput?: string) {
     const page = Math.max(1, Number(pageInput) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(pageSizeInput) || 20));
     const where: any = {};
-    if (statusInput === "ASSIGNED") where.status = "ASSIGNED";
-    if (statusInput === "USED") where.status = "USED";
+    if (statusInput === "PENDING" || statusInput === "REVIEW") where.status = "ASSIGNED";
+    if (statusInput === "COMPLETED") where.status = "COMPLETED";
     const [total, rows, notes] = await Promise.all([
       prisma.contactAssignment.count({ where }),
       prisma.contactAssignment.findMany({ where, include: { contactNumber: true, user: true, claim: { include: { task: true, submissions: { orderBy: { submittedAt: "desc" }, take: 1 } } } }, orderBy: { assignedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
