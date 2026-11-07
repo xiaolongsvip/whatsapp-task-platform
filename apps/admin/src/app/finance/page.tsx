@@ -4,7 +4,9 @@ import {RefreshCw,Search,Wallet,ArrowDownToLine,CreditCard,Settings2,Scale,Chevr
 import type { LucideIcon } from "lucide-react";
 import AdminSidebar from "../../components/AdminSidebar";
 type Tab="withdrawals"|"wallets"|"accounts"|"providers"|"settlement";
-// API rows have different shapes per finance tab; rendering is centralized by the active tab.\n// eslint-disable-next-line @typescript-eslint/no-explicit-any\ntype Row=Record<string,any>;
+// API rows have different shapes per finance tab; rendering is centralized by the active tab.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row=Record<string,any>;
 type PageData={items:Row[];total:number;page:number;pageSize:number};
 type Summary={walletCount:number;providerCount:number;enabledProviderCount:number;withdrawals:Array<{status:string;currency:string;count:number;amountMinor:string}>};
 const box:React.CSSProperties={background:"#fff",border:"1px solid #e4eaf2",borderRadius:8};
