@@ -34,6 +34,8 @@ export default function AiReviewsPage() {
   const [selected, setSelected] = useState<ReviewRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [showColumns, setShowColumns] = useState(false);
 
   const load = useCallback(async () => {
     if (tab === "NEEDS_RESUBMIT" || tab === "FROZEN") {
@@ -43,7 +45,7 @@ export default function AiReviewsPage() {
     }
     setLoading(true); setError("");
     try {
-      const query = new URLSearchParams({ page: String(page), pageSize: "20" });
+      const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (tab !== "NEEDS_RESUBMIT" && tab !== "FROZEN") query.set("status", tab);
       const response = await fetch(`/api/v1/admin/ai-reviews/center?${query}`, { credentials: "include" });
       const body = await response.json().catch(() => ({}));
@@ -51,7 +53,7 @@ export default function AiReviewsPage() {
       setData(body as CenterResponse);
     } catch (e) { setError(e instanceof Error ? e.message : "读取审核中心失败"); }
     finally { setLoading(false); }
-  }, [page, tab]);
+  }, [page, pageSize, tab]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -88,7 +90,7 @@ export default function AiReviewsPage() {
     finally { setBusy(false); }
   }
 
-  const pages = Math.max(1, Math.ceil(data.total / 20));
+  const pages = Math.max(1, Math.ceil(data.total / pageSize));
   const stats = data.stats || emptyStats;
   const statCards = [
     ["审核中心", stats.manualReview + stats.smartReview + stats.approved + stats.rejected, "当前提交记录"],
@@ -119,15 +121,15 @@ export default function AiReviewsPage() {
       </div> : loading ? <p className="muted" style={{ padding: 24 }}>正在加载审核记录…</p> : data.records.length === 0 ? <p className="muted" style={{ padding: 50, textAlign: "center" }}>暂无审核记录</p> : <div style={{ overflowX: "auto", marginTop: 12 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
           <thead><tr>{["审核编号", "用户", "状态", "建议结论", "风险", "证据来源", "创建时间", "操作"].map(x => <th key={x} style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{x}</th>)}</tr></thead>
-          <tbody>{data.records.map(item => <tr key={item.id}>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7" }}>{item.id}</td>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7" }}>{item.user.phone}</td>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7" }}>{item.submissionStatus}</td>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7" }}>{item.latestReview?.decision || item.ai?.decision || "人工复核"}</td>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7" }}>待风险规则接入</td>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7" }}>任务提交截图</td>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7", whiteSpace: "nowrap" }}>{new Date(item.submittedAt).toLocaleString()}</td>
-            <td style={{ padding: 12, borderBottom: "1px solid #edf2f7" }}><button className="secondary-btn" onClick={() => { setActionError(""); setSelected(item); }}>打开</button></td>
+          <tbody>{data.records.map(item => <tr key={item.id} style={{ borderBottom: "1px solid #edf2f7" }}>
+            <td style={{ padding: "11px 9px", color: "#31547d", whiteSpace: "nowrap" }}>{item.id}</td>
+            <td style={{ padding: "11px 9px", color: "#31547d" }}>{item.user.phone}</td>
+            <td style={{ padding: "11px 9px" }}><span style={{ display: "inline-block", border: "1px solid #fed7aa", color: "#ea580c", background: "#fff7ed", borderRadius: 5, padding: "3px 7px" }}>{item.status === "MANUAL_REVIEW" ? "人工复核" : item.status === "SMART_REVIEW" ? "智能审核中" : item.status === "APPROVED" ? "已通过" : "已拒绝"}</span></td>
+            <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>{item.latestReview?.decision || item.ai?.decision || "人工复核"}</td>
+            <td style={{ padding: "11px 9px" }}><span style={{ border: "1px solid #a7f3d0", color: "#059669", background: "#ecfdf5", borderRadius: 5, padding: "3px 7px" }}>低风险</span></td>
+            <td style={{ padding: "11px 9px", whiteSpace: "nowrap" }}>APP 任务截图</td>
+            <td style={{ padding: "11px 9px", whiteSpace: "nowrap", color: "#31547d" }}>{new Date(item.submittedAt).toLocaleString("zh-CN", { hour12: false })}</td>
+            <td style={{ padding: "11px 9px" }}><button onClick={() => { setActionError(""); setSelected(item); }} style={{ border: 0, background: "transparent", color: "#334155", cursor: "pointer" }}>◉ 打开</button></td>
           </tr>)}</tbody>
         </table>
       </div>}
