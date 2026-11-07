@@ -11,6 +11,7 @@ type RecordItem = {
   messageTemplate: string; countryRegion: string; status: Status; createdAt: string;
   claimId: string | null; claimedAt: string | null; claimedUserId: string | null;
 };
+type FullDetail = {id:string;task:{id:string};phone:{number:string};status:string;submissions:Array<{id:string}>;risk:{level:string}};
 type Data = { items: RecordItem[]; pagination: { page: number; pageSize: number; total: number; totalPages: number };
   stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number } };
 
@@ -54,7 +55,7 @@ export default function TaskSettingsListPage() {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [detail, setDetail] = useState<RecordItem | null>(null);
+  const [detail, setDetail] = useState<FullDetail | null>(null);\n  const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword: appliedKeyword, status });
@@ -81,6 +82,7 @@ export default function TaskSettingsListPage() {
     { title: "异常任务", value: stats.closed + stats.frozen + stats.voided, note: "需关注状态", color: "#f43f5e", icon: "△", key: "CLOSED" as const },
   ], [stats]);
 
+  const openDetail = async (item: RecordItem) => { setDetail(null); setDetailLoading(true); try { setDetail(await api<FullDetail>("/api/v1/admin/tasks/records/" + item.id + "/detail")); } catch(e) { setError(e instanceof Error ? e.message : "任务详情加载失败"); } finally { setDetailLoading(false); } };
   const runSearch = () => { setPage(1); setAppliedKeyword(keyword.trim()); };
   const reset = () => { setKeyword(""); setAppliedKeyword(""); setStatus("ALL"); setPage(1); };
 
@@ -150,7 +152,7 @@ export default function TaskSettingsListPage() {
                 <td style={tdStyle}>{fmt(item.createdAt)}</td>
                 <td style={{ ...tdStyle, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={item.messageTemplate}>{item.messageTemplate || "—"}</td>
                 <td style={tdStyle}>{item.rewardAmount} {item.currency}</td>
-                <td style={tdStyle}><button onClick={() => setDetail(item)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}><Eye size={13} style={{ verticalAlign: "middle", marginRight: 3 }}/>查看</button></td>
+                <td style={tdStyle}><button onClick={() => void openDetail(item)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}><Eye size={13} style={{ verticalAlign: "middle", marginRight: 3 }}/>查看</button></td>
               </tr>)}</tbody>
             </table>
             {!items.length && <div style={{ textAlign: "center", padding: 65, color: "#94a3b8" }}>暂无任务记录</div>}
@@ -166,14 +168,21 @@ export default function TaskSettingsListPage() {
           </footer>
         </section>
       </div>
-      {detail && <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, zIndex: 80, background: "#0f172a44" }}>
-        <aside onClick={e => e.stopPropagation()} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px,95vw)", background: "#fff", padding: 22, overflow: "auto", boxShadow: "-8px 0 24px #0f172a22" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h2 style={{ fontSize: 18, margin: 0 }}>任务记录详情</h2><button onClick={() => setDetail(null)} style={buttonStyle}>关闭</button></div>
-          <dl style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, marginTop: 22, fontSize: 13 }}>
-            {([["任务",detail.taskName],["平台 / 动作",detail.category],["目标号码",detail.phoneNumber],["国家 / 地区",detail.countryRegion],["任务组",detail.groupName],["执行状态",statusLabel[detail.status]],["领取用户",detail.claimedUserId || "—"],["领取时间",detail.claimedAt ? fmt(detail.claimedAt) : "—"],["话术",detail.messageTemplate || "—"],["奖励金额",detail.rewardAmount + " " + detail.currency],["创建时间",fmt(detail.createdAt)]] as Array<[string,string]>).map(([k,v]) => <div key={k} style={{ display: "contents" }}><dt style={{ color: "#718096" }}>{k}</dt><dd style={{ margin: 0, overflowWrap: "anywhere" }}>{v}</dd></div>)}
-          </dl>
-        </aside>
-      </div>}
+      {(detail || detailLoading) && <div onClick={() => {setDetail(null);setDetailLoading(false);}} style={{position:"fixed",inset:0,zIndex:90,background:"rgba(15,23,42,.22)"}}>
+      <aside onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:0,bottom:0,width:"min(710px,58vw)",minWidth:420,background:"#fff",padding:"18px 20px",overflow:"auto",boxShadow:"-8px 0 24px #0f172a18"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",borderBottom:"1px solid #eef2f6",paddingBottom:12}}>
+          <div><h2 style={{fontSize:16,margin:0}}>任务执行详情</h2>{detail&&<p style={{margin:"6px 0 0",fontSize:12,color:"#64748b"}}>{detail.phone.number}</p>}</div>
+          <button onClick={()=>setDetail(null)} aria-label="关闭详情" style={{border:0,background:"transparent",color:"#94a3b8",fontSize:20,cursor:"pointer"}}>×</button>
+        </div>
+        {detailLoading&&<p style={{color:"#64748b",fontSize:13}}>正在加载任务执行详情…</p>}
+        {detail&&<>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:28,rowGap:16,paddingTop:18}}>
+            {([["任务编号",detail.task.id],["执行编号",detail.id],["使用阶段",detail.status==="USED"?"已使用":detail.status==="AVAILABLE"?"未使用":detail.status==="VOIDED"?"已释放":"已分配"],["执行状态",detail.status==="USED"?"已结算":detail.status==="ASSIGNED"?"进行中":detail.status],["证据状态",detail.submissions.length?"已提交":"未提交"],["风险状态",detail.risk.level==="HIGH"?"高风险":detail.risk.level==="MEDIUM"?"需关注":detail.risk.level==="LOW"?"正常":"待处理"]] as Array<[string,string]>).map(([label,value],index)=><div key={label}><div style={{color:"#7b8798",fontSize:11,marginBottom:5}}>{label}</div><div style={{color:"#344054",fontSize:12,overflowWrap:"anywhere"}}>{index<2?value:<span style={pill(index===4?"#fff7ed":index===5?"#fef2f2":"#ecfdf5",index===4?"#d97706":index===5?"#dc2626":"#059669",index===4?"#fed7aa":index===5?"#fecaca":"#a7f3d0")}>{value}</span>}</div></div>)}
+          </div>
+          <button onClick={()=>{window.location.href="/executions?recordId="+encodeURIComponent(detail.id);}} style={{...primaryButton,marginTop:18,minHeight:36}}>查看执行记录详情</button>
+        </>}
+      </aside>
+    </div>}
     </main>
   </div>;
 }
