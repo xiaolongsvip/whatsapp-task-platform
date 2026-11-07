@@ -604,6 +604,10 @@ model PaymentProviderConfig {
   id                    String   @id @default(uuid()) @db.Uuid
   providerCode          String   @unique @map("provider_code")
   displayName           String   @map("display_name")
+  countryCode           String   @default("GLOBAL") @map("country_code")
+  methodCode            String   @default("BANK_TRANSFER") @map("method_code")
+  apiBaseUrl            String?  @map("api_base_url")
+  merchantId            String?  @map("merchant_id")
   environment           String   @default("SANDBOX")
   credentialsCiphertext String?  @map("credentials_ciphertext") @db.Text
   credentialsIv         String?  @map("credentials_iv")
