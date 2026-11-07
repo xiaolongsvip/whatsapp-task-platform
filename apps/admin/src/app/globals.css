@@ -603,3 +603,76 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 @media(max-width:560px){.tasks-detail-header{padding:13px 14px}.tasks-detail-body{padding:0 14px 18px}.tasks-detail-list>div{grid-template-columns:88px minmax(0,1fr)}.tasks-detail-footer{padding:10px 12px}}
 
 .tasks-status-pill.voided{border-color:#fed7aa;background:#fff7ed;color:#c2410c}
+
+
+/* Global admin UI normalization: identical typography and frame metrics on every route. */
+html, body {
+  min-height: 100%;
+  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body { margin: 0; }
+.dashboard-app {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dashboard-sidebar {
+  width: 172px;
+  min-width: 172px;
+  box-sizing: border-box;
+}
+.dashboard-sidebar *,
+.dashboard-main *,
+.dashboard-topbar * {
+  box-sizing: border-box;
+}
+.dashboard-main {
+  min-width: 0;
+  width: calc(100% - 172px);
+  margin-left: 172px;
+  font-family: inherit;
+}
+.dashboard-sidebar .sidebar-brand { height: 48px; flex: 0 0 48px; }
+.dashboard-sidebar .sidebar-link {
+  min-height: 36px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dashboard-sidebar .sidebar-submenu a {
+  min-height: 30px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dashboard-sidebar .sidebar-version { font-size: 10px; }
+.dashboard-topbar {
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.dashboard-content {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.dashboard-content input,
+.dashboard-content select,
+.dashboard-content textarea,
+.dashboard-content button,
+.dashboard-content table {
+  font-family: inherit;
+}
+@media (max-width: 760px) {
+  .dashboard-main { width: 100%; margin-left: 0; }
+}
