@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@wtp/database";
 
 const RESERVED = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
 const PAGE_MAX = 100;
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const pageArgs = (page?: string, pageSize?: string) => {
   const p = Math.max(1, Number.parseInt(page || "1", 10) || 1);
   const size = Math.min(PAGE_MAX, Math.max(1, Number.parseInt(pageSize || "20", 10) || 20));
@@ -39,7 +40,7 @@ export class FinanceAdminService {
       ...(query.from || query.to ? { createdAt: dateRange(query.from, query.to) } : {}),
       ...(query.country ? { payoutAccount: { countryCode: query.country.toUpperCase() } } : {}),
       ...(query.search ? { OR: [
-        { id: { contains: query.search, mode: "insensitive" } },
+        { ...(isUuid(query.search) ? { id: query.search } : {}) },
         { wallet: { user: { phone: { contains: query.search, mode: "insensitive" } } } },
         { payoutAccount: { accountHolder: { contains: query.search, mode: "insensitive" } } },
       ] } : {}),
@@ -62,7 +63,7 @@ export class FinanceAdminService {
     const pg = pageArgs(query.page, query.pageSize);
     const where: Prisma.WalletWhereInput = {
       ...(query.currency ? { currency: query.currency.toUpperCase() } : {}),
-      ...(query.search ? { OR: [{ user: { phone: { contains: query.search, mode: "insensitive" } } }, { id: { contains: query.search, mode: "insensitive" } }] } : {}),
+      ...(query.search ? { OR: [{ user: { phone: { contains: query.search, mode: "insensitive" } } }, ...(isUuid(query.search) ? [{ id: query.search }] : [])] } : {}),
     };
     const [total, rows] = await prisma.$transaction([
       prisma.wallet.count({ where }),
@@ -125,7 +126,7 @@ export class FinanceAdminService {
     const pg = pageArgs(query.page, query.pageSize);
     const where: Prisma.PaymentTransactionWhereInput = {
       ...(query.status && query.status !== "ALL" && ["CREATED","PENDING","PROCESSING","SUCCEEDED","FAILED","CANCELLED"].includes(query.status) ? { status: query.status as Prisma.EnumPaymentTransactionStatusFilter["equals"] } : {}),
-      ...(query.search ? { OR: [{ id: { contains: query.search, mode: "insensitive" } }, { user: { phone: { contains: query.search, mode: "insensitive" } } }, { providerReference: { contains: query.search, mode: "insensitive" } }] } : {}),
+      ...(query.search ? { OR: [{ ...(isUuid(query.search) ? { id: query.search } : {}) }, { user: { phone: { contains: query.search, mode: "insensitive" } } }, { providerReference: { contains: query.search, mode: "insensitive" } }] } : {}),
     };
     const [total, rows] = await prisma.$transaction([
       prisma.paymentTransaction.count({ where }),
