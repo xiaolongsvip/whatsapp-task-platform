@@ -584,4 +584,5 @@ export class FinanceAdminService {
     if (!row) throw new NotFoundException("对账运行记录不存在");
     return { ...row, createdAt: row.createdAt.toISOString(), completedAt: row.completedAt?.toISOString() ?? null };
   }
-\n}\n
+\
+}
