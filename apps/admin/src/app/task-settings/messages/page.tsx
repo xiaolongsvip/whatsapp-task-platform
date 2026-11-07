@@ -5,7 +5,7 @@ import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import {
   Layers, Coins, MessageSquare, Clock3, Plus, RefreshCw, Search, Save,
-  Pencil, Power, Smartphone, Server, Eye, Settings2, Trash2, ChevronDown,
+  Pencil, Power, Smartphone, Server, Eye, Settings2,
   ChevronRight, Check, X, ListChecks, Package, CircleDot,
 } from "lucide-react";
 
