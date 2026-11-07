@@ -998,6 +998,35 @@ export class TaskAdminService {
     return prisma.messageTemplate.update({ where: { id }, data: { enabled: false } });
   }
 
+  async getConfiguration(key: string) {
+    const allowed = ["platforms", "countries", "sources", "rewards", "claim-limits", "reviews"];
+    if (!allowed.includes(key)) throw new BadRequestException("未知的任务配置类型。");
+    const row = await prisma.taskConfiguration.findUnique({ where: { key } });
+    return row?.value ?? (key === "claim-limits" ? { dailyLimit: 20, minimumIntervalSeconds: 60, taskTimeLimitMinutes: 3 } : []);
+  }
+
+  async saveConfiguration(key: string, value: unknown) {
+    const allowed = ["platforms", "countries", "sources", "rewards", "claim-limits", "reviews"];
+    if (!allowed.includes(key)) throw new BadRequestException("未知的任务配置类型。");
+    if (value === undefined || value === null || typeof value !== "object") {
+      throw new BadRequestException("配置内容格式无效。");
+    }
+    if (key === "claim-limits") {
+      const input = value as Record<string, unknown>;
+      for (const field of ["dailyLimit", "minimumIntervalSeconds", "taskTimeLimitMinutes"]) {
+        const n = Number(input[field]);
+        if (!Number.isInteger(n) || n < 1 || n > 1000000) throw new BadRequestException("领取限制必须填写有效的正整数。");
+      }
+    } else if (!Array.isArray(value)) {
+      throw new BadRequestException("该配置必须为列表格式。");
+    }
+    return prisma.taskConfiguration.upsert({
+      where: { key },
+      create: { key, value: value as Prisma.InputJsonValue },
+      update: { value: value as Prisma.InputJsonValue },
+    });
+  }
+
   async close(taskId: string) {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException("任务不存在。");
