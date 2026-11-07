@@ -79,7 +79,9 @@ export default function ExecutionRecordsPage() {
   const [selected, setSelected] = useState<TaskRecord | null>(null);
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailTab, setDetailTab] = useState("基本信息");\n  const [testBusy, setTestBusy] = useState(false);\n  const [testMessage, setTestMessage] = useState("");
+  const [detailTab, setDetailTab] = useState("基本信息");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testMessage, setTestMessage] = useState("");
 
   const load = useCallback(async () => {
     const apiStatus: Partial<Record<TabKey, RecordStatus>> = { CREATED: "AVAILABLE", ASSIGNED: "IN_PROGRESS", OPENED: "IN_PROGRESS", REVIEW: "REVIEW", MANUAL: "REVIEW", REJECTED: "VOIDED", RESUBMIT: "CLOSED", FROZEN: "FROZEN", SETTLED: "COMPLETED", EXPIRED: "CLOSED", CANCELLED: "CLOSED" };
@@ -175,7 +177,8 @@ export default function ExecutionRecordsPage() {
       <button disabled={testBusy} onClick={deleteTestData} style={{border:"1px solid #fecaca",borderRadius:6,background:"#fff",color:"#dc2626",padding:"9px 12px",cursor:testBusy?"wait":"pointer"}}>清理测试数据</button>
       <button onClick={() => load().catch((e) => setError(e.message))} style={{ border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", padding: "9px 14px", cursor: "pointer" }}><RefreshCw size={14} style={{ verticalAlign: "middle", marginRight: 6 }}/>刷新</button>
       </div></header>
-      {testMessage && <p style={{color:"#047857",fontSize:12,margin:"0 0 10px"}}>{testMessage}</p>}\n      <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+      {testMessage && <p style={{color:"#047857",fontSize:12,margin:"0 0 10px"}}>{testMessage}</p>}
+      <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14, marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}><strong style={{ fontSize: 13 }}>领取时间范围（UTC）</strong><div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{[["all","全部"],["today","今天"],["yesterday","昨天"],["7d","近7天"],["30d","近30天"]].map(([v,l]) => <button key={v} onClick={() => {setPeriod(v);setPage(1);}} style={{ border: 0, borderRadius: 5, padding: "7px 12px", background: period===v?"#2563eb":"#f1f5f9", color: period===v?"#fff":"#475569", cursor: "pointer" }}>{l}</button>)}</div></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 9 }}>
           {summary.map((s) => <button key={s.key} onClick={() => chooseTab(s.key)} style={{ ...card, borderColor: tab===s.key?s.color:"#e2e8f0", boxShadow: tab===s.key?"0 0 0 1px "+s.color+" inset":"none" }}>
