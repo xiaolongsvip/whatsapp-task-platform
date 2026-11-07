@@ -76,12 +76,12 @@ export default function ExecutionRecordsPage() {
     if (period !== "all") {
       const now = new Date();
       const start = new Date(now);
-      if (period === "today") start.setHours(0, 0, 0, 0);
-      if (period === "yesterday") { start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0); }
-      if (period === "7d") start.setDate(start.getDate() - 7);
-      if (period === "30d") start.setDate(start.getDate() - 30);
+      if (period === "today") start.setUTCHours(0, 0, 0, 0);
+      if (period === "yesterday") { start.setUTCDate(start.getUTCDate() - 1); start.setUTCHours(0, 0, 0, 0); }
+      if (period === "7d") start.setUTCDate(start.getUTCDate() - 7);
+      if (period === "30d") start.setUTCDate(start.getUTCDate() - 30);
       const end = new Date(now);
-      if (period === "yesterday") end.setHours(0, 0, 0, 0), end.setMilliseconds(-1);
+      if (period === "yesterday") { end.setUTCHours(0, 0, 0, 0); end.setUTCMilliseconds(-1); }
       params.set("createdFrom", start.toISOString());
       params.set("createdTo", end.toISOString());
     }
