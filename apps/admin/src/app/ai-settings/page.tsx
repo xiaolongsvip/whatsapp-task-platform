@@ -156,12 +156,12 @@ export default function AiSettingsPage() {
   return (
     <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main">
       <AdminTopbar />
-      <div className="dashboard-content" style={{padding:"18px 20px 28px",display:"grid",gap:14}}>
+      <div className="dashboard-content ai-settings-page" style={{padding:"18px 20px 28px"}}>
       <header className="tasks-page-heading"><div><h1>AI 审核引擎设置</h1><p>统一管理 OpenAI API、模型连接、自动审核策略与任务审核方案。</p></div></header>
 
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
-      <nav style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: "1px solid #e5eaf2", paddingBottom: 12 }}>
+      <nav className="ai-settings-tabs">
         <button type="button" className={activeTab === "engine" ? "primary-btn" : "secondary-btn"} onClick={() => setActiveTab("engine")}>AI 引擎与自动审核</button>
         <button type="button" className={activeTab === "schemes" ? "primary-btn" : "secondary-btn"} onClick={() => setActiveTab("schemes")}>任务审核方案</button>
       </nav>
