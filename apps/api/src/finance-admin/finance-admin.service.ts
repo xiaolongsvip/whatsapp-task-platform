@@ -399,6 +399,16 @@ export class FinanceAdminService {
     return { ...pg, total, items: rows.map(x => ({ ...x, phone: x.user.phone, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString(), user: undefined })) };
   }
 
+  async settlementOverview() {
+    const [tasks, payouts, adjustments, latestRun] = await Promise.all([
+      this.taskSettlements({ page: "1", pageSize: "1" }),
+      this.pendingPayouts({ page: "1", pageSize: "1" }),
+      this.taskAdjustments({ page: "1", pageSize: "1" }),
+      prisma.financeReconciliationRun.findFirst({ orderBy: { createdAt: "desc" }, select: { exceptionCount: true } }),
+    ]);
+    return { pendingTaskSettlement: tasks.total, pendingPayout: payouts.total, adjustmentRecords: adjustments.total, unresolvedReconciliationIssues: latestRun?.exceptionCount ?? 0 };
+  }
+
   async taskSettlements(query: { search?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
     const pg = pageArgs(query.page, query.pageSize);
     const rows = await prisma.taskSubmission.findMany({
