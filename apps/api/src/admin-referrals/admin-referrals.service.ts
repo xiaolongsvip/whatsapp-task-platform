@@ -106,7 +106,7 @@ export class AdminReferralsService {
     const from = fromInput ? new Date(fromInput) : undefined;
     const to = toInput ? new Date(toInput) : undefined;
     if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) throw new BadRequestException("日期筛选格式无效。");
-    if (to && /^\\d{4}-\\d{2}-\\d{2}$/.test(toInput ?? "")) to.setHours(23, 59, 59, 999);
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(toInput ?? "")) to.setHours(23, 59, 59, 999);
     if (from && to && from > to) throw new BadRequestException("开始日期不能晚于结束日期。");
     const search = searchInput?.trim();
     const matchedUsers = search ? await prisma.user.findMany({
