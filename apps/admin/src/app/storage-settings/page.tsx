@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 
 type Config = {
   configured: boolean; enabled: boolean; endpoint: string; bucket: string;
@@ -53,7 +54,7 @@ export default function StorageSettingsPage() {
     } catch (e) { setError(e instanceof Error ? e.message : "连接测试失败。"); }
     finally { setTesting(false); }
   }
-  if (loading) return <main className="admin-shell"><section className="panel">正在读取配置…</section></main>;
+  if (loading) return <div className="dashboard-app"><AdminSidebar /><main className="dashboard-main"><section className="panel">正在读取配置…</section></main>;
   if (!config) return <main className="admin-shell"><section className="panel"><h2>无法读取存储配置</h2><div className="notice error">{error}</div><Link href="/">返回管理后台</Link></section></main>;
   return <main className="admin-shell">
     <header className="admin-header"><div><div className="admin-brand">WTP 管理后台</div><div className="admin-subtitle">系统设置 · 图片与截图对象存储</div></div>
@@ -74,5 +75,5 @@ export default function StorageSettingsPage() {
         <div className="action-row"><button className="primary-btn" disabled={busy}>{busy ? "正在保存…" : "保存配置"}</button><button type="button" className="secondary-btn" disabled={testing || !config.configured || !config.enabled} onClick={testConnection}>{testing ? "正在测试…" : "测试存储连接"}</button><span className="muted">密钥使用 AES-256-GCM 加密后存入数据库。</span></div>
       </section>
     </form>
-  </main>;
+  </main></div>;
 }
