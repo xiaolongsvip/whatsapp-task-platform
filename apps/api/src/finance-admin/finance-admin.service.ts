@@ -18,16 +18,26 @@ const dateRange = (from?: string, to?: string) => ({
 @Injectable()
 export class FinanceAdminService {
   async summary() {
-    const [walletCount, withdrawalGroups, providerCount, enabledProviderCount, transactionGroups, ledgerGroups] = await Promise.all([
+    const [walletCount, withdrawalGroups, providerCount, enabledProviderCount, transactionGroups, ledgerGroups, holdGroups, reservedGroups] = await Promise.all([
       prisma.wallet.count(),
       prisma.withdrawalRequest.groupBy({ by: ["status", "currency"], _count: { _all: true }, _sum: { amountMinor: true } }),
       prisma.paymentProviderConfig.count(),
       prisma.paymentProviderConfig.count({ where: { enabled: true } }),
       prisma.paymentTransaction.groupBy({ by: ["status", "currency"], _count: { _all: true }, _sum: { amountMinor: true } }),
       prisma.ledgerEntry.groupBy({ by: ["direction", "currency"], _count: { _all: true }, _sum: { amountMinor: true } }),
+      prisma.walletHold.groupBy({ by: ["currency"], where: { status: "ACTIVE" }, _sum: { amountMinor: true } }),
+      prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { status: { in: [...RESERVED] } }, _sum: { amountMinor: true } }),
     ]);
+    const currencies = new Set([...ledgerGroups.map(x => x.currency.trim()), ...holdGroups.map(x => x.currency.trim()), ...reservedGroups.map(x => x.currency.trim())]);
+    const walletBalances = [...currencies].sort().map(currency => {
+      const credits = ledgerGroups.find(x => x.currency.trim() === currency && x.direction === "CREDIT")?._sum.amountMinor ?? 0n;
+      const debits = ledgerGroups.find(x => x.currency.trim() === currency && x.direction === "DEBIT")?._sum.amountMinor ?? 0n;
+      const frozen = holdGroups.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      const reserved = reservedGroups.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      return { currency, availableMinor: (credits - debits - frozen - reserved).toString(), frozenMinor: frozen.toString(), withdrawalReservedMinor: reserved.toString() };
+    });
     return {
-      walletCount, providerCount, enabledProviderCount,
+      walletCount, providerCount, enabledProviderCount, walletBalances,
       withdrawals: withdrawalGroups.map(x => ({ status: x.status, currency: x.currency.trim(), count: x._count._all, amountMinor: (x._sum.amountMinor ?? 0n).toString() })),
       transactions: transactionGroups.map(x => ({ status: x.status, currency: x.currency.trim(), count: x._count._all, amountMinor: (x._sum.amountMinor ?? 0n).toString() })),
       ledger: ledgerGroups.map(x => ({ direction: x.direction, currency: x.currency.trim(), count: x._count._all, amountMinor: (x._sum.amountMinor ?? 0n).toString() })),
