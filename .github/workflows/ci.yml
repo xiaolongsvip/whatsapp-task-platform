@@ -41,6 +41,9 @@ jobs:
       - name: TypeScript checks
         run: pnpm typecheck
 
+      - name: Web ESLint
+        run: pnpm --filter @wtp/web lint
+
       - name: Admin ESLint
         run: pnpm --filter @wtp/admin lint
 
