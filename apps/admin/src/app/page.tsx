@@ -372,7 +372,7 @@ export default function AdminHomePage() {
           <button type="button" className={"sidebar-link " + (activeSection === "dashboard" ? "active" : "")} onClick={() => { setActiveSection("dashboard"); setSidebarOpen(false); }}><LayoutDashboard size={16}/>控制台</button>
           <Link className="sidebar-link" href="/users"><Users size={16}/>用户管理</Link>
           <Link className="sidebar-link" href="/tasks"><Phone size={16}/>任务管理</Link>
-          <button type="button" className="sidebar-link" disabled><FileClock size={16}/>执行记录</button>
+          <Link className="sidebar-link" href="/executions"><FileClock size={16}/>执行记录</Link>
           <button type="button" className={"sidebar-link sidebar-expand " + (expandedMenu === "review" ? "expanded" : "")} onClick={() => setExpandedMenu(expandedMenu === "review" ? null : "review")}><ClipboardCheck size={16}/>审核中心<ChevronDown size={14} className="sidebar-chevron"/></button>
           {expandedMenu === "review" && <div className="sidebar-submenu"><Link href="/ai-reviews">AI 审核记录</Link><Link href="/ai-settings">AI 审核设置</Link></div>}
           <button type="button" className={"sidebar-link sidebar-expand " + (expandedMenu === "task" ? "expanded" : "")} onClick={() => setExpandedMenu(expandedMenu === "task" ? null : "task")}><ClipboardCheck size={16}/>任务设置<ChevronDown size={14} className="sidebar-chevron"/></button>
