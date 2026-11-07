@@ -380,7 +380,7 @@ export class TaskAdminService {
           await tx.auditEvent.create({ data: {
             actorType: "SYSTEM", actorId: adminId, action: "DEV_TEST_RISK_REVIEW",
             targetType: "TaskSlot", targetId: slot.id,
-            metadata: { testData: true, riskLevel: "需关注", reason: "模拟风险事件" },
+            metadata: { testData: true, riskLevel: "低风险", score: 10, title: "未识别的风险信号", reason: "系统返回了尚未配置运营说明的风险项，当前页面无法确认其具体业务含义。", recommendation: "不要仅依据此项作出拒绝或冻结决定；请结合其他事实处理并反馈技术人员补充说明。" },
           } });
         }
       }
@@ -1016,8 +1016,8 @@ export class TaskAdminService {
         createdAt: event.createdAt.toISOString(), metadata: event.metadata,
       })),
       risk: {
-        level: auditEvents.some((event) => /RISK|FRAUD|BLOCK/i.test(event.action)) ? "需关注" : "待评估",
-        score: null,
+        level: (() => { const event = auditEvents.find((item) => /RISK|FRAUD|BLOCK/i.test(item.action)); const meta = event?.metadata && typeof event.metadata === "object" ? event.metadata as Record<string, unknown> : {}; return typeof meta.riskLevel === "string" ? meta.riskLevel : event ? "需关注" : "待评估"; })(),
+        score: (() => { const event = auditEvents.find((item) => /RISK|FRAUD|BLOCK/i.test(item.action)); const meta = event?.metadata && typeof event.metadata === "object" ? event.metadata as Record<string, unknown> : {}; return typeof meta.score === "number" ? meta.score : null; })(),
         events: auditEvents.filter((event) => /RISK|FRAUD|BLOCK/i.test(event.action)).map((event) => ({
           id: event.id, action: event.action, createdAt: event.createdAt.toISOString(), metadata: event.metadata,
         })),
