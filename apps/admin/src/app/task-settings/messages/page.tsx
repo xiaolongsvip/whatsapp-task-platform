@@ -33,9 +33,16 @@ const tabs:Config[] = [
 ];
 const defaults:Record<string,Row[]>={rewards:[]};
 async function api<T>(url:string,init:RequestInit={}):Promise<T>{
- const response=await fetch(url,{...init,credentials:"include",headers:{"Content-Type":"application/json",...init.headers}});
- const data=await response.json().catch(()=>({}));
- if(!response.ok) throw new Error(typeof data.message==="string"?data.message:"请求失败");
+ const response=await fetch(url,{...init,credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json",...init.headers}});
+ const raw=await response.text();
+ let data:unknown={};
+ try{data=raw?JSON.parse(raw):{};}catch{data={raw};}
+ if(!response.ok){
+  const body=data&&typeof data==="object"?data as Record<string,unknown>:{};
+  const message=body.message??body.error??body.raw;
+  const detail=Array.isArray(message)?message.join("；"):typeof message==="string"?message:"";
+  throw new Error(detail?("HTTP "+response.status+"："+detail):("HTTP "+response.status+"："+response.statusText+"（"+url+"）"));
+ }
  return data as T;
 }
 const capabilityLabels=[
