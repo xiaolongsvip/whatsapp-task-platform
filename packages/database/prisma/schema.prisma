@@ -798,6 +798,8 @@ model MessageTemplate {
   platform  String   @default("WhatsApp") @db.VarChar(40)
   action    String   @default("MESSAGE") @db.VarChar(40)
   content   String   @db.Text
+  language  String?  @db.VarChar(40)
+  keywords  String?  @db.Text
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
