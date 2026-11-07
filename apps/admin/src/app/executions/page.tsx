@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
 import { Search, RefreshCw, Eye, ChevronLeft, ChevronRight, PackageOpen } from "lucide-react";
 
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
@@ -161,17 +162,7 @@ export default function ExecutionRecordsPage() {
   if (!authenticated) return <main style={{ padding: 32, color: "#dc2626" }}>{error || "请先登录"}</main>;
 
   return <div style={{ minHeight: "100vh", background: "#f8fafc", color: "#0f172a", display: "flex" }}>
-    <aside style={{ width: 162, background: "#fff", borderRight: "1px solid #e2e8f0", padding: "18px 10px", flexShrink: 0 }}>
-      <div style={{ fontWeight: 700, margin: "0 0 28px 8px" }}>EasyEarn <small style={{ display: "block", color: "#64748b", fontWeight: 400 }}>后台管理</small></div>
-      <nav style={{ display: "grid", gap: 7, fontSize: 13 }}>
-        <Link href="/" style={{ padding: 10, color: "#475569", textDecoration: "none" }}>控制台</Link>
-        <Link href="/users" style={{ padding: 10, color: "#475569", textDecoration: "none" }}>用户管理</Link>
-        <Link href="/tasks" style={{ padding: 10, color: "#475569", textDecoration: "none" }}>任务管理</Link>
-        <span style={{ padding: 10, borderRadius: 6, background: "#ecfdf5", color: "#059669", fontWeight: 600 }}>执行记录</span>
-        <Link href="/ai-reviews" style={{ padding: 10, color: "#475569", textDecoration: "none" }}>审核中心</Link>
-        <Link href="/task-settings/messages" style={{ padding: 10, color: "#475569", textDecoration: "none" }}>话术管理</Link>
-      </nav>
-    </aside>
+    <AdminSidebar />
     <main style={{ flex: 1, minWidth: 0, padding: 18 }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><div><h1 style={{ fontSize: 22, margin: 0 }}>执行记录</h1><p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0" }}>查看任务执行进度、审核结果与结算状态</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       <button disabled={testBusy} onClick={createTestData} style={{border:"1px solid #2563eb",borderRadius:6,background:"#eff6ff",color:"#1d4ed8",padding:"9px 12px",cursor:testBusy?"wait":"pointer"}}>{testBusy?"处理中…":"生成测试数据"}</button>
