@@ -758,6 +758,25 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+
+model RiskRule {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String    @db.VarChar(160)
+  category       String    @db.VarChar(80)
+  impactScore    Int       @default(0) @map("impact_score")
+  executionOrder Int       @default(100) @map("execution_order")
+  startsAt       DateTime? @map("starts_at")
+  endsAt         DateTime? @map("ends_at")
+  status         String    @default("DRAFT") @db.VarChar(20)
+  description    String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, executionOrder])
+  @@index([category])
+  @@map("risk_rules")
+}
+
 model AuditEvent {
   id         String   @id @default(uuid()) @db.Uuid
   actorType  String   @map("actor_type")
