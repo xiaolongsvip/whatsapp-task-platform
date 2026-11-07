@@ -71,7 +71,8 @@ export default function ExecutionRecordsPage() {
   const [selected, setSelected] = useState<TaskRecord | null>(null);
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword: appliedKeyword, status: "ALL" });
+    const apiStatus: Partial<Record<TabKey, RecordStatus>> = { CREATED: "AVAILABLE", ASSIGNED: "IN_PROGRESS", OPENED: "IN_PROGRESS", REVIEW: "REVIEW", MANUAL: "REVIEW", REJECTED: "VOIDED", RESUBMIT: "CLOSED", FROZEN: "FROZEN", SETTLED: "COMPLETED", EXPIRED: "CLOSED", CANCELLED: "CLOSED" };
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword: appliedKeyword, status: apiStatus[tab] || "ALL" });
     if (period !== "all") {
       const now = new Date();
       const start = new Date(now);
@@ -86,7 +87,7 @@ export default function ExecutionRecordsPage() {
     }
     const result = await api<ResponseData>("/api/v1/admin/tasks/records?" + params.toString());
     setItems(result.items); setStats(result.stats); setTotal(result.pagination.total); setTotalPages(Math.max(1, result.pagination.totalPages));
-  }, [page, pageSize, appliedKeyword, period]);
+  }, [page, pageSize, appliedKeyword, period, tab]);
 
   useEffect(() => {
     api<{ id: string; email: string }>("/api/v1/admin-auth/me")
