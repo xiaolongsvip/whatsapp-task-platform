@@ -35,6 +35,15 @@ export class TaskSubmissionAdminController {
     );
   }
 
+  @Post(":id/retry-ai")
+  async retryAi(
+    @Req() request: Request,
+    @Param("id") id: string,
+  ) {
+    const admin = await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.rerunAiReview(id, admin.id);
+  }
+
   @Post(":id/review")
   async review(
     @Req() request: Request,
