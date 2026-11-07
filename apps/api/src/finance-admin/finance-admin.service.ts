@@ -122,7 +122,8 @@ export class FinanceAdminService {
       if (!withdrawal) throw new NotFoundException("提现申请不存在");
       if (withdrawal.status !== "APPROVED" && withdrawal.status !== "PROCESSING") throw new ConflictException("只有已通过、待付款或付款处理中状态可以登记付款结果");
       if (outcome === "PAID") {
-        const providerCode = requestedProviderCode;\n        const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true } });
+        const providerCode = requestedProviderCode;
+        const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true } });
         if (!provider) throw new BadRequestException("服务商配置不存在");
         const existing = await tx.paymentTransaction.findFirst({ where: { withdrawalRequestId: id, status: "SUCCEEDED" }, select: { id: true } });
         if (existing) throw new ConflictException("该提现单已经登记成功付款，不能重复入账");
