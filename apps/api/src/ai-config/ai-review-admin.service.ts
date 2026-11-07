@@ -486,8 +486,7 @@ export class AiReviewAdminService {
   async listRiskEvents(input: { page?: number; pageSize?: number; keyword?: string; level?: string; status?: string }) {
     const page = Math.max(1, input.page || 1);
     const pageSize = Math.min(100, Math.max(1, input.pageSize || 20));
-    const where: any = { targetType: "RISK_EVENT" };
-    if (input.status) where.action = input.status;
+    const where: any = { OR: [{ targetType: "RISK_EVENT" }, { action: { startsWith: "RISK_" } }], NOT: { targetType: "RISK_RULE" } };
     if (input.keyword) where.OR = [
       { action: { contains: input.keyword, mode: "insensitive" } },
       { targetId: { contains: input.keyword, mode: "insensitive" } },
@@ -518,6 +517,21 @@ export class AiReviewAdminService {
   }
 
   async listRiskRules() {
+    const count = await prisma.riskRule.count();
+    if (count === 0) {
+      await prisma.riskRule.createMany({ data: [
+        { name: "中风险判定线", category: "RISK_LEVEL_THRESHOLD", description: "综合风险分达到该分值后，用户或任务会被标记为中风险。", impactScore: 40, executionOrder: 10, status: "ACTIVE" },
+        { name: "高风险判定线", category: "RISK_LEVEL_THRESHOLD", description: "综合风险分达到该分值后，用户或任务会被标记为高风险。", impactScore: 70, executionOrder: 20, status: "ACTIVE" },
+        { name: "严重风险判定线", category: "RISK_LEVEL_THRESHOLD", description: "综合风险分达到该分值后，用户或任务会被标记为严重风险。", impactScore: 90, executionOrder: 30, status: "ACTIVE" },
+        { name: "任务通过后的信誉变化", category: "CREDIT_SCORE", description: "任务审核通过后，提高用户信誉分。", impactScore: 1, executionOrder: 200, status: "ACTIVE" },
+        { name: "任务拒绝后的信誉变化", category: "CREDIT_SCORE", description: "任务审核被拒绝后，降低用户信誉分。", impactScore: -8, executionOrder: 210, status: "ACTIVE" },
+        { name: "任务冻结后的信誉变化", category: "CREDIT_SCORE", description: "任务触发风控冻结后，降低用户信誉分。", impactScore: -12, executionOrder: 220, status: "ACTIVE" },
+        { name: "设备关联检测", category: "DEVICE_ASSOCIATION", description: "识别多个账户使用相同设备的异常关联。", impactScore: 20, executionOrder: 100, status: "ACTIVE" },
+        { name: "网络关联检测", category: "NETWORK_ASSOCIATION", description: "识别多个账户共享异常网络环境的情况。", impactScore: 20, executionOrder: 110, status: "ACTIVE" },
+        { name: "支付关联检测", category: "PAYMENT_ASSOCIATION", description: "识别多个账户之间的异常支付关联。", impactScore: 30, executionOrder: 120, status: "ACTIVE" },
+        { name: "任务行为异常检测", category: "TASK_BEHAVIOR_ANOMALY", description: "检测任务领取、执行和提交过程中的异常行为。", impactScore: 10, executionOrder: 250, status: "ACTIVE" },
+      ] });
+    }
     return prisma.riskRule.findMany({ orderBy: [{ executionOrder: "asc" }, { createdAt: "desc" }] });
   }
 
