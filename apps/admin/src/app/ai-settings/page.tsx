@@ -142,13 +142,13 @@ export default function AiSettingsPage() {
   }
 
 
-  if (loading) return <main className="admin-shell"><div className="panel">正在读取 AI 配置…</div></main>;
+  if (loading) return <main className="admin-shell"><div className="ai-settings-card">正在读取 AI 配置…</div></main>;
   if (!config) return (
     <main className="admin-shell">
-      <section className="panel">
+      <section className="ai-settings-card">
         <h2>无法读取 AI 配置</h2>
         {error && <div className="notice error">{error}</div>}
-        <Link href="/" className="secondary-btn">返回管理员首页</Link>
+        <Link href="/" className="ai-secondary-btn">返回管理员首页</Link>
       </section>
     </main>
   );
@@ -166,7 +166,7 @@ export default function AiSettingsPage() {
         <button type="button" className={activeTab === "schemes" ? "primary-btn" : "secondary-btn"} onClick={() => setActiveTab("schemes")}>任务审核方案</button>
       </nav>
       {activeTab === "engine" ? <form onSubmit={save}>
-        <section className="panel">
+        <section className="ai-settings-card">
           <h2>OpenAI 服务连接</h2>
           <p className="muted">API Key 只在服务端加密保存，读取配置时不会返回明文。</p>
           <div className="form-grid">
@@ -190,12 +190,12 @@ export default function AiSettingsPage() {
             </div>
           )}
           <div className="action-row">
-            <button className="secondary-btn" type="button" disabled={busy} onClick={testConnection}>测试 API 连接</button>
+            <button className="ai-secondary-btn" type="button" disabled={busy} onClick={testConnection}>测试 API 连接</button>
             <span className="muted">连接测试会调用当前模型的 Responses API。</span>
           </div>
         </section>
 
-        <section className="panel">
+        <section className="ai-settings-card">
           <h2>自动审核策略</h2>
           <div className="action-row" style={{ marginTop: 0, marginBottom: 16 }}>
             <label><input type="checkbox" checked={config.enabled} disabled={!config.workerEnabled && !config.enabled} onChange={(e) => update("enabled", e.target.checked)} /> 启用 AI 自动审核</label>
@@ -216,11 +216,11 @@ export default function AiSettingsPage() {
             </div>
           </div>
           <div className="action-row">
-            <button className="primary-btn" type="submit" disabled={busy}>{busy ? "正在处理…" : "保存 AI 配置"}</button>
+            <button className="ai-primary-btn" type="submit" disabled={busy}>{busy ? "正在处理…" : "保存 AI 配置"}</button>
             <span className="muted">最后更新：{new Date(config.updatedAt).toLocaleString()}</span>
           </div>
         </section>
-      </form> : <section className="panel">
+      </form> : <section className="ai-settings-card">
         <h2>任务审核方案管理</h2>
         <p className="muted">在这里统一维护不同平台和任务类型的审核参考资料。启用的方案可供审核流程选择；AI 引擎连接和自动审核策略在上一个标签中配置。</p>
         <form onSubmit={saveScheme}>
@@ -231,11 +231,11 @@ export default function AiSettingsPage() {
             <div className="field" style={{ gridColumn: "1 / -1" }}><label>审核要求 / 判断规则</label><textarea rows={4} value={schemeForm.instructions} onChange={e => setSchemeForm(v => ({ ...v, instructions: e.target.value }))} placeholder="描述必须识别的截图内容、成功条件和拒绝条件。" /></div>
             <div className="field"><label><input type="checkbox" checked={schemeForm.enabled} onChange={e => setSchemeForm(v => ({ ...v, enabled: e.target.checked }))} /> 启用此审核方案</label></div>
           </div>
-          <div className="action-row"><button className="primary-btn" disabled={schemeBusy} type="submit">{schemeBusy ? "保存中…" : editingScheme === null ? "新增审核方案" : "保存修改"}</button><button className="secondary-btn" type="button" onClick={() => { setEditingScheme(null); setSchemeForm({ name: "", platform: "WhatsApp", referenceImage: "", instructions: "", enabled: true }); }}>重置表单</button></div>
+          <div className="action-row"><button className="ai-primary-btn" disabled={schemeBusy} type="submit">{schemeBusy ? "保存中…" : editingScheme === null ? "新增审核方案" : "保存修改"}</button><button className="ai-secondary-btn" type="button" onClick={() => { setEditingScheme(null); setSchemeForm({ name: "", platform: "WhatsApp", referenceImage: "", instructions: "", enabled: true }); }}>重置表单</button></div>
         </form>
         <div style={{ overflowX: "auto", marginTop: 18 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr>{["方案名称", "平台", "成功参考图", "审核要求", "状态", "操作"].map(x => <th key={x} style={{ textAlign: "left", padding: 10, background: "#f8fafc", fontSize: 12 }}>{x}</th>)}</tr></thead>
-            <tbody>{schemes.map((item, index) => <tr key={index}><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.name}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.platform}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{item.referenceImage || "—"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", maxWidth: 300 }}>{item.instructions || "—"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.enabled ? "已启用" : "已停用"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", whiteSpace: "nowrap" }}><button type="button" className="secondary-btn" onClick={() => { setEditingScheme(index); setSchemeForm({ ...item }); }}>编辑</button> <button type="button" className="secondary-btn" disabled={schemeBusy} onClick={() => void toggleScheme(index)}>{item.enabled ? "停用" : "启用"}</button></td></tr>)}</tbody>
+            <tbody>{schemes.map((item, index) => <tr key={index}><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.name}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.platform}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{item.referenceImage || "—"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", maxWidth: 300 }}>{item.instructions || "—"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5" }}>{item.enabled ? "已启用" : "已停用"}</td><td style={{ padding: 10, borderTop: "1px solid #edf0f5", whiteSpace: "nowrap" }}><button type="button" className="ai-secondary-btn" onClick={() => { setEditingScheme(index); setSchemeForm({ ...item }); }}>编辑</button> <button type="button" className="ai-secondary-btn" disabled={schemeBusy} onClick={() => void toggleScheme(index)}>{item.enabled ? "停用" : "启用"}</button></td></tr>)}</tbody>
           </table>
           {schemes.length === 0 && <p className="muted">暂无审核方案，请在上方创建。</p>}
         </div>
