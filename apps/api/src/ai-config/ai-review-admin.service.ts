@@ -336,7 +336,7 @@ export class AiReviewAdminService {
     const status = input.status || "ALL";
     const where: any = {};
     if (status === "SUBMITTED") where.status = { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] };
-    if (status === "URL_ISSUED") where.status = "PENDING";
+    if (status === "URL_ISSUED") where.id = "00000000-0000-0000-0000-000000000000";
     if (keyword) where.OR = [
       { id: { contains: keyword, mode: "insensitive" } },
       { originalName: { contains: keyword, mode: "insensitive" } },
@@ -363,7 +363,7 @@ export class AiReviewAdminService {
     ]);
     return {
       page, pageSize, total,
-      stats: { total, filtered: total, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 },
+      stats: { total, filtered: submissions.length, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 },
       records: submissions.map((item) => ({
         id: item.id, userPhone: item.claim.user.phone, targetPhone: item.claim.contactAssignment?.contactNumber.phoneE164 ?? null,
         status: item.status, retentionStatus: "NORMAL", source: "实时屏幕截图",
