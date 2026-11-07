@@ -12,6 +12,7 @@ import { StorageConfigModule } from "./storage-config/storage-config.module";
 import { WalletHoldsAdminModule } from "./wallet-holds-admin/wallet-holds-admin.module";
 import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
 import { AdminUsersModule } from "./admin-users/admin-users.module";
+import { AdminReferralsModule } from "./admin-referrals/admin-referrals.module";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AdminUsersModule } from "./admin-users/admin-users.module";
     WalletHoldsAdminModule,
     AdminDashboardModule,
     AdminUsersModule,
+    AdminReferralsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
