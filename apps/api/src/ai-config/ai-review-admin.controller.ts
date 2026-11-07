@@ -49,6 +49,24 @@ export class AiReviewAdminController {
     );
   }
 
+
+  @Get("evidence")
+  async evidence(
+    @Req() request: Request,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+    @Query("keyword") keyword?: string,
+    @Query("status") status?: string,
+    @Query("taskType") taskType?: string,
+  ) {
+    await this.auth.getCurrentAdmin(token(request));
+    return this.reviews.listEvidenceRecords({
+      page: Math.max(1, Number.parseInt(page || "1", 10) || 1),
+      pageSize: Math.min(100, Math.max(1, Number.parseInt(pageSize || "20", 10) || 20)),
+      keyword, status, taskType,
+    });
+  }
+
   @Post(":id/review")
   async review(
     @Req() request: Request,
