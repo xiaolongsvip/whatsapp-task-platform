@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { Bell, CircleHelp, Eye, Plus, RefreshCw, Search, ShieldAlert, Users, AlertTriangle, X, Pencil } from "lucide-react";
 import AdminSidebar from "../../components/AdminSidebar";
 
@@ -16,7 +16,7 @@ const label=(v:string)=>categoryLabels[v]||v;
 const levels:Record<string,string>={LOW:"低风险",MEDIUM:"中风险",HIGH:"高风险",CRITICAL:"严重风险"};
 const statusLabel=(v:string)=>({OPEN:"待处理",PROCESSING:"处理中",RESOLVED:"已处理",DISMISSED:"已忽略",ACTIVE:"已启用",DRAFT:"草稿",DISABLED:"已停用"} as Record<string,string>)[v]||v;
 const categories=Object.keys(categoryLabels);
-const field:React.CSSProperties={width:"100%",height:38,border:"1px solid #dbe3ee",borderRadius:6,padding:"0 11px",fontSize:13,color:"#26364c",background:"#fff"};
+const field:CSSProperties={width:"100%",height:38,border:"1px solid #dbe3ee",borderRadius:6,padding:"0 11px",fontSize:13,color:"#26364c",background:"#fff"};
 const th:React.CSSProperties={textAlign:"left",padding:"12px 10px",fontSize:12,color:"#64748b",fontWeight:500,whiteSpace:"nowrap",background:"#f8fafc",borderBottom:"1px solid #e5ebf3"};
 const td:React.CSSProperties={padding:"12px 10px",fontSize:13,color:"#29415f",borderBottom:"1px solid #edf1f6",whiteSpace:"nowrap"};
 const btn:React.CSSProperties={height:36,padding:"0 14px",border:"1px solid #dbe3ee",borderRadius:6,background:"#fff",color:"#40536d",fontSize:13,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6};
@@ -43,7 +43,7 @@ export default function RiskRecords(){
  },[tab,keyword,level,status]);
  useEffect(()=>{void load()},[load]);
  function openRule(rule?:RiskRule){setEditing(rule||null);setForm(rule?{name:rule.name,category:rule.category,impactScore:String(rule.impactScore),executionOrder:String(rule.executionOrder),startsAt:rule.startsAt?rule.startsAt.slice(0,16):"",endsAt:rule.endsAt?rule.endsAt.slice(0,16):"",status:rule.status,description:rule.description||""}:{name:"",category:"",impactScore:"0",executionOrder:"100",startsAt:"",endsAt:"",status:"DRAFT",description:""});setModal(true);}
- async function saveRule(e:React.FormEvent){e.preventDefault();if(saving)return;setSaving(true);setError("");try{
+ async function saveRule(e:FormEvent){e.preventDefault();if(saving)return;setSaving(true);setError("");try{
   const body={...form,impactScore:Number(form.impactScore),executionOrder:Number(form.executionOrder),startsAt:form.startsAt?new Date(form.startsAt).toISOString():null,endsAt:form.endsAt?new Date(form.endsAt).toISOString():null};
   const r=await fetch("/api/v1/admin/ai-reviews/risk/rules"+(editing?"/"+editing.id:""),{method:editing?"POST":"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const b=await r.json();if(!r.ok)throw new Error(b.message||"保存规则失败");setModal(false);await load();
  }catch(e){setError(e instanceof Error?e.message:"保存规则失败");}finally{setSaving(false);}}
