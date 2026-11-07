@@ -13,6 +13,7 @@ import { WalletHoldsAdminModule } from "./wallet-holds-admin/wallet-holds-admin.
 import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
 import { AdminUsersModule } from "./admin-users/admin-users.module";
 import { AdminReferralsModule } from "./admin-referrals/admin-referrals.module";
+import { FinanceAdminModule } from "./finance-admin/finance-admin.module";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AdminReferralsModule } from "./admin-referrals/admin-referrals.module";
     AdminDashboardModule,
     AdminUsersModule,
     AdminReferralsModule,
+    FinanceAdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
