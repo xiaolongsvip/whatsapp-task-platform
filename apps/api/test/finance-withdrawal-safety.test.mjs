@@ -60,3 +60,12 @@ test("APP support URL is admin-configurable, HTTPS-only, audited, and exposed to
   assert.match(settingsPage, /保存客服配置/);
   assert.match(settingsPage, /\/api\/v1\/admin\/system-settings\/support/);
 });
+
+test("AI task approval applies the same referral commission settlement as manual approval", () => {
+  const worker = read("src/ai-config/ai-review.worker.ts");
+  assert.match(worker, /key: "referral-commission"/);
+  assert.match(worker, /referralAncestor\.findMany/);
+  assert.match(worker, /referralReward\.create/);
+  assert.match(worker, /sourceType: "REFERRAL_COMMISSION"/);
+  assert.match(worker, /referral-commission:\$\{claim\.id\}/);
+});
