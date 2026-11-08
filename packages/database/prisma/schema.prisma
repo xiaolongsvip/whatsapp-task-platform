@@ -261,6 +261,21 @@ model ReferralAncestor {
   @@map("referral_ancestors")
 }
 
+model EmailVerificationChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  email      String    @db.VarChar(254)
+  codeHash   String    @map("code_hash") @db.Char(64)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([email, expiresAt])
+  @@map("email_verification_challenges")
+}
+
 model ContactImportBatch {
   id                String          @id @default(uuid()) @db.Uuid
   fileName          String?         @map("file_name")
