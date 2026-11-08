@@ -183,7 +183,7 @@ export class SystemSettingsService {
     const min = Number(input.minimumAmount), max = Number(input.maximumAmount), daily = Number(input.dailyLimit);
     if (!/^(?:[A-Z]{2}|GLOBAL)$/.test(countryCode) || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !method) throw new BadRequestException("国家代码、钱包币种、代付币种和提现方式格式无效");
     if (!(min > 0 && max >= min && daily > 0)) throw new BadRequestException("请检查最低、最高和每日提现限额");
-    const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels: Array.isArray(input.channels) ? input.channels.map(String) : [], minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
+    const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels: Array.isArray(input.channels) ? input.channels.map(String) : [], minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: input.status === "ARCHIVED" ? "ARCHIVED" : input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
     if (rule.status === "ENABLED" && items.some(x => x.id !== ruleId && x.status === "ENABLED" &&
       String(x.countryCode).toUpperCase() === countryCode &&
       String(x.walletCurrency).toUpperCase() === walletCurrency &&
