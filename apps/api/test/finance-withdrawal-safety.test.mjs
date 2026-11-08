@@ -44,3 +44,18 @@ test("major app updates are checked before authenticated and member screens are 
   assert.match(app, /Never lock users out when the update service is temporarily unavailable/);
   assert.match(app, /enabled = downloadUrl\.startsWith\("https:\/\/"\)/);
 });
+
+test("APP support URL is admin-configurable, HTTPS-only, audited, and exposed to the dashboard", () => {
+  const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
+  const settingsController = readFileSync(new URL("../src/system-settings/system-settings.controller.ts", import.meta.url), "utf8");
+  const dashboard = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
+  const settingsPage = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
+  assert.match(settings, /async saveSupport\(input: JsonRecord, adminId: string\)/);
+  assert.match(settings, /!\/~\^https:/);
+  assert.match(settings, /APP_SUPPORT_URL_UPDATED/);
+  assert.match(settingsController, /@Put\("support"\)/);
+  assert.match(dashboard, /system\.appSupport/);
+  assert.match(dashboard, /supportUrl,/);
+  assert.match(settingsPage, /保存客服配置/);
+  assert.match(settingsPage, /\/api\/v1\/admin\/system-settings\/support/);
+});
