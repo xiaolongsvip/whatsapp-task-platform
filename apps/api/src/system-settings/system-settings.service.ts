@@ -63,8 +63,13 @@ export class SystemSettingsService {
   }
   async saveSupport(input: JsonRecord, adminId: string) {
     const supportUrl = String(input.supportUrl ?? "").trim();
-    if (supportUrl && (!/^https:\/\//i.test(supportUrl) || supportUrl.length > 2048)) {
-      throw new BadRequestException("客服链接必须是有效的 HTTPS 地址，且不能超过 2048 个字符");
+    if (supportUrl) {
+      let parsed: URL;
+      try { parsed = new URL(supportUrl); }
+      catch { throw new BadRequestException("客服链接格式无效，请填写完整的 HTTPS 地址"); }
+      if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password || supportUrl.length > 2048) {
+        throw new BadRequestException("客服链接必须是有效的 HTTPS 地址，不能包含账号密码，且不能超过 2048 个字符");
+      }
     }
     const safe = { supportUrl };
     await this.write("system.appSupport", safe);
