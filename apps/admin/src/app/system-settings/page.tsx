@@ -8,7 +8,7 @@ import AdminTopbar from "../../components/AdminTopbar";
 type Tab = "params" | "help" | "withdrawal" | "risk" | "audit";
 type Article = { id:string; title:string; summary:string; content:string; language:string; audience:string; status:string; version:number; pinned:boolean; deletedAt?:string; revisions?:any[]; advanced?:any; publishedAt?:string };
 type Rule = { id:string; countryCode:string; countryName:string; walletCurrency:string; payoutCurrency:string; method:string; channels:string[]; minimumAmount:number; maximumAmount:number; dailyLimit:number; status:string };
-type Audit = { id:string; createdAt:string; actor:string; module:string; action:string; targetId:string|null; result:string; metadata:any };
+type Audit = { id:string; requestId?:string; createdAt:string; actor:string; module:string; action:string; targetId:string|null; result:string; metadata:any };
 type Config = { accountSecurity:any; version:any; risk:any; withdrawalRules:Rule[]; articles:Article[] };
 const api = async <T,>(path:string, init:RequestInit={}):Promise<T> => {
   const res=await fetch(path,{...init,credentials:"include",headers:{...(init.body instanceof FormData?{}:{"Content-Type":"application/json"}),...init.headers}});
