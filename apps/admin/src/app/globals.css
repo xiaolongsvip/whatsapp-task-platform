@@ -262,6 +262,9 @@ th { color:#718096; font-weight:700; background:#fbfcfe; }
 .reference-pending-row > svg { color:#9aabc0; }
 .reference-quick-actions { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
 .reference-quick-actions button { min-height:58px; display:flex; align-items:center; gap:10px; padding:9px 13px; border:1px solid #e1e9f3; border-radius:10px; background:#fff; color:#526680; font-size:11px; cursor:pointer; }
+.reference-quick-actions .reference-quick-action-link { min-height:58px; display:flex; align-items:center; gap:10px; padding:9px 13px; border:1px solid #e1e9f3; border-radius:10px; background:#fff; color:#526680; font-size:11px; text-decoration:none; cursor:pointer; }
+.reference-quick-actions .reference-quick-action-link:hover { border-color:#9bbce8; background:#f8fbff; }
+.reference-quick-actions .reference-quick-action-link > span { width:34px; height:34px; display:grid; place-items:center; border-radius:9px; background:#eafaf3; color:#0caa79; flex:none; }
 .reference-quick-actions button:disabled { opacity:1; cursor:not-allowed; }
 .reference-quick-actions button > span { width:34px; height:34px; display:grid; place-items:center; border-radius:9px; background:#eafaf3; color:#0caa79; }
 @media (max-width:1200px) {
