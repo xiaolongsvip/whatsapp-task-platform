@@ -89,6 +89,20 @@ export class ReportsService {
     ]);
 
     const periods = new Map<string, { submitted: number; approved: number; rejected: number }>();
+    const fromOffset = offsetOf(query.fromOffset);
+    const toOffset = offsetOf(query.toOffset);
+    const localFrom = new Date(range.from.getTime() - fromOffset * 60000);
+    const localTo = new Date(range.to.getTime() - toOffset * 60000);
+    const cursor = new Date(Date.UTC(localFrom.getUTCFullYear(), localFrom.getUTCMonth(), localFrom.getUTCDate()));
+    if (period === "week") cursor.setUTCDate(cursor.getUTCDate() - ((cursor.getUTCDay() + 6) % 7));
+    if (period === "month") cursor.setUTCDate(1);
+    while (cursor <= localTo) {
+      const key = cursor.toISOString().slice(0, 10);
+      periods.set(key, { submitted: 0, approved: 0, rejected: 0 });
+      if (period === "day") cursor.setUTCDate(cursor.getUTCDate() + 1);
+      else if (period === "week") cursor.setUTCDate(cursor.getUTCDate() + 7);
+      else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
     for (const row of trendRows) {
       const item = periods.get(row.period) ?? { submitted: 0, approved: 0, rejected: 0 };
       const count = Number(row.count);
