@@ -55,9 +55,10 @@ function moneyChanges(current: MoneyGroup[], previous: MoneyGroup[]) {
     return { currency, change: change(Number(now), Number(before)) };
   });
 }
-const submissionStatus = (value?: string) => {
+const claimStatus = (value?: string) => {
   if (!value || value === "ALL") return undefined;
-  if (["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"].includes(value)) return value as "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+  const allowed = ["CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "EXPIRED", "CANCELLED"];
+  if (allowed.includes(value)) return value as "CLAIMED" | "IN_PROGRESS" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "EXPIRED" | "CANCELLED";
   throw new BadRequestException("不支持的报表状态筛选");
 };
 
@@ -66,26 +67,29 @@ export class ReportsService {
   async summary(query: Record<string, string | undefined>) {
     const range = rangeOf(query);
     const previous = previousRange(range);
-    const status = submissionStatus(query.status);
+    const status = claimStatus(query.status);
     const period = ["day", "week", "month"].includes(query.period || "day") ? query.period || "day" : "day";
-    const submissionWhere = (r: Range) => ({ submittedAt: { gte: r.from, lte: r.to }, ...(status ? { status } : {}) });
+    const claimWhere = (r: Range) => ({ claimedAt: { gte: r.from, lte: r.to }, ...(status ? { status } : {}) });
     const paidWhere = (r: Range) => ({ flow: "PAYOUT" as const, status: "SUCCEEDED" as const, updatedAt: { gte: r.from, lte: r.to } });
     const [
-      activeUsers, previousActiveUsers, distribution, previousDistribution,
+      taskTotal, previousTaskTotal, activeUsers, previousActiveUsers, distribution, previousDistribution,
       withdrawalApplications, previousWithdrawalApplications, actualPayout, previousActualPayout,
       trendRows, countryTaskRows, countryPaidRows,
     ] = await Promise.all([
-      prisma.taskClaim.groupBy({ by: ["userId"], where: { submissions: { some: submissionWhere(range) } } }),
-      prisma.taskClaim.groupBy({ by: ["userId"], where: { submissions: { some: submissionWhere(previous) } } }),
-      prisma.taskSubmission.groupBy({ by: ["status"], where: submissionWhere(range), _count: { _all: true } }),
-      prisma.taskSubmission.groupBy({ by: ["status"], where: submissionWhere(previous), _count: { _all: true } }),
+      prisma.taskClaim.count({ where: claimWhere(range) }),
+      prisma.taskClaim.count({ where: claimWhere(previous) }),
+      prisma.taskClaim.groupBy({ by: ["userId"], where: claimWhere(range) }),
+      prisma.taskClaim.groupBy({ by: ["userId"], where: claimWhere(previous) }),
+      prisma.taskClaim.groupBy({ by: ["status"], where: claimWhere(range), _count: { _all: true } }),
+      prisma.taskClaim.groupBy({ by: ["status"], where: claimWhere(previous), _count: { _all: true } }),
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: range.from, lte: range.to } }, _sum: { amountMinor: true } }),
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: previous.from, lte: previous.to } }, _sum: { amountMinor: true } }),
       prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(range), _sum: { amountMinor: true } }),
       prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(previous), _sum: { amountMinor: true } }),
-      prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, submitted_at + (${-offsetOf(query.fromOffset)} * interval '1 minute')), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_submissions WHERE submitted_at >= ${range.from} AND submitted_at <= ${range.to} AND (${status ?? null}::text IS NULL OR status::text = ${status ?? null}) GROUP BY 1, 2 ORDER BY 1`,
-      prisma.$queryRaw<CountryTaskRow[]>`SELECT COALESCE(NULLIF(BTRIM(cn.country_code), ''), 'UNSPECIFIED') AS country, COUNT(DISTINCT ts.id)::int AS "taskCount", COUNT(DISTINCT ts.id) FILTER (WHERE ts.status::text = 'APPROVED')::int AS "approvedCount", COUNT(DISTINCT ts.id) FILTER (WHERE ts.status::text = 'REJECTED')::int AS "rejectedCount" FROM task_submissions ts JOIN task_claims tc ON tc.id = ts.claim_id LEFT JOIN contact_assignments ca ON ca.claim_id = tc.id LEFT JOIN contact_numbers cn ON cn.id = ca.contact_number_id WHERE ts.submitted_at >= ${range.from} AND ts.submitted_at <= ${range.to} AND (${status ?? null}::text IS NULL OR ts.status::text = ${status ?? null}) GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, claimed_at + (${-offsetOf(query.fromOffset)} * interval '1 minute')), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_claims WHERE claimed_at >= ${range.from} AND claimed_at <= ${range.to} AND (${status ?? null}::text IS NULL OR status::text = ${status ?? null}) GROUP BY 1, 2 ORDER BY 1`,
+      prisma.$queryRaw<CountryTaskRow[]>`SELECT COALESCE(NULLIF(BTRIM(cn.country_code), ''), 'UNSPECIFIED') AS country, COUNT(DISTINCT tc.id)::int AS "taskCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'APPROVED')::int AS "approvedCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'REJECTED')::int AS "rejectedCount" FROM task_claims tc LEFT JOIN contact_assignments ca ON ca.claim_id = tc.id LEFT JOIN contact_numbers cn ON cn.id = ca.contact_number_id WHERE tc.claimed_at >= ${range.from} AND tc.claimed_at <= ${range.to} AND (${status ?? null}::text IS NULL OR tc.status::text = ${status ?? null}) GROUP BY 1 ORDER BY 1`,
       prisma.$queryRaw<CountryPaidRow[]>`SELECT COALESCE(NULLIF(BTRIM(pa.country_code), ''), 'UNSPECIFIED') AS country, pt.currency, SUM(pt.amount_minor)::text AS "amountMinor" FROM payment_transactions pt LEFT JOIN withdrawal_requests wr ON wr.id = pt.withdrawal_request_id LEFT JOIN payout_accounts pa ON pa.id = wr.payout_account_id WHERE pt.flow::text = 'PAYOUT' AND pt.status::text = 'SUCCEEDED' AND pt.updated_at >= ${range.from} AND pt.updated_at <= ${range.to} GROUP BY 1, pt.currency ORDER BY 1, pt.currency`,
+    ]);
     ]);
 
     const periods = new Map<string, { submitted: number; approved: number; rejected: number }>();
@@ -122,12 +126,11 @@ export class ReportsService {
     });
     const countStatus = (rows: typeof distribution, key: string) => rows.find(x => x.status === key)?._count._all ?? 0;
     const dist = (key: string) => countStatus(distribution, key);
-    const totalSubmissions = distribution.reduce((n, x) => n + x._count._all, 0);
-    const previousTotalSubmissions = previousDistribution.reduce((n, x) => n + x._count._all, 0);
     const approved = dist("APPROVED");
     const previousApproved = countStatus(previousDistribution, "APPROVED");
     const rejected = dist("REJECTED");
     const previousRejected = countStatus(previousDistribution, "REJECTED");
+    const totalReviewClaims = approved + rejected + dist("SUBMITTED") + dist("UNDER_REVIEW");
     const paidByCountry = new Map<string, Array<{ currency: string; amountMinor: string }>>();
     for (const row of countryPaidRows) {
       const values = paidByCountry.get(row.country) ?? [];
@@ -151,7 +154,7 @@ export class ReportsService {
       range: { from: range.from.toISOString(), to: range.to.toISOString() },
       filters: { status: status ?? "ALL", period },
       cards: {
-        taskTotal: { value: totalSubmissions, change: change(totalSubmissions, previousTotalSubmissions) },
+        taskTotal: { value: taskTotal, change: change(taskTotal, previousTaskTotal) },
         approved: { value: approved, change: change(approved, previousApproved) },
         rejected: { value: rejected, change: change(rejected, previousRejected) },
         activeUsers: { value: activeUsers.length, change: change(activeUsers.length, previousActiveUsers.length) },
@@ -159,7 +162,7 @@ export class ReportsService {
         actualPayout: { amounts: moneyRows(actualPayout), changes: moneyChanges(actualPayout, previousActualPayout) },
       },
       reviewDistribution: {
-        total: totalSubmissions,
+        total: totalReviewClaims,
         approved: dist("APPROVED"),
         rejected: dist("REJECTED"),
         pending: dist("SUBMITTED") + dist("UNDER_REVIEW"),
@@ -168,9 +171,9 @@ export class ReportsService {
       trend,
       countryBreakdown,
       limitations: [
-        "任务总数、审核通过数、审核拒绝数及审核状态分布统一按任务提交记录统计；状态筛选会同步作用于这些任务指标。",
-        "活跃用户按所选周期内至少提交过一条符合筛选条件任务的去重用户数统计。",
-        "提现申请金额按提现申请创建时间统计；实际支出按支付交易成功状态及成功交易更新时间统计。",
+        "任务总数按任务领取记录统计；审核通过数、拒绝数及趋势按领取记录的当前状态统计，状态筛选会同步作用于任务指标。",
+        "审核状态环形图只统计已提交、审核中、已通过、已拒绝的任务领取记录；不把尚未提交的领取任务算入审核分母。",
+        "活跃用户按所选周期内领取过符合筛选条件任务的去重用户数统计。",
         "国家明细中，任务数量按任务关联号码国家统计，实际支出按收款账户国家统计；没有对应国家资料的记录归入“未标记”。",
         "跨币种金额分别展示，不进行汇率换算；申请金额与实际支出的差额不是钱包余额。",
       ],
