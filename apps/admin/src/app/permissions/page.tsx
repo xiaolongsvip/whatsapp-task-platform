@@ -8,7 +8,7 @@ type Permission={key:string;name:string;description:string;risk:"normal"|"high"|
 type Group={name:string;permissions:Permission[]};
 type Role={id:string;name:string;description:string|null;status:string;isSystem:boolean;permissionKeys:string[];permissionCount:number;adminCount:number;updatedAt:string|null};
 type Admin={id:string;name:string;email:string;login:string;phone:string|null;status:"ACTIVE"|"DISABLED";roles:{id:string;name:string}[];lastLoginAt:string|null};
-const api=async<T>(url:string,init:RequestInit={}):Promise<T>=>{const r=await fetch(url,{...init,credentials:"include",headers:{"Content-Type":"application/json",...init.headers}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(typeof d.message==="string"?d.message:"请求失败");return d as T};
+const api = async <T,>(url:string,init:RequestInit={}):Promise<T> =>{const r=await fetch(url,{...init,credentials:"include",headers:{"Content-Type":"application/json",...init.headers}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(typeof d.message==="string"?d.message:"请求失败");return d as T};
 const riskLabel=(r:string)=>r==="critical"?"关键操作":r==="high"?"高风险操作":"常规操作";
 const riskClass=(r:string)=>r==="critical"?"risk-critical":r==="high"?"risk-high":"risk-normal";
 const menuFor=(keys:string[])=>{const menu=[["用户","users."],["邀请与分佣","referrals."],["权限管理","permissions."],["审核中心","reviews."],["人工审核","reviews.manage"],["风控记录","reviews.risk."],["抽检风控","reviews.risk."],["任务列表","tasks."],["任务配置","tasks.config."],["执行记录","tasks.executions."],["财务管理","finance."],["通知管理","notifications."],["数据报表","reports."],["系统设置","system.settings."]];return menu.filter(([,prefix])=>keys.some(k=>prefix.endsWith(".")?k.startsWith(prefix):k===prefix)).map(([label])=>label);};
