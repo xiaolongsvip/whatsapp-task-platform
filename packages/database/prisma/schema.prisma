@@ -735,6 +735,7 @@ model Role {
   name        String       @unique
   description String?
   status      String       @default("ACTIVE") @db.VarChar(20)
+  isSystem    Boolean      @default(false) @map("is_system")
   permissions RolePermission[]
   users       AdminUserRole[]
 
