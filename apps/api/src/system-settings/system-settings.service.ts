@@ -57,6 +57,7 @@ export class SystemSettingsService {
     const downloadUrl = String(input.downloadUrl ?? "").trim();
     if (!/^\d+\.\d+\.\d+$/.test(latestVersion)) throw new BadRequestException("版本号必须使用 x.y.z 格式");
     if (!Number.isSafeInteger(versionCode) || versionCode < 1) throw new BadRequestException("版本代码必须是正整数");
+    if (versionCode <= Number(current.versionCode ?? 0)) throw new BadRequestException("新版本代码必须大于当前线上版本代码");
     if (downloadUrl && !/^https:\/\//i.test(downloadUrl)) throw new BadRequestException("APK 下载地址必须使用 HTTPS");
     const release = { version: latestVersion, versionCode, updateType: input.updateType === "MAJOR" ? "MAJOR" : "MINOR", downloadUrl, releaseNotes: String(input.releaseNotes ?? "").slice(0, 5000), releasedAt: new Date().toISOString(), status: "DRAFT" };
     const releases = Array.isArray(current.releases) ? current.releases : [];
@@ -99,6 +100,10 @@ export class SystemSettingsService {
       if (Number(current.versionCode) === versionCode) {
         const previous = releases.find((x: any, i: number) => i !== index && x.status === "PUBLISHED");
         current.currentVersion = previous?.version ?? "";
+        current.latestVersion = previous?.version ?? "";
+        current.versionCode = previous?.versionCode ?? 0;
+        current.updateType = previous?.updateType ?? "MINOR";
+        current.downloadUrl = previous?.downloadUrl ?? "";
       }
     }
     releases[index] = release;
