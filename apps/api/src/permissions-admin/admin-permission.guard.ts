@@ -119,7 +119,7 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/system-settings$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/(?:account-security|risk)$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/version(?:\/upload|\/\d+\/(?:publish|revoke))?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
-    if (is(/^\/admin\/system-settings\/help\/articles(?:\/[^/]+(?:\/(?:publish|pin|restore))?)?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
+    if (is(/^\/admin\/system-settings\/help\/articles(?:\/[^/]+(?:\/(?:publish|pin|restore|permanent))?)?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/withdrawal-rules(?:\/[^/]+(?:\/(?:toggle|duplicate))?)?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/audit-logs(?:\/[^/]+)?$/)) return "system.settings.read";
 
