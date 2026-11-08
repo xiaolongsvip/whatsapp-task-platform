@@ -62,16 +62,16 @@ export class SystemSettingsController {
   @Post("help/assets/verify")
   async verifyHelpAsset(@Req() req: Request, @Body() body: { assetUrl: string; key: string }) {
     await this.admin(req);
-    const baseValue = process.env.HELP_ASSET_PUBLIC_BASE_URL?.trim().replace(/\\/+$/, "");
+    const baseValue = process.env.HELP_ASSET_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
     if (!baseValue || !baseValue.startsWith("https://")) throw new BadRequestException("帮助资源公共域名尚未配置。");
     const key = String(body.key ?? "").trim();
     const assetUrl = String(body.assetUrl ?? "").trim();
-    if (!/^help-assets\\/[a-zA-Z0-9._/-]+$/.test(key) || key.includes("..")) throw new BadRequestException("帮助资源对象路径无效。");
+    if (!/^help-assets\/[a-zA-Z0-9._/-]+$/.test(key) || key.includes("..")) throw new BadRequestException("帮助资源对象路径无效。");
     let base: URL, target: URL;
     try { base = new URL(baseValue); target = new URL(assetUrl); }
     catch { throw new BadRequestException("帮助资源公开地址无效。"); }
     const expectedUrl = baseValue + "/" + key;
-    if (target.origin !== base.origin || target.toString().replace(/\\/$/, "") !== expectedUrl) {
+    if (target.origin !== base.origin || target.toString().replace(/\/$/, "") !== expectedUrl) {
       throw new BadRequestException("帮助资源地址与服务器配置的公共域名不匹配。");
     }
     let response: Response;
