@@ -185,21 +185,45 @@ export class SystemSettingsService {
   }
   async auditLogs(query: Record<string,string>) {
     const page = Math.max(1, Number(query.page ?? 1) || 1), pageSize = Math.min(100, Math.max(10, Number(query.pageSize ?? 20) || 20));
+    const search = (query.search ?? "").trim();
     const where: any = {
-      ...(query.search ? { OR: [{ targetId: { contains: query.search, mode: "insensitive" } }, { action: { contains: query.search, mode: "insensitive" } }, { targetType: { contains: query.search, mode: "insensitive" } }] } : {}),
-      ...(query.module ? { targetType: { contains: query.module, mode: "insensitive" } } : {}),
-      ...(query.result === "FAILED" ? { action: { contains: "FAILED", mode: "insensitive" } } : {}),
+      ...(search ? { OR: [
+        { targetId: { contains: search, mode: "insensitive" } },
+        { requestId: { contains: search, mode: "insensitive" } },
+        { path: { contains: search, mode: "insensitive" } },
+        { action: { contains: search, mode: "insensitive" } },
+        { ipAddress: { contains: search, mode: "insensitive" } },
+      ] } : {}),
+      ...(query.module ? { module: { contains: query.module, mode: "insensitive" } } : {}),
+      ...(query.result ? { result: query.result } : {}),
     };
-    const [total, rows] = await prisma.$transaction([prisma.auditEvent.count({ where }), prisma.auditEvent.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page-1)*pageSize, take: pageSize })]);
-    const ids = [...new Set(rows.map(x => x.actorId).filter((x): x is string => Boolean(x)))];
+    const [total, rows] = await prisma.$transaction([
+      prisma.adminHttpRequestLog.count({ where }),
+      prisma.adminHttpRequestLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page-1)*pageSize, take: pageSize }),
+    ]);
+    const ids = [...new Set(rows.map(x => x.adminUserId).filter((x): x is string => Boolean(x)))];
     const admins = ids.length ? await prisma.adminUser.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }) : [];
     const names = new Map(admins.map(x => [x.id, x.name || x.email]));
-    return { page, pageSize, total, items: rows.map(x => ({ id: x.id, createdAt: x.createdAt.toISOString(), actor: x.actorId ? names.get(x.actorId) ?? "Administrator" : "System", actorId: x.actorId, module: x.targetType, action: x.action, targetId: x.targetId, result: x.action.includes("FAILED") ? "FAILED" : "SUCCESS", metadata: x.metadata })) };
+    return { page, pageSize, total, items: rows.map(x => ({
+      id: x.id, requestId: x.requestId, createdAt: x.createdAt.toISOString(),
+      actor: x.adminUserId ? names.get(x.adminUserId) ?? "Administrator" : "未识别管理员",
+      actorId: x.adminUserId, module: x.module, action: x.action, targetId: x.targetId,
+      result: x.result, statusCode: x.statusCode, ipAddress: x.ipAddress,
+      userAgent: x.userAgent, durationMs: x.durationMs, errorCode: x.errorCode, metadata: x.requestData,
+    })) };
   }
   async auditLogDetail(id: string) {
-    const row = await prisma.auditEvent.findUnique({ where: { id } });
+    const row = await prisma.adminHttpRequestLog.findUnique({ where: { id } });
     if (!row) throw new NotFoundException("审计记录不存在");
-    const admin = row.actorId ? await prisma.adminUser.findUnique({ where: { id: row.actorId }, select: { name: true, email: true } }) : null;
-    return { id: row.id, createdAt: row.createdAt.toISOString(), actor: admin?.name ?? admin?.email ?? "System", module: row.targetType, action: row.action, targetId: row.targetId, result: row.action.includes("FAILED") ? "FAILED" : "SUCCESS", requestData: row.metadata ?? {}, processingResult: { status: row.action.includes("FAILED") ? "FAILED" : "SUCCESS" }, relatedRecords: { entityType: row.targetType, entityId: row.targetId } };
+    const admin = row.adminUserId ? await prisma.adminUser.findUnique({ where: { id: row.adminUserId }, select: { name: true, email: true } }) : null;
+    return {
+      id: row.id, requestId: row.requestId, createdAt: row.createdAt.toISOString(),
+      actor: admin?.name ?? admin?.email ?? "未识别管理员", module: row.module,
+      action: row.action, targetId: row.targetId, result: row.result,
+      ipAddress: row.ipAddress, userAgent: row.userAgent, statusCode: row.statusCode,
+      errorCode: row.errorCode, durationMs: row.durationMs,
+      requestData: row.requestData ?? {}, processingResult: row.responseData ?? {},
+      relatedRecords: { entityType: row.module, entityId: row.targetId },
+    };
   }
 }
