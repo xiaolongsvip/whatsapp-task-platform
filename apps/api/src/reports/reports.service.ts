@@ -30,6 +30,14 @@ function change(current: number, previous: number) {
 function moneyRows(rows: Array<{ currency: string; _sum: { amountMinor: bigint | null } }>) {
   return rows.map(row => ({ currency: row.currency.trim(), amountMinor: (row._sum.amountMinor ?? 0n).toString() }));
 }
+function moneyChanges(current: Array<{ currency: string; _sum: { amountMinor: bigint | null } }>, previous: Array<{ currency: string; _sum: { amountMinor: bigint | null } }>) {
+  const currencies = new Set([...current, ...previous].map(row => row.currency.trim()));
+  return [...currencies].sort().map(currency => {
+    const now = current.find(row => row.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+    const before = previous.find(row => row.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+    return { currency, change: change(Number(now), Number(before)) };
+  });
+}
 const submissionStatus = (value?: string) => {
   if (!value || value === "ALL") return undefined;
   if (["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"].includes(value)) return value as "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
@@ -62,7 +70,7 @@ export class ReportsService {
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: previous.from, lte: previous.to } }, _sum: { amountMinor: true } }),
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: paidWhere(range), _sum: { amountMinor: true } }),
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: paidWhere(previous), _sum: { amountMinor: true } }),
-      prisma.taskSubmission.groupBy({ by: ["status"], where: { submittedAt: { gte: range.from, lte: range.to } }, _count: { _all: true } }),
+      prisma.taskSubmission.groupBy({ by: ["status"], where: submissionWhere(range), _count: { _all: true } }),
       prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, submitted_at), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_submissions WHERE submitted_at >= ${range.from} AND submitted_at <= ${range.to} AND (${status ?? null}::text IS NULL OR status::text = ${status ?? null}) GROUP BY 1, 2 ORDER BY 1`,
       prisma.$queryRaw<ReviewTrendRow[]>`SELECT to_char(date_trunc(${period}, reviewed_at), 'YYYY-MM-DD') AS period, decision::text AS decision, COUNT(*)::int AS count FROM task_reviews WHERE reviewed_at >= ${range.from} AND reviewed_at <= ${range.to} GROUP BY 1, 2 ORDER BY 1`,
     ]);
@@ -104,8 +112,8 @@ export class ReportsService {
         approved: { value: approved, change: change(approved, previousApproved) },
         rejected: { value: rejected, change: change(rejected, previousRejected) },
         activeUsers: { value: activeUsers.length, change: change(activeUsers.length, previousActiveUsers.length) },
-        withdrawalApplications: { amounts: moneyRows(withdrawalApplications), change: null },
-        actualPayout: { amounts: moneyRows(actualPayout), change: null },
+        withdrawalApplications: { amounts: moneyRows(withdrawalApplications), changes: moneyChanges(withdrawalApplications, previousWithdrawalApplications) },
+        actualPayout: { amounts: moneyRows(actualPayout), changes: moneyChanges(actualPayout, previousActualPayout) },
       },
       reviewDistribution: {
         total: totalSubmissions,
