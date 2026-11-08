@@ -33,7 +33,9 @@ function encrypt(value: string) {
 }
 
 @Injectable()
-export class PayoutAccountsService {\n  constructor(private readonly emailVerification: EmailVerificationService) {}\n
+export class PayoutAccountsService {
+  constructor(private readonly emailVerification: EmailVerificationService) {}
+
   async list(userId: string) {
     const rows = await prisma.payoutAccount.findMany({
       where: { userId, status: "ACTIVE" },
@@ -48,6 +50,7 @@ export class PayoutAccountsService {\n  constructor(private readonly emailVerifi
   }
 
   async create(userId: string, input: PayoutAccountInput) {
+    await this.emailVerification.requireVerified(userId);
     const countryCode = input.countryCode.trim().toUpperCase();
     const currency = input.currency.trim().toUpperCase();
     const providerCode = input.providerCode.trim().toLowerCase();
@@ -96,6 +99,7 @@ export class PayoutAccountsService {\n  constructor(private readonly emailVerifi
   }
 
   async remove(userId: string, accountId: string) {
+    await this.emailVerification.requireVerified(userId);
     return prisma.$transaction(async (tx) => {
       const account = await tx.payoutAccount.findFirst({
         where: { id: accountId, userId, status: "ACTIVE" },
