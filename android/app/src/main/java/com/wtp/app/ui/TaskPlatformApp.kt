@@ -137,6 +137,7 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
 @Composable
 private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, language: String, onInvite: () -> Unit, onPayoutAccounts: () -> Unit, onAccountSecurity: () -> Unit, onPermissions: () -> Unit, onLogout: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val en = language == "en"
     var user by remember { mutableStateOf<JSONObject?>(null) }
     var dashboard by remember { mutableStateOf<JSONObject?>(null) }
@@ -246,7 +247,7 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
                 TextButton(onClick = {
                     updateLoading = true
                     updateError = null
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    scope.launch {
                         runCatching { withContext(Dispatchers.IO) { AuthRepository.publicAppUpdate() } }
                             .onSuccess { updateInfo = it }
                             .onFailure { updateError = it.message ?: "检查更新失败" }
