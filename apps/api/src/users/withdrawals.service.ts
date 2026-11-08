@@ -22,7 +22,7 @@ export class WithdrawalsService {
         return await prisma.$transaction(async (tx) => {
           const account = await tx.payoutAccount.findFirst({
             where: { id: payoutAccountId, userId, status: "ACTIVE" },
-            select: { id: true, currency: true },
+            select: { id: true, currency: true, countryCode: true, methodCode: true, providerCode: true },
           });
           if (!account) {
             throw new BadRequestException("Select an active payout account belonging to your account.");
