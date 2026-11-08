@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Request } from "express";
+import { createHash } from "node:crypto";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { SystemSettingsService } from "./system-settings.service";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
@@ -32,7 +33,8 @@ export class SystemSettingsController {
     const key = "app-updates/" + Date.now() + "-" + file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     await this.objectStorage.putObject(key, file.buffer, "application/vnd.android.package-archive");
     const downloadUrl = base + "/" + key;
-    return this.settings.registerApkUpload({ fileName: file.originalname, size: file.size, downloadUrl, objectKey: key }, a.id);
+    const sha256 = createHash("sha256").update(file.buffer).digest("hex");
+    return this.settings.registerApkUpload({ fileName: file.originalname, size: file.size, downloadUrl, objectKey: key, sha256 }, a.id);
   }
   @Post("version/:versionCode/publish")
   async publishVersion(@Req() req: Request, @Param("versionCode") versionCode: string) { const a = await this.admin(req); return this.settings.versionAction(Number(versionCode), "PUBLISH", a.id); }
