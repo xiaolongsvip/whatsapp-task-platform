@@ -302,6 +302,65 @@ ${taskRequirements}
         }],
         skipDuplicates: true,
       });
+      // AI approvals must apply the same referral commission rules as
+      // manual approvals; otherwise users receive different settlement
+      // outcomes depending on which reviewer handled the submission.
+      const commissionRow = await tx.taskConfiguration.findUnique({
+        where: { key: "referral-commission" },
+        select: { value: true },
+      });
+      const commissionConfig = commissionRow?.value && typeof commissionRow.value === "object" && !Array.isArray(commissionRow.value)
+        ? commissionRow.value as Record<string, unknown>
+        : {};
+      const commissionEnabled = commissionConfig.enabled !== false;
+      if (commissionEnabled && claim.task.rewardMinor > 0n) {
+        const ancestors = await tx.referralAncestor.findMany({
+          where: { descendantUserId: claim.userId, depth: { in: [1, 2, 3] }, ancestor: { status: "ACTIVE" } },
+          select: { ancestorUserId: true, depth: true },
+          orderBy: { depth: "asc" },
+        });
+        const rates = new Map<number, number>([
+          [1, Number(commissionConfig.level1 ?? 60)],
+          [2, Number(commissionConfig.level2 ?? 25)],
+          [3, Number(commissionConfig.level3 ?? 15)],
+        ]);
+        for (const ancestor of ancestors) {
+          const rate = rates.get(ancestor.depth) ?? 0;
+          if (!Number.isFinite(rate) || rate <= 0 || rate > 100) continue;
+          const basisPoints = BigInt(Math.round(rate * 100));
+          const commissionMinor = (claim.task.rewardMinor * basisPoints) / 10000n;
+          if (commissionMinor <= 0n) continue;
+          const idempotencyKey = `referral-commission:${claim.id}:L${ancestor.depth}:${ancestor.ancestorUserId}`;
+          await tx.referralReward.create({
+            data: {
+              beneficiaryId: ancestor.ancestorUserId,
+              sourceUserId: claim.userId,
+              sourceEventId: claim.id,
+              depth: ancestor.depth,
+              amountMinor: commissionMinor,
+              currency: claim.task.currency,
+              idempotencyKey,
+            },
+          });
+          const commissionWallet = await tx.wallet.upsert({
+            where: { userId_currency: { userId: ancestor.ancestorUserId, currency: claim.task.currency } },
+            create: { userId: ancestor.ancestorUserId, currency: claim.task.currency },
+            update: {},
+          });
+          await tx.ledgerEntry.create({
+            data: {
+              walletId: commissionWallet.id,
+              sourceType: "REFERRAL_COMMISSION",
+              sourceId: claim.id,
+              direction: "CREDIT",
+              amountMinor: commissionMinor,
+              currency: claim.task.currency,
+              idempotencyKey,
+            },
+          });
+        }
+      }
+
       await tx.taskReview.create({
         data: {
           submissionId: submission.id,
