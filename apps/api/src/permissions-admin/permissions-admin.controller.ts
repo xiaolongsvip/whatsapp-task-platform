@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { PermissionsAdminService } from "./permissions-admin.service";
@@ -11,7 +11,7 @@ export class PermissionsAdminController {
   @Get("roles") async roles(@Req() req:Request,@Query("search") search?:string,@Query("status") status?:string){const a=await this.auth.getCurrentAdmin(token(req));return this.service.roles(a.id,search,status);}
   @Post("roles") async createRole(@Req() req:Request,@Body() body:{name:string;description?:string;status?:string;permissionKeys?:string[]}){const a=await this.auth.getCurrentAdmin(token(req));return this.service.createRole(a.id,body);}
   @Patch("roles/:id") async updateRole(@Req() req:Request,@Param("id") id:string,@Body() body:{name?:string;description?:string;status?:string;permissionKeys?:string[]}){const a=await this.auth.getCurrentAdmin(token(req));return this.service.updateRole(a.id,id,body);}
-  @Get("admins") async admins(@Req() req:Request,@Query("search") search?:string,@Query("status") status?:string){const a=await this.auth.getCurrentAdmin(token(req));return this.service.admins(a.id,search,status);}
+  @Delete("roles/:id") async deleteRole(@Req() req:Request,@Param("id") id:string){const a=await this.auth.getCurrentAdmin(token(req));return this.service.deleteRole(a.id,id);}\n  @Get("admins") async admins(@Req() req:Request,@Query("search") search?:string,@Query("status") status?:string){const a=await this.auth.getCurrentAdmin(token(req));return this.service.admins(a.id,search,status);}
   @Post("admins") async createAdmin(@Req() req:Request,@Body() body:{name:string;email:string;login:string;phone?:string;password:string;roleIds:string[]}){const a=await this.auth.getCurrentAdmin(token(req));return this.service.createAdmin(a.id,body);}
   @Patch("admins/:id") async updateAdmin(@Req() req:Request,@Param("id") id:string,@Body() body:{name?:string;login?:string;phone?:string;status?:string}){const a=await this.auth.getCurrentAdmin(token(req));return this.service.updateAdmin(a.id,id,body);}
   @Patch("admins/:id/roles") async assignRoles(@Req() req:Request,@Param("id") id:string,@Body() body:{roleIds:string[]}){const a=await this.auth.getCurrentAdmin(token(req));return this.service.assignRoles(a.id,id,body.roleIds);}
