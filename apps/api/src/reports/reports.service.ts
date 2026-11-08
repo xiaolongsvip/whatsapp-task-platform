@@ -28,8 +28,8 @@ function rangeOf(query: Record<string, string | undefined>): Range {
   const toOffset = offsetOf(query.toOffset);
   const fromDate = query.from ? new Date(query.from + "T00:00:00.000Z") : defaultFrom;
   const toDate = query.to ? new Date(query.to + "T00:00:00.000Z") : defaultTo;
-  const from = new Date(fromDate.getTime() - fromOffset * 60000);
-  const to = new Date(toDate.getTime() - toOffset * 60000 + DAY - 1);
+  const from = new Date(fromDate.getTime() + fromOffset * 60000);
+  const to = new Date(toDate.getTime() + toOffset * 60000 + DAY - 1);
   if (from > to) throw new BadRequestException("开始日期不能晚于结束日期");
   const days = Math.ceil((to.getTime() - from.getTime() + 1) / DAY);
   if (days > 366) throw new BadRequestException("报表日期范围不能超过 366 天");
