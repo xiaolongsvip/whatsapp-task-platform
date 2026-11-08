@@ -28,9 +28,14 @@ export class AdminPermissionGuard implements CanActivate {
 
     const admin = await this.auth.getCurrentAdmin(readAdminToken(request));
 
-    // Initial bootstrap: the first administrator receives the system role when
-    // the permissions catalog is opened for the first time.
-    if ((await prisma.adminUserRole.count()) === 0) return true;
+    // Initial bootstrap: allow a single active administrator to reach the
+    // dashboard before the first visit to the permissions catalog. If multiple
+    // admins exist, require the first admin to initialize roles through that page.
+    if ((await prisma.adminUserRole.count()) === 0) {
+      const activeAdmins = await prisma.adminUser.count({ where: { status: "ACTIVE" } });
+      if (activeAdmins === 1) return true;
+      throw new ForbiddenException("权限尚未初始化，请先由首位管理员进入权限管理完成初始化。");
+    }
 
     const permission = this.permissionFor(request.method.toUpperCase(), path);
     if (!permission) {
