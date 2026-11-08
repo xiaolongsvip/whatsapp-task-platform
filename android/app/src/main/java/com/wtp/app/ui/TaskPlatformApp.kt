@@ -931,6 +931,7 @@ private fun WalletScreen(
     var loading by remember { mutableStateOf(true) }
     var balanceVisible by rememberSaveable { mutableStateOf(true) }
     var languageMenuOpen by remember { mutableStateOf(false) }
+    var supportDialogOpen by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(refresh) {
@@ -970,7 +971,7 @@ private fun WalletScreen(
             }
             Text(if (en) "Wallet" else "钱包", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { }) { Icon(Icons.Default.HeadsetMic, contentDescription = if (en) "Support" else "客服", tint = Color(0xFF667085)) }
+                IconButton(onClick = { supportDialogOpen = true }) { Icon(Icons.Default.HeadsetMic, contentDescription = if (en) "Support" else "客服", tint = Color(0xFF667085)) }
                 Box {
                     IconButton(onClick = { languageMenuOpen = true }) { Icon(Icons.Default.Language, contentDescription = if (en) "Language" else "语言", tint = Color(0xFF667085)) }
                     DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
@@ -1084,6 +1085,12 @@ private fun WalletScreen(
             }
         }
     }
+    if (supportDialogOpen) AlertDialog(
+        onDismissRequest = { supportDialogOpen = false },
+        title = { Text(if (en) "Customer support" else "联系客服") },
+        text = { Text(if (en) "Support contact has not been configured. Please contact the platform administrator." else "客服联系方式尚未配置，请联系平台管理员。") },
+        confirmButton = { TextButton(onClick = { supportDialogOpen = false }) { Text(if (en) "OK" else "知道了") } }
+    )
 }
 
 @Composable
