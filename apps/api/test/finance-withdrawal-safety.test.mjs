@@ -70,6 +70,13 @@ test("AI task approval applies the same referral commission settlement as manual
   assert.match(worker, /referral-commission:\$\{claim\.id\}/);
 });
 
+test("APP version publishing rejects a verified APK whose version code is not newer than the live release", () => {
+  const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
+  assert.match(settings, /const publishedCode = Number\([\s\S]*?status === "PUBLISHED"[\s\S]*?current\.currentVersion/);
+  assert.match(settings, /Number\(release\.versionCode\) <= publishedCode/);
+  assert.match(settings, /不能发布低于或等于当前线上版本代码的 APK/);
+});
+
 test("APK upload validates ZIP directory and Android manifest before marking a release verified", () => {
   const controller = readFileSync(new URL("../src/system-settings/system-settings.controller.ts", import.meta.url), "utf8");
   assert.match(controller, /function isApkArchive\(buffer: Buffer\)/);
