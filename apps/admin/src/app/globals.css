@@ -918,3 +918,9 @@ body { margin: 0; }
 .editor-toolbar{display:flex;flex-wrap:wrap;gap:5px;padding:8px;border:1px solid #e2e8f0;border-bottom:0;border-radius:8px 8px 0 0;background:#f8fafc}
 .editor-toolbar button{border:1px solid #dbe3ee;background:#fff;border-radius:5px;padding:6px 9px;color:#334155;font-size:11px;cursor:pointer}
 .article-editor-field .article-editor{border-radius:0 0 8px 8px;margin-top:-8px;min-height:320px}
+
+
+.download-address-row{display:flex;align-items:flex-end;gap:8px}
+.download-address-row label{flex:1}
+.download-address-row .secondary-btn{margin-bottom:0;white-space:nowrap}
+@media(max-width:640px){.download-address-row{align-items:stretch;flex-direction:column}.download-address-row .secondary-btn{align-self:flex-start}}
