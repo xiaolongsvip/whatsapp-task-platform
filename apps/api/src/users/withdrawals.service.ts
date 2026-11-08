@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { prisma } from "@wtp/database";
+import { EmailVerificationService } from "./email-verification.service";
 
 const RESERVED_STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
 
