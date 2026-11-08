@@ -141,11 +141,16 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
     var user by remember { mutableStateOf<JSONObject?>(null) }
     var dashboard by remember { mutableStateOf<JSONObject?>(null) }
     var dialog by remember { mutableStateOf("") }
+    var updateInfo by remember { mutableStateOf<JSONObject?>(null) }
+    var updateLoading by remember { mutableStateOf(false) }
+    var updateError by remember { mutableStateOf<String?>(null) }
+    val currentVersion = com.wtp.app.BuildConfig.VERSION_NAME
     val overlay = Settings.canDrawOverlays(context)
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             user = runCatching { AuthRepository.currentUser() }.getOrNull()
             dashboard = runCatching { AuthRepository.dashboard() }.getOrNull()
+            updateInfo = runCatching { AuthRepository.publicAppUpdate() }.getOrNull()
         }
     }
     val availableBalance = formatAvailableBalances(dashboard?.optJSONArray("balances"))
@@ -199,14 +204,58 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
                 Text(if (en) "More services" else "更多服务", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17243A))
                 ProfileMenuRow(Icons.Default.SupportAgent, if (en) "Customer support" else "联系客服", if (en) "Online support" else "在线支持", { dialog = "support" })
                 ProfileMenuRow(Icons.Default.MenuBook, if (en) "Task tutorial" else "任务使用教程", if (en) "Task rules and instructions" else "了解任务规则、流程与注意事项", { dialog = "tutorial" })
-                ProfileMenuRow(Icons.Default.SystemUpdate, if (en) "Check for updates" else "检查更新", if (en) "Current version 1.4.5" else "当前版本 1.4.5", { dialog = "update" }, showDivider = false)
+                ProfileMenuRow(Icons.Default.SystemUpdate, if (en) "Check for updates" else "检查更新", if (en) "Current version $currentVersion" else "当前版本 $currentVersion", { dialog = "update" }, showDivider = false)
             }
         }
         Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onLogout), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) { Box(Modifier.fillMaxWidth().padding(vertical = 17.dp), contentAlignment = Alignment.Center) { Text(if (en) "Log out" else "退出登录", color = Color(0xFFE53935), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) } }
-        Text(if (en) "Version 1.4.5" else "版本 1.4.5", modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
+        Text(if (en) "Version $currentVersion" else "版本 $currentVersion", modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF718096), style = MaterialTheme.typography.bodySmall)
     }
     val title = when (dialog) { "support" -> if (en) "Customer support" else "联系客服"; "security" -> if (en) "Account security" else "账号与安全"; "tutorial" -> if (en) "Task tutorial" else "任务使用教程"; else -> if (en) "Check for updates" else "检查更新" }
-    if (dialog.isNotEmpty()) AlertDialog(onDismissRequest = { dialog = "" }, title = { Text(title) }, text = { Text(when (dialog) { "support" -> if (en) "Please contact platform support." else "如需帮助，请联系平台客服。"; "security" -> if (en) "Account security settings will be available in a later release." else "账号安全设置功能将在后续版本接入。"; "tutorial" -> if (en) "Follow task instructions and submit valid evidence." else "请按照任务说明完成操作，并提交真实有效的任务凭证供平台审核。"; else -> if (en) "Current version: 1.4.5" else "当前已是版本 1.4.5。" }) }, confirmButton = { TextButton(onClick = { dialog = "" }) { Text(if (en) "OK" else "知道了") } })
+    if (dialog == "update") {
+        AlertDialog(
+            onDismissRequest = { if (updateInfo?.optBoolean("forceUpdate") != true) dialog = "" },
+            title = { Text(if (en) "App update" else "版本更新") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text((if (en) "Current version: " else "当前版本：") + currentVersion)
+                    Text((if (en) "Latest version: " else "最新版本：") + (updateInfo?.optString("latestVersion")?.takeIf { !it.isNullOrBlank() && it != "null" } ?: "—"))
+                    val notes = updateInfo?.optString("releaseNotes").orEmpty()
+                    if (notes.isNotBlank()) Text(notes)
+                    when {
+                        updateLoading -> Text(if (en) "Checking for updates…" else "正在检查更新…")
+                        updateError != null -> Text(updateError!!)
+                        updateInfo == null -> Text(if (en) "Update information is unavailable." else "暂时无法获取版本信息。")
+                        updateInfo?.optString("latestVersion") == currentVersion -> Text(if (en) "You are using the latest version." else "当前已是最新版本。")
+                        else -> Text(if (en) "A new version is available." else "发现新版本，可以更新。")
+                    }
+                }
+            },
+            confirmButton = {
+                val downloadUrl = updateInfo?.optString("downloadUrl").orEmpty()
+                val hasUpdate = !downloadUrl.isNullOrBlank() && downloadUrl != "null" && updateInfo?.optString("latestVersion") != currentVersion
+                TextButton(onClick = {
+                    if (hasUpdate) runCatching {
+                        val uri = android.net.Uri.parse(downloadUrl)
+                        require(uri.scheme == "https")
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                    }.onFailure { updateError = it.message ?: "无法打开下载地址" }
+                    else dialog = ""
+                }) { Text(if (hasUpdate) { if (en) "Download update" else "下载更新" } else { if (en) "OK" else "知道了" }) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    updateLoading = true
+                    updateError = null
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        runCatching { withContext(Dispatchers.IO) { AuthRepository.publicAppUpdate() } }
+                            .onSuccess { updateInfo = it }
+                            .onFailure { updateError = it.message ?: "检查更新失败" }
+                        updateLoading = false
+                    }
+                }) { Text(if (en) "Check again" else "重新检查") }
+            }
+        )
+    } else if (dialog.isNotEmpty()) AlertDialog(onDismissRequest = { dialog = "" }, title = { Text(title) }, text = { Text(when (dialog) { "support" -> if (en) "Please contact platform support." else "如需帮助，请联系平台客服。"; "security" -> if (en) "Account security settings will be available in a later release." else "账号安全设置功能将在后续版本接入。"; "tutorial" -> if (en) "Follow task instructions and submit valid evidence." else "请按照任务说明完成操作，并提交真实有效的任务凭证供平台审核。"; else -> "" }) }, confirmButton = { TextButton(onClick = { dialog = "" }) { Text(if (en) "OK" else "知道了") } })
 }
 
 @Composable
