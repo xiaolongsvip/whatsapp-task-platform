@@ -60,7 +60,10 @@ export class EmailVerificationService {
     if (!challenge) throw new BadRequestException("验证码不存在或已过期，请重新获取。");
     const supplied = Buffer.from(digest(userId, email, code), "hex");
     const expected = Buffer.from(challenge.codeHash, "hex");
-    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {\n      await prisma.emailVerificationChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });\n      throw new BadRequestException("邮箱验证码不正确；最多允许尝试 5 次。");\n    }
+    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
+      await prisma.emailVerificationChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+      throw new BadRequestException("邮箱验证码不正确；最多允许尝试 5 次。");
+    }
     const verifiedAt = new Date();
     await prisma.$transaction(async tx => {
       await tx.emailVerificationChallenge.update({ where: { id: challenge.id }, data: { consumedAt: verifiedAt } });
