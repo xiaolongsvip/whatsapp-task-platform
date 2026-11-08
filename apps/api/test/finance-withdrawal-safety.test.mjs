@@ -70,6 +70,12 @@ test("AI task approval applies the same referral commission settlement as manual
   assert.match(worker, /referral-commission:\$\{claim\.id\}/);
 });
 
+test("help asset uploads use collision-resistant object keys", () => {
+  const controller = readFileSync(new URL("../src/system-settings/system-settings.controller.ts", import.meta.url), "utf8");
+  assert.match(controller, /const key = "help-assets\/" \+ randomUUID\(\) \+ "-" \+ safeName/);
+  assert.doesNotMatch(controller, /const key = "help-assets\/" \+ Date\.now\(\)/);
+});
+
 test("admin APP version page immediately adds a successfully uploaded APK to release history", () => {
   const page = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
   assert.match(page, /releases:\[v,\.\.\.\(Array\.isArray\(x\.releases\)\?x\.releases\.filter/);
