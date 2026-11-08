@@ -4,7 +4,11 @@ import { randomUUID } from "node:crypto";
 
 type JsonRecord = Record<string, unknown>;
 const DEFAULT_ACCOUNT_SECURITY = { businessEmailVerification: false };
-const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versionCode: 146, updateType: "MAJOR", downloadUrl: "https://download.ee6868.com/appupdate/146/apprel_ac4add1c184e4efa9e0210f94ae7f152.apk", releaseNotes: "", releases: [] as JsonRecord[] };
+const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versionCode: 146, updateType: "MAJOR", downloadUrl: "https://download.ee6868.com/appupdate/146/apprel_ac4add1c184e4efa9e0210f94ae7f152.apk", releaseNotes: "", releases: [
+  { version: "1.4.6", versionCode: 146, fileName: "EasyEarn-1.4.6-146-release.apk", size: "20.7 MB", status: "PUBLISHED", updateType: "MAJOR", downloadUrl: "https://download.ee6868.com/appupdate/146/apprel_ac4add1c184e4efa9e0210f94ae7f152.apk", uploadedAt: "2026-11-06T10:37:00.000Z", verifiedAt: "2026-11-06T10:38:00.000Z", publishedAt: "2026-11-06T10:38:00.000Z" },
+  { version: "1.4.5", versionCode: 145, fileName: "EasyEarn-1.4.5-145-release.apk", size: "20.6 MB", status: "REVOKED", updateType: "MAJOR", uploadedAt: "2026-11-03T11:18:00.000Z", verifiedAt: "2026-11-03T11:18:00.000Z", publishedAt: "2026-11-03T11:18:00.000Z" },
+  { version: "1.4.4", versionCode: 144, fileName: "EasyEarn-1.4.4-144-release.apk", size: "20.6 MB", status: "REVOKED", updateType: "MAJOR", uploadedAt: "2026-11-03T06:39:00.000Z", verifiedAt: "2026-11-03T06:40:00.000Z", publishedAt: "2026-11-03T06:40:00.000Z" },
+] as JsonRecord[] };
 const DEFAULT_RISK = { singleDeviceSingleAccount: false, crossAccountScreenshotSimilarity: false, userRiskManualReview: false, manualReviewThreshold: 70 };
 const DEFAULT_RULES: JsonRecord[] = [];
 const DEFAULT_ARTICLES: JsonRecord[] = [];
