@@ -15,6 +15,16 @@ export class UserDeviceService {
     const manufacturer = body.manufacturer?.trim().slice(0, 80) || null;
     const androidVersion = body.androidVersion?.trim().slice(0, 40) || null;
     const sdkInt = Number.isInteger(body.sdkInt) ? body.sdkInt : null;
+    const riskConfigRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.riskSettings" }, select: { value: true } });
+    const riskConfig = riskConfigRow?.value && typeof riskConfigRow.value === "object" && !Array.isArray(riskConfigRow.value)
+      ? riskConfigRow.value as Record<string, unknown> : {};
+    if (riskConfig.singleDeviceSingleAccount === true) {
+      const linkedToAnotherAccount = await prisma.userDevice.findFirst({
+        where: { deviceIdentifier, userId: { not: userId }, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (linkedToAnotherAccount) throw new ForbiddenException("此设备已绑定其他账号，当前风控设置不允许同一设备绑定多个账号。");
+    }
     const blockedDevice = await prisma.userDevice.findFirst({ where: { deviceIdentifier, status: "BLOCKED" }, select: { id: true } });
     if (blockedDevice) throw new ForbiddenException("此设备已被管理员限制，请联系平台客服。");
     const existing = await prisma.userDevice.findUnique({ where: { userId_deviceIdentifier: { userId, deviceIdentifier } } });
