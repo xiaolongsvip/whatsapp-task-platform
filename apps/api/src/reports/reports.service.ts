@@ -83,8 +83,8 @@ export class ReportsService {
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: previous.from, lte: previous.to } }, _sum: { amountMinor: true } }),
       prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(range), _sum: { amountMinor: true } }),
       prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(previous), _sum: { amountMinor: true } }),
-      prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, submitted_at + (${-offsetOf(query.fromOffset)} * interval '1 minute')), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_submissions WHERE submitted_at >= ${range.from} AND submitted_at <= ${range.to} AND (${status}::text IS NULL OR status::text = ${status}) GROUP BY 1, 2 ORDER BY 1`,
-      prisma.$queryRaw<CountryTaskRow[]>`SELECT COALESCE(NULLIF(BTRIM(cn.country_code), ''), 'UNSPECIFIED') AS country, COUNT(DISTINCT ts.id)::int AS "taskCount", COUNT(DISTINCT ts.id) FILTER (WHERE ts.status::text = 'APPROVED')::int AS "approvedCount", COUNT(DISTINCT ts.id) FILTER (WHERE ts.status::text = 'REJECTED')::int AS "rejectedCount" FROM task_submissions ts JOIN task_claims tc ON tc.id = ts.claim_id LEFT JOIN contact_assignments ca ON ca.claim_id = tc.id LEFT JOIN contact_numbers cn ON cn.id = ca.contact_number_id WHERE ts.submitted_at >= ${range.from} AND ts.submitted_at <= ${range.to} AND (${status}::text IS NULL OR ts.status::text = ${status}) GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, submitted_at + (${-offsetOf(query.fromOffset)} * interval '1 minute')), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_submissions WHERE submitted_at >= ${range.from} AND submitted_at <= ${range.to} AND (${status ?? null}::text IS NULL OR status::text = ${status ?? null}) GROUP BY 1, 2 ORDER BY 1`,
+      prisma.$queryRaw<CountryTaskRow[]>`SELECT COALESCE(NULLIF(BTRIM(cn.country_code), ''), 'UNSPECIFIED') AS country, COUNT(DISTINCT ts.id)::int AS "taskCount", COUNT(DISTINCT ts.id) FILTER (WHERE ts.status::text = 'APPROVED')::int AS "approvedCount", COUNT(DISTINCT ts.id) FILTER (WHERE ts.status::text = 'REJECTED')::int AS "rejectedCount" FROM task_submissions ts JOIN task_claims tc ON tc.id = ts.claim_id LEFT JOIN contact_assignments ca ON ca.claim_id = tc.id LEFT JOIN contact_numbers cn ON cn.id = ca.contact_number_id WHERE ts.submitted_at >= ${range.from} AND ts.submitted_at <= ${range.to} AND (${status ?? null}::text IS NULL OR ts.status::text = ${status ?? null}) GROUP BY 1 ORDER BY 1`,
       prisma.$queryRaw<CountryPaidRow[]>`SELECT COALESCE(NULLIF(BTRIM(pa.country_code), ''), 'UNSPECIFIED') AS country, pt.currency, SUM(pt.amount_minor)::text AS "amountMinor" FROM payment_transactions pt LEFT JOIN withdrawal_requests wr ON wr.id = pt.withdrawal_request_id LEFT JOIN payout_accounts pa ON pa.id = wr.payout_account_id WHERE pt.flow::text = 'PAYOUT' AND pt.status::text = 'SUCCEEDED' AND pt.updated_at >= ${range.from} AND pt.updated_at <= ${range.to} GROUP BY 1, pt.currency ORDER BY 1, pt.currency`,
     ]);
 
@@ -102,7 +102,9 @@ export class ReportsService {
     const finance = [...currencySet].sort().map(currency => {
       const requested = withdrawalApplications.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
       const paid = actualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
-      return { currency, requestedMinor: requested.toString(), paidMinor: paid.toString(), estimatedDifferenceMinor: (requested - paid).toString() };
+      const previousRequested = previousWithdrawalApplications.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      const previousPaid = previousActualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      return { currency, requestedMinor: requested.toString(), paidMinor: paid.toString(), estimatedDifferenceMinor: (requested - paid).toString(), requestedChange: change(Number(requested), Number(previousRequested)), paidChange: change(Number(paid), Number(previousPaid)) };
     });
     const countStatus = (rows: typeof distribution, key: string) => rows.find(x => x.status === key)?._count._all ?? 0;
     const dist = (key: string) => countStatus(distribution, key);
