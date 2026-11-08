@@ -71,20 +71,14 @@ export class ReportsService {
     const submissionWhere = (r: Range) => ({ submittedAt: { gte: r.from, lte: r.to }, ...(status ? { status } : {}) });
     const paidWhere = (r: Range) => ({ flow: "PAYOUT" as const, status: "SUCCEEDED" as const, updatedAt: { gte: r.from, lte: r.to } });
     const [
-      taskTotal, previousTaskTotal, approved, previousApproved, rejected, previousRejected,
-      activeUsers, previousActiveUsers, distribution,
+      activeUsers, previousActiveUsers, distribution, previousDistribution,
       withdrawalApplications, previousWithdrawalApplications, actualPayout, previousActualPayout,
       trendRows, countryTaskRows, countryPaidRows,
     ] = await Promise.all([
-      prisma.taskSubmission.count({ where: submissionWhere(range) }),
-      prisma.taskSubmission.count({ where: submissionWhere(previous) }),
-      prisma.taskSubmission.count({ where: { ...submissionWhere(range), status: "APPROVED" } }),
-      prisma.taskSubmission.count({ where: { ...submissionWhere(previous), status: "APPROVED" } }),
-      prisma.taskSubmission.count({ where: { ...submissionWhere(range), status: "REJECTED" } }),
-      prisma.taskSubmission.count({ where: { ...submissionWhere(previous), status: "REJECTED" } }),
       prisma.taskClaim.groupBy({ by: ["userId"], where: { submissions: { some: submissionWhere(range) } } }),
       prisma.taskClaim.groupBy({ by: ["userId"], where: { submissions: { some: submissionWhere(previous) } } }),
       prisma.taskSubmission.groupBy({ by: ["status"], where: submissionWhere(range), _count: { _all: true } }),
+      prisma.taskSubmission.groupBy({ by: ["status"], where: submissionWhere(previous), _count: { _all: true } }),
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: range.from, lte: range.to } }, _sum: { amountMinor: true } }),
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: previous.from, lte: previous.to } }, _sum: { amountMinor: true } }),
       prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(range), _sum: { amountMinor: true } }),
@@ -110,8 +104,14 @@ export class ReportsService {
       const paid = actualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
       return { currency, requestedMinor: requested.toString(), paidMinor: paid.toString(), estimatedDifferenceMinor: (requested - paid).toString() };
     });
-    const dist = (key: string) => distribution.find(x => x.status === key)?._count._all ?? 0;
+    const countStatus = (rows: typeof distribution, key: string) => rows.find(x => x.status === key)?._count._all ?? 0;
+    const dist = (key: string) => countStatus(distribution, key);
     const totalSubmissions = distribution.reduce((n, x) => n + x._count._all, 0);
+    const previousTotalSubmissions = previousDistribution.reduce((n, x) => n + x._count._all, 0);
+    const approved = dist("APPROVED");
+    const previousApproved = countStatus(previousDistribution, "APPROVED");
+    const rejected = dist("REJECTED");
+    const previousRejected = countStatus(previousDistribution, "REJECTED");
     const paidByCountry = new Map<string, Array<{ currency: string; amountMinor: string }>>();
     for (const row of countryPaidRows) {
       const values = paidByCountry.get(row.country) ?? [];
@@ -135,7 +135,7 @@ export class ReportsService {
       range: { from: range.from.toISOString(), to: range.to.toISOString() },
       filters: { status: status ?? "ALL", period },
       cards: {
-        taskTotal: { value: taskTotal, change: change(taskTotal, previousTaskTotal) },
+        taskTotal: { value: totalSubmissions, change: change(totalSubmissions, previousTotalSubmissions) },
         approved: { value: approved, change: change(approved, previousApproved) },
         rejected: { value: rejected, change: change(rejected, previousRejected) },
         activeUsers: { value: activeUsers.length, change: change(activeUsers.length, previousActiveUsers.length) },
