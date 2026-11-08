@@ -937,3 +937,5 @@ body { margin: 0; }
 .editor-upload-button{position:relative;display:inline-flex!important;flex-direction:row!important;align-items:center;gap:5px;padding:6px 9px;border:1px solid #dbe3ee;border-radius:5px;background:#fff;color:#334155;font-size:11px!important;cursor:pointer}
 .editor-upload-button input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .editor-upload-button input:disabled{cursor:wait}
+
+.revision-row{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #eef2f7}.revision-row small{color:#64748b;min-width:180px}.revision-row .text-link{font-size:11px}
