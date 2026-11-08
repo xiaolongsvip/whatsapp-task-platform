@@ -133,6 +133,12 @@ export class DashboardService {
     // will populate this from shared persistent storage in a later phase.
     const announcements: string[] = [];
 
+    const supportSetting = await prisma.taskConfiguration.findUnique({ where: { key: "system.appSupport" } });
+    const configuredSupportUrl = typeof supportSetting?.value === "object" && supportSetting.value !== null
+      ? String((supportSetting.value as Record<string, unknown>).supportUrl ?? "").trim()
+      : "";
+    const supportUrl = /^https:\/\//i.test(configuredSupportUrl) ? configuredSupportUrl : null;
+
     return {
       announcements,
       dailyTaskLimit,
