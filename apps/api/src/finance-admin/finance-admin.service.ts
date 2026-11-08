@@ -124,7 +124,8 @@ export class FinanceAdminService {
     const requestedProviderCode = typeof input.providerCode === "string" ? input.providerCode.trim() : "";
     if (outcome === "PAID" && (!reference || !requestedProviderCode)) throw new BadRequestException("确认付款必须填写服务商代码和付款凭证/流水号");
     if (outcome === "FAILED" && !note) throw new BadRequestException("登记付款失败必须填写失败原因");
-    return prisma.$transaction(async tx => {
+    try {
+      return await prisma.$transaction(async tx => {
       const withdrawal = await tx.withdrawalRequest.findUnique({
         where: { id },
         include: { wallet: { select: { userId: true } }, payoutAccount: { select: { providerCode: true } } },
@@ -145,6 +146,13 @@ export class FinanceAdminService {
         }
         const existing = await tx.paymentTransaction.findFirst({ where: { withdrawalRequestId: id, status: "SUCCEEDED" }, select: { id: true } });
         if (existing) throw new ConflictException("该提现单已经登记成功付款，不能重复入账");
+        const duplicateReference = await tx.paymentTransaction.findFirst({
+          where: { providerCode, providerReference: reference, flow: "PAYOUT" },
+          select: { id: true, withdrawalRequestId: true },
+        });
+        if (duplicateReference) {
+          throw new ConflictException("该服务商付款凭证已关联其他付款记录，请核对凭证号后再登记");
+        }
         const transaction = await tx.paymentTransaction.create({ data: {
           userId: withdrawal.wallet.userId, walletId: withdrawal.walletId, withdrawalRequestId: id,
           providerCode, flow: "PAYOUT", status: "SUCCEEDED", amountMinor: withdrawal.amountMinor,
@@ -181,7 +189,15 @@ export class FinanceAdminService {
         metadata: { fromStatus: withdrawal.status, toStatus: "FAILED", paymentTransactionId: transaction.id, failureReason: note, amountMinor: withdrawal.amountMinor.toString(), currency: withdrawal.currency.trim() },
       }});
       return { id, status: "FAILED", paymentTransactionId: transaction.id, balanceReservationReleased: true, manual: true };
-    }, { isolationLevel: "Serializable" });
+      }, { isolationLevel: "Serializable" });
+    } catch (error) {
+      const known = error as { code?: string; meta?: { target?: unknown } };
+      const target = Array.isArray(known?.meta?.target) ? known.meta.target.join(",") : String(known?.meta?.target ?? "");
+      if (known?.code === "P2002" && (target.includes("provider_reference") || target.includes("providerCode_providerReference"))) {
+        throw new ConflictException("该服务商付款凭证已被使用，不能重复登记");
+      }
+      throw error;
+    }
   }
 
   async wallets(query: { search?: string; currency?: string; page?: string; pageSize?: string }) {
