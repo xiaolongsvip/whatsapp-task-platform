@@ -6,6 +6,7 @@ CREATE TABLE "email_verification_challenges" (
   "user_id" UUID NOT NULL,
   "email" VARCHAR(254) NOT NULL,
   "code_hash" CHAR(64) NOT NULL,
+  "attempts" INTEGER NOT NULL DEFAULT 0,
   "expires_at" TIMESTAMP(3) NOT NULL,
   "consumed_at" TIMESTAMP(3),
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
