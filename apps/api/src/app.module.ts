@@ -16,6 +16,7 @@ import { AdminReferralsModule } from "./admin-referrals/admin-referrals.module";
 import { FinanceAdminModule } from "./finance-admin/finance-admin.module";
 import { ReportsModule } from "./reports/reports.module";
 import { PermissionsAdminModule } from "./permissions-admin/permissions-admin.module";
+import { AdminPermissionGuard } from "./permissions-admin/admin-permission.guard";
 
 @Module({
   imports: [
@@ -36,6 +37,9 @@ import { PermissionsAdminModule } from "./permissions-admin/permissions-admin.mo
     ReportsModule,
     PermissionsAdminModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AdminPermissionGuard },
+  ],
 })
 export class AppModule {}
