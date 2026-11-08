@@ -14,8 +14,8 @@ type Report = {
     approved: CardValue;
     rejected: CardValue;
     activeUsers: CardValue;
-    withdrawalApplications: { amounts: Amount[]; change: number | null };
-    actualPayout: { amounts: Amount[]; change: number | null };
+    withdrawalApplications: { amounts: Amount[]; changes: { currency: string; change: number | null }[] };
+    actualPayout: { amounts: Amount[]; changes: { currency: string; change: number | null }[] };
   };
   reviewDistribution: { total: number; approved: number; rejected: number; pending: number };
   finance: { currency: string; requestedMinor: string; paidMinor: string; estimatedDifferenceMinor: string }[];
@@ -37,6 +37,7 @@ async function api<T>(url: string): Promise<T> {
 function dateString(date: Date) { return date.toISOString().slice(0, 10); }
 function money(minor: string, currency: string) { return currency + " " + (Number(minor) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function amountLines(rows: Amount[]) { return rows.length ? rows.map(x => money(x.amountMinor, x.currency)) : ["—"]; }
+function amountChangeText(rows: { currency: string; change: number | null }[]) { return rows.length ? rows.map(x => x.currency + " " + (x.change === null ? "暂无对比" : (x.change > 0 ? "+" : "") + x.change.toFixed(1) + "%")).join(" / ") : "暂无可比较数据"; }
 function changeText(value: number | null) {
   if (value === null) return "较上一周期：暂无可比较数据";
   return "较上一周期 " + (value > 0 ? "+" : "") + value.toFixed(1) + "%";
@@ -111,8 +112,8 @@ export default function ReportsPage() {
         <StatCard title="审核通过数" value={countText(cards?.approved.value)} sub={changeText(cards?.approved.change ?? null)} icon={ShieldCheck} tone="#0bbf83"/>
         <StatCard title="审核拒绝数" value={countText(cards?.rejected.value)} sub={changeText(cards?.rejected.change ?? null)} icon={XCircle} tone="#f04463"/>
         <StatCard title="活跃用户" value={countText(cards?.activeUsers.value)} sub={changeText(cards?.activeUsers.change ?? null)} icon={Users} tone="#1599e8"/>
-        <StatCard title="提现申请金额" value={cardAmount(cards?.withdrawalApplications.amounts)} sub="按申请创建时间统计" icon={Wallet} tone="#f59e0b"/>
-        <StatCard title="实际支出金额" value={cardAmount(cards?.actualPayout.amounts)} sub="仅统计已付款提现" icon={CircleDollarSign} tone="#10b981"/>
+        <StatCard title="提现申请金额" value={cardAmount(cards?.withdrawalApplications.amounts)} sub={"较上一周期：" + amountChangeText(cards?.withdrawalApplications.changes ?? [])} icon={Wallet} tone="#f59e0b"/>
+        <StatCard title="实际支出金额" value={cardAmount(cards?.actualPayout.amounts)} sub={"较上一周期：" + amountChangeText(cards?.actualPayout.changes ?? [])} icon={CircleDollarSign} tone="#10b981"/>
       </section>
       <section style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(300px,1fr) minmax(250px,.72fr)", gap: 12, alignItems: "stretch" }}>
         <div style={{ ...panel, padding: 16, minWidth: 0 }}>
