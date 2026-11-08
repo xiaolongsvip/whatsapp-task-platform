@@ -102,7 +102,7 @@ export class SystemSettingsController {
     const base = process.env.HELP_ASSET_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
     if (!base || !base.startsWith("https://")) throw new BadRequestException("请配置 HTTPS 的 HELP_ASSET_PUBLIC_BASE_URL 公共资源域名。");
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const key = "help-assets/" + Date.now() + "-" + safeName;
+    const key = "help-assets/" + randomUUID() + "-" + safeName;
     const uploadUrl = await this.objectStorage.createPresignedPutUrl(key, 3600);
     await this.settings.recordHelpAssetUpload(admin.id, key, safeName, contentType, size);
     return { uploadUrl, assetUrl: base + "/" + key, key, expiresInSeconds: 3600 };
