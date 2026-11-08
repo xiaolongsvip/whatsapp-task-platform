@@ -424,6 +424,7 @@ model TaskSubmission {
   mimeType       String?          @map("mime_type")
   sizeBytes      Int?             @map("size_bytes")
   originalName   String?          @map("original_name")
+  contentSha256  String?          @map("content_sha256") @db.Char(64)
   submittedAt    DateTime         @default(now()) @map("submitted_at")
   claim          TaskClaim        @relation(fields: [claimId], references: [id], onDelete: Restrict)
   reviews        TaskReview[]
@@ -431,6 +432,7 @@ model TaskSubmission {
 
   @@index([status, submittedAt])
   @@index([claimId, submittedAt])
+  @@index([contentSha256])
   @@map("task_submissions")
 }
 
