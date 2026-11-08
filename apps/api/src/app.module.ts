@@ -17,6 +17,7 @@ import { FinanceAdminModule } from "./finance-admin/finance-admin.module";
 import { ReportsModule } from "./reports/reports.module";
 import { PermissionsAdminModule } from "./permissions-admin/permissions-admin.module";
 import { AdminPermissionGuard } from "./permissions-admin/admin-permission.guard";
+import { SystemSettingsModule } from "./system-settings/system-settings.module";
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AdminPermissionGuard } from "./permissions-admin/admin-permission.guard
     FinanceAdminModule,
     ReportsModule,
     PermissionsAdminModule,
+    SystemSettingsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
