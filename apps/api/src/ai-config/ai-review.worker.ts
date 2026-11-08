@@ -162,53 +162,38 @@ ${taskRequirements}
         return;
       }
 
-      const confidentApprove = parsed.decision === "APPROVE" &&
-        parsed.confidence >= config.approveThreshold &&
-        parsed.checks.length > 0 &&
-        parsed.checks.every((check) => check.passed === true);
-      const confidentReject = parsed.decision === "REJECT" &&
-        parsed.confidence >= config.rejectThreshold &&
-        parsed.checks.some((check) => check.passed === false);
-
-      if (!confidentApprove && !confidentReject) {
-        await prisma.$transaction(async (tx) => {
-          // Use the same lock order as manual review: submission first, then job.
-          // If an admin wins the lock, this worker must observe the completed job
-          // and leave the manual decision untouched.
-          await tx.$queryRaw<Array<{ id: string }>>`
-            SELECT id FROM task_submissions WHERE id = ${submission.id}::uuid FOR UPDATE
-          `;
-          const current = await tx.aiReviewJob.findUnique({ where: { id: job.id } });
-          if (!current || current.status !== "PROCESSING") return;
-          await tx.aiReviewJob.update({
-            where: { id: job.id },
-            data: {
-              status: "NEEDS_REVIEW",
-              decision: parsed.decision,
-              confidence: parsed.confidence,
-              reason: parsed.reason,
-              extractedText: parsed.extractedText,
-              lockedAt: null,
-              lastError: null,
-            },
-          });
-          await tx.taskSubmission.update({
-            where: { id: submission.id },
-            data: { status: "UNDER_REVIEW" },
-          });
-          await tx.taskClaim.update({
-            where: { id: claim.id },
-            data: { status: "UNDER_REVIEW" },
-          });
+      // AI is advisory only: every result must pass through human review
+      // before any wallet credit or task settlement can occur. This keeps the
+      // business flow deterministic: submit -> AI analysis -> manual decision -> reward.
+      await prisma.$transaction(async (tx) => {
+        // Use the same lock order as manual review so an admin decision cannot
+        // race with a worker update for the same submission.
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM task_submissions WHERE id = ${submission.id}::uuid FOR UPDATE
+        `;
+        const current = await tx.aiReviewJob.findUnique({ where: { id: job.id } });
+        if (!current || current.status !== "PROCESSING") return;
+        await tx.aiReviewJob.update({
+          where: { id: job.id },
+          data: {
+            status: "NEEDS_REVIEW",
+            decision: parsed.decision,
+            confidence: parsed.confidence,
+            reason: parsed.reason,
+            extractedText: parsed.extractedText,
+            lockedAt: null,
+            lastError: null,
+          },
         });
-        return;
-      }
-
-      if (confidentApprove) {
-        await this.approve(job.id, parsed);
-      } else {
-        await this.reject(job.id, parsed);
-      }
+        await tx.taskSubmission.update({
+          where: { id: submission.id },
+          data: { status: "UNDER_REVIEW" },
+        });
+        await tx.taskClaim.update({
+          where: { id: claim.id },
+          data: { status: "UNDER_REVIEW" },
+        });
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 1000) : "未知审核错误";
       await this.retryOrEscalate(job.id, job.attemptCount, message);
