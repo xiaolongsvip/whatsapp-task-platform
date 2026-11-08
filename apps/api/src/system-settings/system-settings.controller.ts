@@ -40,6 +40,25 @@ export class SystemSettingsController {
   async publishVersion(@Req() req: Request, @Param("versionCode") versionCode: string) { const a = await this.admin(req); return this.settings.versionAction(Number(versionCode), "PUBLISH", a.id); }
   @Post("version/:versionCode/revoke")
   async revokeVersion(@Req() req: Request, @Param("versionCode") versionCode: string) { const a = await this.admin(req); return this.settings.versionAction(Number(versionCode), "REVOKE", a.id); }
+  @Post("help/assets/upload-url")
+  async createHelpAssetUploadUrl(@Req() req: Request, @Body() body: { fileName: string; contentType: string; size: number }) {
+    const admin = await this.admin(req);
+    const fileName = String(body.fileName ?? "").trim();
+    const contentType = String(body.contentType ?? "").toLowerCase();
+    const size = Number(body.size);
+    const isVideo = contentType === "video/mp4" && fileName.toLowerCase().endsWith(".mp4");
+    const isImage = ["image/jpeg", "image/png", "image/webp"].includes(contentType);
+    if (!fileName || (!isVideo && !isImage) || !Number.isSafeInteger(size) || size < 1 || size > (isVideo ? 1024 * 1024 * 1024 : 20 * 1024 * 1024)) {
+      throw new BadRequestException("仅支持不超过 1GB 的 MP4 视频或不超过 20MB 的 JPG/PNG/WebP 图片。");
+    }
+    const base = process.env.HELP_ASSET_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
+    if (!base || !base.startsWith("https://")) throw new BadRequestException("请配置 HTTPS 的 HELP_ASSET_PUBLIC_BASE_URL 公共资源域名。");
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const key = "help-assets/" + Date.now() + "-" + safeName;
+    const uploadUrl = await this.objectStorage.createPresignedPutUrl(key, 3600);
+    await this.settings.recordHelpAssetUpload(admin.id, key, safeName, contentType, size);
+    return { uploadUrl, assetUrl: base + "/" + key, key, expiresInSeconds: 3600 };
+  }
   @Get("help/articles")
   async articles(@Req() req: Request, @Query() q: Record<string,string>) { await this.admin(req); return this.settings.listArticles(q); }
   @Post("help/articles")
