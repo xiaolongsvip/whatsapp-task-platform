@@ -54,13 +54,13 @@ export class EmailVerificationService {
     const code = codeInput.trim();
     if (!/^\d{6}$/.test(code)) throw new BadRequestException("请输入 6 位邮箱验证码。");
     const challenge = await prisma.emailVerificationChallenge.findFirst({
-      where: { userId, email, consumedAt: null, expiresAt: { gt: new Date() } },
+      where: { userId, email, consumedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: 5 } },
       orderBy: { createdAt: "desc" },
     });
     if (!challenge) throw new BadRequestException("验证码不存在或已过期，请重新获取。");
     const supplied = Buffer.from(digest(userId, email, code), "hex");
     const expected = Buffer.from(challenge.codeHash, "hex");
-    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new BadRequestException("邮箱验证码不正确。");
+    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {\n      await prisma.emailVerificationChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });\n      throw new BadRequestException("邮箱验证码不正确；最多允许尝试 5 次。");\n    }
     const verifiedAt = new Date();
     await prisma.$transaction(async tx => {
       await tx.emailVerificationChallenge.update({ where: { id: challenge.id }, data: { consumedAt: verifiedAt } });
