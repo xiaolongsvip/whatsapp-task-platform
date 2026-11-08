@@ -698,6 +698,9 @@ model ObjectStorageConfig {
 model AdminUser {
   id           String       @id @default(uuid()) @db.Uuid
   userId       String?      @unique @map("user_id") @db.Uuid
+  name         String       @default("Administrator") @db.VarChar(120)
+  login        String       @unique @default("") @db.VarChar(80)
+  phone        String?      @db.VarChar(40)
   email        String       @unique
   passwordHash String       @map("password_hash")
   status       AdminStatus  @default(ACTIVE)
@@ -731,6 +734,7 @@ model Role {
   id          String       @id @default(uuid()) @db.Uuid
   name        String       @unique
   description String?
+  status      String       @default("ACTIVE") @db.VarChar(20)
   permissions RolePermission[]
   users       AdminUserRole[]
 
