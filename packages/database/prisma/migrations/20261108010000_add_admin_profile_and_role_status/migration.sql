@@ -8,6 +8,7 @@ SET "login" = LEFT("email", 80),
     "name" = COALESCE(NULLIF(SPLIT_PART("email", '@', 1), ''), 'Administrator');
 
 ALTER TABLE "admin_users" ALTER COLUMN "login" SET NOT NULL;
+ALTER TABLE "admin_users" ALTER COLUMN "login" SET DEFAULT '';
 CREATE UNIQUE INDEX "admin_users_login_key" ON "admin_users"("login");
 
 ALTER TABLE "roles"
