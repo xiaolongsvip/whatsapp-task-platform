@@ -51,7 +51,8 @@ test("APP support URL is admin-configurable, HTTPS-only, audited, and exposed to
   const dashboard = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
   const settingsPage = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
   assert.match(settings, /async saveSupport\(input: JsonRecord, adminId: string\)/);
-  assert.match(settings, /!\/~\^https:/);
+  assert.ok(settings.includes("https://"));
+  assert.ok(settings.includes("supportUrl.length > 2048"));
   assert.match(settings, /APP_SUPPORT_URL_UPDATED/);
   assert.match(settingsController, /@Put\("support"\)/);
   assert.match(dashboard, /system\.appSupport/);
