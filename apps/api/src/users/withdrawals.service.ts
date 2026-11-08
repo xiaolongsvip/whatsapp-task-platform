@@ -25,12 +25,51 @@ export class WithdrawalsService {
           }
 
           const currency = account.currency.trim().toUpperCase();
+          const rulesRow = await tx.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
+          const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{
+            countryCode: "PK", walletCurrency: "USD", method: "LOCAL_ACCOUNT", status: "ENABLED",
+            minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, channels: ["jazzcash", "easypaisa"],
+          }];
+          const activeRules = rules.filter(rule => rule.status === "ENABLED");
+          const accountCountry = account.countryCode.trim().toUpperCase();
+          const accountMethod = account.methodCode.trim().toUpperCase();
+          const rule = activeRules.find(item =>
+            String(item.countryCode ?? "").toUpperCase() === accountCountry &&
+            String(item.walletCurrency ?? "").toUpperCase() === currency &&
+            String(item.method ?? "").toUpperCase() === accountMethod
+          ) ?? activeRules.find(item =>
+            String(item.countryCode ?? "").toUpperCase() === "GLOBAL" &&
+            String(item.walletCurrency ?? "").toUpperCase() === currency &&
+            String(item.method ?? "").toUpperCase() === accountMethod
+          );
+          if (!rule) throw new BadRequestException("No active withdrawal rule is configured for this country, wallet currency and payout method.");
+          const channels = Array.isArray(rule.channels) ? rule.channels.map(x => String(x).toLowerCase()) : [];
+          if (channels.length && !channels.includes(account.providerCode.trim().toLowerCase())) {
+            throw new BadRequestException("The selected payout channel is not enabled by the current withdrawal rule.");
+          }
+          const minimumMinor = BigInt(Math.round(Number(rule.minimumAmount ?? 0) * 100));
+          const maximumMinor = BigInt(Math.round(Number(rule.maximumAmount ?? 0) * 100));
+          const dailyLimitMinor = BigInt(Math.round(Number(rule.dailyLimit ?? 0) * 100));
+          if (amountMinor < minimumMinor) throw new BadRequestException("Withdrawal amount is below the configured minimum.");
+          if (maximumMinor <= 0n || amountMinor > maximumMinor) throw new BadRequestException("Withdrawal amount exceeds the configured per-request maximum.");
+          if (dailyLimitMinor <= 0n) throw new BadRequestException("The daily withdrawal limit is not configured correctly.");
+          const dayStart = new Date();
+          dayStart.setUTCHours(0, 0, 0, 0);
           const wallet = await tx.wallet.findUnique({
             where: { userId_currency: { userId, currency } },
             select: { id: true, currency: true },
           });
           if (!wallet) {
             throw new BadRequestException("No wallet is available for this payout currency.");
+          }
+          const dayStart = new Date();
+          dayStart.setUTCHours(0, 0, 0, 0);
+          const dailyUsed = await tx.withdrawalRequest.aggregate({
+            where: { walletId: wallet.id, createdAt: { gte: dayStart }, status: { notIn: ["REJECTED", "FAILED", "CANCELLED"] } },
+            _sum: { amountMinor: true },
+          });
+          if ((dailyUsed._sum.amountMinor ?? 0n) + amountMinor > dailyLimitMinor) {
+            throw new BadRequestException("This withdrawal would exceed the configured daily withdrawal limit.");
           }
 
           const [entries, withdrawals, holds] = await Promise.all([
