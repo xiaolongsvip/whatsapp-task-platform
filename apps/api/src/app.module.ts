@@ -14,6 +14,7 @@ import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
 import { AdminUsersModule } from "./admin-users/admin-users.module";
 import { AdminReferralsModule } from "./admin-referrals/admin-referrals.module";
 import { FinanceAdminModule } from "./finance-admin/finance-admin.module";
+import { ReportsModule } from "./reports/reports.module";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { FinanceAdminModule } from "./finance-admin/finance-admin.module";
     AdminUsersModule,
     AdminReferralsModule,
     FinanceAdminModule,
+    ReportsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
