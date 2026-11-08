@@ -69,3 +69,13 @@ test("AI task approval applies the same referral commission settlement as manual
   assert.match(worker, /sourceType: "REFERRAL_COMMISSION"/);
   assert.match(worker, /referral-commission:\$\{claim\.id\}/);
 });
+
+test("APK upload validates ZIP directory and Android manifest before marking a release verified", () => {
+  const controller = readFileSync(new URL("../src/system-settings/system-settings.controller.ts", import.meta.url), "utf8");
+  assert.match(controller, /function isApkArchive\(buffer: Buffer\)/);
+  assert.match(controller, /0x06054b50/);
+  assert.match(controller, /0x02014b50/);
+  assert.match(controller, /name === "AndroidManifest\.xml"/);
+  assert.match(controller, /缺少 AndroidManifest\.xml/);
+  assert.match(controller, /randomUUID\(\)/);
+});
