@@ -13,6 +13,66 @@ const groups = [
 { name:"权限管理",items:[["permissions.roles.read","查看角色权限","可查看角色和权限配置。","normal"],["permissions.roles.manage","管理角色权限","可创建、编辑角色并配置权限。","critical"],["permissions.admins.read","查看管理员账号","可查看管理员账号信息。","normal"],["permissions.admins.manage","管理管理员账号","可创建、编辑管理员账号和分配角色。","critical"],["permissions.admins.reset_password","重置管理员密码","可重置管理员登录密码。","critical"],["permissions.admins.revoke_sessions","撤销管理员会话","可撤销管理员全部登录会话。","critical"],["permissions.audit.read","查看权限变更记录","可查看角色和管理员权限变更历史。","normal"],["permissions.roles.delete","删除自定义角色","可删除未绑定管理员的自定义角色。","critical"],["permissions.admins.disable","停用管理员账号","可停用或恢复管理员账号。","critical"]]},
 { name:"系统设置",items:[["system.settings.read","查看系统设置","可查看系统配置。","normal"],["system.settings.manage","管理系统设置","可修改系统配置。","critical"],["system.audit.read","查看操作日志","可查看管理员操作审计日志。","normal"],["system.admin_sessions.read","查看管理员会话","可查看管理员登录会话。","high"]]}
 ] as const;
+const permissionDependencies: Record<string, string> = {
+  "finance.reconciliation.manage": "finance.reconciliation.read",
+  "finance.reconciliation.export": "finance.reconciliation.read",
+  "finance.tasks.manage": "finance.tasks.read",
+  "finance.payout_accounts.review": "finance.payout_accounts.read",
+  "finance.payout_accounts.manage": "finance.payout_accounts.read",
+  "finance.payout_channels.manage": "finance.payout_channels.read",
+  "finance.providers.manage": "finance.payout_channels.read",
+  "finance.withdrawals.review": "finance.withdrawals.read",
+  "finance.withdrawals.pay": "finance.withdrawals.read",
+  "finance.withdrawals.export": "finance.withdrawals.read",
+  "finance.wallets.adjust": "finance.wallets.read",
+  "finance.transactions.manage": "finance.transactions.read",
+  "tasks.manage": "tasks.read",
+  "tasks.config.manage": "tasks.config.read",
+  "tasks.groups.manage": "tasks.groups.read",
+  "tasks.slots.manage": "tasks.slots.read",
+  "tasks.messages.manage": "tasks.messages.read",
+  "tasks.dispatch.manage": "tasks.read",
+  "reviews.manage": "reviews.read",
+  "reviews.risk.manage": "reviews.risk.read",
+  "reviews.settings.manage": "reviews.ai.read",
+  "reviews.ai.manage": "reviews.ai.read",
+  "reviews.ai.retry": "reviews.ai.read",
+  "reviews.random.manage": "reviews.read",
+  "users.manage": "users.read",
+  "users.freeze": "users.read",
+  "users.wallet.adjust": "users.read",
+  "users.devices.manage": "users.read",
+  "users.export": "users.read",
+  "users.sessions.revoke": "users.sessions.read",
+  "users.reputation.adjust": "users.read",
+  "users.profile.manage": "users.read",
+  "referrals.manage": "referrals.read",
+  "referrals.commissions.manage": "referrals.commissions.read",
+  "referrals.rules.manage": "referrals.read",
+  "referrals.export": "referrals.read",
+  "notifications.manage": "notifications.read",
+  "notifications.templates.manage": "notifications.read",
+  "notifications.broadcast": "notifications.read",
+  "reports.export": "reports.read",
+  "reports.finance.read": "reports.read",
+  "permissions.roles.manage": "permissions.roles.read",
+  "permissions.roles.delete": "permissions.roles.read",
+  "permissions.admins.manage": "permissions.admins.read",
+  "permissions.admins.reset_password": "permissions.admins.read",
+  "permissions.admins.revoke_sessions": "permissions.admins.read",
+  "permissions.admins.disable": "permissions.admins.read",
+  "system.settings.manage": "system.settings.read",
+};
+
+function normalizePermissionKeys(keys: string[]): string[] {
+  const result = new Set(keys);
+  for (const key of keys) {
+    const dependency = permissionDependencies[key];
+    if (dependency) result.add(dependency);
+  }
+  return [...result];
+}
+
 const defaults = [
 ["分销管理员","管理分销用户、关系和佣金。",["referrals.read","referrals.manage","referrals.commissions.read","referrals.commissions.manage","referrals.rules.manage","referrals.export"]],
 ["财务管理员","管理钱包、提现和打款处理。",["finance.reconciliation.read","finance.reconciliation.manage","finance.tasks.read","finance.tasks.manage","finance.payout_accounts.read","finance.payout_accounts.review","finance.payout_accounts.manage","finance.payout_channels.manage","finance.payout_channels.read","finance.providers.manage","finance.transactions.read","finance.transactions.manage","finance.withdrawals.read","finance.withdrawals.review","finance.withdrawals.pay","finance.withdrawals.export","finance.wallets.read","finance.wallets.adjust","finance.reconciliation.export"]],
@@ -47,8 +107,8 @@ export class PermissionsAdminService {
  private async audit(actorId:string,action:string,targetId:string,metadata:unknown={}){await prisma.auditEvent.create({data:{actorType:"ADMIN",actorId,action,targetType:"ADMIN_PERMISSION",targetId,metadata:metadata as any}});}
  async catalog(actorId:string){await this.seed();await this.ensureBootstrapSuperAdmin(actorId);await this.assertPermission(actorId,"permissions.roles.read");return {groups:groups.map(g=>({name:g.name,permissions:g.items.map(([key,name,description,risk])=>({key,name,description,risk}))}))};}
  async roles(actorId:string,search="",status="ALL"){await this.seed();await this.ensureBootstrapSuperAdmin(actorId);await this.assertPermission(actorId,"permissions.roles.read");const where:any={...(search?{OR:[{name:{contains:search,mode:"insensitive"}},{description:{contains:search,mode:"insensitive"}}]}:{})};const rows=await prisma.role.findMany({where,include:{permissions:{include:{permission:true}},users:{select:{adminUserId:true}}}});const roleOrder=(a:typeof rows[number],b:typeof rows[number])=>{const ai=defaults.findIndex(d=>d[0]===a.name);const bi=defaults.findIndex(d=>d[0]===b.name);return (ai<0?100:ai)-(bi<0?100:bi)||a.name.localeCompare(b.name);};return {roles:rows.sort(roleOrder).filter(r=>status==="ALL"||r.status===status).map(r=>({id:r.id,name:r.name,description:r.description,status:r.status,isSystem:r.isSystem,permissionKeys:r.permissions.map(x=>x.permission.key),permissionCount:r.permissions.length,adminCount:r.users.length,updatedAt:r.updatedAt.toISOString()}))};}
- async createRole(actorId:string,b:{name:string;description?:string;status?:string;permissionKeys?:string[]}){await this.assertPermission(actorId,"permissions.roles.manage");await this.seed();const name=b.name?.trim();if(!name||name.length>80)throw new BadRequestException("角色名称不能为空且不能超过80个字符。");const keys=[...new Set(b.permissionKeys??[])];const perms=await prisma.permission.findMany({where:{key:{in:keys}}});if(perms.length!==keys.length)throw new BadRequestException("包含无效权限项。");try{const role=await prisma.role.create({data:{name,description:b.description?.trim()||null,status:"ACTIVE",permissions:{create:perms.map(p=>({permission:{connect:{id:p.id}}}))}}});await this.audit(actorId,"ROLE_CREATED",role.id,{name,permissionKeys:keys});return {success:true,id:role.id};}catch(e:any){if(e?.code==="P2002")throw new ConflictException("角色名称已存在。");throw e;}}
- async updateRole(actorId:string,id:string,b:{name?:string;description?:string;status?:string;permissionKeys?:string[]}){await this.assertPermission(actorId,"permissions.roles.manage");await this.seed();const role=await prisma.role.findUnique({where:{id}});if(!role)throw new NotFoundException("角色不存在。");if(role.isSystem&&b.status)throw new BadRequestException("系统角色启用状态受保护。");if(b.status&&!["ACTIVE","DISABLED"].includes(b.status))throw new BadRequestException("角色状态无效。");const keys=b.permissionKeys?[...new Set(b.permissionKeys)]:undefined;const perms=keys?await prisma.permission.findMany({where:{key:{in:keys}}}):[];if(keys&&perms.length!==keys.length)throw new BadRequestException("包含无效权限项。");await prisma.$transaction(async tx=>{await tx.role.update({where:{id},data:{name:b.name?.trim()||role.name,description:b.description===undefined?role.description:b.description.trim()||null,...(!role.isSystem&&b.status?{status:b.status}:{})}});if(keys){await tx.rolePermission.deleteMany({where:{roleId:id}});if(perms.length)await tx.rolePermission.createMany({data:perms.map(p=>({roleId:id,permissionId:p.id}))});}});await this.audit(actorId,"ROLE_UPDATED",id,{name:b.name,permissionKeys:keys});return {success:true};}
+ async createRole(actorId:string,b:{name:string;description?:string;status?:string;permissionKeys?:string[]}){await this.assertPermission(actorId,"permissions.roles.manage");await this.seed();const name=b.name?.trim();if(!name||name.length>80)throw new BadRequestException("角色名称不能为空且不能超过80个字符。");const keys=normalizePermissionKeys([...new Set(b.permissionKeys??[])]);const perms=await prisma.permission.findMany({where:{key:{in:keys}}});if(perms.length!==keys.length)throw new BadRequestException("包含无效权限项。");try{const role=await prisma.role.create({data:{name,description:b.description?.trim()||null,status:"ACTIVE",permissions:{create:perms.map(p=>({permission:{connect:{id:p.id}}}))}}});await this.audit(actorId,"ROLE_CREATED",role.id,{name,permissionKeys:keys});return {success:true,id:role.id};}catch(e:any){if(e?.code==="P2002")throw new ConflictException("角色名称已存在。");throw e;}}
+ async updateRole(actorId:string,id:string,b:{name?:string;description?:string;status?:string;permissionKeys?:string[]}){await this.assertPermission(actorId,"permissions.roles.manage");await this.seed();const role=await prisma.role.findUnique({where:{id}});if(!role)throw new NotFoundException("角色不存在。");if(role.isSystem&&b.status)throw new BadRequestException("系统角色启用状态受保护。");if(b.status&&!["ACTIVE","DISABLED"].includes(b.status))throw new BadRequestException("角色状态无效。");const keys=b.permissionKeys?normalizePermissionKeys([...new Set(b.permissionKeys)]):undefined;const perms=keys?await prisma.permission.findMany({where:{key:{in:keys}}}):[];if(keys&&perms.length!==keys.length)throw new BadRequestException("包含无效权限项。");await prisma.$transaction(async tx=>{await tx.role.update({where:{id},data:{name:b.name?.trim()||role.name,description:b.description===undefined?role.description:b.description.trim()||null,...(!role.isSystem&&b.status?{status:b.status}:{})}});if(keys){await tx.rolePermission.deleteMany({where:{roleId:id}});if(perms.length)await tx.rolePermission.createMany({data:perms.map(p=>({roleId:id,permissionId:p.id}))});}});await this.audit(actorId,"ROLE_UPDATED",id,{name:b.name,permissionKeys:keys});return {success:true};}
  async deleteRole(actorId:string,id:string){await this.assertPermission(actorId,"permissions.roles.delete");const role=await prisma.role.findUnique({where:{id},include:{users:{select:{adminUserId:true}}}});if(!role)throw new NotFoundException("角色不存在。");if(role.isSystem)throw new BadRequestException("系统角色不可删除。");if(role.users.length>0)throw new BadRequestException("该角色仍绑定管理员，请先调整管理员角色后再删除。");await prisma.$transaction(async tx=>{await tx.rolePermission.deleteMany({where:{roleId:id}});await tx.role.delete({where:{id}});});await this.audit(actorId,"ROLE_DELETED",id,{name:role.name});return {success:true};}\n async admins(actorId:string,search="",status="ALL"){await this.assertPermission(actorId,"permissions.admins.read");const where:any={...(status!=="ALL"?{status}:{}),...(search?{OR:[{email:{contains:search,mode:"insensitive"}},{login:{contains:search,mode:"insensitive"}},{name:{contains:search,mode:"insensitive"}},{user:{is:{phone:{contains:search}}}}]}:{})};const rows=await prisma.adminUser.findMany({where,include:{roles:{include:{role:true}},sessions:{orderBy:{createdAt:"desc"},take:1}},orderBy:{createdAt:"desc"}});return {admins:rows.map(a=>({id:a.id,name:a.name,email:a.email,login:a.login,phone:a.phone,status:a.status,roles:a.roles.map(x=>({id:x.role.id,name:x.role.name})),lastLoginAt:a.sessions[0]?.createdAt??null}))};}
  async createAdmin(actorId:string,b:{name:string;email:string;login:string;phone?:string;password:string;roleIds:string[]}){await this.assertPermission(actorId,"permissions.admins.manage");const email=b.email?.trim().toLowerCase();if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new BadRequestException("请输入有效邮箱。");if(!b.password||b.password.length<10||b.password.length>128)throw new BadRequestException("密码长度必须为10至128位。");if(!b.name?.trim())throw new BadRequestException("管理员名称不能为空。");if(!b.login?.trim())throw new BadRequestException("登录账号不能为空。");if(await prisma.adminUser.findUnique({where:{email}}))throw new ConflictException("该邮箱已注册管理员。");const roles=await prisma.role.findMany({where:{id:{in:b.roleIds??[]}}});if(roles.length!==(b.roleIds??[]).length||!roles.length||roles.some(r=>r.status!=="ACTIVE"))throw new BadRequestException("请至少选择一个有效且已启用的角色。");const a=await prisma.adminUser.create({data:{name:b.name.trim(),login:b.login.trim().toLowerCase(),phone:b.phone?.trim()||null,email,passwordHash:await argon2.hash(b.password,{type:argon2.argon2id}),roles:{create:roles.map(role=>({role:{connect:{id:role.id}}}))}}}).catch((e:unknown)=>{if((e as {code?:string}).code==="P2002")throw new ConflictException("管理员邮箱或登录账号已存在。");throw e;});await this.audit(actorId,"ADMIN_CREATED",a.id,{email,roles:roles.map(r=>r.name)});return {success:true,id:a.id};}
  async updateAdmin(actorId:string,id:string,b:{name?:string;login?:string;phone?:string;status?:string}){await this.assertPermission(actorId,"permissions.admins.manage");const a=await prisma.adminUser.findUnique({where:{id}});if(!a)throw new NotFoundException("管理员不存在。");if(b.status!==undefined&&b.status!==a.status)await this.assertPermission(actorId,"permissions.admins.disable");if(b.status==="DISABLED"&&id===actorId)throw new BadRequestException("不能停用当前正在登录的管理员账号。");if(b.status&& !["ACTIVE","DISABLED"].includes(b.status))throw new BadRequestException("账号状态无效。");if(b.login!==undefined&&!b.login.trim())throw new BadRequestException("登录账号不能为空。");try{await prisma.adminUser.update({where:{id},data:{...(b.name!==undefined?{name:b.name.trim()}:{ }),...(b.login!==undefined?{login:b.login.trim().toLowerCase()}:{}),...(b.phone!==undefined?{phone:b.phone.trim()||null}:{}),...(b.status?{status:b.status as any}:{})}});}catch(e:any){if(e?.code==="P2002")throw new ConflictException("登录账号已存在。");throw e;}await this.audit(actorId,"ADMIN_UPDATED",id,{status:b.status,name:b.name,phone:b.phone});return {success:true};}
