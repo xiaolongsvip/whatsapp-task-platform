@@ -33,7 +33,7 @@ function encrypt(value: string) {
 }
 
 @Injectable()
-export class PayoutAccountsService {
+export class PayoutAccountsService {\n  constructor(private readonly emailVerification: EmailVerificationService) {}\n
   async list(userId: string) {
     const rows = await prisma.payoutAccount.findMany({
       where: { userId, status: "ACTIVE" },
