@@ -34,6 +34,16 @@ export class PermissionsAdminService {
    }
   }
  }
+ private async ensureBootstrapSuperAdmin(actorId:string){
+  if(await prisma.adminUserRole.count()===0){
+   const role=await prisma.role.findFirst({where:{isSystem:true,name:"超级管理员"}});
+   if(role) await prisma.adminUserRole.createMany({data:[{adminUserId:actorId,roleId:role.id}],skipDuplicates:true);
+  }
+ }
+ private async assertPermission(actorId:string,key:string){
+  const count=await prisma.adminUserRole.count({where:{adminUserId:actorId,role:{status:"ACTIVE",permissions:{some:{permission:{key}}}}}});
+  if(!count) throw new ForbiddenException("当前管理员没有执行此操作的权限。");
+ }
  private async audit(actorId:string,action:string,targetId:string,metadata:unknown={}){await prisma.auditEvent.create({data:{actorType:"ADMIN",actorId,action,targetType:"ADMIN_PERMISSION",targetId,metadata:metadata as any}});}
  async catalog(actorId:string){await this.seed();await this.ensureBootstrapSuperAdmin(actorId);await this.assertPermission(actorId,"permissions.roles.read");return {groups:groups.map(g=>({name:g.name,permissions:g.items.map(([key,name,description,risk])=>({key,name,description,risk}))}))};}
  async roles(actorId:string,search="",status="ALL"){await this.seed();await this.ensureBootstrapSuperAdmin(actorId);await this.assertPermission(actorId,"permissions.roles.read");const where:any={...(search?{OR:[{name:{contains:search,mode:"insensitive"}},{description:{contains:search,mode:"insensitive"}}]}:{})};const rows=await prisma.role.findMany({where,include:{permissions:{include:{permission:true}},users:{select:{adminUserId:true}}}});const roleOrder=(a:typeof rows[number],b:typeof rows[number])=>{const ai=defaults.findIndex(d=>d[0]===a.name);const bi=defaults.findIndex(d=>d[0]===b.name);return (ai<0?100:ai)-(bi<0?100:bi)||a.name.localeCompare(b.name);};return {roles:rows.sort(roleOrder).filter(r=>status==="ALL"||r.status===status).map(r=>({id:r.id,name:r.name,description:r.description,status:r.status,isSystem:r.isSystem,permissionKeys:r.permissions.map(x=>x.permission.key),permissionCount:r.permissions.length,adminCount:r.users.length,updatedAt:r.updatedAt.toISOString()}))};}
