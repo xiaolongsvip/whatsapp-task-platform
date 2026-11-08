@@ -227,7 +227,12 @@ export class SystemSettingsService {
     const min = Number(input.minimumAmount), max = Number(input.maximumAmount), daily = Number(input.dailyLimit);
     if (!/^(?:[A-Z]{2}|GLOBAL)$/.test(countryCode) || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !method) throw new BadRequestException("国家代码、钱包币种、代付币种和提现方式格式无效");
     if (!(min > 0 && max >= min && daily > 0)) throw new BadRequestException("请检查最低、最高和每日提现限额");
-    const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels: Array.isArray(input.channels) ? input.channels.map(String) : [], minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: input.status === "ARCHIVED" ? "ARCHIVED" : input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
+    const existingIndex = items.findIndex(x => x.id === ruleId);
+    const existingRule = existingIndex >= 0 ? items[existingIndex] : null;
+    if (existingRule?.status === "ARCHIVED" && input.status !== "ARCHIVED") {
+      throw new BadRequestException("已归档的提现规则不能重新启用或取消归档，请新建规则。");
+    }
+    const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels: Array.isArray(input.channels) ? input.channels.map(String) : [], minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: existingRule?.status === "ARCHIVED" ? "ARCHIVED" : input.status === "ARCHIVED" ? "ARCHIVED" : input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
     if (rule.status === "ENABLED" && items.some(x => x.id !== ruleId && x.status === "ENABLED" &&
       String(x.countryCode).toUpperCase() === countryCode &&
       String(x.walletCurrency).toUpperCase() === walletCurrency &&
@@ -244,6 +249,9 @@ export class SystemSettingsService {
     const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
     const rule = items.find(x => x.id === id) as any;
     if (!rule) throw new NotFoundException("提现规则不存在");
+    if (rule.status === "ARCHIVED") {
+      throw new BadRequestException("已归档的提现规则不能重新启用，请新建规则。");
+    }
     if (rule.status !== "ENABLED" && items.some(x => x.id !== id && x.status === "ENABLED" &&
       String(x.countryCode).toUpperCase() === String(rule.countryCode).toUpperCase() &&
       String(x.walletCurrency).toUpperCase() === String(rule.walletCurrency).toUpperCase() &&
