@@ -50,6 +50,19 @@ export class SystemSettingsService {
   private async audit(adminId: string, action: string, targetId: string, metadata: unknown) {
     await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action, targetType: "SYSTEM_SETTING", targetId, metadata: metadata as any } });
   }
+  async getPublicUpdateInfo() {
+    const config = await this.read("system.appVersion", DEFAULT_VERSION);
+    const published = Array.isArray(config.releases) ? config.releases.find((x: any) => x.status === "PUBLISHED" && Number(x.versionCode) === Number(config.versionCode)) : null;
+    return {
+      currentVersion: String(config.currentVersion ?? ""),
+      latestVersion: String(published?.version ?? config.currentVersion ?? ""),
+      versionCode: Number(published?.versionCode ?? config.versionCode ?? 0),
+      updateType: String(published?.updateType ?? config.updateType ?? "MINOR"),
+      forceUpdate: String(published?.updateType ?? config.updateType ?? "MINOR") === "MAJOR",
+      downloadUrl: String(published?.downloadUrl ?? config.downloadUrl ?? ""),
+      releaseNotes: String(published?.releaseNotes ?? config.releaseNotes ?? ""),
+    };
+  }
   async saveVersion(input: JsonRecord, adminId: string) {
     const current = await this.read("system.appVersion", DEFAULT_VERSION);
     const latestVersion = String(input.latestVersion ?? "").trim();
