@@ -736,6 +736,8 @@ model Role {
   description String?
   status      String       @default("ACTIVE") @db.VarChar(20)
   isSystem    Boolean      @default(false) @map("is_system")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at")
   permissions RolePermission[]
   users       AdminUserRole[]
 
