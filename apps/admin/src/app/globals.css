@@ -924,3 +924,11 @@ body { margin: 0; }
 .download-address-row label{flex:1}
 .download-address-row .secondary-btn{margin-bottom:0;white-space:nowrap}
 @media(max-width:640px){.download-address-row{align-items:stretch;flex-direction:column}.download-address-row .secondary-btn{align-self:flex-start}}
+
+
+.column-menu{position:relative;display:inline-block;z-index:20}
+.column-menu summary{list-style:none;cursor:pointer;border:1px solid #dbe3ee;border-radius:7px;background:#fff;color:#334155;padding:8px 12px;font-size:12px}
+.column-menu summary::-webkit-details-marker{display:none}
+.column-menu>div{position:absolute;right:0;top:calc(100% + 5px);min-width:150px;max-height:280px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:10px;background:#fff;border:1px solid #dbe3ee;border-radius:8px;box-shadow:0 8px 25px rgba(15,23,42,.12)}
+.column-menu label{display:flex;align-items:center;gap:7px;font-size:11px;color:#334155;white-space:nowrap;cursor:pointer}
+.column-menu input{accent-color:#2563eb}
