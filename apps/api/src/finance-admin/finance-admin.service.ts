@@ -135,8 +135,14 @@ export class FinanceAdminService {
       if (!payoutAccount) throw new BadRequestException("该提现单没有有效的收款账户，无法登记付款结果");
       if (outcome === "PAID") {
         const providerCode = requestedProviderCode;
-        const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true } });
+        if (providerCode !== payoutAccount.providerCode) {
+          throw new BadRequestException("付款服务商必须与用户收款账户绑定的服务商一致");
+        }
+        const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true, supportedCurrencies: true } });
         if (!provider) throw new BadRequestException("服务商配置不存在");
+        if (!provider.supportedCurrencies.includes(withdrawal.currency.trim())) {
+          throw new BadRequestException("该服务商未配置此提现币种，不能登记付款");
+        }
         const existing = await tx.paymentTransaction.findFirst({ where: { withdrawalRequestId: id, status: "SUCCEEDED" }, select: { id: true } });
         if (existing) throw new ConflictException("该提现单已经登记成功付款，不能重复入账");
         const transaction = await tx.paymentTransaction.create({ data: {
