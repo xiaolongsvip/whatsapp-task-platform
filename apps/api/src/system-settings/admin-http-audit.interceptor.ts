@@ -40,7 +40,7 @@ export class AdminHttpAuditInterceptor implements NestInterceptor {
     const requestIdHeader = req.headers["x-request-id"];
     const requestId = typeof requestIdHeader === "string" && requestIdHeader.trim() ? requestIdHeader.slice(0, 100) : randomUUID();
     const segments = path.split("/").filter(Boolean);
-    const moduleName = segments[1] ?? "admin";
+    const moduleName = "ADMIN_HTTP_REQUEST";
     const last = segments[segments.length - 1] ?? "";
     const targetId = segments.length > 3 && !["detail","review","publish","revoke","toggle","duplicate","restore","pin","test"].includes(last) ? last.slice(0, 200) : null;
     const body = safeJson(req.body);
