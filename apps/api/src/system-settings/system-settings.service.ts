@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 type JsonRecord = Record<string, unknown>;
 const DEFAULT_ACCOUNT_SECURITY = { businessEmailVerification: false };
-const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versionCode: 146, updateType: "MINOR", downloadUrl: "", releaseNotes: "", releases: [] as JsonRecord[] };
+const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versionCode: 146, updateType: "MAJOR", downloadUrl: "https://download.ee6868.com/appupdate/146/apprel_ac4add1c184e4efa9e0210f94ae7f152.apk", releaseNotes: "", releases: [] as JsonRecord[] };
 const DEFAULT_RISK = { singleDeviceSingleAccount: false, crossAccountScreenshotSimilarity: false, userRiskManualReview: false, manualReviewThreshold: 70 };
 const DEFAULT_RULES: JsonRecord[] = [];
 const DEFAULT_ARTICLES: JsonRecord[] = [];
