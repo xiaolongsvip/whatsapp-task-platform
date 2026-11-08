@@ -220,6 +220,8 @@ object AuthRepository {
         return result
     }
 
+    fun publicAppUpdate(): JSONObject = request("GET", "app/update")
+
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
 
     fun promotionSummary(): JSONObject = request("GET", "users/promotion")
