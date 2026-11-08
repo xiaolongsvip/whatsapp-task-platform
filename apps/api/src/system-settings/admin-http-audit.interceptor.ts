@@ -49,12 +49,12 @@ export class AdminHttpAuditInterceptor implements NestInterceptor {
     const method = req.method.toUpperCase();
     const action = method + " " + path;
 
-    const write = async (error?: any) => {
+    const write = async (error?: any, payload?: unknown) => {
       try {
         const admin = await this.auth.getCurrentAdmin(readToken(req)).catch(() => null);
         const statusCode = Number(res.statusCode || (error?.status ?? 500));
         const result = statusCode >= 400 || error ? "FAILED" : "SUCCESS";
-        const responseData = error ? { message: String(error?.message ?? "请求失败").slice(0, 1000), statusCode } : { statusCode };
+        const responseData = error ? { message: String(error?.message ?? "请求失败").slice(0, 1000), statusCode } : safeJson(payload ?? { statusCode });
         await prisma.adminHttpRequestLog.create({ data: {
           requestId, adminUserId: admin?.id ?? null, method, path, module: moduleName,
           action, targetId, ipAddress, userAgent, statusCode, result,
@@ -65,7 +65,7 @@ export class AdminHttpAuditInterceptor implements NestInterceptor {
     };
 
     return next.handle().pipe(
-      mergeMap(async value => { await write(); return value; }),
+      mergeMap(async value => { await write(undefined, value); return value; }),
       catchError(error => from(write(error)).pipe(mergeMap(() => throwError(() => error)))),
     );
   }
