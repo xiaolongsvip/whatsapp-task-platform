@@ -311,7 +311,7 @@ export default function AdminHomePage() {
                 <label htmlFor="admin-email">账号或邮箱</label>
                 <div className="login-input-wrap">
                   <UserRound size={17} />
-                  <input id="admin-email" type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="请输入账号或邮箱" required autoComplete="username" />
+                  <input id="admin-email" type={mode === "bootstrap" ? "email" : "text"} value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="请输入账号或邮箱" required autoComplete="username" />
                 </div>
               </div>
 
