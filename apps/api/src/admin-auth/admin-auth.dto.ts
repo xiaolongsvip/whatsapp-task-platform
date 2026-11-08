@@ -1,7 +1,7 @@
-import { IsEmail, IsString, Length } from "class-validator";
+import { IsString, Length } from "class-validator";
 
 export class AdminLoginDto {
-  @IsEmail()
+  @IsString()
   @Length(3, 254)
   email!: string;
 
