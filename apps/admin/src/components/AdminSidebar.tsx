@@ -43,7 +43,7 @@ function AdminSidebarContent() {
       <Link href="/notifications" className={"sidebar-link " + (pathname.startsWith("/notifications") ? "active" : "")}><MessageSquare size={16}/>通知管理</Link>
       <Link href="/finance" className={"sidebar-link " + (pathname.startsWith("/finance") ? "active" : "")}><WalletCards size={16}/>财务管理</Link>
       <Link href="/reports" className={"sidebar-link " + (pathname.startsWith("/reports") ? "active" : "")}><BarChart3 size={16}/>数据报表</Link>
-      <button type="button" className="sidebar-link" disabled><Shield size={16}/>权限管理</button>
+      <Link href="/permissions" className={"sidebar-link " + (pathname.startsWith("/permissions") ? "active" : "")}><Shield size={16}/>权限管理</Link>
       <button type="button" className="sidebar-link" disabled><Settings size={16}/>系统设置</button>
     </nav>
     <div className="sidebar-version">EasyEarn v1.0.0</div>
