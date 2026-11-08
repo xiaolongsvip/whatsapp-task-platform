@@ -658,7 +658,18 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           select: { id: true },
         })
       : null;
-    const manualRiskReview = Boolean(crossAccountDuplicate);
+    const profile = riskConfig.userRiskManualReview === true
+      ? await prisma.userProfile.findUnique({ where: { userId }, select: { reputationScore: true } })
+      : null;
+    const riskScore = Math.max(0, 100 - (profile?.reputationScore ?? 60));
+    const riskThreshold = Math.max(0, Math.min(100, Number(riskConfig.manualReviewThreshold ?? 70)));
+    const highUserRisk = riskConfig.userRiskManualReview === true && riskScore >= riskThreshold;
+    const manualRiskReview = Boolean(crossAccountDuplicate) || highUserRisk;
+    const manualRiskReason = crossAccountDuplicate
+      ? "检测到其他账号提交过完全相同的截图文件（SHA-256 指纹一致），需要人工复核。"
+      : highUserRisk
+        ? `用户风险分 ${riskScore} 达到人工审核阈值 ${riskThreshold}（按 100 - 当前信誉分折算）。`
+        : null;
 
     const safeName = file.originalname
       .replace(/[^A-Za-z0-9._-]/g, "_")
@@ -727,7 +738,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
               status: manualRiskReview ? "NEEDS_REVIEW" : "PENDING",
               decision: manualRiskReview ? "UNCERTAIN" : null,
               confidence: manualRiskReview ? 1 : null,
-              reason: manualRiskReview ? "检测到其他账号提交过完全相同的截图文件（SHA-256 指纹一致），需要人工复核。" : null,
+              reason: manualRiskReason,
               nextAttemptAt: new Date(),
             },
           });
