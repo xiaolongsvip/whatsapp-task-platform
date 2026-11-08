@@ -138,6 +138,12 @@ export class SystemSettingsService {
     const items = await this.read("system.helpArticles", DEFAULT_ARTICLES) as JsonRecord[];
     const item = items.find(x => x.id === id);
     if (!item) throw new NotFoundException("帮助文章不存在");
+    if (action === "DELETE_PERMANENT") {
+      if (!item.deletedAt) throw new BadRequestException("请先将文章移入回收站，再永久删除。");
+      await this.write("system.helpArticles", items.filter(x => x.id !== id));
+      await this.audit(adminId, "HELP_ARTICLE_DELETED_PERMANENTLY", id, { title: item.title });
+      return { success: true, id };
+    }
     if (action === "TRASH") item.deletedAt = new Date().toISOString();
     if (action === "RESTORE") delete item.deletedAt;
     if (action === "PUBLISH") { item.status = item.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED"; item.publishedAt = item.status === "PUBLISHED" ? new Date().toISOString() : null; }
