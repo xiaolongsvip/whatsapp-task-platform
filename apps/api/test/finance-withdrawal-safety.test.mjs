@@ -70,6 +70,12 @@ test("AI task approval applies the same referral commission settlement as manual
   assert.match(worker, /referral-commission:\$\{claim\.id\}/);
 });
 
+test("admin APP version page immediately adds a successfully uploaded APK to release history", () => {
+  const page = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /releases:\[v,\.\.\.\(Array\.isArray\(x\.releases\)\?x\.releases\.filter/);
+  assert.match(page, /Number\(r\.versionCode\)!==Number\(v\.versionCode\)/);
+});
+
 test("APP version publishing rejects a verified APK whose version code is not newer than the live release", () => {
   const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
   assert.match(settings, /const publishedCode = Number\([\s\S]*?status === "PUBLISHED"[\s\S]*?current\.currentVersion/);
