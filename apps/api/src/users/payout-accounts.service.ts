@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { prisma } from "@wtp/database";
+import { EmailVerificationService } from "./email-verification.service";
 
 type PayoutAccountInput = {
   countryCode: string;
