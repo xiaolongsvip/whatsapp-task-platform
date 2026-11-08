@@ -235,6 +235,12 @@ export class SystemSettingsService {
       ] } : {}),
       ...(query.module ? { module: { contains: query.module, mode: "insensitive" } } : {}),
       ...(query.result ? { result: query.result } : {}),
+      ...(query.method ? { method: query.method.toUpperCase() } : {}),
+      ...(query.statusCode && Number.isInteger(Number(query.statusCode)) ? { statusCode: Number(query.statusCode) } : {}),
+      ...(query.startDate || query.endDate ? { createdAt: {
+        ...(query.startDate ? { gte: new Date(query.startDate + "T00:00:00.000Z") } : {}),
+        ...(query.endDate ? { lt: new Date(new Date(query.endDate + "T00:00:00.000Z").getTime() + 86400000) } : {}),
+      } } : {}),
     };
     const [total, rows] = await prisma.$transaction([
       prisma.adminHttpRequestLog.count({ where }),
