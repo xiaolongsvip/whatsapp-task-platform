@@ -6,7 +6,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "../users/dashboard.service";
 import { S3ObjectStorageService } from "./s3-object-storage.service";
@@ -648,6 +648,18 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     });
     if (pending) throw new ConflictException("该任务已有一份待审核提交，请勿重复提交。");
 
+    const contentSha256 = createHash("sha256").update(file.buffer).digest("hex");
+    const riskConfigRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.riskSettings" }, select: { value: true } });
+    const riskConfig = riskConfigRow?.value && typeof riskConfigRow.value === "object" && !Array.isArray(riskConfigRow.value)
+      ? riskConfigRow.value as Record<string, unknown> : {};
+    const crossAccountDuplicate = riskConfig.crossAccountScreenshotSimilarity === true
+      ? await prisma.taskSubmission.findFirst({
+          where: { contentSha256, claim: { userId: { not: userId } } },
+          select: { id: true },
+        })
+      : null;
+    const manualRiskReview = Boolean(crossAccountDuplicate);
+
     const safeName = file.originalname
       .replace(/[^A-Za-z0-9._-]/g, "_")
       .slice(-120);
@@ -696,22 +708,26 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             claimId,
             objectKey,
             note: note?.trim() || null,
-            status: queueForAi ? "UNDER_REVIEW" : "SUBMITTED",
+            status: queueForAi || manualRiskReview ? "UNDER_REVIEW" : "SUBMITTED",
             idempotencyKey: key,
             mimeType: detected.mimeType,
             sizeBytes: file.buffer.length,
             originalName: safeName || null,
+            contentSha256,
           },
         });
         await tx.taskClaim.update({
           where: { id: claimId },
-          data: { status: queueForAi ? "UNDER_REVIEW" : "SUBMITTED" },
+          data: { status: queueForAi || manualRiskReview ? "UNDER_REVIEW" : "SUBMITTED" },
         });
-        if (queueForAi) {
+        if (queueForAi || manualRiskReview) {
           await tx.aiReviewJob.create({
             data: {
               submissionId: created.id,
-              status: "PENDING",
+              status: manualRiskReview ? "NEEDS_REVIEW" : "PENDING",
+              decision: manualRiskReview ? "UNCERTAIN" : null,
+              confidence: manualRiskReview ? 1 : null,
+              reason: manualRiskReview ? "检测到其他账号提交过完全相同的截图文件（SHA-256 指纹一致），需要人工复核。" : null,
               nextAttemptAt: new Date(),
             },
           });
