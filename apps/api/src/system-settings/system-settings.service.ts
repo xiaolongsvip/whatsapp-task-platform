@@ -10,7 +10,7 @@ const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versi
   { version: "1.4.4", versionCode: 144, fileName: "EasyEarn-1.4.4-144-release.apk", size: "20.6 MB", status: "REVOKED", updateType: "MAJOR", uploadedAt: "2026-11-03T06:39:00.000Z", verifiedAt: "2026-11-03T06:40:00.000Z", publishedAt: "2026-11-03T06:40:00.000Z" },
 ] as JsonRecord[] };
 const DEFAULT_RISK = { singleDeviceSingleAccount: false, crossAccountScreenshotSimilarity: false, userRiskManualReview: false, manualReviewThreshold: 70 };
-const DEFAULT_RULES: JsonRecord[] = [];
+const DEFAULT_RULES: JsonRecord[] = [{ id: "default-pk-usd-local", countryCode: "PK", countryName: "Pakistan", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", channels: ["jazzcash", "easypaisa"], minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, status: "ENABLED" }];
 const DEFAULT_ARTICLES: JsonRecord[] = [];
 
 @Injectable()
@@ -34,12 +34,21 @@ export class SystemSettingsService {
     return { accountSecurity, version, risk, withdrawalRules, articles };
   }
   async saveConfig(key: string, value: JsonRecord, adminId: string) {
-    const safe = key === "system.riskSettings" ? {
-      singleDeviceSingleAccount: Boolean(value.singleDeviceSingleAccount),
-      crossAccountScreenshotSimilarity: Boolean(value.crossAccountScreenshotSimilarity),
-      userRiskManualReview: Boolean(value.userRiskManualReview),
-      manualReviewThreshold: Math.max(0, Math.min(100, Math.round(Number(value.manualReviewThreshold ?? 70)))),
-    } : { businessEmailVerification: Boolean(value.businessEmailVerification) };
+    let safe: JsonRecord;
+    if (key === "system.riskSettings") {
+      const threshold = Number(value.manualReviewThreshold ?? 70);
+      if (!Number.isInteger(threshold) || threshold < 0 || threshold > 100) {
+        throw new BadRequestException("人工审核风险阈值必须是 0 到 100 之间的整数。");
+      }
+      safe = {
+        singleDeviceSingleAccount: Boolean(value.singleDeviceSingleAccount),
+        crossAccountScreenshotSimilarity: Boolean(value.crossAccountScreenshotSimilarity),
+        userRiskManualReview: Boolean(value.userRiskManualReview),
+        manualReviewThreshold: threshold,
+      };
+    } else {
+      safe = { businessEmailVerification: Boolean(value.businessEmailVerification) };
+    }
     await this.write(key, safe);
     await this.audit(adminId, "SYSTEM_SETTING_UPDATED", key, safe);
     return safe;
