@@ -52,15 +52,18 @@ export class SystemSettingsService {
   }
   async getPublicUpdateInfo() {
     const config = await this.read("system.appVersion", DEFAULT_VERSION);
-    const published = Array.isArray(config.releases) ? config.releases.find((x: any) => x.status === "PUBLISHED" && Number(x.versionCode) === Number(config.versionCode)) : null;
+    const releases = Array.isArray(config.releases) ? config.releases : [];
+    const published = releases.find((x: any) => x.status === "PUBLISHED" && String(x.version) === String(config.currentVersion))
+      ?? releases.find((x: any) => x.status === "PUBLISHED");
+    const updateType = String(published?.updateType ?? "MINOR");
     return {
       currentVersion: String(config.currentVersion ?? ""),
       latestVersion: String(published?.version ?? config.currentVersion ?? ""),
-      versionCode: Number(published?.versionCode ?? config.versionCode ?? 0),
-      updateType: String(published?.updateType ?? config.updateType ?? "MINOR"),
-      forceUpdate: String(published?.updateType ?? config.updateType ?? "MINOR") === "MAJOR",
-      downloadUrl: String(published?.downloadUrl ?? config.downloadUrl ?? ""),
-      releaseNotes: String(published?.releaseNotes ?? config.releaseNotes ?? ""),
+      versionCode: Number(published?.versionCode ?? 0),
+      updateType,
+      forceUpdate: updateType === "MAJOR",
+      downloadUrl: String(published?.downloadUrl ?? ""),
+      releaseNotes: String(published?.releaseNotes ?? ""),
     };
   }
   async saveVersion(input: JsonRecord, adminId: string) {
