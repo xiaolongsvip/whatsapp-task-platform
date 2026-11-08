@@ -61,16 +61,16 @@ export class SystemSettingsService {
     await this.audit(adminId, "APP_VERSION_DRAFT_SAVED", latestVersion, { versionCode, updateType: release.updateType });
     return next;
   }
-  async registerApkUpload(input: { fileName: string; size: number; downloadUrl: string; objectKey: string }, adminId: string) {
+  async registerApkUpload(input: { fileName: string; size: number; downloadUrl: string; objectKey: string; sha256: string }, adminId: string) {
     const current = await this.read("system.appVersion", DEFAULT_VERSION);
     const releases = Array.isArray(current.releases) ? [...current.releases] : [];
     const code = Number(current.versionCode ?? 0);
     const version = String(current.latestVersion ?? "");
     if (!version || !code) throw new BadRequestException("请先填写最新版本名称和版本代码，再上传 APK");
-    const release = { version, versionCode: code, updateType: current.updateType ?? "MINOR", downloadUrl: input.downloadUrl, objectKey: input.objectKey, fileName: input.fileName, size: input.size, releaseNotes: current.releaseNotes ?? "", status: "VERIFIED", uploadedAt: new Date().toISOString(), verifiedAt: new Date().toISOString() };
+    const release = { version, versionCode: code, updateType: current.updateType ?? "MINOR", downloadUrl: input.downloadUrl, objectKey: input.objectKey, fileName: input.fileName, size: input.size, sha256: input.sha256, releaseNotes: current.releaseNotes ?? "", status: "VERIFIED", uploadedAt: new Date().toISOString(), verifiedAt: new Date().toISOString() };
     const next = { ...current, downloadUrl: input.downloadUrl, releases: [release, ...releases.filter((x: any) => Number(x.versionCode) !== code)].slice(0, 100) };
     await this.write("system.appVersion", next);
-    await this.audit(adminId, "APP_APK_UPLOADED_AND_VERIFIED", String(code), { fileName: input.fileName, size: input.size, objectKey: input.objectKey });
+    await this.audit(adminId, "APP_APK_UPLOADED_AND_VERIFIED", String(code), { fileName: input.fileName, size: input.size, objectKey: input.objectKey, sha256: input.sha256 });
     return { ...release };
   }
   async versionAction(versionCode: number, action: "PUBLISH" | "REVOKE", adminId: string) {
