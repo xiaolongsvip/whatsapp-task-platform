@@ -18,7 +18,7 @@ type Report = {
     actualPayout: { amounts: Amount[]; changes: { currency: string; change: number | null }[] };
   };
   reviewDistribution: { total: number; approved: number; rejected: number; pending: number };
-  finance: { currency: string; requestedMinor: string; paidMinor: string; estimatedDifferenceMinor: string }[];
+  finance: { currency: string; requestedMinor: string; paidMinor: string; estimatedDifferenceMinor: string; requestedChange: number | null; paidChange: number | null }[];
   trend: { date: string; submitted: number; approved: number; rejected: number }[];
   countryBreakdown: { country: string; taskCount: number; approvedCount: number; rejectedCount: number; actualPaid: Amount[]; approvalRate: number; note?: string }[];
   limitations: string[];
@@ -34,7 +34,8 @@ async function api<T>(url: string): Promise<T> {
   if (!response.ok) throw new Error(typeof data.message === "string" ? data.message : "报表数据读取失败");
   return data as T;
 }
-function dateString(date: Date) { return date.toISOString().slice(0, 10); }
+function dateString(date: Date) { return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); }
+function countryLabel(code: string) { const names: Record<string, string> = { PK: "巴基斯坦", NG: "尼日利亚", BD: "孟加拉国", KE: "肯尼亚", TZ: "坦桑尼亚", UG: "乌干达", GH: "加纳", IN: "印度", US: "美国", GB: "英国" }; return code === "UNSPECIFIED" ? "未标记" : names[code] ? names[code] + "（" + code + "）" : code; }
 function money(minor: string, currency: string) { return currency + " " + (Number(minor) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function amountLines(rows: Amount[]) { return rows.length ? rows.map(x => money(x.amountMinor, x.currency)) : ["—"]; }
 function amountChangeText(rows: { currency: string; change: number | null }[]) { return rows.length ? rows.map(x => x.currency + " " + (x.change === null ? "暂无对比" : (x.change > 0 ? "+" : "") + x.change.toFixed(1) + "%")).join(" / ") : "暂无可比较数据"; }
@@ -79,7 +80,9 @@ export default function ReportsPage() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const q = new URLSearchParams({ from, to, status, period });
+      const fromOffset = new Date(from + "T12:00:00").getTimezoneOffset();
+      const toOffset = new Date(to + "T12:00:00").getTimezoneOffset();
+      const q = new URLSearchParams({ from, to, status, period, fromOffset: String(fromOffset), toOffset: String(toOffset) });
       setReport(await api<Report>("/api/v1/admin/reports/summary?" + q.toString()));
       setPage(1);
     } catch (e) { setError(e instanceof Error ? e.message : "报表数据读取失败"); }
@@ -128,13 +131,13 @@ export default function ReportsPage() {
         </div>
         <div style={{ ...panel, padding: 16, minWidth: 0 }}>
           <b style={{ fontSize: 14, color: "#152943" }}>财务摘要（本周期）</b><div style={{ display: "grid", gap: 9, marginTop: 13 }}>
-            {report?.finance.length ? report.finance.map(x => <div key={x.currency} style={{ border: "1px solid #e9eef5", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "#718096" }}>{x.currency} 提现申请金额</div><b style={{ display: "block", fontSize: 16, color: "#152943", marginTop: 4 }}>{money(x.requestedMinor, x.currency)}</b><div style={{ fontSize: 10, color: "#8a9ab0", marginTop: 3 }}>实际支出：{money(x.paidMinor, x.currency)}</div><div style={{ fontSize: 10, color: "#15945b", marginTop: 3 }}>预计结余：{money(x.estimatedDifferenceMinor, x.currency)}</div></div>) : <div style={{ padding: 18, color: "#8a9ab0", fontSize: 11, textAlign: "center", border: "1px solid #e9eef5", borderRadius: 8 }}>所选周期暂无提现财务数据</div>}
+            {report?.finance.length ? report.finance.map(x => <div key={x.currency} style={{ border: "1px solid #e9eef5", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "#718096" }}>{x.currency} 提现申请金额</div><b style={{ display: "block", fontSize: 16, color: "#152943", marginTop: 4 }}>{money(x.requestedMinor, x.currency)}</b><div style={{ fontSize: 10, color: "#8a9ab0", marginTop: 3 }}>较上一周期：{x.requestedChange === null ? "暂无可比较数据" : (x.requestedChange > 0 ? "+" : "") + x.requestedChange.toFixed(1) + "%"}</div><div style={{ fontSize: 10, color: "#718096", marginTop: 7 }}>实际支出：{money(x.paidMinor, x.currency)}</div><div style={{ fontSize: 10, color: "#8a9ab0", marginTop: 3 }}>较上一周期：{x.paidChange === null ? "暂无可比较数据" : (x.paidChange > 0 ? "+" : "") + x.paidChange.toFixed(1) + "%"}</div><div style={{ fontSize: 10, color: "#15945b", marginTop: 7 }}>预计差额：{money(x.estimatedDifferenceMinor, x.currency)}</div></div>) : <div style={{ padding: 18, color: "#8a9ab0", fontSize: 11, textAlign: "center", border: "1px solid #e9eef5", borderRadius: 8 }}>所选周期暂无提现财务数据</div>}
           </div>
         </div>
       </section>
       <section style={{ ...panel, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}><div><b style={{ fontSize: 14, color: "#152943" }}>数据明细</b><div style={{ fontSize: 10, color: "#8a9ab0", marginTop: 4 }}>按国家统计</div></div><div style={{ display: "flex", gap: 8, alignItems: "center" }}><select style={control} value={breakdown} onChange={e => setBreakdown(e.target.value)}><option value="country">按国家统计</option></select><div style={{ position: "relative" }}><button style={button} onClick={() => setShowColumns(v => !v)}>▥ 显示列</button>{showColumns && <div style={{ position: "absolute", zIndex: 5, right: 0, top: 38, width: 170, padding: 10, background: "#fff", border: "1px solid #e1e8f0", borderRadius: 8, boxShadow: "0 8px 24px #172b451c" }}>{columnsDef.map(x => <label key={x.key} style={{ display: "flex", gap: 7, alignItems: "center", padding: "6px 2px", fontSize: 11, color: "#53647c" }}><input type="checkbox" checked={columns.includes(x.key)} onChange={e => setColumns(old => e.target.checked ? [...old, x.key] : old.filter(k => k !== x.key))}/>{x.label}</label>)}</div>}</div></div></div>
-        <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}><thead><tr>{columnsDef.filter(x => columns.includes(x.key)).map(x => <th key={x.key} style={th}>{x.label}</th>)}</tr></thead><tbody>{visibleRows.length ? visibleRows.map(row => <tr key={row.country}>{columns.includes("country") && <td style={td}>{row.country}</td>}{columns.includes("tasks") && <td style={td}>{row.taskCount.toLocaleString()}</td>}{columns.includes("approved") && <td style={td}>{row.approvedCount.toLocaleString()}</td>}{columns.includes("rejected") && <td style={td}>{row.rejectedCount.toLocaleString()}</td>}{columns.includes("spend") && <td style={td}>{amountLines(row.actualPaid).join(" / ")}</td>}{columns.includes("rate") && <td style={td}>{row.approvalRate.toFixed(1)}%</td>}</tr>) : <tr><td colSpan={columns.length} style={{ padding: 35, textAlign: "center", color: "#8a9ab0", fontSize: 12 }}>{loading ? "正在加载报表…" : "暂无数据"}</td></tr>}</tbody></table></div>
+        <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}><thead><tr>{columnsDef.filter(x => columns.includes(x.key)).map(x => <th key={x.key} style={th}>{x.label}</th>)}</tr></thead><tbody>{visibleRows.length ? visibleRows.map(row => <tr key={row.country}>{columns.includes("country") && <td style={td}>{countryLabel(row.country)}</td>}{columns.includes("tasks") && <td style={td}>{row.taskCount.toLocaleString()}</td>}{columns.includes("approved") && <td style={td}>{row.approvedCount.toLocaleString()}</td>}{columns.includes("rejected") && <td style={td}>{row.rejectedCount.toLocaleString()}</td>}{columns.includes("spend") && <td style={td}>{amountLines(row.actualPaid).join(" / ")}</td>}{columns.includes("rate") && <td style={td}>{row.approvalRate.toFixed(1)}%</td>}</tr>) : <tr><td colSpan={columns.length} style={{ padding: 35, textAlign: "center", color: "#8a9ab0", fontSize: 12 }}>{loading ? "正在加载报表…" : "暂无数据"}</td></tr>}</tbody></table></div>
         <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 7, borderTop: "1px solid #edf1f6", fontSize: 11, color: "#718096" }}><span>共 {rows.length} 条</span><select style={{ ...control, height: 30 }} value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select><button style={{ ...button, height: 30, padding: "0 8px" }} disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={14}/></button><b style={{ color: "#2868ee" }}>{page}</b><button style={{ ...button, height: 30, padding: "0 8px" }} disabled={page * pageSize >= rows.length} onClick={() => setPage(p => p + 1)}><ChevronRight size={14}/></button></div>
       </section>
       {report?.limitations.map(x => <div key={x} style={{ fontSize: 10, color: "#8a9ab0" }}>说明：{x}</div>)}
