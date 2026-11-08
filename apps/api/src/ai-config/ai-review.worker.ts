@@ -162,38 +162,53 @@ ${taskRequirements}
         return;
       }
 
-      // AI is advisory only: every result must pass through human review
-      // before any wallet credit or task settlement can occur. This keeps the
-      // business flow deterministic: submit -> AI analysis -> manual decision -> reward.
-      await prisma.$transaction(async (tx) => {
-        // Use the same lock order as manual review so an admin decision cannot
-        // race with a worker update for the same submission.
-        await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT id FROM task_submissions WHERE id = ${submission.id}::uuid FOR UPDATE
-        `;
-        const current = await tx.aiReviewJob.findUnique({ where: { id: job.id } });
-        if (!current || current.status !== "PROCESSING") return;
-        await tx.aiReviewJob.update({
-          where: { id: job.id },
-          data: {
-            status: "NEEDS_REVIEW",
-            decision: parsed.decision,
-            confidence: parsed.confidence,
-            reason: parsed.reason,
-            extractedText: parsed.extractedText,
-            lockedAt: null,
-            lastError: null,
-          },
+      const confidentApprove = parsed.decision === "APPROVE" &&
+        parsed.confidence >= config.approveThreshold &&
+        parsed.checks.length > 0 &&
+        parsed.checks.every((check) => check.passed === true);
+      const confidentReject = parsed.decision === "REJECT" &&
+        parsed.confidence >= config.rejectThreshold &&
+        parsed.checks.some((check) => check.passed === false);
+
+      if (!confidentApprove && !confidentReject) {
+        await prisma.$transaction(async (tx) => {
+          // Use the same lock order as manual review: submission first, then job.
+          // If an admin wins the lock, this worker must observe the completed job
+          // and leave the manual decision untouched.
+          await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM task_submissions WHERE id = ${submission.id}::uuid FOR UPDATE
+          `;
+          const current = await tx.aiReviewJob.findUnique({ where: { id: job.id } });
+          if (!current || current.status !== "PROCESSING") return;
+          await tx.aiReviewJob.update({
+            where: { id: job.id },
+            data: {
+              status: "NEEDS_REVIEW",
+              decision: parsed.decision,
+              confidence: parsed.confidence,
+              reason: parsed.reason,
+              extractedText: parsed.extractedText,
+              lockedAt: null,
+              lastError: null,
+            },
+          });
+          await tx.taskSubmission.update({
+            where: { id: submission.id },
+            data: { status: "UNDER_REVIEW" },
+          });
+          await tx.taskClaim.update({
+            where: { id: claim.id },
+            data: { status: "UNDER_REVIEW" },
+          });
         });
-        await tx.taskSubmission.update({
-          where: { id: submission.id },
-          data: { status: "UNDER_REVIEW" },
-        });
-        await tx.taskClaim.update({
-          where: { id: claim.id },
-          data: { status: "UNDER_REVIEW" },
-        });
-      });
+        return;
+      }
+
+      if (confidentApprove) {
+        await this.approve(job.id, parsed);
+      } else {
+        await this.reject(job.id, parsed);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 1000) : "未知审核错误";
       await this.retryOrEscalate(job.id, job.attemptCount, message);
@@ -229,6 +244,159 @@ ${taskRequirements}
     } catch {
       return null;
     }
+  }
+
+  private async approve(jobId: string, result: AiDecision) {
+    await prisma.$transaction(async (tx) => {
+      const target = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        select: { submissionId: true },
+      });
+      if (!target) return;
+      // Match the admin transaction lock order to serialize all decisions
+      // for this submission, regardless of whether AI or an admin got there first.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_submissions WHERE id = ${target.submissionId}::uuid FOR UPDATE
+      `;
+      const current = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        include: {
+          submission: {
+            include: {
+              claim: {
+                include: { task: true, contactAssignment: true, taskSlot: true },
+              },
+            },
+          },
+        },
+      });
+      if (!current || current.status !== "PROCESSING") return;
+      const submission = current.submission;
+      const claim = submission.claim;
+      if (submission.status === "APPROVED" || claim.status === "APPROVED") {
+        await tx.aiReviewJob.update({ where: { id: jobId }, data: { status: "COMPLETED", lockedAt: null } });
+        return;
+      }
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status)) {
+        await tx.aiReviewJob.update({
+          where: { id: jobId },
+          data: { status: "NEEDS_REVIEW", decision: result.decision, confidence: result.confidence, reason: "提交状态已变化，停止自动结算。", lockedAt: null },
+        });
+        return;
+      }
+
+      const wallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId: claim.userId, currency: claim.task.currency } },
+        create: { userId: claim.userId, currency: claim.task.currency },
+        update: {},
+      });
+      await tx.ledgerEntry.createMany({
+        data: [{
+          walletId: wallet.id,
+          sourceType: "TASK_REWARD",
+          sourceId: claim.id,
+          direction: "CREDIT",
+          amountMinor: claim.task.rewardMinor,
+          currency: claim.task.currency,
+          idempotencyKey: `task-reward:${claim.id}`,
+        }],
+        skipDuplicates: true,
+      });
+      await tx.taskReview.create({
+        data: {
+          submissionId: submission.id,
+          reviewerAdminId: null,
+          decision: "APPROVE",
+          reason: result.reason,
+        },
+      });
+      await tx.taskSubmission.update({ where: { id: submission.id }, data: { status: "APPROVED" } });
+      await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "APPROVED" } });
+      if (claim.contactAssignment) {
+        await tx.contactAssignment.update({
+          where: { id: claim.contactAssignment.id },
+          data: { status: "COMPLETED", completedAt: new Date() },
+        });
+        await tx.contactNumber.updateMany({
+          where: { id: claim.contactAssignment.contactNumberId, status: "ASSIGNED" },
+          data: { status: "USED" },
+        });
+      }
+      if (claim.taskSlot) {
+        await tx.taskSlot.updateMany({
+          where: { id: claim.taskSlot.id, status: "ASSIGNED", claimId: claim.id },
+          data: { status: "USED", usedAt: new Date() },
+        });
+      }
+      await tx.aiReviewJob.update({
+        where: { id: jobId },
+        data: {
+          status: "COMPLETED",
+          decision: result.decision,
+          confidence: result.confidence,
+          reason: result.reason,
+          extractedText: result.extractedText,
+          lockedAt: null,
+          lastError: null,
+        },
+      });
+    });
+  }
+
+  private async reject(jobId: string, result: AiDecision) {
+    await prisma.$transaction(async (tx) => {
+      const target = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        select: { submissionId: true },
+      });
+      if (!target) return;
+
+      // Serialize rejection with manual review and all other AI decisions.
+      // Always lock the submission before reading or changing the job state.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_submissions WHERE id = ${target.submissionId}::uuid FOR UPDATE
+      `;
+      const current = await tx.aiReviewJob.findUnique({
+        where: { id: jobId },
+        include: { submission: { include: { claim: true } } },
+      });
+      if (!current || current.status !== "PROCESSING") return;
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(current.submission.status)) {
+        await tx.aiReviewJob.update({
+          where: { id: jobId },
+          data: { status: "NEEDS_REVIEW", reason: "提交状态已变化，停止自动拒绝。", lockedAt: null },
+        });
+        return;
+      }
+      await tx.taskReview.create({
+        data: {
+          submissionId: current.submissionId,
+          reviewerAdminId: null,
+          decision: "REJECT",
+          reason: result.reason,
+        },
+      });
+      await tx.taskSubmission.update({
+        where: { id: current.submissionId },
+        data: { status: "REJECTED" },
+      });
+      await tx.taskClaim.update({
+        where: { id: current.submission.claimId },
+        data: { status: "REJECTED" },
+      });
+      await tx.aiReviewJob.update({
+        where: { id: jobId },
+        data: {
+          status: "COMPLETED",
+          decision: result.decision,
+          confidence: result.confidence,
+          reason: result.reason,
+          extractedText: result.extractedText,
+          lockedAt: null,
+          lastError: null,
+        },
+      });
+    });
   }
 
   private async retryOrEscalate(jobId: string, attemptCount: number, message: string) {
