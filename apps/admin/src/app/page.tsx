@@ -423,7 +423,7 @@ export default function AdminHomePage() {
                   <button className="reference-pending-row" onClick={() => setActiveSection("numbers")}><span className="pending-icon red"><Phone size={17}/></span><span>号码库存预警</span><b>{summary?.available ?? "—"}</b><ArrowRight size={15}/></button>
                 </div>
                 <div className="dashboard-card reference-quick-card"><div className="dashboard-card-title"><h2>快捷操作</h2></div><div className="reference-quick-actions">
-                  <button onClick={() => setActiveSection("numbers")}><span><Upload size={17}/></span>导入号码</button><button disabled title="提现管理页面尚未接入"><span><WalletCards size={17}/></span>查看提现</button>
+                  <button onClick={() => setActiveSection("numbers")}><span><Upload size={17}/></span>导入号码</button><Link href="/finance" className="reference-quick-action-link"><span><WalletCards size={17}/></span>查看提现</Link>
                 </div></div>
               </section>
             </>
