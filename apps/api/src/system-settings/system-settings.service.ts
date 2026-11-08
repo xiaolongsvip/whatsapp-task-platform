@@ -1,0 +1,158 @@
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { prisma } from "@wtp/database";
+
+type JsonRecord = Record<string, unknown>;
+const DEFAULT_ACCOUNT_SECURITY = { businessEmailVerification: false };
+const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versionCode: 146, updateType: "MINOR", downloadUrl: "", releaseNotes: "", releases: [] as JsonRecord[] };
+const DEFAULT_RISK = { singleDeviceSingleAccount: false, crossAccountScreenshotSimilarity: false, userRiskManualReview: false, manualReviewThreshold: 70 };
+const DEFAULT_RULES: JsonRecord[] = [];
+const DEFAULT_ARTICLES: JsonRecord[] = [];
+
+@Injectable()
+export class SystemSettingsService {
+  private async read(key: string, fallback: unknown): Promise<any> {
+    const row = await prisma.taskConfiguration.findUnique({ where: { key } });
+    return row?.value ?? fallback;
+  }
+  async getConfig(key: string) {
+    const fallback = key === "system.riskSettings" ? DEFAULT_RISK : DEFAULT_ACCOUNT_SECURITY;
+    return this.read(key, fallback);
+  }
+  async getAll() {
+    const [accountSecurity, version, risk, withdrawalRules, articles] = await Promise.all([
+      this.read("system.accountSecurity", DEFAULT_ACCOUNT_SECURITY),
+      this.read("system.appVersion", DEFAULT_VERSION),
+      this.read("system.riskSettings", DEFAULT_RISK),
+      this.read("system.withdrawalRules", DEFAULT_RULES),
+      this.read("system.helpArticles", DEFAULT_ARTICLES),
+    ]);
+    return { accountSecurity, version, risk, withdrawalRules, articles };
+  }
+  async saveConfig(key: string, value: JsonRecord, adminId: string) {
+    const safe = key === "system.riskSettings" ? {
+      singleDeviceSingleAccount: Boolean(value.singleDeviceSingleAccount),
+      crossAccountScreenshotSimilarity: Boolean(value.crossAccountScreenshotSimilarity),
+      userRiskManualReview: Boolean(value.userRiskManualReview),
+      manualReviewThreshold: Math.max(0, Math.min(100, Math.round(Number(value.manualReviewThreshold ?? 70)))),
+    } : { businessEmailVerification: Boolean(value.businessEmailVerification) };
+    await this.write(key, safe);
+    await this.audit(adminId, "SYSTEM_SETTING_UPDATED", key, safe);
+    return safe;
+  }
+  private async write(key: string, value: unknown) {
+    await prisma.taskConfiguration.upsert({ where: { key }, create: { key, value: value as any }, update: { value: value as any } });
+  }
+  private async audit(adminId: string, action: string, targetId: string, metadata: unknown) {
+    await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action, targetType: "SYSTEM_SETTING", targetId, metadata: metadata as any } });
+  }
+  async saveVersion(input: JsonRecord, adminId: string) {
+    const current = await this.read("system.appVersion", DEFAULT_VERSION);
+    const latestVersion = String(input.latestVersion ?? "").trim();
+    const versionCode = Number(input.versionCode);
+    const downloadUrl = String(input.downloadUrl ?? "").trim();
+    if (!/^\d+\.\d+\.\d+$/.test(latestVersion)) throw new BadRequestException("版本号必须使用 x.y.z 格式");
+    if (!Number.isSafeInteger(versionCode) || versionCode < 1) throw new BadRequestException("版本代码必须是正整数");
+    if (downloadUrl && !/^https:\/\//i.test(downloadUrl)) throw new BadRequestException("APK 下载地址必须使用 HTTPS");
+    const release = { version: latestVersion, versionCode, updateType: input.updateType === "MAJOR" ? "MAJOR" : "MINOR", downloadUrl, releaseNotes: String(input.releaseNotes ?? "").slice(0, 5000), releasedAt: new Date().toISOString(), status: "DRAFT" };
+    const releases = Array.isArray(current.releases) ? current.releases : [];
+    const next = { ...current, latestVersion, versionCode, updateType: release.updateType, downloadUrl, releaseNotes: release.releaseNotes, releases: [release, ...releases].slice(0, 100) };
+    await this.write("system.appVersion", next);
+    await this.audit(adminId, "APP_VERSION_DRAFT_SAVED", latestVersion, { versionCode, updateType: release.updateType });
+    return next;
+  }
+  async listArticles(query: Record<string,string>) {
+    const items = await this.read("system.helpArticles", DEFAULT_ARTICLES);
+    const includeTrash = query.view === "trash";
+    const search = (query.search ?? "").trim().toLowerCase();
+    return (Array.isArray(items) ? items : []).filter((x: any) => Boolean(x.deletedAt) === includeTrash && (!search || String(x.title ?? "").toLowerCase().includes(search) || String(x.summary ?? "").toLowerCase().includes(search)));
+  }
+  async saveArticle(id: string | null, input: JsonRecord, adminId: string) {
+    const items = await this.read("system.helpArticles", DEFAULT_ARTICLES) as JsonRecord[];
+    const title = String(input.title ?? "").trim();
+    if (!title) throw new BadRequestException("文章标题不能为空");
+    const now = new Date().toISOString();
+    const index = id ? items.findIndex(x => x.id === id && !x.deletedAt) : -1;
+    if (id && index < 0) throw new NotFoundException("帮助文章不存在");
+    const prior = index >= 0 ? items[index] : null;
+    const version = Number(prior?.version ?? 0) + 1;
+    const revision = { version, savedAt: now, title, summary: String(input.summary ?? ""), content: String(input.content ?? ""), language: String(input.language ?? "简体中文"), audience: String(input.audience ?? "后台操作员") };
+    const article: JsonRecord = { ...(prior ?? {}), id: id ?? crypto.randomUUID(), ...revision, status: prior?.status ?? "DRAFT", pinned: Boolean(input.pinned ?? prior?.pinned), advanced: input.advanced ?? prior?.advanced ?? {}, revisions: [...(Array.isArray(prior?.revisions) ? prior!.revisions as JsonRecord[] : []), revision].slice(-30), updatedAt: now, updatedBy: adminId };
+    if (index >= 0) items[index] = article; else items.unshift(article);
+    await this.write("system.helpArticles", items);
+    await this.audit(adminId, id ? "HELP_ARTICLE_UPDATED" : "HELP_ARTICLE_CREATED", String(article.id), { title, version });
+    return article;
+  }
+  async articleAction(id: string, action: string, adminId: string) {
+    const items = await this.read("system.helpArticles", DEFAULT_ARTICLES) as JsonRecord[];
+    const item = items.find(x => x.id === id);
+    if (!item) throw new NotFoundException("帮助文章不存在");
+    if (action === "TRASH") item.deletedAt = new Date().toISOString();
+    if (action === "RESTORE") delete item.deletedAt;
+    if (action === "PUBLISH") { item.status = item.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED"; item.publishedAt = item.status === "PUBLISHED" ? new Date().toISOString() : null; }
+    if (action === "PIN") item.pinned = !item.pinned;
+    item.updatedAt = new Date().toISOString();
+    await this.write("system.helpArticles", items);
+    await this.audit(adminId, "HELP_ARTICLE_" + action, id, { title: item.title });
+    return item;
+  }
+  async listWithdrawalRules(query: Record<string,string>) {
+    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    return items.filter((x: any) => (!query.country || query.country === x.countryCode) && (!query.currency || query.currency === x.walletCurrency) && (!query.method || query.method === x.method) && (!query.status || query.status === x.status));
+  }
+  async saveWithdrawalRule(id: string | null, input: JsonRecord, adminId: string) {
+    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    const ruleId = id ?? crypto.randomUUID();
+    const countryCode = String(input.countryCode ?? "").trim().toUpperCase();
+    const walletCurrency = String(input.walletCurrency ?? "").trim().toUpperCase();
+    const payoutCurrency = String(input.payoutCurrency ?? "").trim().toUpperCase();
+    const method = String(input.method ?? "").trim().toUpperCase();
+    const min = Number(input.minimumAmount), max = Number(input.maximumAmount), daily = Number(input.dailyLimit);
+    if (!countryCode || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !method) throw new BadRequestException("国家、钱包币种、代付币种和提现方式必填");
+    if (!(min > 0 && max >= min && daily > 0)) throw new BadRequestException("请检查最低、最高和每日提现限额");
+    const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels: Array.isArray(input.channels) ? input.channels.map(String) : [], minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
+    const index = items.findIndex(x => x.id === ruleId);
+    if (index >= 0) items[index] = rule; else items.unshift(rule);
+    await this.write("system.withdrawalRules", items);
+    await this.audit(adminId, id ? "WITHDRAWAL_RULE_UPDATED" : "WITHDRAWAL_RULE_CREATED", ruleId, rule);
+    return rule;
+  }
+  async toggleWithdrawalRule(id: string, adminId: string) {
+    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    const rule = items.find(x => x.id === id) as any;
+    if (!rule) throw new NotFoundException("提现规则不存在");
+    rule.status = rule.status === "ENABLED" ? "DISABLED" : "ENABLED";
+    rule.updatedAt = new Date().toISOString();
+    await this.write("system.withdrawalRules", items);
+    await this.audit(adminId, "WITHDRAWAL_RULE_STATUS_UPDATED", id, { status: rule.status });
+    return rule;
+  }
+  async duplicateWithdrawalRule(id: string, adminId: string) {
+    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    const source = items.find(x => x.id === id);
+    if (!source) throw new NotFoundException("提现规则不存在");
+    const copy = { ...source, id: crypto.randomUUID(), status: "DISABLED", countryName: String(source.countryName) + " 副本", updatedAt: new Date().toISOString() };
+    items.unshift(copy);
+    await this.write("system.withdrawalRules", items);
+    await this.audit(adminId, "WITHDRAWAL_RULE_DUPLICATED", String(copy.id), { sourceId: id });
+    return copy;
+  }
+  async auditLogs(query: Record<string,string>) {
+    const page = Math.max(1, Number(query.page ?? 1) || 1), pageSize = Math.min(100, Math.max(10, Number(query.pageSize ?? 20) || 20));
+    const where: any = {
+      ...(query.search ? { OR: [{ targetId: { contains: query.search, mode: "insensitive" } }, { action: { contains: query.search, mode: "insensitive" } }, { targetType: { contains: query.search, mode: "insensitive" } }] } : {}),
+      ...(query.module ? { targetType: { contains: query.module, mode: "insensitive" } } : {}),
+      ...(query.result === "FAILED" ? { action: { contains: "FAILED", mode: "insensitive" } } : {}),
+    };
+    const [total, rows] = await prisma.$transaction([prisma.auditEvent.count({ where }), prisma.auditEvent.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page-1)*pageSize, take: pageSize })]);
+    const ids = [...new Set(rows.map(x => x.actorId).filter((x): x is string => Boolean(x)))];
+    const admins = ids.length ? await prisma.adminUser.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }) : [];
+    const names = new Map(admins.map(x => [x.id, x.name || x.email]));
+    return { page, pageSize, total, items: rows.map(x => ({ id: x.id, createdAt: x.createdAt.toISOString(), actor: x.actorId ? names.get(x.actorId) ?? "Administrator" : "System", actorId: x.actorId, module: x.targetType, action: x.action, targetId: x.targetId, result: x.action.includes("FAILED") ? "FAILED" : "SUCCESS", metadata: x.metadata })) };
+  }
+  async auditLogDetail(id: string) {
+    const row = await prisma.auditEvent.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException("审计记录不存在");
+    const admin = row.actorId ? await prisma.adminUser.findUnique({ where: { id: row.actorId }, select: { name: true, email: true } }) : null;
+    return { id: row.id, createdAt: row.createdAt.toISOString(), actor: admin?.name ?? admin?.email ?? "System", module: row.targetType, action: row.action, targetId: row.targetId, result: row.action.includes("FAILED") ? "FAILED" : "SUCCESS", requestData: row.metadata ?? {}, processingResult: { status: row.action.includes("FAILED") ? "FAILED" : "SUCCESS" }, relatedRecords: { entityType: row.targetType, entityId: row.targetId } };
+  }
+}
