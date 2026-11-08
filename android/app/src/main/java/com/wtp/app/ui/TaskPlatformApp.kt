@@ -58,7 +58,26 @@ fun TaskPlatformApp() {
     var authenticated by rememberSaveable { mutableStateOf(false) }
     var phone by rememberSaveable { mutableStateOf("") }
     var language by rememberSaveable { mutableStateOf("zh-CN") }
+    var requiredUpdate by remember { mutableStateOf<JSONObject?>(null) }
+    var updateCheckError by remember { mutableStateOf<String?>(null) }
+    var checkingUpdate by remember { mutableStateOf(true) }
+    suspend fun checkRequiredUpdate() {
+        checkingUpdate = true
+        updateCheckError = null
+        try {
+            val info = withContext(Dispatchers.IO) { AuthRepository.publicAppUpdate() }
+            val publishedCode = info.optInt("versionCode", 0)
+            requiredUpdate = if (info.optBoolean("forceUpdate") && publishedCode > com.wtp.app.BuildConfig.VERSION_CODE) info else null
+        } catch (error: Exception) {
+            // Never lock users out when the update service is temporarily unavailable.
+            updateCheckError = error.message ?: "暂时无法检查更新"
+            requiredUpdate = null
+        } finally {
+            checkingUpdate = false
+        }
+    }
     LaunchedEffect(Unit) {
+        checkRequiredUpdate()
         try {
             val user = withContext(Dispatchers.IO) { AuthRepository.currentUser() }
             phone = user.optString("phone")
@@ -67,7 +86,14 @@ fun TaskPlatformApp() {
         } catch (_: Exception) { authenticated = false } finally { checking = false }
     }
     when {
-        checking -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        requiredUpdate != null -> ForceUpdateScreen(
+            info = requiredUpdate!!,
+            language = language,
+            checking = checkingUpdate,
+            error = updateCheckError,
+            onRetry = { kotlinx.coroutines.MainScope().launch { checkRequiredUpdate() } }
+        )
+        checkingUpdate || checking -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         !authenticated -> AuthScreen { phone = it; authenticated = true }
         else -> MemberShell(phone, language, onLanguageChanged = { language = it }) {
             appContext.stopService(Intent(appContext, ScreenCaptureService::class.java))
@@ -76,6 +102,58 @@ fun TaskPlatformApp() {
             withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }
             authenticated = false
             phone = ""
+        }
+    }
+}
+
+@Composable
+private fun ForceUpdateScreen(
+    info: JSONObject,
+    language: String,
+    checking: Boolean,
+    error: String?,
+    onRetry: () -> Unit
+) {
+    val context = LocalContext.current
+    val en = language == "en"
+    val downloadUrl = info.optString("downloadUrl").orEmpty()
+    Column(
+        Modifier.fillMaxSize().background(Color(0xFFF2F4F6)).padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.SystemUpdate, null, modifier = Modifier.size(64.dp), tint = Color(0xFF319CCB))
+        Spacer(Modifier.height(18.dp))
+        Text(if (en) "Update required" else "需要更新应用", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            (if (en) "Version " else "最新版本：") + info.optString("latestVersion"),
+            color = Color(0xFF53647C)
+        )
+        val notes = info.optString("releaseNotes").orEmpty()
+        if (notes.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(notes, color = Color(0xFF53647C))
+        }
+        if (!error.isNullOrBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(error, color = Color(0xFFC43D3D))
+        }
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = {
+                runCatching {
+                    val uri = Uri.parse(downloadUrl)
+                    require(uri.scheme == "https" && !uri.host.isNullOrBlank())
+                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                }
+            },
+            enabled = downloadUrl.startsWith("https://"),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (en) "Download update" else "下载并安装更新") }
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = onRetry, enabled = !checking) {
+            Text(if (checking) { if (en) "Checking…" else "正在检查…" } else { if (en) "I have updated — check again" else "已安装更新，重新检查" })
         }
     }
 }
