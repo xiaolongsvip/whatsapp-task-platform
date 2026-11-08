@@ -143,7 +143,7 @@ model User {
   status                UserStatus             @default(PENDING)
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
-  profile               UserProfile?
+  profile               UserProfile?\n  emailChallenges       EmailVerificationChallenge[]
   invitedBy             ReferralEdge?           @relation("Invitee")
   invitees              ReferralEdge[]          @relation("Inviter")
   ancestors             ReferralAncestor[]      @relation("Descendant")
@@ -222,7 +222,7 @@ model AuthSession {
 
 model UserProfile {
   userId       String   @id @map("user_id") @db.Uuid
-  displayName  String?  @map("display_name")
+  displayName  String?  @map("display_name")\n  email        String?  @unique @db.VarChar(254)\n  emailVerifiedAt DateTime? @map("email_verified_at")
   locale       String   @default("en")
   timezone     String   @default("UTC")
   dailyTaskLimit Int?    @map("daily_task_limit")
@@ -265,7 +265,7 @@ model EmailVerificationChallenge {
   id         String    @id @default(uuid()) @db.Uuid
   userId     String    @map("user_id") @db.Uuid
   email      String    @db.VarChar(254)
-  codeHash   String    @map("code_hash") @db.Char(64)
+  codeHash   String    @map("code_hash") @db.Char(64)\n  attempts   Int       @default(0)
   expiresAt  DateTime  @map("expires_at")
   consumedAt DateTime? @map("consumed_at")
   createdAt  DateTime  @default(now()) @map("created_at")
