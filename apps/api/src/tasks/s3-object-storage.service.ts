@@ -81,6 +81,38 @@ export class S3ObjectStorageService {
     return { success: true, message: "对象存储连接成功，临时测试文件已删除。" };
   }
 
+  async createPresignedPutUrl(key: string, expiresSeconds = 3600): Promise<string> {
+    const config = await this.config();
+    const now = new Date();
+    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+    const dateStamp = amzDate.slice(0, 8);
+    const endpointPrefix = config.endpoint.pathname.replace(/\/+$/, "");
+    const encodedKey = key.split("/").map(awsEncode).join("/");
+    const canonicalUri = `${endpointPrefix}/${awsEncode(config.bucket)}/${encodedKey}`;
+    const host = config.endpoint.host;
+    const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
+    const params: Array<[string, string]> = [
+      ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
+      ["X-Amz-Credential", `${config.accessKey}/${scope}`],
+      ["X-Amz-Date", amzDate],
+      ["X-Amz-Expires", String(Math.max(60, Math.min(3600, expiresSeconds)))],
+      ["X-Amz-SignedHeaders", "host"],
+    ];
+    const canonicalQuery = params.map(([name, value]) => `${awsEncode(name)}=${awsEncode(value)}`).sort().join("&");
+    const canonicalHeaders = `host:${host}\n`;
+    const canonicalRequest = `PUT\n${canonicalUri}\n${canonicalQuery}\n${canonicalHeaders}host\nUNSIGNED-PAYLOAD`;
+    const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${sha256(canonicalRequest)}`;
+    const dateKey = hmac(Buffer.from(`AWS4${config.secretKey}`, "utf8"), dateStamp);
+    const regionKey = hmac(dateKey, config.region);
+    const serviceKey = hmac(regionKey, "s3");
+    const signingKey = hmac(serviceKey, "aws4_request");
+    const signature = createHmac("sha256", signingKey).update(stringToSign, "utf8").digest("hex");
+    const url = new URL(config.endpoint.toString());
+    url.pathname = canonicalUri;
+    url.search = canonicalQuery + "&X-Amz-Signature=" + signature;
+    return url.toString();
+  }
+
   async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
     await this.send("PUT", key, body, contentType);
   }
