@@ -26,7 +26,8 @@ export default function SystemSettingsPage(){
  const [articleView,setArticleView]=useState<"list"|"trash">("list"),[articleSearch,setArticleSearch]=useState(""),[articleForm,setArticleForm]=useState<Partial<Article>|null>(null),[articlePreview,setArticlePreview]=useState<Article|null>(null);
  const [ruleForm,setRuleForm]=useState<Partial<Rule>|null>(null),[country,setCountry]=useState(""),[currency,setCurrency]=useState(""),[method,setMethod]=useState(""),[ruleStatus,setRuleStatus]=useState("");
  const [auditSearch,setAuditSearch]=useState(""),[auditModule,setAuditModule]=useState(""),[auditResult,setAuditResult]=useState(""),[showAuditFilters,setShowAuditFilters]=useState(false),[auditMethod,setAuditMethod]=useState(""),[auditStatusCode,setAuditStatusCode]=useState(""),[auditStartDate,setAuditStartDate]=useState(""),[auditEndDate,setAuditEndDate]=useState(""),[auditRows,setAuditRows]=useState<Audit[]>([]),[auditTotal,setAuditTotal]=useState(0),[auditPage,setAuditPage]=useState(1),[auditDetail,setAuditDetail]=useState<any|null>(null),[auditTab,setAuditTab]=useState("basic");
- const [versionForm,setVersionForm]=useState<any>({}),[riskForm,setRiskForm]=useState<any>({});\n const articleContentRef=useRef<HTMLTextAreaElement|null>(null);
+ const [versionForm,setVersionForm]=useState<any>({}),[riskForm,setRiskForm]=useState<any>({});
+ const articleContentRef=useRef<HTMLTextAreaElement|null>(null);
  async function refresh(){
   setError("");
   try{const result=await api<Config>("/api/v1/admin/system-settings");setData(result);setVersionForm(result.version??{});setRiskForm(result.risk??{});}
