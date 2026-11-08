@@ -141,7 +141,7 @@ export class DashboardService {
       serverTime: now.toISOString(),
       // Stable shared-client contract. These values will later be populated
       // from protected admin-managed settings without changing the client API.
-      supportUrl: null as string | null,
+      supportUrl,
       supportedLocales: ["zh-CN", "en"],
       stats: {
         settledToday,
