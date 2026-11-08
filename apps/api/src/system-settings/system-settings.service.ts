@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 type JsonRecord = Record<string, unknown>;
 const DEFAULT_ACCOUNT_SECURITY = { businessEmailVerification: false };
+const DEFAULT_APP_SUPPORT = { supportUrl: "" };
 const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versionCode: 146, updateType: "MAJOR", downloadUrl: "https://download.ee6868.com/appupdate/146/apprel_ac4add1c184e4efa9e0210f94ae7f152.apk", releaseNotes: "", releases: [
   { version: "1.4.6", versionCode: 146, fileName: "EasyEarn-1.4.6-146-release.apk", size: "20.7 MB", status: "PUBLISHED", updateType: "MAJOR", downloadUrl: "https://download.ee6868.com/appupdate/146/apprel_ac4add1c184e4efa9e0210f94ae7f152.apk", uploadedAt: "2026-11-06T10:37:00.000Z", verifiedAt: "2026-11-06T10:38:00.000Z", publishedAt: "2026-11-06T10:38:00.000Z" },
   { version: "1.4.5", versionCode: 145, fileName: "EasyEarn-1.4.5-145-release.apk", size: "20.6 MB", status: "REVOKED", updateType: "MAJOR", uploadedAt: "2026-11-03T11:18:00.000Z", verifiedAt: "2026-11-03T11:18:00.000Z", publishedAt: "2026-11-03T11:18:00.000Z" },
@@ -24,14 +25,15 @@ export class SystemSettingsService {
     return this.read(key, fallback);
   }
   async getAll() {
-    const [accountSecurity, version, risk, withdrawalRules, articles] = await Promise.all([
+    const [accountSecurity, support, version, risk, withdrawalRules, articles] = await Promise.all([
       this.read("system.accountSecurity", DEFAULT_ACCOUNT_SECURITY),
+      this.read("system.appSupport", DEFAULT_APP_SUPPORT),
       this.read("system.appVersion", DEFAULT_VERSION),
       this.read("system.riskSettings", DEFAULT_RISK),
       this.read("system.withdrawalRules", DEFAULT_RULES),
       this.read("system.helpArticles", DEFAULT_ARTICLES),
     ]);
-    return { accountSecurity, version, risk, withdrawalRules, articles };
+    return { accountSecurity, support, version, risk, withdrawalRules, articles };
   }
   async saveConfig(key: string, value: JsonRecord, adminId: string) {
     let safe: JsonRecord;
@@ -58,6 +60,21 @@ export class SystemSettingsService {
   }
   private async audit(adminId: string, action: string, targetId: string, metadata: unknown) {
     await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action, targetType: "SYSTEM_SETTING", targetId, metadata: metadata as any } });
+  }
+  async saveSupport(input: JsonRecord, adminId: string) {
+    const supportUrl = String(input.supportUrl ?? "").trim();
+    if (supportUrl && (!/^https:\/\//i.test(supportUrl) || supportUrl.length > 2048)) {
+      throw new BadRequestException("客服链接必须是有效的 HTTPS 地址，且不能超过 2048 个字符");
+    }
+    const safe = { supportUrl };
+    await this.write("system.appSupport", safe);
+    await this.audit(adminId, "APP_SUPPORT_URL_UPDATED", "system.appSupport", safe);
+    return safe;
+  }
+  async getPublicSupportUrl() {
+    const support = await this.read("system.appSupport", DEFAULT_APP_SUPPORT);
+    const value = String(support?.supportUrl ?? "").trim();
+    return value && /^https:\/\//i.test(value) ? value : null;
   }
   async getPublicUpdateInfo() {
     const config = await this.read("system.appVersion", DEFAULT_VERSION);
