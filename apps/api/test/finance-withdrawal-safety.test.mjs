@@ -82,6 +82,13 @@ test("admin APP version page immediately adds a successfully uploaded APK to rel
   assert.match(page, /Number\(r\.versionCode\)!==Number\(v\.versionCode\)/);
 });
 
+test("revoking the live APP release restores the previous published release even when a newer draft exists", () => {
+  const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
+  assert.match(settings, /const liveRelease = releases\.find\(\(item: any\) =>[\s\S]*?String\(item\.version\) === String\(current\.currentVersion\)/);
+  assert.match(settings, /Number\(liveRelease\?\.versionCode \?\? 0\) === versionCode/);
+  assert.doesNotMatch(settings, /if \(Number\(current\.versionCode\) === versionCode\)/);
+});
+
 test("APP version publishing rejects a verified APK whose version code is not newer than the live release", () => {
   const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
   assert.match(settings, /const publishedCode = Number\([\s\S]*?status === "PUBLISHED"[\s\S]*?current\.currentVersion/);
