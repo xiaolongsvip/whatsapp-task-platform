@@ -792,6 +792,33 @@ model RiskRule {
   @@map("risk_rules")
 }
 
+
+model AdminHttpRequestLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  requestId     String   @unique @map("request_id") @db.VarChar(100)
+  adminUserId   String?  @map("admin_user_id") @db.Uuid
+  method        String   @db.VarChar(12)
+  path          String   @db.Text
+  module        String   @db.VarChar(100)
+  action        String   @db.Text
+  targetId      String?  @map("target_id") @db.VarChar(200)
+  ipAddress     String?  @map("ip_address") @db.VarChar(100)
+  userAgent     String?  @map("user_agent") @db.Text
+  statusCode    Int      @map("status_code")
+  result        String   @db.VarChar(20)
+  errorCode     String?  @map("error_code") @db.VarChar(160)
+  requestData   Json?    @map("request_data")
+  responseData  Json?    @map("response_data")
+  durationMs    Int      @default(0) @map("duration_ms")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([adminUserId, createdAt])
+  @@index([module, createdAt])
+  @@index([result, createdAt])
+  @@map("admin_http_request_logs")
+}
+
 model AuditEvent {
   id         String   @id @default(uuid()) @db.Uuid
   actorType  String   @map("actor_type")
