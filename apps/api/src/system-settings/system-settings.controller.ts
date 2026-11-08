@@ -52,6 +52,8 @@ export class SystemSettingsController {
   async pinArticle(@Req() req: Request, @Param("id") id: string) { const a = await this.admin(req); return this.settings.articleAction(id, "PIN", a.id); }
   @Post("help/articles/:id/restore")
   async restoreArticle(@Req() req: Request, @Param("id") id: string) { const a = await this.admin(req); return this.settings.articleAction(id, "RESTORE", a.id); }
+  @Delete("help/articles/:id/permanent")
+  async permanentlyDeleteArticle(@Req() req: Request, @Param("id") id: string) { const a = await this.admin(req); return this.settings.articleAction(id, "DELETE_PERMANENT", a.id); }
   @Delete("help/articles/:id")
   async deleteArticle(@Req() req: Request, @Param("id") id: string) { const a = await this.admin(req); return this.settings.articleAction(id, "TRASH", a.id); }
   @Get("withdrawal-rules")
