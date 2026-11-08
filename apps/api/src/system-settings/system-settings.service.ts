@@ -134,6 +134,12 @@ export class SystemSettingsService {
     const release = { ...releases[index] } as any;
     if (action === "PUBLISH") {
       if (!release.downloadUrl || release.status !== "VERIFIED") throw new BadRequestException("该版本尚未上传并校验 APK，不能发布");
+      const publishedCode = Number(
+        releases.find((item: any) => item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion))?.versionCode ?? 0,
+      );
+      if (Number(release.versionCode) <= publishedCode) {
+        throw new BadRequestException("不能发布低于或等于当前线上版本代码的 APK");
+      }
       release.status = "PUBLISHED";
       release.publishedAt = new Date().toISOString();
       current.currentVersion = release.version;
