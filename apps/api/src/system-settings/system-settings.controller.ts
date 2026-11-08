@@ -59,6 +59,32 @@ export class SystemSettingsController {
     await this.settings.recordHelpAssetUpload(admin.id, key, safeName, contentType, size);
     return { uploadUrl, assetUrl: base + "/" + key, key, expiresInSeconds: 3600 };
   }
+  @Post("help/assets/verify")
+  async verifyHelpAsset(@Req() req: Request, @Body() body: { assetUrl: string; key: string }) {
+    await this.admin(req);
+    const baseValue = process.env.HELP_ASSET_PUBLIC_BASE_URL?.trim().replace(/\\/+$/, "");
+    if (!baseValue || !baseValue.startsWith("https://")) throw new BadRequestException("帮助资源公共域名尚未配置。");
+    const key = String(body.key ?? "").trim();
+    const assetUrl = String(body.assetUrl ?? "").trim();
+    if (!/^help-assets\\/[a-zA-Z0-9._/-]+$/.test(key) || key.includes("..")) throw new BadRequestException("帮助资源对象路径无效。");
+    let base: URL, target: URL;
+    try { base = new URL(baseValue); target = new URL(assetUrl); }
+    catch { throw new BadRequestException("帮助资源公开地址无效。"); }
+    const expectedUrl = baseValue + "/" + key;
+    if (target.origin !== base.origin || target.toString().replace(/\\/$/, "") !== expectedUrl) {
+      throw new BadRequestException("帮助资源地址与服务器配置的公共域名不匹配。");
+    }
+    let response: Response;
+    try {
+      response = await fetch(target, { method: "HEAD", redirect: "error", signal: AbortSignal.timeout(12000) });
+    } catch {
+      throw new BadRequestException("文件已上传到存储桶，但公共资源域名无法连接。请检查 R2 自定义域名和 DNS 配置。");
+    }
+    if (!response.ok) {
+      throw new BadRequestException(`文件已上传，但公开资源地址返回 HTTP ${response.status}。请检查 R2 公共域名、对象路径和访问权限，避免文章出现 404。`);
+    }
+    return { success: true, assetUrl: expectedUrl, statusCode: response.status };
+  }
   @Get("help/articles")
   async articles(@Req() req: Request, @Query() q: Record<string,string>) { await this.admin(req); return this.settings.listArticles(q); }
   @Post("help/articles")
