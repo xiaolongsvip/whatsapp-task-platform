@@ -118,7 +118,7 @@ export class ReportsService {
       const paid = actualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
       const previousRequested = previousWithdrawalApplications.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
       const previousPaid = previousActualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
-      return { currency, requestedMinor: requested.toString(), paidMinor: paid.toString(), estimatedDifferenceMinor: (requested - paid).toString(), requestedChange: change(Number(requested), Number(previousRequested)), paidChange: change(Number(paid), Number(previousPaid)) };
+      return { currency, requestedMinor: requested.toString(), paidMinor: paid.toString(), estimatedDifferenceMinor: (requested - paid).toString(), requestedChange: change(Number(requested), Number(previousRequested)), paidChange: change(Number(paid), Number(previousPaid)), differenceChange: change(Number(requested - paid), Number(previousRequested - previousPaid)) };
     });
     const countStatus = (rows: typeof distribution, key: string) => rows.find(x => x.status === key)?._count._all ?? 0;
     const dist = (key: string) => countStatus(distribution, key);
