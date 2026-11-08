@@ -128,6 +128,10 @@ export class SystemSettingsService {
     await this.audit(adminId, "APP_VERSION_" + action, String(versionCode), { version: release.version, status: release.status });
     return current;
   }
+  async recordHelpAssetUpload(adminId: string, key: string, fileName: string, contentType: string, size: number) {
+    await this.audit(adminId, "HELP_ASSET_UPLOAD_URL_CREATED", key, { fileName, contentType, size });
+    return { key, fileName, contentType, size };
+  }
   async listArticles(query: Record<string,string>) {
     const items = await this.read("system.helpArticles", DEFAULT_ARTICLES);
     const includeTrash = query.view === "trash";
