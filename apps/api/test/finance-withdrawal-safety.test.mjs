@@ -62,7 +62,7 @@ test("APP support URL is admin-configurable, HTTPS-only, audited, and exposed to
 });
 
 test("AI task approval applies the same referral commission settlement as manual approval", () => {
-  const worker = read("src/ai-config/ai-review.worker.ts");
+  const worker = readFileSync(new URL("../src/ai-config/ai-review.worker.ts", import.meta.url), "utf8");
   assert.match(worker, /key: "referral-commission"/);
   assert.match(worker, /referralAncestor\.findMany/);
   assert.match(worker, /referralReward\.create/);
