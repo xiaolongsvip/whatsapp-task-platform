@@ -823,3 +823,91 @@ body { margin: 0; }
 .ai-settings-card table td { padding:10px; color:#40516a; font-size:11px; }
 .ai-settings-card .notice { border-radius:7px; font-size:11px; }
 @media(max-width:760px) { .ai-settings-page .form-grid { grid-template-columns:1fr; } .ai-settings-card { padding:12px; } .ai-settings-tabs { overflow-x:auto; } }
+
+
+/* System settings workspace */
+.system-settings-page{padding:16px 18px 28px;display:flex;flex-direction:column;gap:12px;min-height:calc(100vh - 64px)}
+.system-tabs{display:flex;gap:5px;align-items:center;border:1px solid #e4eaf2;border-radius:10px;background:#f8fafc;padding:7px;overflow-x:auto}
+.system-tabs button,.segmented button{border:1px solid transparent;background:transparent;color:#475569;border-radius:7px;padding:8px 12px;font-size:13px;white-space:nowrap;cursor:pointer}
+.system-tabs button.active,.segmented button.active{background:#eff6ff;border-color:#bfdbfe;color:#2563eb;font-weight:600}
+.settings-stack{display:flex;flex-direction:column;gap:16px}
+.system-settings-page .panel{padding:18px 20px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
+.system-settings-page .panel h3{font-size:15px;margin:0 0 12px;color:#172b4d}
+.system-settings-page p{font-size:12px;color:#64748b;line-height:1.7;margin:4px 0 12px}
+.setting-switch-row,.risk-setting{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:16px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}
+.setting-switch-row strong,.risk-setting strong{font-size:13px;color:#1e293b}
+.setting-switch-row p,.risk-setting p{margin:5px 0;font-size:12px;line-height:1.7}
+.setting-switch-row small,.risk-setting small{display:block;color:#64748b;font-size:11px;margin-top:4px}
+.setting-switch-row input[type=checkbox],.risk-setting input[type=checkbox]{width:38px;height:21px;accent-color:#2563eb;flex:0 0 auto;cursor:pointer}
+.warning-text{color:#c2410c!important}
+.version-form{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.version-form label,.settings-modal label,.risk-setting label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#334155}
+.version-form input:not([type=radio]):not([type=checkbox]),.version-form textarea,.settings-modal input:not([type=checkbox]),.settings-modal textarea,.settings-modal select,.risk-setting input[type=number]{width:100%;min-height:36px;border:1px solid #dbe3ee;border-radius:7px;padding:8px 10px;font-size:13px;color:#1e293b;background:#fff}
+.version-form small{font-size:11px;color:#64748b;line-height:1.55}
+.update-type-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.update-type-grid label{border:1px solid #dbe3ee;border-radius:8px;padding:12px;cursor:pointer}
+.update-type-grid label.selected{border:1.5px solid #3b82f6;background:#f8fbff}
+.update-type-grid input{margin-right:6px;accent-color:#2563eb}
+.update-type-grid small{display:block;margin:5px 0 0 24px}
+.system-settings-page .primary-btn,.system-settings-page .secondary-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 12px;border-radius:7px;font-size:12px;cursor:pointer}
+.system-settings-page .primary-btn{border:1px solid #2563eb;background:#3478ee;color:white}
+.system-settings-page .secondary-btn{border:1px solid #dbe3ee;background:#fff;color:#334155}
+.system-settings-page button:disabled{opacity:.55;cursor:not-allowed}
+.section-heading,.action-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.section-heading p{margin:0}
+.table-wrap{width:100%;overflow:auto;border:1px solid #e8edf4;border-radius:8px;margin-top:12px}
+.system-settings-page table{width:100%;border-collapse:collapse;font-size:12px;min-width:860px}
+.system-settings-page th{background:#f8fafc;color:#64748b;font-weight:500;text-align:left;white-space:nowrap}
+.system-settings-page td,.system-settings-page th{padding:11px 10px;border-bottom:1px solid #edf1f6;vertical-align:middle}
+.system-settings-page td strong{display:block;color:#1e293b;font-weight:600}
+.system-settings-page td small{display:block;max-width:440px;margin-top:4px;color:#94a3b8;font-size:10px;line-height:1.5}
+.row-actions{white-space:nowrap}
+.row-actions button,.text-link{display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:#2563eb;font-size:11px;padding:5px;cursor:pointer}
+.row-actions .danger-link{color:#dc2626}
+.status-pill,.danger-pill{display:inline-block;border:1px solid #a7f3d0;border-radius:12px;background:#ecfdf5;color:#059669;padding:2px 8px;font-size:10px;white-space:nowrap}
+.danger-pill{border-color:#fecaca;background:#fef2f2;color:#dc2626}
+.muted-pill{border-color:#dbe3ee;background:#f8fafc;color:#64748b}
+.filter-row,.rule-filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:14px 0}
+.filter-row input,.filter-row select,.rule-filters select{height:36px;min-width:150px;border:1px solid #dbe3ee;border-radius:7px;padding:0 10px;background:#fff;color:#334155;font-size:12px}
+.rule-filters label{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px;font-size:11px;color:#64748b}
+.segmented{display:flex;gap:5px}
+.empty-state{padding:32px;text-align:center;color:#94a3b8;font-size:12px}
+.risk-panel{max-width:900px}
+.risk-panel>p{margin-bottom:16px}
+.risk-setting{margin-bottom:12px}
+.risk-setting>div{flex:1}
+.risk-setting label{max-width:280px;margin-top:12px}
+.risk-setting input[type=number]{max-width:260px}
+.settings-save{display:flex;justify-content:flex-end;margin-top:12px}
+.pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 4px;font-size:11px;color:#64748b}
+.pagination span{margin-right:auto}
+.pagination button,.pagination select{height:30px;min-width:30px;border:1px solid #dbe3ee;border-radius:6px;background:#fff;color:#334155}
+.modal-backdrop,.drawer-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.42);display:flex;align-items:center;justify-content:center;padding:20px}
+.settings-modal{width:min(820px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:10px;padding:20px;box-shadow:0 20px 60px rgba(15,23,42,.22)}
+.wide-modal{width:min(1000px,96vw)}
+.article-preview{width:min(820px,96vw)}
+.modal-title{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding-bottom:14px;border-bottom:1px solid #e8edf4;margin-bottom:16px}
+.modal-title h2{font-size:17px;margin:0;color:#1e293b}
+.modal-title small{display:block;color:#64748b;margin-top:6px;font-size:11px}
+.modal-title>button{border:0;background:transparent;color:#64748b;cursor:pointer}
+.settings-modal form{display:flex;flex-direction:column;gap:14px}
+.settings-modal .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.settings-modal details{border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px}
+.settings-modal summary{cursor:pointer;font-weight:600}
+.settings-modal .article-editor{min-height:300px;font-family:ui-monospace,monospace;line-height:1.6}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.article-preview-content{max-height:65vh;overflow:auto;color:#334155;font-size:13px;line-height:1.8}
+.article-preview-content img{max-width:100%;height:auto}
+.drawer-backdrop{justify-content:flex-end;padding:0}
+.audit-drawer{height:100%;width:min(620px,94vw);background:#fff;display:flex;flex-direction:column;padding:20px;box-shadow:-10px 0 35px rgba(15,23,42,.12)}
+.drawer-tabs{display:flex;gap:6px;border-bottom:1px solid #e2e8f0}
+.drawer-tabs button{padding:10px 12px;border:0;border-bottom:2px solid transparent;background:#fff;color:#64748b;font-size:12px}
+.drawer-tabs button.active{color:#2563eb;border-bottom-color:#2563eb}
+.drawer-content{flex:1;overflow:auto;padding:14px 0;font-size:12px}
+.drawer-content dl{display:grid;grid-template-columns:120px 1fr;gap:0;margin:0}
+.drawer-content dt,.drawer-content dd{padding:10px;border-bottom:1px solid #edf1f6;margin:0}
+.drawer-content dt{color:#64748b}
+.drawer-content dd{color:#1e293b;overflow-wrap:anywhere}
+.drawer-content pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;padding:12px;border-radius:8px}
+.drawer-close{width:100%;margin-top:12px}
+@media(max-width:760px){.system-settings-page{padding:12px}.update-type-grid,.settings-modal .form-grid{grid-template-columns:1fr}.rule-filters label{min-width:calc(50% - 8px)}.settings-modal{padding:14px}.setting-switch-row,.risk-setting{gap:12px;padding:12px}}
