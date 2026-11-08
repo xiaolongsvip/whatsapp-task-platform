@@ -159,9 +159,15 @@ export class SystemSettingsService {
     const payoutCurrency = String(input.payoutCurrency ?? "").trim().toUpperCase();
     const method = String(input.method ?? "").trim().toUpperCase();
     const min = Number(input.minimumAmount), max = Number(input.maximumAmount), daily = Number(input.dailyLimit);
-    if (!countryCode || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !method) throw new BadRequestException("国家、钱包币种、代付币种和提现方式必填");
+    if (!/^(?:[A-Z]{2}|GLOBAL)$/.test(countryCode) || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !method) throw new BadRequestException("国家代码、钱包币种、代付币种和提现方式格式无效");
     if (!(min > 0 && max >= min && daily > 0)) throw new BadRequestException("请检查最低、最高和每日提现限额");
     const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels: Array.isArray(input.channels) ? input.channels.map(String) : [], minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
+    if (rule.status === "ENABLED" && items.some(x => x.id !== ruleId && x.status === "ENABLED" &&
+      String(x.countryCode).toUpperCase() === countryCode &&
+      String(x.walletCurrency).toUpperCase() === walletCurrency &&
+      String(x.method).toUpperCase() === method)) {
+      throw new BadRequestException("相同国家、钱包币种和提现方式已有启用中的规则，请先停用旧规则。");
+    }
     const index = items.findIndex(x => x.id === ruleId);
     if (index >= 0) items[index] = rule; else items.unshift(rule);
     await this.write("system.withdrawalRules", items);
@@ -172,6 +178,12 @@ export class SystemSettingsService {
     const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
     const rule = items.find(x => x.id === id) as any;
     if (!rule) throw new NotFoundException("提现规则不存在");
+    if (rule.status !== "ENABLED" && items.some(x => x.id !== id && x.status === "ENABLED" &&
+      String(x.countryCode).toUpperCase() === String(rule.countryCode).toUpperCase() &&
+      String(x.walletCurrency).toUpperCase() === String(rule.walletCurrency).toUpperCase() &&
+      String(x.method).toUpperCase() === String(rule.method).toUpperCase())) {
+      throw new BadRequestException("相同国家、钱包币种和提现方式已有启用中的规则。");
+    }
     rule.status = rule.status === "ENABLED" ? "DISABLED" : "ENABLED";
     rule.updatedAt = new Date().toISOString();
     await this.write("system.withdrawalRules", items);
