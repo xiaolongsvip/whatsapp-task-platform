@@ -50,7 +50,6 @@ export class PayoutAccountsService {
   }
 
   async create(userId: string, input: PayoutAccountInput) {
-    await this.emailVerification.requireVerified(userId);
     const countryCode = input.countryCode.trim().toUpperCase();
     const currency = input.currency.trim().toUpperCase();
     const providerCode = input.providerCode.trim().toLowerCase();
