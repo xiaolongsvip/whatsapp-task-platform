@@ -37,7 +37,7 @@ export class PermissionsAdminService {
  private async ensureBootstrapSuperAdmin(actorId:string){
   if(await prisma.adminUserRole.count()===0){
    const role=await prisma.role.findFirst({where:{isSystem:true,name:"超级管理员"}});
-   if(role) await prisma.adminUserRole.createMany({data:[{adminUserId:actorId,roleId:role.id}],skipDuplicates:true);
+   if(role) await prisma.adminUserRole.createMany({data:[{adminUserId:actorId,roleId:role.id}],skipDuplicates:true});
   }
  }
  private async assertPermission(actorId:string,key:string){
