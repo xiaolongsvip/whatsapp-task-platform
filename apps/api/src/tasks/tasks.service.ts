@@ -654,7 +654,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       ? riskConfigRow.value as Record<string, unknown> : {};
     const crossAccountDuplicate = riskConfig.crossAccountScreenshotSimilarity === true
       ? await prisma.taskSubmission.findFirst({
-          where: { contentSha256, claim: { userId: { not: userId } } },
+          where: { contentSha256, claim: { is: { userId: { not: userId } } } },
           select: { id: true },
         })
       : null;
