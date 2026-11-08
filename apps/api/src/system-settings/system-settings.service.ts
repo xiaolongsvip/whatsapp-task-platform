@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { prisma } from "@wtp/database";
+import { randomUUID } from "node:crypto";
 
 type JsonRecord = Record<string, unknown>;
 const DEFAULT_ACCOUNT_SECURITY = { businessEmailVerification: false };
@@ -60,6 +61,48 @@ export class SystemSettingsService {
     await this.audit(adminId, "APP_VERSION_DRAFT_SAVED", latestVersion, { versionCode, updateType: release.updateType });
     return next;
   }
+  async registerApkUpload(input: { fileName: string; size: number; downloadUrl: string; objectKey: string }, adminId: string) {
+    const current = await this.read("system.appVersion", DEFAULT_VERSION);
+    const releases = Array.isArray(current.releases) ? [...current.releases] : [];
+    const code = Number(current.versionCode ?? 0);
+    const version = String(current.latestVersion ?? "");
+    if (!version || !code) throw new BadRequestException("请先填写最新版本名称和版本代码，再上传 APK");
+    const release = { version, versionCode: code, updateType: current.updateType ?? "MINOR", downloadUrl: input.downloadUrl, objectKey: input.objectKey, fileName: input.fileName, size: input.size, releaseNotes: current.releaseNotes ?? "", status: "VERIFIED", uploadedAt: new Date().toISOString(), verifiedAt: new Date().toISOString() };
+    const next = { ...current, downloadUrl: input.downloadUrl, releases: [release, ...releases.filter((x: any) => Number(x.versionCode) !== code)].slice(0, 100) };
+    await this.write("system.appVersion", next);
+    await this.audit(adminId, "APP_APK_UPLOADED_AND_VERIFIED", String(code), { fileName: input.fileName, size: input.size, objectKey: input.objectKey });
+    return { ...release };
+  }
+  async versionAction(versionCode: number, action: "PUBLISH" | "REVOKE", adminId: string) {
+    if (!Number.isSafeInteger(versionCode) || versionCode < 1) throw new BadRequestException("版本代码无效");
+    const current = await this.read("system.appVersion", DEFAULT_VERSION);
+    const releases = Array.isArray(current.releases) ? [...current.releases] : [];
+    const index = releases.findIndex((x: any) => Number(x.versionCode) === versionCode);
+    if (index < 0) throw new NotFoundException("版本发布记录不存在");
+    const release = { ...releases[index] } as any;
+    if (action === "PUBLISH") {
+      if (!release.downloadUrl || release.status !== "VERIFIED") throw new BadRequestException("该版本尚未上传并校验 APK，不能发布");
+      release.status = "PUBLISHED";
+      release.publishedAt = new Date().toISOString();
+      current.currentVersion = release.version;
+      current.latestVersion = release.version;
+      current.versionCode = release.versionCode;
+      current.updateType = release.updateType;
+      current.downloadUrl = release.downloadUrl;
+    } else {
+      release.status = "REVOKED";
+      release.revokedAt = new Date().toISOString();
+      if (Number(current.versionCode) === versionCode) {
+        const previous = releases.find((x: any, i: number) => i !== index && x.status === "PUBLISHED");
+        current.currentVersion = previous?.version ?? "";
+      }
+    }
+    releases[index] = release;
+    current.releases = releases;
+    await this.write("system.appVersion", current);
+    await this.audit(adminId, "APP_VERSION_" + action, String(versionCode), { version: release.version, status: release.status });
+    return current;
+  }
   async listArticles(query: Record<string,string>) {
     const items = await this.read("system.helpArticles", DEFAULT_ARTICLES);
     const includeTrash = query.view === "trash";
@@ -76,7 +119,7 @@ export class SystemSettingsService {
     const prior = index >= 0 ? items[index] : null;
     const version = Number(prior?.version ?? 0) + 1;
     const revision = { version, savedAt: now, title, summary: String(input.summary ?? ""), content: String(input.content ?? ""), language: String(input.language ?? "简体中文"), audience: String(input.audience ?? "后台操作员") };
-    const article: JsonRecord = { ...(prior ?? {}), id: id ?? crypto.randomUUID(), ...revision, status: prior?.status ?? "DRAFT", pinned: Boolean(input.pinned ?? prior?.pinned), advanced: input.advanced ?? prior?.advanced ?? {}, revisions: [...(Array.isArray(prior?.revisions) ? prior!.revisions as JsonRecord[] : []), revision].slice(-30), updatedAt: now, updatedBy: adminId };
+    const article: JsonRecord = { ...(prior ?? {}), id: id ?? randomUUID(), ...revision, status: prior?.status ?? "DRAFT", pinned: Boolean(input.pinned ?? prior?.pinned), advanced: input.advanced ?? prior?.advanced ?? {}, revisions: [...(Array.isArray(prior?.revisions) ? prior!.revisions as JsonRecord[] : []), revision].slice(-30), updatedAt: now, updatedBy: adminId };
     if (index >= 0) items[index] = article; else items.unshift(article);
     await this.write("system.helpArticles", items);
     await this.audit(adminId, id ? "HELP_ARTICLE_UPDATED" : "HELP_ARTICLE_CREATED", String(article.id), { title, version });
@@ -101,7 +144,7 @@ export class SystemSettingsService {
   }
   async saveWithdrawalRule(id: string | null, input: JsonRecord, adminId: string) {
     const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
-    const ruleId = id ?? crypto.randomUUID();
+    const ruleId = id ?? randomUUID();
     const countryCode = String(input.countryCode ?? "").trim().toUpperCase();
     const walletCurrency = String(input.walletCurrency ?? "").trim().toUpperCase();
     const payoutCurrency = String(input.payoutCurrency ?? "").trim().toUpperCase();
@@ -130,7 +173,7 @@ export class SystemSettingsService {
     const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
     const source = items.find(x => x.id === id);
     if (!source) throw new NotFoundException("提现规则不存在");
-    const copy = { ...source, id: crypto.randomUUID(), status: "DISABLED", countryName: String(source.countryName) + " 副本", updatedAt: new Date().toISOString() };
+    const copy = { ...source, id: randomUUID(), status: "DISABLED", countryName: String(source.countryName) + " 副本", updatedAt: new Date().toISOString() };
     items.unshift(copy);
     await this.write("system.withdrawalRules", items);
     await this.audit(adminId, "WITHDRAWAL_RULE_DUPLICATED", String(copy.id), { sourceId: id });
