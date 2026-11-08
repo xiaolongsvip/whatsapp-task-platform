@@ -5,7 +5,7 @@ import { EmailVerificationService } from "./email-verification.service";
 const RESERVED_STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
 
 @Injectable()
-export class WithdrawalsService {
+export class WithdrawalsService {\n  constructor(private readonly emailVerification: EmailVerificationService) {}\n
   async create(userId: string, payoutAccountId: string, amountMinorInput: string) {
     const amountMinor = BigInt(amountMinorInput);
     if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
