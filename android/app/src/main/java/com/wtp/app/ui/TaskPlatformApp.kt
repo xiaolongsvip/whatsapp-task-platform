@@ -54,6 +54,7 @@ private val navItems = listOf(NavItem("首页", Icons.Default.Home), NavItem("�
 @Composable
 fun TaskPlatformApp() {
     val appContext = LocalContext.current
+    val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(true) }
     var authenticated by rememberSaveable { mutableStateOf(false) }
     var phone by rememberSaveable { mutableStateOf("") }
@@ -91,7 +92,7 @@ fun TaskPlatformApp() {
             language = language,
             checking = checkingUpdate,
             error = updateCheckError,
-            onRetry = { kotlinx.coroutines.MainScope().launch { checkRequiredUpdate() } }
+            onRetry = { scope.launch { checkRequiredUpdate() } }
         )
         checkingUpdate || checking -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         !authenticated -> AuthScreen { phone = it; authenticated = true }
