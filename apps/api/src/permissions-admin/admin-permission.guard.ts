@@ -22,7 +22,7 @@ export class AdminPermissionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    let path = request.path.replace(/^\/api\/v\d+/, "").replace(/\/$/, "");
+    const path = request.path.replace(/^\/api\/v\d+/, "").replace(/\/$/, "");
     if (!path.startsWith("/admin/")) return true;
     if (path.startsWith("/admin/permissions/")) return true;
 
