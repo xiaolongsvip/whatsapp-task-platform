@@ -911,3 +911,10 @@ body { margin: 0; }
 .drawer-content pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;padding:12px;border-radius:8px}
 .drawer-close{width:100%;margin-top:12px}
 @media(max-width:760px){.system-settings-page{padding:12px}.update-type-grid,.settings-modal .form-grid{grid-template-columns:1fr}.rule-filters label{min-width:calc(50% - 8px)}.settings-modal{padding:14px}.setting-switch-row,.risk-setting{gap:12px;padding:12px}}
+
+
+.article-editor-field{display:flex;flex-direction:column;gap:8px}
+.article-editor-field .section-heading{align-items:center}
+.editor-toolbar{display:flex;flex-wrap:wrap;gap:5px;padding:8px;border:1px solid #e2e8f0;border-bottom:0;border-radius:8px 8px 0 0;background:#f8fafc}
+.editor-toolbar button{border:1px solid #dbe3ee;background:#fff;border-radius:5px;padding:6px 9px;color:#334155;font-size:11px;cursor:pointer}
+.article-editor-field .article-editor{border-radius:0 0 8px 8px;margin-top:-8px;min-height:320px}
