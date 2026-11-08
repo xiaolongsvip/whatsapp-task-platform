@@ -1,12 +1,58 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Request } from "express";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { SystemSettingsService } from "./system-settings.service";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 
 const COOKIE = "wtp_admin_session";
+function isApkArchive(buffer: Buffer): boolean {
+  if (buffer.length < 22) return false;
+  const minOffset = Math.max(0, buffer.length - 22 - 0xffff);
+  let endOffset = -1;
+  for (let offset = buffer.length - 22; offset >= minOffset; offset -= 1) {
+    if (buffer.readUInt32LE(offset) === 0x06054b50) {
+      const commentLength = buffer.readUInt16LE(offset + 20);
+      if (offset + 22 + commentLength === buffer.length) {
+        endOffset = offset;
+        break;
+      }
+    }
+  }
+  if (endOffset < 0) return false;
+
+  const diskNumber = buffer.readUInt16LE(endOffset + 4);
+  const centralDisk = buffer.readUInt16LE(endOffset + 6);
+  const entriesOnDisk = buffer.readUInt16LE(endOffset + 8);
+  const totalEntries = buffer.readUInt16LE(endOffset + 10);
+  const centralSize = buffer.readUInt32LE(endOffset + 12);
+  const centralOffset = buffer.readUInt32LE(endOffset + 16);
+  if (diskNumber !== 0 || centralDisk !== 0 || entriesOnDisk !== totalEntries ||
+      totalEntries === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff ||
+      centralOffset + centralSize > endOffset) return false;
+
+  let cursor = centralOffset;
+  let hasManifest = false;
+  for (let index = 0; index < totalEntries; index += 1) {
+    if (cursor + 46 > endOffset || buffer.readUInt32LE(cursor) !== 0x02014b50) return false;
+    const flags = buffer.readUInt16LE(cursor + 8);
+    const compressedSize = buffer.readUInt32LE(cursor + 20);
+    const uncompressedSize = buffer.readUInt32LE(cursor + 24);
+    const nameLength = buffer.readUInt16LE(cursor + 28);
+    const extraLength = buffer.readUInt16LE(cursor + 30);
+    const commentLength = buffer.readUInt16LE(cursor + 32);
+    const localOffset = buffer.readUInt32LE(cursor + 42);
+    const next = cursor + 46 + nameLength + extraLength + commentLength;
+    if (next > endOffset || localOffset + 30 > centralOffset || (flags & 0x1) !== 0) return false;
+    if (buffer.readUInt32LE(localOffset) !== 0x04034b50) return false;
+    const name = buffer.subarray(cursor + 46, cursor + 46 + nameLength).toString("utf8");
+    if (name === "AndroidManifest.xml" && uncompressedSize > 0 && compressedSize > 0) hasManifest = true;
+    cursor = next;
+  }
+  return hasManifest && cursor === centralOffset + centralSize;
+}
+
 function token(req: Request): string | undefined {
   const item = req.headers.cookie?.split(";").map(x => x.trim()).find(x => x.startsWith(COOKIE + "="));
   return item ? decodeURIComponent(item.slice(COOKIE.length + 1)) : undefined;
@@ -29,10 +75,10 @@ export class SystemSettingsController {
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 100 * 1024 * 1024 } }))
   async uploadApk(@Req() req: Request, @UploadedFile() file?: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
     const a = await this.admin(req);
-    if (!file || !file.originalname.toLowerCase().endsWith(".apk") || file.buffer.length < 4 || file.buffer[0] !== 0x50 || file.buffer[1] !== 0x4b) throw new BadRequestException("上传文件不是有效的 APK/ZIP 文件");
+    if (!file || !file.originalname.toLowerCase().endsWith(".apk") || !isApkArchive(file.buffer)) throw new BadRequestException("上传文件不是有效的 APK：ZIP 结构异常或缺少 AndroidManifest.xml");
     const base = process.env.APP_DOWNLOAD_BASE_URL?.trim().replace(/\/+$/, "");
     if (!base || !base.startsWith("https://")) throw new BadRequestException("请先在 API 环境配置 HTTPS 的 APP_DOWNLOAD_BASE_URL 公共下载域名");
-    const key = "app-updates/" + Date.now() + "-" + file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const key = "app-updates/" + randomUUID() + "-" + file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     await this.objectStorage.putObject(key, file.buffer, "application/vnd.android.package-archive");
     const downloadUrl = base + "/" + key;
     const sha256 = createHash("sha256").update(file.buffer).digest("hex");
