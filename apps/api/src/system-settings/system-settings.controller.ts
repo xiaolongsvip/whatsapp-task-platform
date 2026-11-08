@@ -28,7 +28,7 @@ export class SystemSettingsController {
   async uploadApk(@Req() req: Request, @UploadedFile() file?: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
     const a = await this.admin(req);
     if (!file || !file.originalname.toLowerCase().endsWith(".apk") || file.buffer.length < 4 || file.buffer[0] !== 0x50 || file.buffer[1] !== 0x4b) throw new BadRequestException("上传文件不是有效的 APK/ZIP 文件");
-    const base = process.env.APP_DOWNLOAD_BASE_URL?.trim().replace(/\\/+$/, "");
+    const base = process.env.APP_DOWNLOAD_BASE_URL?.trim().replace(/\/+$/, "");
     if (!base || !base.startsWith("https://")) throw new BadRequestException("请先在 API 环境配置 HTTPS 的 APP_DOWNLOAD_BASE_URL 公共下载域名");
     const key = "app-updates/" + Date.now() + "-" + file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     await this.objectStorage.putObject(key, file.buffer, "application/vnd.android.package-archive");
