@@ -21,6 +21,8 @@ export class SystemSettingsController {
   async getAll(@Req() req: Request) { await this.admin(req); return this.settings.getAll(); }
   @Put("account-security")
   async saveAccountSecurity(@Req() req: Request, @Body() body: Record<string, unknown>) { const a = await this.admin(req); return this.settings.saveConfig("system.accountSecurity", body, a.id); }
+  @Put("support")
+  async saveSupport(@Req() req: Request, @Body() body: Record<string, unknown>) { const a = await this.admin(req); return this.settings.saveSupport(body, a.id); }
   @Put("version")
   async saveVersion(@Req() req: Request, @Body() body: Record<string, unknown>) { const a = await this.admin(req); return this.settings.saveVersion(body, a.id); }
   @Post("version/upload")
