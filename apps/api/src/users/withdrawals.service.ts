@@ -53,8 +53,6 @@ export class WithdrawalsService {
           if (amountMinor < minimumMinor) throw new BadRequestException("Withdrawal amount is below the configured minimum.");
           if (maximumMinor <= 0n || amountMinor > maximumMinor) throw new BadRequestException("Withdrawal amount exceeds the configured per-request maximum.");
           if (dailyLimitMinor <= 0n) throw new BadRequestException("The daily withdrawal limit is not configured correctly.");
-          const dayStart = new Date();
-          dayStart.setUTCHours(0, 0, 0, 0);
           const wallet = await tx.wallet.findUnique({
             where: { userId_currency: { userId, currency } },
             select: { id: true, currency: true },
