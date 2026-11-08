@@ -5,7 +5,7 @@ type Range = { from: Date; to: Date };
 type TrendRow = { period: string; status: string; count: number | bigint };
 type ReviewTrendRow = { period: string; decision: string; count: number | bigint };
 const DAY = 86400000;
-const validDate = (value: string) => /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && !Number.isNaN(new Date(value + "T00:00:00.000Z").getTime());
+const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(value + "T00:00:00.000Z").getTime());
 function rangeOf(query: Record<string, string | undefined>): Range {
   const today = new Date();
   const defaultTo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -64,7 +64,7 @@ export class ReportsService {
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: paidWhere(previous), _sum: { amountMinor: true } }),
       prisma.taskSubmission.groupBy({ by: ["status"], where: { submittedAt: { gte: range.from, lte: range.to } }, _count: { _all: true } }),
       prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, submitted_at), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_submissions WHERE submitted_at >= ${range.from} AND submitted_at <= ${range.to} AND (${status ?? null}::text IS NULL OR status::text = ${status ?? null}) GROUP BY 1, 2 ORDER BY 1`,
-      prisma.$queryRaw<ReviewTrendRow[]>\`SELECT to_char(date_trunc(${period}, reviewed_at), 'YYYY-MM-DD') AS period, decision::text AS decision, COUNT(*)::int AS count FROM task_reviews WHERE reviewed_at >= ${range.from} AND reviewed_at <= ${range.to} GROUP BY 1, 2 ORDER BY 1\`,
+      prisma.$queryRaw<ReviewTrendRow[]>`SELECT to_char(date_trunc(${period}, reviewed_at), 'YYYY-MM-DD') AS period, decision::text AS decision, COUNT(*)::int AS count FROM task_reviews WHERE reviewed_at >= ${range.from} AND reviewed_at <= ${range.to} GROUP BY 1, 2 ORDER BY 1`,
     ]);
     const periods = new Map<string, { submitted: number; approved: number; rejected: number }>();
     for (const row of trendRows) {
