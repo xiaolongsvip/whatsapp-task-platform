@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { APP_GUARD } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AuthModule } from "./auth/auth.module";
 import { HealthModule } from "./health/health.module";
@@ -18,6 +18,7 @@ import { ReportsModule } from "./reports/reports.module";
 import { PermissionsAdminModule } from "./permissions-admin/permissions-admin.module";
 import { AdminPermissionGuard } from "./permissions-admin/admin-permission.guard";
 import { SystemSettingsModule } from "./system-settings/system-settings.module";
+import { AdminHttpAuditInterceptor } from "./system-settings/admin-http-audit.interceptor";
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SystemSettingsModule } from "./system-settings/system-settings.module";
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AdminPermissionGuard },
+    { provide: APP_INTERCEPTOR, useClass: AdminHttpAuditInterceptor },
   ],
 })
 export class AppModule {}
