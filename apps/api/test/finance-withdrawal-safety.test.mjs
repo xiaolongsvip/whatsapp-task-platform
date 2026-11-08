@@ -35,3 +35,12 @@ test("manual payout endpoint remains protected by admin authentication", () => {
   assert.match(controller, /const admin = await this\.authorize\(req\)/);
   assert.match(controller, /recordManualPayout\(id, body\.outcome, admin\.id, body\)/);
 });
+
+test("major app updates are checked before authenticated and member screens are shown", () => {
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(app, /AuthRepository\.publicAppUpdate\(\)/);
+  assert.match(app, /info\.optBoolean\("forceUpdate"\) && publishedCode > com\.wtp\.app\.BuildConfig\.VERSION_CODE/);
+  assert.match(app, /requiredUpdate != null -> ForceUpdateScreen/);
+  assert.match(app, /Never lock users out when the update service is temporarily unavailable/);
+  assert.match(app, /enabled = downloadUrl\.startsWith\("https:\/\/"\)/);
+});
