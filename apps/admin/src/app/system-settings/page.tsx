@@ -83,7 +83,7 @@ export default function SystemSettingsPage(){
  </section>}
  {tab==="risk"&&<section className="panel risk-panel"><h3>风控设置</h3><p>管理设备账号绑定、截图相似度判断和用户风险分转人工审核策略。</p>
   <div className="risk-setting"><div><strong>设备单账号限制</strong><p>开启后，同一设备只能新增绑定一个账号；关闭后允许同一设备绑定多个账号。</p></div><input type="checkbox" checked={Boolean(riskForm.singleDeviceSingleAccount)} onChange={e=>setRiskForm((v:any)=>({...v,singleDeviceSingleAccount:e.target.checked}))}/></div>
-  <div className="risk-setting"><div><strong>跨账号截图相似度判断</strong><p>开启后会比较所有账号的历史截图；关闭后仅比较当前账号的历史截图。</p></div><input type="checkbox" checked={Boolean(riskForm.crossAccountScreenshotSimilarity)} onChange={e=>setRiskForm((v:any)=>({...v,crossAccountScreenshotSimilarity:e.target.checked}))}/></div>
+  <div className="risk-setting"><div><strong>跨账号截图相似度判断</strong><p>开启后会比较跨账号截图文件的 SHA-256 指纹；完全相同的截图会转入人工审核。关闭后不执行跨账号重复文件检测。</p></div><input type="checkbox" checked={Boolean(riskForm.crossAccountScreenshotSimilarity)} onChange={e=>setRiskForm((v:any)=>({...v,crossAccountScreenshotSimilarity:e.target.checked}))}/></div>
   <div className="risk-setting"><div><strong>用户风险分转人工审核</strong><p>开启后，用户领取任务时的风险总分达到阈值会转入人工审核。</p><label>人工审核风险阈值<input type="number" min="0" max="100" value={riskForm.manualReviewThreshold??70} onChange={e=>setRiskForm((v:any)=>({...v,manualReviewThreshold:Number(e.target.value)}))}/><small>只能填写 0–100 的整数；达到或超过该分数时转入人工审核。</small></label></div><input type="checkbox" checked={Boolean(riskForm.userRiskManualReview)} onChange={e=>setRiskForm((v:any)=>({...v,userRiskManualReview:e.target.checked}))}/></div>
   <div className="settings-save"><button className="primary-btn" disabled={busy} onClick={()=>void saveRisk()}>保存配置</button></div>
  </section>}
