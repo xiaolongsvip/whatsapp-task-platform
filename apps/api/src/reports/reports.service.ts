@@ -90,7 +90,6 @@ export class ReportsService {
       prisma.$queryRaw<CountryTaskRow[]>`SELECT COALESCE(NULLIF(BTRIM(cn.country_code), ''), 'UNSPECIFIED') AS country, COUNT(DISTINCT tc.id)::int AS "taskCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'APPROVED')::int AS "approvedCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'REJECTED')::int AS "rejectedCount" FROM task_claims tc LEFT JOIN contact_assignments ca ON ca.claim_id = tc.id LEFT JOIN contact_numbers cn ON cn.id = ca.contact_number_id WHERE tc.claimed_at >= ${range.from} AND tc.claimed_at <= ${range.to} AND (${status ?? null}::text IS NULL OR tc.status::text = ${status ?? null}) GROUP BY 1 ORDER BY 1`,
       prisma.$queryRaw<CountryPaidRow[]>`SELECT COALESCE(NULLIF(BTRIM(pa.country_code), ''), 'UNSPECIFIED') AS country, pt.currency, SUM(pt.amount_minor)::text AS "amountMinor" FROM payment_transactions pt LEFT JOIN withdrawal_requests wr ON wr.id = pt.withdrawal_request_id LEFT JOIN payout_accounts pa ON pa.id = wr.payout_account_id WHERE pt.flow::text = 'PAYOUT' AND pt.status::text = 'SUCCEEDED' AND pt.updated_at >= ${range.from} AND pt.updated_at <= ${range.to} GROUP BY 1, pt.currency ORDER BY 1, pt.currency`,
     ]);
-    ]);
 
     const periods = new Map<string, { submitted: number; approved: number; rejected: number }>();
     const fromOffset = offsetOf(query.fromOffset);
