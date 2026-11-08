@@ -105,3 +105,24 @@ test("APK upload validates ZIP directory and Android manifest before marking a r
   assert.match(controller, /缺少 AndroidManifest\.xml/);
   assert.match(controller, /randomUUID\(\)/);
 });
+
+
+test("business email verification is not required when disabled and only guards documented sensitive actions", () => {
+  const verification = readFileSync(new URL("../src/users/email-verification.service.ts", import.meta.url), "utf8");
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  const payoutAccounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
+  assert.match(verification, /if \(value\.businessEmailVerification !== true\) return/);
+  assert.match(withdrawals, /await this\.emailVerification\.requireVerified\(userId\)/);
+  assert.match(payoutAccounts, /async remove\(userId: string, accountId: string\) \{\s*await this\.emailVerification\.requireVerified\(userId\)/);
+  const create = payoutAccounts.slice(payoutAccounts.indexOf("async create("), payoutAccounts.indexOf("async remove("));
+  assert.doesNotMatch(create, /requireVerified/);
+});
+
+test("archived withdrawal rules cannot be re-enabled through toggle or edit APIs", () => {
+  const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
+  const adminPage = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
+  assert.match(settings, /existingRule\?\.status === "ARCHIVED" && input\.status !== "ARCHIVED"/);
+  assert.match(settings, /if \(rule\.status === "ARCHIVED"\) \{\s*throw new BadRequestException\("已归档的提现规则不能重新启用/);
+  assert.match(adminPage, /disabled=\{r\.status==="ARCHIVED"\}/);
+  assert.match(adminPage, /disabled=\{ruleForm\.status==="ARCHIVED"\}/);
+});
