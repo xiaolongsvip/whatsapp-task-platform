@@ -65,7 +65,7 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/users\/[^/]+\/reset-password$/)) return "users.manage";
     if (is(/^\/admin\/users(?:\/summary)?$/)) return method === "GET" ? "users.read" : "users.manage";
 
-    if (is(/^\/admin\/finance\/withdrawals(?:\/[^/]+)?$/)) {
+    if (is(/^\/admin\/finance\/withdrawals(?:\/[^/]+(?:\/(?:review|payout-result))?)?$/)) {
       if (method === "GET") return "finance.withdrawals.read";
       if (path.endsWith("/review")) return "finance.withdrawals.review";
       if (path.endsWith("/payout-result")) return "finance.withdrawals.pay";
@@ -87,7 +87,7 @@ export class AdminPermissionGuard implements CanActivate {
 
     if (is(/^\/admin\/tasks\/records\/dev-test-data$/)) return "tasks.manage";
     if (is(/^\/admin\/tasks\/records\/bulk-message$/)) return "tasks.messages.manage";
-    if (is(/^\/admin\/tasks\/records(?:\/[^/]+\/detail)?$/)) return "tasks.executions.read";
+    if (is(/^\/admin\/tasks\/records(?:\/[^/]+\/detail)?$/) && method === "GET") return "tasks.executions.read";\n    if (is(/^\/admin\/tasks\/records\/[^/]+$/) && method === "DELETE") return "tasks.manage";
     if (is(/^\/admin\/tasks\/records\/(?:bulk-void|bulk-delete|bulk-group|[^/]+\/(?:void))$/)) return "tasks.manage";
     if (is(/^\/admin\/tasks\/message-templates(?:\/[^/]+)?$/)) return method === "GET" ? "tasks.messages.read" : "tasks.messages.manage";
     if (is(/^\/admin\/tasks\/groups(?:\/[^/]+)?$/)) return method === "GET" ? "tasks.groups.read" : "tasks.groups.manage";
@@ -100,7 +100,7 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/contact-numbers\/import$/) || is(/^\/admin\/contact-numbers\/single$/) || is(/^\/admin\/contact-numbers\/[^/]+\/block$/)) return "tasks.import_numbers";
     if (is(/^\/admin\/contact-numbers$/)) return method === "GET" ? "tasks.import_numbers" : "tasks.import_numbers";
 
-    if (is(/^\/admin\/ai-reviews\/(?:risk\/events|risk\/users|risk\/rules)$/)) return method === "GET" ? "reviews.risk.read" : "reviews.risk.manage";
+    if (is(/^\/admin\/ai-reviews\/(?:risk\/events|risk\/users|risk\/rules(?:\/[^/]+)?)$/)) return method === "GET" ? "reviews.risk.read" : "reviews.risk.manage";
     if (is(/^\/admin\/ai-reviews\/evidence(?:\/[^/]+\/detail)?$/)) return "reviews.evidence.read";
     if (is(/^\/admin\/ai-reviews(?:|\/center|\/[^/]+\/review)$/)) return method === "GET" ? "reviews.ai.read" : "reviews.manage";
     if (is(/^\/admin\/task-submissions$/)) return "reviews.read";
@@ -108,7 +108,7 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/task-submissions\/[^/]+\/retry-ai$/)) return "reviews.ai.retry";
     if (is(/^\/admin\/task-submissions\/[^/]+\/review$/)) return "reviews.manage";
 
-    if (is(/^\/admin\/ai-config$/)) return method === "GET" ? "reviews.settings.manage" : "reviews.settings.manage";
+    if (is(/^\/admin\/ai-config(?:\/test)?$/)) return method === "GET" ? "reviews.settings.manage" : "reviews.settings.manage";
     if (is(/^\/admin\/storage-config(?:\/test)?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
 
     return null;
