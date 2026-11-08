@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AdminSidebar from "../../components/AdminSidebar";
 import AdminTopbar from "../../components/AdminTopbar";
-import { Plus, Search, RotateCcw, RefreshCw, Columns3, Pencil, MoreHorizontal, ShieldCheck, Users, KeyRound, UserPlus, X, Check, Eye, EyeOff, LockKeyhole, UserRound, Phone, Mail, ChevronDown } from "lucide-react";
+import { Plus, Search, RotateCcw, RefreshCw, Columns3, Pencil, MoreHorizontal, ShieldCheck, Users, KeyRound, X, Eye, EyeOff } from "lucide-react";
 
 type Permission={key:string;name:string;description:string;risk:"normal"|"high"|"critical"};
 type Group={name:string;permissions:Permission[]};
@@ -21,7 +21,6 @@ export default function PermissionsPage(){
  const [page,setPage]=useState(1);const [pageSize,setPageSize]=useState(20);
  const refresh=useCallback(async()=>{setBusy(true);setError("");try{const [c,r]=await Promise.all([api<{groups:Group[]}>("/api/v1/admin/permissions/catalog"),api<{roles:Role[]}>("/api/v1/admin/permissions/roles?search="+encodeURIComponent(search)+"&status="+status)]);setGroups(c.groups);setRoles(r.roles);setSelected(old=>r.roles.find(x=>x.id===old?.id)??r.roles[0]??null);if(tab==="admins"){const a=await api<{admins:Admin[]}>("/api/v1/admin/permissions/admins?search="+encodeURIComponent(search)+"&status="+status);setAdmins(a.admins);}}catch(e){setError(e instanceof Error?e.message:"加载权限数据失败");}finally{setBusy(false);}},[search,status,tab]);
  useEffect(()=>{void refresh();},[refresh]);
- const allPermissions=useMemo(()=>groups.flatMap(g=>g.permissions),[groups]);
  const roleTotal=roles.length;const adminTotal=admins.length;const filteredRoles=roles.slice((page-1)*pageSize,page*pageSize);
  const filteredAdmins=admins.slice((page-1)*pageSize,page*pageSize);
  const permissionCount=selectedKeys.length;
