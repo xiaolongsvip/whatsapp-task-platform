@@ -150,7 +150,10 @@ export class SystemSettingsService {
     } else {
       release.status = "REVOKED";
       release.revokedAt = new Date().toISOString();
-      if (Number(current.versionCode) === versionCode) {
+      const liveRelease = releases.find((item: any) =>
+        item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion),
+      );
+      if (Number(liveRelease?.versionCode ?? 0) === versionCode) {
         const previous = releases.find((x: any, i: number) => i !== index && x.status === "PUBLISHED");
         current.currentVersion = previous?.version ?? "";
         current.latestVersion = previous?.version ?? "";
