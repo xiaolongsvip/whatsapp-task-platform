@@ -448,7 +448,7 @@ export default function AdminTasksPage() {
           <aside className="tasks-detail-drawer" role="dialog" aria-modal="true" aria-label="任务详情" onClick={(event) => event.stopPropagation()}>
             <header className="tasks-detail-header">
               <div>
-                <div className="tasks-detail-title">任务详情 <span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></div>
+                <div className="tasks-detail-title">任务详情 <span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></div>
                 <p>{selectedRecord.phoneNumber}</p>
               </div>
               <button type="button" aria-label="关闭详情" onClick={() => setSelectedRecord(null)}>×</button>
@@ -473,7 +473,7 @@ export default function AdminTasksPage() {
               <section className="tasks-detail-section">
                 <h3>当前状态</h3>
                 <dl className="tasks-detail-list">
-                  <div><dt>任务状态</dt><dd><span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></dd></div>
+                  <div><dt>任务状态</dt><dd><span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></dd></div>
                   <div><dt>领取用户</dt><dd>{selectedRecord.claimedUserId || "—"}</dd></div>
                   <div><dt>执行记录</dt><dd>{selectedRecord.claimId || "—"}</dd></div>
                   {selectedRecord.claimedAt && <div><dt>领取时间</dt><dd>{new Date(selectedRecord.claimedAt).toLocaleString("zh-CN",{hour12:false})}</dd></div>}
