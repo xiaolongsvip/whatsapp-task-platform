@@ -582,6 +582,7 @@ export class AiReviewAdminService {
           AND target_type <> 'RISK_RULE'
           AND (${keyword}::text IS NULL OR action ILIKE '%' || ${keyword} || '%'
             OR COALESCE(target_id, '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'riskType', '') ILIKE '%' || ${keyword} || '%'
             OR COALESCE(metadata->>'phone', '') ILIKE '%' || ${keyword} || '%'
             OR COALESCE(metadata->>'userId', '') ILIKE '%' || ${keyword} || '%'
             OR COALESCE(metadata->>'description', '') ILIKE '%' || ${keyword} || '%')
@@ -604,6 +605,7 @@ export class AiReviewAdminService {
           AND target_type <> 'RISK_RULE'
           AND (${keyword}::text IS NULL OR action ILIKE '%' || ${keyword} || '%'
             OR COALESCE(target_id, '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'riskType', '') ILIKE '%' || ${keyword} || '%'
             OR COALESCE(metadata->>'phone', '') ILIKE '%' || ${keyword} || '%'
             OR COALESCE(metadata->>'userId', '') ILIKE '%' || ${keyword} || '%'
             OR COALESCE(metadata->>'description', '') ILIKE '%' || ${keyword} || '%')
