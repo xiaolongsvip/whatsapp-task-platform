@@ -1734,7 +1734,20 @@ private fun ApplyWithdrawalScreen(
                                     error = null
                                     runCatching { withContext(Dispatchers.IO) { AuthRepository.createWithdrawal(id, minor, quote ?: throw IllegalStateException("请先刷新提现报价")) } }
                                         .onSuccess { onSubmitted() }
-                                        .onFailure { error = it.message ?: if (isEnglish) "Withdrawal request failed" else "提现申请失败" }
+                                        .onFailure { failure ->
+                                            val message = failure.message ?: if (isEnglish) "Withdrawal request failed" else "提现申请失败"
+                                            error = message
+                                            if (message.contains("exchange rate changed", ignoreCase = true) ||
+                                                message.contains("payout estimate no longer matches", ignoreCase = true)) {
+                                                runCatching {
+                                                    withContext(Dispatchers.IO) { AuthRepository.withdrawalQuote(id, minor) }
+                                                }.onSuccess { refreshedQuote ->
+                                                    quote = refreshedQuote
+                                                }.onFailure {
+                                                    error = message + if (isEnglish) " The latest quote could not be refreshed." else "，最新报价刷新失败，请稍后重试。"
+                                                }
+                                            }
+                                        }
                                     saving = false
                                 }
                             }
