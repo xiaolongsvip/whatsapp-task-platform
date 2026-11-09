@@ -576,3 +576,15 @@ test("risk events retain the risk-only scope while applying keyword, status and 
   assert.match(method, /LIMIT \$\{pageSize\} OFFSET \$\{skip\}/);
   assert.doesNotMatch(method, /where\.OR =/);
 });
+
+
+test("risk records admin UI paginates event and user lists and opens event details", () => {
+  const page = readFileSync(new URL("../../admin/src/app/ai-reviews/RiskRecords.tsx", import.meta.url), "utf8");
+  assert.match(page, /page:String\(eventPage\),pageSize:"20"/);
+  assert.match(page, /page:String\(userPage\),pageSize:"20"/);
+  assert.match(page, /setEventTotal\(Number\(b\.total\|\|0\)\)/);
+  assert.match(page, /setUserTotal\(Number\(b\.total\|\|0\)\)/);
+  assert.match(page, /onClick=\{\(\)=>setDetailEvent\(x\)\}/);
+  assert.match(page, /上一页/);
+  assert.match(page, /下一页/);
+});
