@@ -481,20 +481,50 @@ export class FinanceAdminService {
 
   async taskSettlements(query: { search?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
     const pg = pageArgs(query.page, query.pageSize);
-    const rows = await prisma.taskSubmission.findMany({
-      where: { status: "APPROVED", ...(query.from || query.to ? { submittedAt: dateRange(query.from, query.to) } : {}) },
-      orderBy: { submittedAt: "desc" }, take: 5000,
-      include: { claim: { include: { task: { select: { id: true, title: true, rewardMinor: true, currency: true } }, user: { select: { id: true, phone: true } } } } },
-    });
-    const claimIds = [...new Set(rows.map(x => x.claimId))];
-    const paid = claimIds.length ? await prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } }, select: { sourceId: true, amountMinor: true, currency: true, createdAt: true } }) : [];
-    const paidMap = new Map(paid.map(x => [x.sourceId, x]));
-    const missing = rows.filter(x => !paidMap.has(x.claimId)).map(x => ({
-      id: x.id, claimId: x.claimId, userId: x.claim.user.id, phone: x.claim.user.phone,
-      taskId: x.claim.task.id, taskTitle: x.claim.task.title, amountMinor: x.claim.task.rewardMinor.toString(),
-      currency: x.claim.task.currency.trim(), status: "PENDING_SETTLEMENT", submittedAt: x.submittedAt.toISOString(),
-    })).filter(x => !query.search || [x.phone, x.taskTitle, x.claimId, x.id].some(v => String(v ?? "").toLowerCase().includes(query.search!.toLowerCase())));
-    return { ...pg, total: missing.length, items: missing.slice(pg.skip, pg.skip + pg.take) };
+    const conditions: Prisma.Sql[] = [Prisma.sql`s.status = 'APPROVED'`];
+    if (query.from || query.to) {
+      const range = dateRange(query.from, query.to);
+      if (range.gte) conditions.push(Prisma.sql`s.submitted_at >= ${range.gte}`);
+      if (range.lte) conditions.push(Prisma.sql`s.submitted_at <= ${range.lte}`);
+    }
+    const search = query.search?.trim();
+    if (search) {
+      const pattern = `%${search}%`;
+      conditions.push(Prisma.sql`(u.phone ILIKE ${pattern} OR t.title ILIKE ${pattern} OR s.id::text ILIKE ${pattern} OR c.id::text ILIKE ${pattern})`);
+    }
+    const where = Prisma.join(conditions, " AND ");
+    const unpaidCondition = Prisma.sql`NOT EXISTS (
+      SELECT 1 FROM ledger_entries le
+      WHERE le.source_type = 'TASK_REWARD' AND le.source_id = c.id::text
+    )`;
+    const [countRows, rows] = await Promise.all([
+      prisma.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*)::bigint AS total
+        FROM task_submissions s
+        INNER JOIN task_claims c ON c.id = s.claim_id
+        INNER JOIN tasks t ON t.id = c.task_id
+        INNER JOIN users u ON u.id = c.user_id
+        WHERE ${where} AND ${unpaidCondition}
+      `,
+      prisma.$queryRaw<Array<{ id: string; claimId: string; userId: string; phone: string; taskId: string; taskTitle: string; amountMinor: bigint; currency: string; submittedAt: Date }>>`
+        SELECT s.id, c.id AS "claimId", u.id AS "userId", u.phone,
+          t.id AS "taskId", t.title AS "taskTitle", t.reward_minor AS "amountMinor",
+          t.currency, s.submitted_at AS "submittedAt"
+        FROM task_submissions s
+        INNER JOIN task_claims c ON c.id = s.claim_id
+        INNER JOIN tasks t ON t.id = c.task_id
+        INNER JOIN users u ON u.id = c.user_id
+        WHERE ${where} AND ${unpaidCondition}
+        ORDER BY s.submitted_at DESC, s.id DESC
+        LIMIT ${pg.take} OFFSET ${pg.skip}
+      `,
+    ]);
+    return { ...pg, total: Number(countRows[0]?.total ?? 0n), items: rows.map(x => ({
+      id: x.id, claimId: x.claimId, userId: x.userId, phone: x.phone,
+      taskId: x.taskId, taskTitle: x.taskTitle, amountMinor: x.amountMinor.toString(),
+      currency: x.currency.trim(), status: "PENDING_SETTLEMENT",
+      submittedAt: x.submittedAt.toISOString(),
+    })) };
   }
 
   async pendingPayouts(query: { search?: string; status?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
