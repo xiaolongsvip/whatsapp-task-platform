@@ -355,7 +355,7 @@ export class FinanceAdminService {
     const supportedChannels = Array.isArray(input.supportedChannels) ? [...new Set(input.supportedChannels.map(x => String(x).trim()).filter(Boolean))] : [];
     const minimumRaw = input.minimumPayoutMinor === undefined || input.minimumPayoutMinor === null || input.minimumPayoutMinor === "" ? null : String(input.minimumPayoutMinor);
     const maximumRaw = input.maximumPayoutMinor === undefined || input.maximumPayoutMinor === null || input.maximumPayoutMinor === "" ? null : String(input.maximumPayoutMinor);
-    if ((minimumRaw !== null && !/^\\d+$/.test(minimumRaw)) || (maximumRaw !== null && !/^\\d+$/.test(maximumRaw))) throw new BadRequestException("最低和最高到账金额必须是非负整数分");
+    if ((minimumRaw !== null && !/^\d+$/.test(minimumRaw)) || (maximumRaw !== null && !/^\d+$/.test(maximumRaw))) throw new BadRequestException("最低和最高到账金额必须是非负整数最小单位");
     const minimumPayoutMinor = minimumRaw === null ? null : BigInt(minimumRaw);
     const maximumPayoutMinor = maximumRaw === null ? null : BigInt(maximumRaw);
     if (minimumPayoutMinor !== null && maximumPayoutMinor !== null && minimumPayoutMinor > maximumPayoutMinor) throw new BadRequestException("最低到账金额不能高于最高到账金额");
