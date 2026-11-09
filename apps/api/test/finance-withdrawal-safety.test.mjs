@@ -176,6 +176,13 @@ test("archived withdrawal rules cannot be re-enabled through toggle or edit APIs
 });
 
 
+test("withdrawal rules reject overlapping enabled payout channels at save and re-enable time", () => {
+  const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
+  assert.match(settings, /x\.channels\.some\(channel => channels\.includes\(String\(channel\)\.trim\(\)\.toLowerCase\(\)\)\)/);
+  assert.match(settings, /相同国家和出款币种的收款渠道已被其他启用规则占用/);
+  assert.match(settings, /ruleChannels\.includes\(String\(channel\)\.trim\(\)\.toLowerCase\(\)\)/);
+});
+
 test("withdrawal rule limits reject unsupported precision and non-finite values", () => {
   const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
   const adminPage = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
