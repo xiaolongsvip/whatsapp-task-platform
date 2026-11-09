@@ -132,6 +132,19 @@ export class PayoutAccountsService {
     if (accountNumber.length < 5 || accountNumber.length > 80 || !accountHolder || accountHolder.length > 120) {
       throw new BadRequestException("Invalid payout account details.");
     }
+    const catalogRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.payoutCatalogs" }, select: { value: true } });
+    const catalogs = catalogRow?.value as any;
+    const countryCatalog = Array.isArray(catalogs?.countries) ? catalogs.countries : [];
+    const currencyCatalog = Array.isArray(catalogs?.currencies) ? catalogs.currencies : [];
+    const methodCatalog = Array.isArray(catalogs?.methods) ? catalogs.methods : [];
+    const configuredCountry = countryCatalog.find((item: any) => String(item.code).toUpperCase() === countryCode);
+    const configuredCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === currency);
+    const configuredMethod = methodCatalog.find((item: any) => String(item.channel ?? item.code).toLowerCase() === methodCode);
+    if (countryCatalog.length && (!configuredCountry || configuredCountry.enabled === false)) throw new BadRequestException("This payout country is not currently available.");
+    if (currencyCatalog.length && (!configuredCurrency || configuredCurrency.enabled === false)) throw new BadRequestException("This payout currency is not currently available.");
+    if (methodCatalog.length && (!configuredMethod || configuredMethod.enabled === false)) throw new BadRequestException("This payout method is not currently available.");
+    if (configuredMethod?.countryCodes?.length && !configuredMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(countryCode)) throw new BadRequestException("This payout method is not available in the selected country.");
+    if (configuredMethod?.currencyCodes?.length && !configuredMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(currency)) throw new BadRequestException("This payout method does not support the selected currency.");
     const rulesRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
     const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ id: "default-pk-usd-local", countryCode: "PK", countryName: "Pakistan", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", channels: ["jazzcash", "easypaisa"], minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, status: "ENABLED" }];
     const matchesRule = (rule: Record<string, unknown>) =>
