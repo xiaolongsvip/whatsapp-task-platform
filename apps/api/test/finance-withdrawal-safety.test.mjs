@@ -1095,7 +1095,7 @@ test("task settlements paginate from a database anti-join without truncating at 
   assert.match(implementation, /ledger_entries le/);
   assert.match(implementation, /le\.source_type = 'TASK_REWARD'/);
   assert.match(implementation, /COUNT\(\*\)::bigint AS total/);
-  assert.match(implementation, /LIMIT \\?\{pg\.take\}/);
-  assert.match(implementation, /OFFSET \\?\{pg\.skip\}/);
+  assert.ok(implementation.includes("LIMIT " + "$" + "{pg.take}"));
+  assert.ok(implementation.includes("OFFSET " + "$" + "{pg.skip}"));
   assert.doesNotMatch(implementation, /take:\s*5000/);
 });
