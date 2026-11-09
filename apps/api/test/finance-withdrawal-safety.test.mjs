@@ -262,6 +262,16 @@ test("payout providers accept catalog-configured countries and currencies instea
   assert.match(finance, /await this\.validateProviderInput/);
 });
 
+test("finance provider editor loads country and channel choices from payout catalogs and respects currency precision", () => {
+  const admin = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  assert.match(admin, /admin\/system-settings\/payout-catalogs/);
+  assert.match(admin, /providerCatalogs\.countries/);
+  assert.match(admin, /providerCatalogs\.methods/);
+  assert.match(admin, /currencyDigits\(limitCurrency\)/);
+  assert.match(finance, /!\^\\d\+\$\/\.test\(minimumRaw\)/);
+});
+
 test("APP payout options are derived from enabled admin withdrawal rules and payment providers", () => {
   const accounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
   const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
