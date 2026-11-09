@@ -10,23 +10,23 @@ const readSource = (relativePath) => readFile(path.resolve(here, relativePath), 
 test("evidence retention only deletes terminal submissions and claims work without duplicate workers", async () => {
   const source = await readSource("../src/tasks/tasks.service.ts");
   const cleanup = source.slice(source.indexOf("private async cleanupExpiredEvidence"), source.indexOf("async listPublished"));
-  assert.match(cleanup, /status IN \\('APPROVED', 'REJECTED'\\)/);
-  assert.match(cleanup, /evidence_deleted_at IS NULL/);
-  assert.match(cleanup, /FOR UPDATE SKIP LOCKED/);
-  assert.match(cleanup, /evidence_delete_locked_at/);
-  assert.match(cleanup, /this\\.storage\\.deleteObject/);
-  assert.match(cleanup, /evidenceDeleteNextAttemptAt/);
-  assert.match(cleanup, /evidenceDeleteLastError/);
-  assert.match(cleanup, /Math\\.min\\(24 \\* 60/);
+  assert.ok(cleanup.includes("status IN ('APPROVED', 'REJECTED')"));
+  assert.ok(cleanup.includes("evidence_deleted_at IS NULL"));
+  assert.ok(cleanup.includes("FOR UPDATE SKIP LOCKED"));
+  assert.ok(cleanup.includes("evidence_delete_locked_at"));
+  assert.ok(cleanup.includes("this.storage.deleteObject"));
+  assert.ok(cleanup.includes("evidenceDeleteNextAttemptAt"));
+  assert.ok(cleanup.includes("evidenceDeleteLastError"));
+  assert.ok(cleanup.includes("Math.min(24 * 60"));
 });
 
 test("evidence administration reports persisted retention status instead of placeholder values", async () => {
   const source = await readSource("../src/ai-config/ai-review-admin.service.ts");
   const listing = source.slice(source.indexOf("async listEvidenceRecords"), source.indexOf("async rerunAiReview"));
-  assert.match(listing, /evidenceDeletedAt/);
-  assert.match(listing, /evidenceDeleteAttempts/);
-  assert.match(listing, /evidenceDeleteLastError/);
-  assert.doesNotMatch(listing, /retentionStatus: "NORMAL"/);
-  assert.doesNotMatch(listing, /deletedObjects: 0/);
-  assert.match(source, /if \\(submission\\.evidenceDeletedAt\\) throw new NotFoundException/);
+  assert.ok(listing.includes("evidenceDeletedAt"));
+  assert.ok(listing.includes("evidenceDeleteAttempts"));
+  assert.ok(listing.includes("evidenceDeleteLastError"));
+  assert.ok(!listing.includes('retentionStatus: "NORMAL"'));
+  assert.ok(!listing.includes("deletedObjects: 0"));
+  assert.ok(source.includes("if (submission.evidenceDeletedAt) throw new NotFoundException"));
 });
