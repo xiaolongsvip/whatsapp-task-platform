@@ -242,7 +242,7 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color.White, shape = RoundedCornerShape(24.dp)) { Text((if (en) "Withdraw  " else "提现  ") + availableBalance, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF319CCB), fontWeight = FontWeight.Bold) }
                 Spacer(Modifier.weight(1f)); Text(if (en) "My" else "我的", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Spacer(Modifier.weight(1f))
-                Icon(Icons.Default.HeadsetMic, null, tint = Color(0xFF5AAED0)); Spacer(Modifier.width(14.dp)); Icon(Icons.Default.Language, null, tint = Color(0xFF5AAED0))
+                Icon(Icons.Default.HeadsetMic, if (en) "Customer support" else "联系客服", tint = Color(0xFF5AAED0), modifier = Modifier.clickable { dialog = "support" }); Spacer(Modifier.width(14.dp)); Icon(Icons.Default.Language, null, tint = Color(0xFF5AAED0))
             }
             Row(Modifier.fillMaxWidth().clickable { dialog = "security" }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)) { Icon(Icons.Default.Person, null, tint = Color(0xFF319CCB), modifier = Modifier.size(68.dp).padding(17.dp)) }
@@ -1073,7 +1073,9 @@ private fun WalletScreen(
     var balanceVisible by rememberSaveable { mutableStateOf(true) }
     var languageMenuOpen by remember { mutableStateOf(false) }
     var supportDialogOpen by remember { mutableStateOf(false) }
+    var supportUrl by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     LaunchedEffect(refresh) {
         loading = true; error = null
@@ -1082,6 +1084,7 @@ private fun WalletScreen(
         }
         result.first.onSuccess { overview = it }.onFailure { error = it.message }
         result.second.onSuccess { recent = it }.onFailure { if (error == null) error = it.message }
+        supportUrl = withContext(Dispatchers.IO) { runCatching { AuthRepository.publicAppSupport().optString("supportUrl").takeIf { it.startsWith("https://") } }.getOrNull() }
         loading = false
     }
     val totals = overview?.optJSONArray("totals")
@@ -1229,8 +1232,13 @@ private fun WalletScreen(
     if (supportDialogOpen) AlertDialog(
         onDismissRequest = { supportDialogOpen = false },
         title = { Text(if (en) "Customer support" else "联系客服") },
-        text = { Text(if (en) "Support contact has not been configured. Please contact the platform administrator." else "客服联系方式尚未配置，请联系平台管理员。") },
-        confirmButton = { TextButton(onClick = { supportDialogOpen = false }) { Text(if (en) "OK" else "知道了") } }
+        text = { Text(if (supportUrl.isNullOrBlank()) { if (en) "Customer support has not been configured." else "客服联系方式尚未配置，请联系平台管理员。" } else { if (en) "Open the platform customer support page?" else "即将打开平台客服页面。" }) },
+        confirmButton = { TextButton(onClick = {
+            val url = supportUrl
+            if (!url.isNullOrBlank()) runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            supportDialogOpen = false
+        }) { Text(if (supportUrl.isNullOrBlank()) { if (en) "OK" else "知道了" } else { if (en) "Open support" else "打开客服" }) } },
+        dismissButton = { if (!supportUrl.isNullOrBlank()) TextButton(onClick = { supportDialogOpen = false }) { Text(if (en) "Cancel" else "取消") } }
     )
 }
 
