@@ -457,8 +457,8 @@ model TaskSubmission {
   @@index([status, submittedAt])
   @@index([claimId, submittedAt])
   @@index([contentSha256])
-  @@index([status, submittedAt, evidenceDeletedAt])
-  @@index([evidenceDeleteNextAttemptAt, evidenceDeleteLockedAt])
+  @@index([status, submittedAt, evidenceDeletedAt], map: "task_submissions_status_submitted_evidence_deleted_idx")
+  @@index([evidenceDeleteNextAttemptAt, evidenceDeleteLockedAt], map: "task_submissions_evidence_delete_retry_idx")
   @@map("task_submissions")
 }
 
