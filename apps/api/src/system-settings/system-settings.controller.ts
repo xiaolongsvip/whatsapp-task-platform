@@ -163,6 +163,21 @@ export class SystemSettingsController {
     await this.settings.recordExchangeRateRefresh(admin.id, snapshot);
     return { source: snapshot.source, base: snapshot.base, fetchedAt: snapshot.fetchedAt, providerUpdatedAt: snapshot.providerUpdatedAt ?? null, currencies: Object.keys(snapshot.rates).length, stale: snapshot.stale };
   }
+  @Get("exchange-rates/manual")
+  async manualExchangeRates(@Req() req: Request) {
+    await this.admin(req);
+    return this.exchangeRates.manualRates();
+  }
+  @Put("exchange-rates/manual")
+  async saveManualExchangeRate(@Req() req: Request, @Body() body: { from: string; to: string; rate: number; validUntil?: string | null; note?: string }) {
+    const admin = await this.admin(req);
+    return this.exchangeRates.setManualRate(body, admin.id);
+  }
+  @Post("exchange-rates/manual/disable")
+  async disableManualExchangeRate(@Req() req: Request, @Body() body: { from: string; to: string }) {
+    const admin = await this.admin(req);
+    return this.exchangeRates.disableManualRate(body.from, body.to, admin.id);
+  }
 
   @Get("withdrawal-rules")
   async withdrawalRules(@Req() req: Request, @Query() q: Record<string,string>) { await this.admin(req); return this.settings.listWithdrawalRules(q); }
