@@ -376,3 +376,24 @@ test("manual FX overrides are admin-managed, audited, expire safely, and take pr
   assert.match(page, /停用/);
   assert.match(page, /有效截止时间/);
 });
+
+test("admin-managed payout catalogs validate and expose countries, currencies and methods to APP options", () => {
+  const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
+  const settingsController = readFileSync(new URL("../src/system-settings/system-settings.controller.ts", import.meta.url), "utf8");
+  const accounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
+  const admin = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(settings, /async getPayoutCatalogs\(\)/);
+  assert.match(settings, /async savePayoutCatalogs\(/);
+  assert.match(settings, /PAYOUT_CATALOGS_UPDATED/);
+  assert.match(settingsController, /@Get\("payout-catalogs"\)/);
+  assert.match(settingsController, /@Put\("payout-catalogs"\)/);
+  assert.match(accounts, /system\.payoutCatalogs/);
+  assert.match(accounts, /configuredMethod\?\.name/);
+  assert.match(accounts, /configuredCurrency\?\.name/);
+  assert.match(accounts, /configuredCountry/);
+  assert.match(admin, /国家、货币与收款方式目录/);
+  assert.match(admin, /保存目录配置/);
+  assert.match(app, /AuthRepository\.payoutOptions\(\)/);
+  assert.match(app, /options = response\.optJSONArray\("items"\)/);
+});
