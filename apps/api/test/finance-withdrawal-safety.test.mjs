@@ -535,3 +535,16 @@ test("manual wallet adjustments accept ordinary decimal amounts with a correctly
   assert.ok(service.includes(String.raw`(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?`));
   assert.ok(service.includes("!Number.isFinite(Number(amount))"));
 });
+
+test("task settlements paginate from a database anti-join without truncating at 5000 approved submissions", () => {
+  const start = service.indexOf("async taskSettlements(");
+  const end = service.indexOf("async pendingPayouts(", start);
+  const implementation = service.slice(start, end);
+  assert.match(implementation, /NOT EXISTS/);
+  assert.match(implementation, /ledger_entries le/);
+  assert.match(implementation, /le\.source_type = 'TASK_REWARD'/);
+  assert.match(implementation, /COUNT\(\*\)::bigint AS total/);
+  assert.match(implementation, /LIMIT \\?\{pg\.take\}/);
+  assert.match(implementation, /OFFSET \\?\{pg\.skip\}/);
+  assert.doesNotMatch(implementation, /take:\s*5000/);
+});
