@@ -80,7 +80,7 @@ export class AdminReferralsService {
       ...(search ? { OR: [
         { phone: { contains: search, mode: "insensitive" as const } },
         { referralCode: { contains: search, mode: "insensitive" as const } },
-        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search) ? [{ id: search }] : []),
+        ...( /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(search) ? [{ id: search }] : []),
       ] } : {}),
     };
     const [total, users] = await prisma.$transaction([
