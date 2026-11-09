@@ -348,7 +348,7 @@ export class FinanceAdminService {
     return { ciphertext: ciphertext.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64") };
   }
 
-  private validateProviderInput(input: Record<string, unknown>) {
+  private async validateProviderInput(input: Record<string, unknown>) {
     const providerCode = typeof input.providerCode === "string" ? input.providerCode.trim().toUpperCase() : "";
     const displayName = typeof input.displayName === "string" ? input.displayName.trim() : "";
     const serviceProviderName = typeof input.serviceProviderName === "string" ? input.serviceProviderName.trim() : "";
@@ -372,7 +372,7 @@ export class FinanceAdminService {
     if (!displayName || displayName.length > 80) throw new BadRequestException("请填写展示名称（最多 80 个字符）");
     if (!serviceProviderName || serviceProviderName.length > 80) throw new BadRequestException("请选择或填写服务商名称");
     if (supportedChannels.length < 1 || supportedChannels.length > 30 || supportedChannels.some(x => x.length > 60)) throw new BadRequestException("请至少选择一个有效收款渠道");
-    if (!/^(GLOBAL|PK|NG|BD)$/.test(countryCode)) throw new BadRequestException("国家/地区暂只支持 GLOBAL、PK、NG、BD");
+    if (!/^(GLOBAL|[A-Z]{2})$/.test(countryCode)) throw new BadRequestException("国家/地区必须是 GLOBAL 或两位 ISO 国家代码");
     if (!/^[A-Z0-9_-]{2,40}$/.test(methodCode)) throw new BadRequestException("收款渠道代码格式不正确");
     if (!["SANDBOX","PRODUCTION"].includes(environment)) throw new BadRequestException("环境必须是 SANDBOX 或 PRODUCTION");
     if (apiBaseUrl) {
@@ -382,13 +382,32 @@ export class FinanceAdminService {
         throw new BadRequestException("API 地址必须使用 HTTPS（沙箱 localhost 除外）");
       }
     }
-    if (supportedCurrencies.length > 10 || supportedCurrencies.some(x => !/^[A-Z]{3}$/.test(x))) throw new BadRequestException("出款币种必须为 3 位 ISO 币种代码");
+    if (supportedCurrencies.length < 1 || supportedCurrencies.length > 10 || supportedCurrencies.some(x => !/^[A-Z]{3}$/.test(x))) throw new BadRequestException("至少配置一个有效的 3 位 ISO 出款币种，最多 10 个");
+    const catalogRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.payoutCatalogs" }, select: { value: true } });
+    const catalogs = catalogRow?.value as any;
+    const countries = Array.isArray(catalogs?.countries) ? catalogs.countries : [];
+    const currencies = Array.isArray(catalogs?.currencies) ? catalogs.currencies : [];
+    const methods = Array.isArray(catalogs?.methods) ? catalogs.methods : [];
+    if (countries.length && countryCode !== "GLOBAL" && !countries.some((item: any) => String(item.code).toUpperCase() === countryCode && item.enabled !== false)) {
+      throw new BadRequestException("服务商引用的国家未配置或已停用。");
+    }
+    if (currencies.length && supportedCurrencies.some(code => !currencies.some((item: any) => String(item.code).toUpperCase() === code && item.enabled !== false))) {
+      throw new BadRequestException("服务商引用了未配置或已停用的出款币种。");
+    }
+    if (methods.length && supportedChannels.some(channel => !methods.some((item: any) =>
+      String(item.channel ?? item.code).trim().toLowerCase() === channel.toLowerCase() &&
+      item.enabled !== false &&
+      (!Array.isArray(item.countryCodes) || item.countryCodes.length === 0 || countryCode === "GLOBAL" || item.countryCodes.map((code: string) => code.toUpperCase()).includes(countryCode)) &&
+      (!Array.isArray(item.currencyCodes) || item.currencyCodes.length === 0 || item.currencyCodes.some((code: string) => supportedCurrencies.includes(String(code).toUpperCase())))
+    ))) {
+      throw new BadRequestException("服务商包含未启用或不适用于所选国家、币种的收款渠道。");
+    }
     if (credentials.length > 12000 || webhookSecret.length > 4000) throw new BadRequestException("密钥内容过长");
     return { providerCode, displayName, serviceProviderName, countryCode, methodCode, supportedChannels, minimumPayoutMinor, maximumPayoutMinor, enabled, environment, apiBaseUrl: apiBaseUrl || null, merchantId: merchantId || null, supportedCurrencies: [...new Set(supportedCurrencies)], credentials, webhookSecret };
   }
 
   async createProvider(input: Record<string, unknown>) {
-    const v = this.validateProviderInput(input);
+    const v = await this.validateProviderInput(input);
     const exists = await prisma.paymentProviderConfig.findUnique({ where: { providerCode: v.providerCode } });
     if (exists) throw new ConflictException("服务商代码已存在");
     const credentials = v.credentials ? this.encryptProviderSecret(v.credentials) : null;
@@ -407,7 +426,7 @@ export class FinanceAdminService {
   async updateProvider(providerCode: string, input: Record<string, unknown>) {
     const current = await prisma.paymentProviderConfig.findUnique({ where: { providerCode } });
     if (!current) throw new NotFoundException("代付配置不存在");
-    const v = this.validateProviderInput({ ...input, providerCode: current.providerCode });
+    const v = await this.validateProviderInput({ ...input, providerCode: current.providerCode });
     const credentials = v.credentials ? this.encryptProviderSecret(v.credentials) : null;
     const webhook = v.webhookSecret ? this.encryptProviderSecret(v.webhookSecret) : null;
     const row = await prisma.paymentProviderConfig.update({ where: { providerCode }, data: {
