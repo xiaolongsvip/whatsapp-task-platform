@@ -54,6 +54,10 @@ export class UsersController {
       rate: body.expectedRate,
       source: body.expectedRateSource,
       fetchedAt: body.expectedRateFetchedAt,
+      amountMinor: body.expectedQuoteAmountMinor,
+      walletCurrency: body.expectedWalletCurrency,
+      payoutCurrency: body.expectedPayoutCurrency,
+      payoutAmountMinor: body.expectedPayoutAmountMinor,
     });
   }
 
