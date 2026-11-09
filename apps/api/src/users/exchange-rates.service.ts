@@ -219,7 +219,7 @@ export class ExchangeRatesService {
 
   toPayoutMinor(amountMinor: bigint, from: string, to: string, rate: number): bigint {
     const digits = (code: string) => {
-      try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits); }
+      try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits ?? 2); }
       catch { return 2; }
     };
     const fromDigits = digits(from), toDigits = digits(to);
