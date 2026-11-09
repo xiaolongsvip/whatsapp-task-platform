@@ -13,7 +13,7 @@ export class CreateWithdrawalDto {
   // The client quote is only an optimistic-concurrency check. The server
   // always recalculates and persists its own authoritative FX snapshot.
   @IsString()
-  @Matches(/^[0-9]+(?:\\.[0-9]{1,12})?$/)
+  @Matches(/^[0-9]+(?:\.[0-9]{1,12})?$/)
   expectedRate!: string;
 
   @IsString()
@@ -21,6 +21,6 @@ export class CreateWithdrawalDto {
   expectedRateSource!: string;
 
   @IsString()
-  @Matches(/^\\d{4}-\\d{2}-\\d{2}T/)
+  @Matches(/^\d{4}-\d{2}-\d{2}T/)
   expectedRateFetchedAt!: string;
 }
