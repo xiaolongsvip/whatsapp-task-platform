@@ -534,7 +534,7 @@ test("withdrawal submission requires the displayed FX quote and rejects changed 
 test("manual wallet adjustments convert amounts using ISO currency fraction digits", () => {
   assert.match(service, /function majorToMinor/);
   assert.match(service, /maximumFractionDigits/);
-  assert.match(service, /10n \\*\\* BigInt\\(digits\\)/);
+  assert.ok(service.includes("10n ** BigInt(digits)"));
   assert.ok(service.includes("最多保留 ${digits} 位小数"));
 });
 
