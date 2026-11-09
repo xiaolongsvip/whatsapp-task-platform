@@ -553,3 +553,14 @@ test("task settlements paginate from a database anti-join without truncating at 
   assert.ok(implementation.includes("OFFSET ${pg.skip}"));
   assert.ok(!implementation.includes("take: 5000"));
 });
+
+
+test("finance reconciliation compares successful payout amount with the withdrawal snapshot", () => {
+  assert.match(service, /transaction\.amountMinor !== expectedAmount/);
+  assert.match(service, /WITHDRAWAL_PAYOUT_AMOUNT_MISMATCH/);
+});
+
+test("finance reconciliation reports successful payout transactions without a linked withdrawal", () => {
+  assert.match(service, /PAYOUT_WITHDRAWAL_LINK_MISSING/);
+  assert.match(service, /存在成功代付交易，但没有关联提现申请/);
+});
