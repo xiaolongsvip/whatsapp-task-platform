@@ -359,3 +359,20 @@ test("live FX mode requires a provider API key and the example environment selec
   assert.match(fx, /Live exchange-rate mode requires EXCHANGERATE_DEV_API_KEY/);
   assert.match(env, /EXCHANGERATE_DEV_RATE_MODE=live/);
 });
+
+test("manual FX overrides are admin-managed, audited, expire safely, and take precedence over API rates", () => {
+  const rates = readFileSync(new URL("../src/users/exchange-rates.service.ts", import.meta.url), "utf8");
+  const controller = readFileSync(new URL("../src/system-settings/system-settings.controller.ts", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
+  assert.match(rates, /system\.exchangeRates\.manual/);
+  assert.match(rates, /MANUAL_EXCHANGE_RATE_UPDATED/);
+  assert.match(rates, /MANUAL_EXCHANGE_RATE_DISABLED/);
+  assert.match(rates, /管理员设置的手动汇率已过期/);
+  assert.match(rates, /source: "MANUAL_ADMIN"/);
+  assert.match(controller, /@Get\("exchange-rates\/manual"\)/);
+  assert.match(controller, /@Put\("exchange-rates\/manual"\)/);
+  assert.match(controller, /@Post\("exchange-rates\/manual\/disable"\)/);
+  assert.match(page, /保存并启用手动汇率/);
+  assert.match(page, /停用/);
+  assert.match(page, /有效截止时间/);
+});
