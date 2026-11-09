@@ -226,7 +226,11 @@ export class SystemSettingsService {
     const method = String(input.method ?? "").trim().toUpperCase();
     const min = Number(input.minimumAmount), max = Number(input.maximumAmount), daily = Number(input.dailyLimit);
     if (!/^(?:[A-Z]{2}|GLOBAL)$/.test(countryCode) || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !method) throw new BadRequestException("国家代码、钱包币种、代付币种和提现方式格式无效");
-    if (!(min > 0 && max >= min && daily > 0)) throw new BadRequestException("请检查最低、最高和每日提现限额");
+    const limits = [min, max, daily];
+    if (!limits.every(value => Number.isFinite(value) && Number.isSafeInteger(Math.round(value * 100)) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-7) ||
+        !(min > 0 && max >= min && daily > 0)) {
+      throw new BadRequestException("提现限额必须是大于零且最多两位小数的有效金额，且最高金额不能低于最低金额。");
+    }
     const existingIndex = items.findIndex(x => x.id === ruleId);
     const existingRule = existingIndex >= 0 ? items[existingIndex] : null;
     if (existingRule?.status === "ARCHIVED" && input.status !== "ARCHIVED") {
