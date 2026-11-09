@@ -483,7 +483,7 @@ test("withdrawal submission requires the displayed FX quote and rejects changed 
   assert.match(dto, /expectedRate!/);
   assert.match(dto, /expectedRateSource!/);
   assert.match(dto, /expectedRateFetchedAt!/);
-  assert.match(controller, /expectedQuoteFetchedAt: body\.expectedRateFetchedAt/);
+  assert.match(controller, /fetchedAt: body\.expectedRateFetchedAt/);
   assert.match(withdrawals, /WITHDRAWAL_QUOTE_CHANGED/);
   assert.match(withdrawals, /!sameRate \|\| !sameSource \|\| !sameObservation/);
   assert.match(withdrawals, /rate\.source === "IDENTITY"/);
