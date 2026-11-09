@@ -62,3 +62,11 @@ test("repeated block returns before writing another revocation event", async () 
   assert.ok(idempotentGuard >= 0 && eventWrite > idempotentGuard);
   assert.match(body, /alreadyBlocked: true/);
 });
+
+test("claim idempotency replay is bound to the exact slot as well as user and task", async () => {
+  const source = await readSource("../src/tasks/tasks.service.ts");
+  const body = section(source, "async claimTask(", "async startClaim(");
+  assert.match(body, /taskSlot: true/);
+  assert.match(body, /replay\.taskSlot\?\.id !== slotId/);
+  assert.match(body, /existing\.taskSlot\?\.id === slotId/);
+});
