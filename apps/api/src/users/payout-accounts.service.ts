@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { prisma } from "@wtp/database";
-import { EmailVerificationService } from "./email-verification.service";
 
 type PayoutAccountInput = {
   countryCode: string;
@@ -34,8 +33,6 @@ function encrypt(value: string) {
 
 @Injectable()
 export class PayoutAccountsService {
-  constructor(private readonly emailVerification: EmailVerificationService) {}
-
   async list(userId: string) {
     const rows = await prisma.payoutAccount.findMany({
       where: { userId, status: "ACTIVE" },
@@ -98,7 +95,6 @@ export class PayoutAccountsService {
   }
 
   async remove(userId: string, accountId: string) {
-    await this.emailVerification.requireVerified(userId);
     return prisma.$transaction(async (tx) => {
       const account = await tx.payoutAccount.findFirst({
         where: { id: accountId, userId, status: "ACTIVE" },
