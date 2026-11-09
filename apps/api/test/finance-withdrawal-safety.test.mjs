@@ -530,3 +530,8 @@ test("withdrawal submission requires the displayed FX quote and rejects changed 
   assert.match(app, /payout estimate no longer matches/);
   assert.match(app, /AuthRepository\.createWithdrawal\(id, minor, quote/);
 });
+
+test("manual wallet adjustments accept ordinary decimal amounts with a correctly escaped digit matcher", () => {
+  assert.ok(service.includes(String.raw`(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?`));
+  assert.ok(service.includes("!Number.isFinite(Number(amount))"));
+});
