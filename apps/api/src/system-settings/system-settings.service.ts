@@ -49,7 +49,7 @@ export class SystemSettingsService {
         manualReviewThreshold: threshold,
       };
     } else {
-      safe = { businessEmailVerification: Boolean(value.businessEmailVerification) };
+      safe = { businessEmailVerification: false };
     }
     await this.write(key, safe);
     await this.audit(adminId, "SYSTEM_SETTING_UPDATED", key, safe);
