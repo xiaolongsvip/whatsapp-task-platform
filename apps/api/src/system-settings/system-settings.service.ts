@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 type JsonRecord = Record<string, unknown>;
 const currencyDigits = (currency: string) => {
-  try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits); }
+  try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2); }
   catch { return 2; }
 };
 const DEFAULT_ACCOUNT_SECURITY = { businessEmailVerification: false };
