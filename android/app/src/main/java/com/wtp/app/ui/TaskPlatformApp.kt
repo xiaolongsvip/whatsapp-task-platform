@@ -1838,7 +1838,7 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
                     }
                     DropdownMenu(expanded = currencyExpanded, onDismissRequest = { currencyExpanded = false }) {
                         currencies.forEach { item ->
-                            DropdownMenuItem(text = { Text(item.optString("payoutCurrency")) }, onClick = {
+                            DropdownMenuItem(text = { Text(item.optString("currencyName").ifBlank { item.optString("payoutCurrency") }) }, onClick = {
                                 payoutCurrency = item.optString("payoutCurrency")
                                 val next = allOptions.firstOrNull { it.optString("countryCode") == countryCode && it.optString("payoutCurrency") == payoutCurrency }
                                 methodCode = next?.optString("methodCode").orEmpty()
