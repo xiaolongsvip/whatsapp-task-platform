@@ -462,3 +462,13 @@ test("finance reconciliation validates ledger direction, amount, currency and du
   assert.match(finance, /WITHDRAWAL_TRANSACTION_DUPLICATE/);
   assert.match(finance, /amountDirectionCurrencyChecks: true/);
 });
+
+test("reconciliation does not report success when scan limit is reached and checks payment metadata", () => {
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  const admin = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
+  assert.match(finance, /scanLimitReached = approvedSubmissions\.length === 5000/);
+  assert.match(finance, /scanLimitReached \? "INCOMPLETE"/);
+  assert.match(finance, /metadataActualAmount !== transaction\.amountMinor\.toString\(\)/);
+  assert.match(admin, /x\.status==="INCOMPLETE"\?"扫描不完整"/);
+  assert.match(admin, /reconciliationDetail\.status==="INCOMPLETE"\?"扫描不完整"/);
+});
