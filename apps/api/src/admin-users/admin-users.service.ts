@@ -104,7 +104,7 @@ export class AdminUsersService {
         devices: { orderBy: { lastSeenAt: "desc" }, include: { events: { orderBy: { createdAt: "desc" }, take: 30 } } },
         invitedBy: { select: { inviter: { select: { id: true, phone: true } } } },
         payoutAccounts: { orderBy: { createdAt: "desc" }, select: { id: true, countryCode: true, currency: true, providerCode: true, methodCode: true, accountHolder: true, maskedAccount: true, status: true, isDefault: true, createdAt: true } },
-        wallets: { include: { entries: { select: { direction: true, amountMinor: true, currency: true } }, withdrawals: { orderBy: { createdAt: "desc" }, take: 100, include: { payoutAccount: { select: { maskedAccount: true, providerCode: true, methodCode: true } } } } } },
+        wallets: { select: { id: true, currency: true } },
         claims: { orderBy: { claimedAt: "desc" }, take: 100, include: { task: { select: { title: true, category: true, rewardMinor: true, currency: true } }, submissions: { orderBy: { submittedAt: "desc" }, take: 5, include: { reviews: { orderBy: { reviewedAt: "desc" }, take: 5 } } } } },
       },
     });
@@ -131,13 +131,26 @@ export class AdminUsersService {
     const approved = claimCounts.APPROVED ?? 0;
     const rejected = claimCounts.REJECTED ?? 0;
     const reviewed = approved + rejected;
-    const withdrawals = user.wallets.flatMap((w) => w.withdrawals).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const walletIds = user.wallets.map((wallet) => wallet.id);
+    const [ledgerGroups, withdrawalGroups, recentWithdrawals] = walletIds.length ? await Promise.all([
+      prisma.ledgerEntry.groupBy({ by: ["currency", "direction"], where: { walletId: { in: walletIds } }, _sum: { amountMinor: true } }),
+      prisma.withdrawalRequest.groupBy({ by: ["status"], where: { walletId: { in: walletIds } }, _count: { _all: true } }),
+      prisma.withdrawalRequest.findMany({
+        where: { walletId: { in: walletIds } }, orderBy: { createdAt: "desc" }, take: 100,
+        include: { payoutAccount: { select: { maskedAccount: true, providerCode: true, methodCode: true } } },
+      }),
+    ]) : [[], [], []];
     const balanceMap = new Map<string, bigint>();
-    for (const wallet of user.wallets) for (const entry of wallet.entries) {
-      const signed = entry.amountMinor * (entry.direction === "CREDIT" ? 1n : -1n);
-      balanceMap.set(entry.currency.trim(), (balanceMap.get(entry.currency.trim()) ?? 0n) + signed);
+    for (const entry of ledgerGroups) {
+      const currency = entry.currency.trim();
+      const signed = (entry._sum.amountMinor ?? 0n) * (entry.direction === "CREDIT" ? 1n : -1n);
+      balanceMap.set(currency, (balanceMap.get(currency) ?? 0n) + signed);
     }
     const balances = [...balanceMap.entries()].map(([currency, amountMinor]) => ({ currency, amountMinor: amountMinor.toString() }));
+    const withdrawalCount = (status: string) => withdrawalGroups.find((group) => group.status === status)?._count._all ?? 0;
+    const withdrawalTotal = withdrawalGroups.reduce((sum, group) => sum + group._count._all, 0);
+    const withdrawalPending = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"].reduce((sum, status) => sum + withdrawalCount(status), 0);
+    const withdrawalPaid = withdrawalCount("PAID");
     const effectiveDailyLimit = user.profile?.dailyTaskLimit ?? 20;
     const effectiveInterval = user.profile?.minClaimIntervalSeconds ?? 60;
     return {
@@ -156,7 +169,7 @@ export class AdminUsersService {
       })) },
       payoutAccounts: user.payoutAccounts,
       tasks: { total: allClaimCount, approved, rejected, approvalRate: reviewed ? approved / reviewed : null, items: user.claims.map((x) => ({ id: x.id, taskTitle: x.task.title, category: x.task.category, status: x.status, claimedAt: x.claimedAt, rewardMinor: x.task.rewardMinor.toString(), currency: x.task.currency, submissions: x.submissions.map((s) => ({ id: s.id, status: s.status, submittedAt: s.submittedAt, reviews: s.reviews })) })) },
-      withdrawals: { total: withdrawals.length, pending: withdrawals.filter((x) => ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"].includes(x.status)).length, paid: withdrawals.filter((x) => x.status === "PAID").length, items: withdrawals.map((x) => ({ id: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency, status: x.status, createdAt: x.createdAt, payoutReference: x.payoutReference, payoutAccount: x.payoutAccount })) },
+      withdrawals: { total: withdrawalTotal, pending: withdrawalPending, paid: withdrawalPaid, items: recentWithdrawals.map((x) => ({ id: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency, status: x.status, createdAt: x.createdAt, payoutReference: x.payoutReference, payoutAccount: x.payoutAccount })) },
       risk: { calculated: reviewed >= 5, label: reviewed >= 5 && rejected / reviewed >= 0.5 ? "需关注" : reviewed >= 5 && rejected / reviewed >= 0.25 ? "中风险" : "低风险", reviewedTasks: reviewed, rejectedTasks: rejected, events: audit.filter((x) => /RISK|FRAUD|SUSPEND/i.test(x.action)).map((x) => ({ id: x.id, type: x.action, metadata: x.metadata, createdAt: x.createdAt })) },
       reputation: { score: user.profile?.reputationScore ?? 60, events: audit.filter((x) => x.action === "USER_REPUTATION_ADJUSTED").map((x) => ({ id: x.id, metadata: x.metadata, createdAt: x.createdAt, actorId: x.actorId })) },
     };
