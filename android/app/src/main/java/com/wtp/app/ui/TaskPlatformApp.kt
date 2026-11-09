@@ -1732,7 +1732,7 @@ private fun ApplyWithdrawalScreen(
                                 scope.launch {
                                     saving = true
                                     error = null
-                                    runCatching { withContext(Dispatchers.IO) { AuthRepository.createWithdrawal(id, minor) } }
+                                    runCatching { withContext(Dispatchers.IO) { AuthRepository.createWithdrawal(id, minor, quote ?: throw IllegalStateException("请先刷新提现报价")) } }
                                         .onSuccess { onSubmitted() }
                                         .onFailure { error = it.message ?: if (isEnglish) "Withdrawal request failed" else "提现申请失败" }
                                     saving = false
@@ -1740,7 +1740,9 @@ private fun ApplyWithdrawalScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        enabled = amountValid && quote != null && selected != null && !saving,
+                        enabled = amountValid && quote != null && estimatedPayout != null &&
+                            quote?.optString("amountMinor") == requestedMinor?.toString() &&
+                            selected != null && !saving,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))
                     ) {
                         if (saving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
