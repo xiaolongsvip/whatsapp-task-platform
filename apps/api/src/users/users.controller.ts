@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { ChangePasswordDto } from "./change-password.dto";
 import type { Request } from "express";
@@ -34,6 +34,13 @@ export class UsersController {
     return this.dashboard.getSummary(user.id, user.profile?.timezone ?? "UTC");
   }
 
+  @Get("withdrawal-quote")
+  async getWithdrawalQuote(@Req() request: Request, @Query("payoutAccountId") payoutAccountId: string, @Query("amountMinor") amountMinor?: string) {
+    const user = await this.auth.getCurrentUser(sessionToken(request));
+    if (!payoutAccountId) throw new BadRequestException("payoutAccountId is required.");
+    return this.withdrawals.quote(user.id, payoutAccountId, amountMinor);
+  }
+
   @Get("withdrawals")
   async getWithdrawals(@Req() request: Request) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
@@ -44,6 +51,12 @@ export class UsersController {
   async createWithdrawal(@Req() request: Request, @Body() body: CreateWithdrawalDto) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
     return this.withdrawals.create(user.id, body.payoutAccountId, body.amountMinor, user.profile?.timezone ?? "UTC");
+  }
+
+  @Get("payout-options")
+  async getPayoutOptions(@Req() request: Request) {
+    await this.auth.getCurrentUser(sessionToken(request));
+    return this.payoutAccounts.options();
   }
 
   @Get("payout-accounts")

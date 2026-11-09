@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { SystemSettingsService } from "./system-settings.service";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
+import { ExchangeRatesService } from "../users/exchange-rates.service";
 
 const COOKIE = "wtp_admin_session";
 function isApkArchive(buffer: Buffer): boolean {
@@ -60,7 +61,7 @@ function token(req: Request): string | undefined {
 
 @Controller("admin/system-settings")
 export class SystemSettingsController {
-  constructor(private readonly auth: AdminAuthService, private readonly settings: SystemSettingsService, private readonly objectStorage: S3ObjectStorageService) {}
+  constructor(private readonly auth: AdminAuthService, private readonly settings: SystemSettingsService, private readonly objectStorage: S3ObjectStorageService, private readonly exchangeRates: ExchangeRatesService) {}
   private async admin(req: Request) { return this.auth.getCurrentAdmin(token(req)); }
 
   @Get()
@@ -149,6 +150,20 @@ export class SystemSettingsController {
   async permanentlyDeleteArticle(@Req() req: Request, @Param("id") id: string) { const a = await this.admin(req); return this.settings.articleAction(id, "DELETE_PERMANENT", a.id); }
   @Delete("help/articles/:id")
   async deleteArticle(@Req() req: Request, @Param("id") id: string) { const a = await this.admin(req); return this.settings.articleAction(id, "TRASH", a.id); }
+  @Get("exchange-rates")
+  async exchangeRate(@Req() req: Request, @Query("from") from: string, @Query("to") to: string) {
+    await this.admin(req);
+    if (!from || !to) throw new BadRequestException("from and to currency codes are required.");
+    return this.exchangeRates.getRate(from, to);
+  }
+  @Post("exchange-rates/refresh")
+  async refreshExchangeRates(@Req() req: Request) {
+    const admin = await this.admin(req);
+    const snapshot = await this.exchangeRates.latest(true);
+    await this.settings.recordExchangeRateRefresh(admin.id, snapshot);
+    return { source: snapshot.source, base: snapshot.base, fetchedAt: snapshot.fetchedAt, providerUpdatedAt: snapshot.providerUpdatedAt ?? null, currencies: Object.keys(snapshot.rates).length, stale: snapshot.stale };
+  }
+
   @Get("withdrawal-rules")
   async withdrawalRules(@Req() req: Request, @Query() q: Record<string,string>) { await this.admin(req); return this.settings.listWithdrawalRules(q); }
   @Post("withdrawal-rules")

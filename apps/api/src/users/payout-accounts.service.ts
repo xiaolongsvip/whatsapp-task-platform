@@ -33,6 +33,59 @@ function encrypt(value: string) {
 
 @Injectable()
 export class PayoutAccountsService {
+  async options() {
+    const rulesRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
+    const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ id: "default-pk-usd-local", countryCode: "PK", countryName: "Pakistan", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", channels: ["jazzcash", "easypaisa"], minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, status: "ENABLED" }];
+    const providers = await prisma.paymentProviderConfig.findMany({
+      where: { enabled: true },
+      select: { providerCode: true, displayName: true, countryCode: true, methodCode: true, supportedChannels: true, supportedCurrencies: true },
+      orderBy: { displayName: "asc" },
+    });
+    const items: Array<Record<string, unknown>> = [];
+    for (const rule of rules.filter(item => item.status === "ENABLED")) {
+      const ruleCountry = String(rule.countryCode ?? "").trim().toUpperCase();
+      const walletCurrency = String(rule.walletCurrency ?? "").trim().toUpperCase();
+      const payoutCurrency = String(rule.payoutCurrency ?? "").trim().toUpperCase();
+      const channels = Array.isArray(rule.channels) ? rule.channels.map(value => String(value).trim().toLowerCase()) : [];
+      if (!/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency)) continue;
+      for (const channel of channels) {
+        const duplicateRules = rules.filter(other =>
+          other.status === "ENABLED" &&
+          String(other.countryCode ?? "").trim().toUpperCase() === ruleCountry &&
+          String(other.payoutCurrency ?? "").trim().toUpperCase() === payoutCurrency &&
+          Array.isArray(other.channels) && other.channels.some(value => String(value).trim().toLowerCase() === channel)
+        );
+        if (duplicateRules.length > 1) continue;
+        const matches = providers.filter(provider =>
+          (ruleCountry === "GLOBAL" || [ruleCountry, "GLOBAL"].includes(provider.countryCode.trim().toUpperCase())) &&
+          provider.supportedCurrencies.some(value => value.trim().toUpperCase() === payoutCurrency) &&
+          provider.supportedChannels.some(value => value.trim().toLowerCase() === channel) &&
+          [String(rule.method ?? "").trim().toUpperCase(), channel.toUpperCase()].includes(provider.methodCode.trim().toUpperCase())
+        );
+        for (const provider of matches) {
+          const countryCode = ruleCountry === "GLOBAL" ? provider.countryCode.trim().toUpperCase() : ruleCountry;
+          if (!/^[A-Z]{2}$/.test(countryCode)) continue;
+          if (ruleCountry === "GLOBAL" && rules.some(other =>
+            other.status === "ENABLED" &&
+            String(other.countryCode ?? "").trim().toUpperCase() === countryCode &&
+            String(other.payoutCurrency ?? "").trim().toUpperCase() === payoutCurrency &&
+            Array.isArray(other.channels) && other.channels.some(value => String(value).trim().toLowerCase() === channel)
+          )) continue;
+          items.push({
+            countryCode, countryName: ruleCountry === "GLOBAL" ? countryCode : String(rule.countryName ?? countryCode),
+            walletCurrency, payoutCurrency, methodCode: channel,
+            methodName: channel.replace(/[_-]/g, " ").replace(/\b\w/g, value => value.toUpperCase()),
+            providerCode: provider.providerCode, providerName: provider.displayName,
+            minimumAmount: Number(rule.minimumAmount ?? 0),
+            maximumAmount: Number(rule.maximumAmount ?? 0),
+            dailyLimit: Number(rule.dailyLimit ?? 0),
+          });
+        }
+      }
+    }
+    const unique = new Map(items.map(item => [String(item.providerCode) + "|" + String(item.countryCode) + "|" + String(item.walletCurrency) + "|" + String(item.payoutCurrency) + "|" + String(item.methodCode), item]));
+    return { items: [...unique.values()] };
+  }
   async list(userId: string) {
     const rows = await prisma.payoutAccount.findMany({
       where: { userId, status: "ACTIVE" },
@@ -62,6 +115,50 @@ export class PayoutAccountsService {
     if (accountNumber.length < 5 || accountNumber.length > 80 || !accountHolder || accountHolder.length > 120) {
       throw new BadRequestException("Invalid payout account details.");
     }
+    const rulesRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
+    const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ id: "default-pk-usd-local", countryCode: "PK", countryName: "Pakistan", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", channels: ["jazzcash", "easypaisa"], minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, status: "ENABLED" }];
+    const matchesRule = (rule: Record<string, unknown>) =>
+      rule.status === "ENABLED" &&
+      String(rule.payoutCurrency ?? "").trim().toUpperCase() === currency &&
+      Array.isArray(rule.channels) && rule.channels.some(channel => String(channel).trim().toLowerCase() === methodCode);
+    const exactRules = rules.filter(rule => String(rule.countryCode ?? "").trim().toUpperCase() === countryCode && matchesRule(rule));
+    const globalRules = exactRules.length === 0 ? rules.filter(rule => String(rule.countryCode ?? "").trim().toUpperCase() === "GLOBAL" && matchesRule(rule)) : [];
+    const matchingRules = exactRules.length > 0 ? exactRules : globalRules;
+    if (matchingRules.length > 1) throw new BadRequestException("Multiple withdrawal rules match this payout account. Please contact support.");
+    const eligibleRule = matchingRules[0];
+    if (!eligibleRule) throw new BadRequestException("This country, payout currency and method are not currently enabled for withdrawals.");
+    const ruleMethod = String(eligibleRule.method ?? "").trim().toUpperCase();
+    const providerMatchesMethod = (provider: { methodCode: string; supportedChannels: string[] }) =>
+      [ruleMethod, methodCode.toUpperCase()].includes(provider.methodCode.trim().toUpperCase()) &&
+      provider.supportedChannels.some(channel => channel.trim().toLowerCase() === methodCode);
+
+    // Older APP versions send the legacy "manual-pk" placeholder. Resolve it
+    // only when one enabled provider matches the configured withdrawal rule.
+    let resolvedProviderCode = providerCode.toUpperCase();
+    if (providerCode === "manual-pk") {
+      const candidates = await prisma.paymentProviderConfig.findMany({
+        where: { enabled: true, countryCode: { in: [countryCode, "GLOBAL"] }, supportedCurrencies: { has: currency } },
+        select: { providerCode: true, methodCode: true, supportedChannels: true },
+      });
+      const matches = candidates.filter(provider => providerMatchesMethod(provider));
+      if (matches.length !== 1) {
+        throw new BadRequestException(matches.length === 0
+          ? "No enabled payout provider is configured for this country, currency and method."
+          : "More than one payout provider matches this account method. Please contact support.");
+      }
+      resolvedProviderCode = matches[0].providerCode;
+    } else {
+      const provider = await prisma.paymentProviderConfig.findUnique({
+        where: { providerCode: resolvedProviderCode },
+        select: { providerCode: true, countryCode: true, methodCode: true, supportedChannels: true, supportedCurrencies: true, enabled: true },
+      });
+      if (!provider || !provider.enabled ||
+        ![countryCode, "GLOBAL"].includes(provider.countryCode.trim().toUpperCase()) ||
+        !provider.supportedCurrencies.some(value => value.trim().toUpperCase() === currency) ||
+        !providerMatchesMethod(provider)) {
+        throw new BadRequestException("The selected payout provider is not enabled for this country, currency and method.");
+      }
+    }
     const details = JSON.stringify({ accountNumber, phoneNumber: input.phoneNumber?.trim() || null });
     const encrypted = encrypt(details);
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -70,7 +167,7 @@ export class PayoutAccountsService {
           const existing = await tx.payoutAccount.count({ where: { userId, status: "ACTIVE" } });
           return tx.payoutAccount.create({
             data: {
-              userId, countryCode, currency, providerCode, methodCode, accountHolder,
+              userId, countryCode, currency, providerCode: resolvedProviderCode, methodCode, accountHolder,
               ...encrypted,
               maskedAccount: accountNumber.length <= 4 ? "••••" : "••••" + accountNumber.slice(-4),
               isDefault: existing === 0,

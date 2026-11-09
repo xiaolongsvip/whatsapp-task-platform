@@ -243,6 +243,14 @@ object AuthRepository {
             .put("payoutAccountId", payoutAccountId)
             .put("amountMinor", amountMinor))
 
+    fun payoutOptions(): JSONObject = request("GET", "users/payout-options")
+
+    fun withdrawalQuote(payoutAccountId: String, amountMinor: String? = null): JSONObject {
+        val query = "payoutAccountId=" + java.net.URLEncoder.encode(payoutAccountId, "UTF-8") +
+            (amountMinor?.let { "&amountMinor=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
+        return request("GET", "users/withdrawal-quote?$query")
+    }
+
     fun payoutAccounts(): JSONObject = request("GET", "users/payout-accounts")
 
     fun addPayoutAccount(

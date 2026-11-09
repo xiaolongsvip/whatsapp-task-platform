@@ -3,6 +3,10 @@ import { prisma } from "@wtp/database";
 import { randomUUID } from "node:crypto";
 
 type JsonRecord = Record<string, unknown>;
+const currencyDigits = (currency: string) => {
+  try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits); }
+  catch { return 2; }
+};
 const DEFAULT_ACCOUNT_SECURITY = { businessEmailVerification: false };
 const DEFAULT_APP_SUPPORT = { supportUrl: "" };
 const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versionCode: 146, updateType: "MAJOR", downloadUrl: "https://download.ee6868.com/appupdate/146/apprel_ac4add1c184e4efa9e0210f94ae7f152.apk", releaseNotes: "", releases: [
@@ -213,6 +217,12 @@ export class SystemSettingsService {
     await this.audit(adminId, "HELP_ARTICLE_" + action, id, { title: item.title });
     return item;
   }
+  async recordExchangeRateRefresh(adminId: string, snapshot: { source: string; base: string; fetchedAt: string; providerUpdatedAt?: string; rates: Record<string, number>; stale?: boolean }) {
+    const metadata = { source: snapshot.source, base: snapshot.base, fetchedAt: snapshot.fetchedAt, providerUpdatedAt: snapshot.providerUpdatedAt ?? null, currencyCount: Object.keys(snapshot.rates).length, stale: Boolean(snapshot.stale) };
+    await this.audit(adminId, "EXCHANGE_RATES_REFRESHED", "system.exchangeRates.latest", metadata);
+    return metadata;
+  }
+
   async listWithdrawalRules(query: Record<string,string>) {
     const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
     return items.filter((x: any) => (!query.country || query.country === x.countryCode) && (!query.currency || query.currency === x.walletCurrency) && (!query.method || query.method === x.method) && (!query.status || query.status === x.status));
@@ -224,24 +234,27 @@ export class SystemSettingsService {
     const walletCurrency = String(input.walletCurrency ?? "").trim().toUpperCase();
     const payoutCurrency = String(input.payoutCurrency ?? "").trim().toUpperCase();
     const method = String(input.method ?? "").trim().toUpperCase();
+    const channels = Array.isArray(input.channels) ? input.channels.map(value => String(value).trim().toLowerCase()).filter(Boolean) : [];
     const min = Number(input.minimumAmount), max = Number(input.maximumAmount), daily = Number(input.dailyLimit);
-    if (!/^(?:[A-Z]{2}|GLOBAL)$/.test(countryCode) || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !method) throw new BadRequestException("国家代码、钱包币种、代付币种和提现方式格式无效");
+    if (!/^(?:[A-Z]{2}|GLOBAL)$/.test(countryCode) || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !/^[A-Z0-9_-]{2,40}$/.test(method)) throw new BadRequestException("国家代码、钱包币种、代付币种和提现方式格式无效");
+    if (channels.length === 0 || channels.some(channel => !/^[a-z0-9_-]{2,40}$/.test(channel))) throw new BadRequestException("请至少配置一个有效的收款渠道代码");
+    const scale = 10 ** currencyDigits(walletCurrency);
     const limits = [min, max, daily];
-    if (!limits.every(value => Number.isFinite(value) && Number.isSafeInteger(Math.round(value * 100)) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-7) ||
+    if (!limits.every(value => Number.isFinite(value) && Number.isSafeInteger(Math.round(value * scale)) && Math.abs(value * scale - Math.round(value * scale)) < 1e-7) ||
         !(min > 0 && max >= min && daily > 0)) {
-      throw new BadRequestException("提现限额必须是大于零且最多两位小数的有效金额，且最高金额不能低于最低金额。");
+      throw new BadRequestException("提现限额必须是大于零且符合钱包币种小数位数的有效金额，且最高金额不能低于最低金额。");
     }
     const existingIndex = items.findIndex(x => x.id === ruleId);
     const existingRule = existingIndex >= 0 ? items[existingIndex] : null;
     if (existingRule?.status === "ARCHIVED" && input.status !== "ARCHIVED") {
       throw new BadRequestException("已归档的提现规则不能重新启用或取消归档，请新建规则。");
     }
-    const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels: Array.isArray(input.channels) ? input.channels.map(String) : [], minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: existingRule?.status === "ARCHIVED" ? "ARCHIVED" : input.status === "ARCHIVED" ? "ARCHIVED" : input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
+    const rule = { id: ruleId, countryCode, countryName: String(input.countryName ?? countryCode), walletCurrency, payoutCurrency, method, channels, minimumAmount: min, maximumAmount: max, dailyLimit: daily, status: existingRule?.status === "ARCHIVED" ? "ARCHIVED" : input.status === "ARCHIVED" ? "ARCHIVED" : input.status === "DISABLED" ? "DISABLED" : "ENABLED", updatedAt: new Date().toISOString() };
     if (rule.status === "ENABLED" && items.some(x => x.id !== ruleId && x.status === "ENABLED" &&
       String(x.countryCode).toUpperCase() === countryCode &&
-      String(x.walletCurrency).toUpperCase() === walletCurrency &&
+      String(x.payoutCurrency).toUpperCase() === payoutCurrency &&
       String(x.method).toUpperCase() === method)) {
-      throw new BadRequestException("相同国家、钱包币种和提现方式已有启用中的规则，请先停用旧规则。");
+      throw new BadRequestException("相同国家、出款币种和提现方式已有启用中的规则，请先停用旧规则。");
     }
     const index = items.findIndex(x => x.id === ruleId);
     if (index >= 0) items[index] = rule; else items.unshift(rule);
@@ -258,9 +271,9 @@ export class SystemSettingsService {
     }
     if (rule.status !== "ENABLED" && items.some(x => x.id !== id && x.status === "ENABLED" &&
       String(x.countryCode).toUpperCase() === String(rule.countryCode).toUpperCase() &&
-      String(x.walletCurrency).toUpperCase() === String(rule.walletCurrency).toUpperCase() &&
+      String(x.payoutCurrency).toUpperCase() === String(rule.payoutCurrency).toUpperCase() &&
       String(x.method).toUpperCase() === String(rule.method).toUpperCase())) {
-      throw new BadRequestException("相同国家、钱包币种和提现方式已有启用中的规则。");
+      throw new BadRequestException("相同国家、出款币种和提现方式已有启用中的规则。");
     }
     rule.status = rule.status === "ENABLED" ? "DISABLED" : "ENABLED";
     rule.updatedAt = new Date().toISOString();

@@ -64,9 +64,9 @@ export class FinanceAdminService {
     ]);
     return { ...pg, total, items: rows.map(x => ({
       id: x.id, userId: x.wallet.userId, phone: x.wallet.user.phone, walletId: x.walletId,
-      amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), status: x.status,
+      amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), payoutCurrency: x.payoutCurrency?.trim() ?? x.currency.trim(), payoutAmountMinor: (x.payoutAmountMinor ?? x.amountMinor).toString(), exchangeRate: x.exchangeRate?.toString() ?? null, exchangeRateSource: x.exchangeRateSource, exchangeRateFetchedAt: x.exchangeRateFetchedAt?.toISOString() ?? null, exchangeRateProviderUpdatedAt: x.exchangeRateProviderUpdatedAt?.toISOString() ?? null, exchangeRateEffectiveAt: x.exchangeRateEffectiveAt?.toISOString() ?? null, feeAmountMinor: (x.feeAmountMinor ?? 0n).toString(), feeCurrency: x.feeCurrency?.trim() ?? x.payoutCurrency?.trim() ?? x.currency.trim(), status: x.status,
       createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString(), payoutReference: x.payoutReference,
-      payoutAccount: x.payoutAccount ? { id: x.payoutAccount.id, countryCode: x.payoutAccount.countryCode.trim(), providerCode: x.payoutAccount.providerCode, methodCode: x.payoutAccount.methodCode, accountHolder: x.payoutAccount.accountHolder, maskedAccount: x.payoutAccount.maskedAccount } : null,
+      payoutAccount: x.payoutAccount ? { id: x.payoutAccount.id, countryCode: x.payoutAccount.countryCode.trim(), providerCode: x.payoutProviderCode ?? x.payoutAccount.providerCode, methodCode: x.payoutAccount.methodCode, accountHolder: x.payoutAccount.accountHolder, maskedAccount: x.payoutAccount.maskedAccount } : null,
     })) };
   }
 
@@ -84,9 +84,9 @@ export class FinanceAdminService {
     const reviewHistory = await prisma.auditEvent.findMany({ where: { targetType: "WITHDRAWAL_REQUEST", targetId: id }, orderBy: { createdAt: "desc" }, take: 20, select: { action: true, metadata: true, actorId: true, createdAt: true } });
     return {
       id: row.id, userId: row.wallet.userId, phone: row.wallet.user.phone, walletId: row.walletId,
-      amountMinor: row.amountMinor.toString(), currency: row.currency.trim(), status: row.status,
+      amountMinor: row.amountMinor.toString(), currency: row.currency.trim(), payoutCurrency: row.payoutCurrency?.trim() ?? row.currency.trim(), payoutAmountMinor: (row.payoutAmountMinor ?? row.amountMinor).toString(), exchangeRate: row.exchangeRate?.toString() ?? null, exchangeRateSource: row.exchangeRateSource, exchangeRateFetchedAt: row.exchangeRateFetchedAt?.toISOString() ?? null, exchangeRateProviderUpdatedAt: row.exchangeRateProviderUpdatedAt?.toISOString() ?? null, exchangeRateEffectiveAt: row.exchangeRateEffectiveAt?.toISOString() ?? null, feeAmountMinor: (row.feeAmountMinor ?? 0n).toString(), feeCurrency: row.feeCurrency?.trim() ?? row.payoutCurrency?.trim() ?? row.currency.trim(), status: row.status,
       payoutReference: row.payoutReference, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
-      payoutAccount: row.payoutAccount ? { ...row.payoutAccount, countryCode: row.payoutAccount.countryCode.trim(), currency: row.payoutAccount.currency.trim() } : null,
+      payoutAccount: row.payoutAccount ? { ...row.payoutAccount, providerCode: row.payoutProviderCode ?? row.payoutAccount.providerCode, countryCode: row.payoutAccount.countryCode.trim(), currency: row.payoutAccount.currency.trim() } : null,
       paymentTransactions: row.paymentTransactions.map(x => ({ ...x, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), createdAt: x.createdAt.toISOString(), updatedAt: x.updatedAt.toISOString() })),
       reviewHistory: reviewHistory.map(x => ({ action: x.action, metadata: x.metadata, actorId: x.actorId, createdAt: x.createdAt.toISOString() })),
     };
@@ -117,7 +117,7 @@ export class FinanceAdminService {
     return { id, status: next, balanceReservationReleased: action === "REJECT" };
   }
 
-  async recordManualPayout(id: string, outcome: "PAID" | "FAILED", adminId: string, input: { providerCode?: string; reference?: string; note?: string }) {
+  async recordManualPayout(id: string, outcome: "PAID" | "FAILED", adminId: string, input: { providerCode?: string; reference?: string; note?: string; payoutAmountMinor?: string }) {
     if (!isUuid(id)) throw new BadRequestException("提现单 ID 格式不正确");
     const reference = typeof input.reference === "string" ? input.reference.trim().slice(0, 160) : "";
     const note = typeof input.note === "string" ? input.note.trim().slice(0, 500) : "";
@@ -136,13 +136,30 @@ export class FinanceAdminService {
       if (!payoutAccount) throw new BadRequestException("该提现单没有有效的收款账户，无法登记付款结果");
       if (outcome === "PAID") {
         const providerCode = requestedProviderCode;
-        if (providerCode !== payoutAccount.providerCode) {
-          throw new BadRequestException("付款服务商必须与用户收款账户绑定的服务商一致");
+        const expectedProviderCode = withdrawal.payoutProviderCode ?? payoutAccount.providerCode;
+        if (providerCode !== expectedProviderCode) {
+          throw new BadRequestException("付款服务商必须与提现申请时绑定的服务商一致");
         }
         const provider = await tx.paymentProviderConfig.findUnique({ where: { providerCode }, select: { providerCode: true, supportedCurrencies: true } });
         if (!provider) throw new BadRequestException("服务商配置不存在");
-        if (!provider.supportedCurrencies.includes(withdrawal.currency.trim())) {
-          throw new BadRequestException("该服务商未配置此提现币种，不能登记付款");
+        const payoutCurrency = (withdrawal.payoutCurrency ?? withdrawal.currency).trim();
+        const estimatedPayoutAmountMinor = withdrawal.payoutAmountMinor ?? withdrawal.amountMinor;
+        let actualPayoutAmountMinor: bigint;
+        if (input.payoutAmountMinor !== undefined) {
+          if (typeof input.payoutAmountMinor !== "string" || !/^[0-9]+$/.test(input.payoutAmountMinor)) {
+            throw new BadRequestException("实际出款金额格式无效。");
+          }
+          actualPayoutAmountMinor = BigInt(input.payoutAmountMinor);
+        } else if (payoutCurrency.toUpperCase() === withdrawal.currency.trim().toUpperCase()) {
+          actualPayoutAmountMinor = withdrawal.amountMinor;
+        } else {
+          throw new BadRequestException("跨币种提现必须填写实际出款金额，参考汇率不能代替实际支付报价。");
+        }
+        if (actualPayoutAmountMinor <= 0n || actualPayoutAmountMinor > 9223372036854775807n) {
+          throw new BadRequestException("实际出款金额必须大于零且在有效范围内。");
+        }
+        if (!provider.supportedCurrencies.some(currency => currency.trim().toUpperCase() === payoutCurrency.toUpperCase())) {
+          throw new BadRequestException("该服务商未配置此提现出款币种，不能登记付款");
         }
         const existing = await tx.paymentTransaction.findFirst({ where: { withdrawalRequestId: id, status: "SUCCEEDED" }, select: { id: true } });
         if (existing) throw new ConflictException("该提现单已经登记成功付款，不能重复入账");
@@ -155,9 +172,14 @@ export class FinanceAdminService {
         }
         const transaction = await tx.paymentTransaction.create({ data: {
           userId: withdrawal.wallet.userId, walletId: withdrawal.walletId, withdrawalRequestId: id,
-          providerCode, flow: "PAYOUT", status: "SUCCEEDED", amountMinor: withdrawal.amountMinor,
-          currency: withdrawal.currency, idempotencyKey: "manual-payout:" + id,
-          providerReference: reference, metadata: { mode: "MANUAL_CONFIRMATION", note: note || null, confirmedBy: adminId },
+          providerCode, flow: "PAYOUT", status: "SUCCEEDED", amountMinor: actualPayoutAmountMinor,
+          currency: payoutCurrency, idempotencyKey: "manual-payout:" + id,
+          providerReference: reference, metadata: {
+            mode: "MANUAL_CONFIRMATION", note: note || null, confirmedBy: adminId,
+            walletAmountMinor: withdrawal.amountMinor.toString(), walletCurrency: withdrawal.currency.trim(),
+            estimatedPayoutAmountMinor: estimatedPayoutAmountMinor.toString(), actualPayoutAmountMinor: actualPayoutAmountMinor.toString(), payoutCurrency,
+            exchangeRate: withdrawal.exchangeRate?.toString() ?? null, exchangeRateSource: withdrawal.exchangeRateSource, exchangeRateFetchedAt: withdrawal.exchangeRateFetchedAt?.toISOString() ?? null, exchangeRateProviderUpdatedAt: withdrawal.exchangeRateProviderUpdatedAt?.toISOString() ?? null, exchangeRateEffectiveAt: withdrawal.exchangeRateEffectiveAt?.toISOString() ?? null,
+          },
         }});
         await tx.ledgerEntry.create({ data: {
           walletId: withdrawal.walletId, sourceType: "WITHDRAWAL_PAYOUT", sourceId: id,
@@ -169,14 +191,18 @@ export class FinanceAdminService {
         await tx.auditEvent.create({ data: {
           actorType: "ADMIN", actorId: adminId, action: "WITHDRAWAL_MANUALLY_MARKED_PAID",
           targetType: "WITHDRAWAL_REQUEST", targetId: id,
-          metadata: { fromStatus: withdrawal.status, toStatus: "PAID", paymentTransactionId: transaction.id, providerCode, reference, amountMinor: withdrawal.amountMinor.toString(), currency: withdrawal.currency.trim(), note },
+          metadata: { fromStatus: withdrawal.status, toStatus: "PAID", paymentTransactionId: transaction.id, providerCode, reference,
+            walletAmountMinor: withdrawal.amountMinor.toString(), walletCurrency: withdrawal.currency.trim(),
+            estimatedPayoutAmountMinor: estimatedPayoutAmountMinor.toString(), actualPayoutAmountMinor: actualPayoutAmountMinor.toString(), payoutCurrency,
+            exchangeRate: withdrawal.exchangeRate?.toString() ?? null, exchangeRateSource: withdrawal.exchangeRateSource, exchangeRateFetchedAt: withdrawal.exchangeRateFetchedAt?.toISOString() ?? null, exchangeRateProviderUpdatedAt: withdrawal.exchangeRateProviderUpdatedAt?.toISOString() ?? null, exchangeRateEffectiveAt: withdrawal.exchangeRateEffectiveAt?.toISOString() ?? null, note },
         }});
-        return { id, status: "PAID", paymentTransactionId: transaction.id, manual: true };
+        return { id, status: "PAID", paymentTransactionId: transaction.id, actualPayoutAmountMinor: actualPayoutAmountMinor.toString(), payoutCurrency, manual: true };
       }
       const transaction = await tx.paymentTransaction.create({ data: {
         userId: withdrawal.wallet.userId, walletId: withdrawal.walletId, withdrawalRequestId: id,
-        providerCode: payoutAccount.providerCode, flow: "PAYOUT", status: "FAILED",
-        amountMinor: withdrawal.amountMinor, currency: withdrawal.currency,
+        providerCode: withdrawal.payoutProviderCode ?? payoutAccount.providerCode, flow: "PAYOUT", status: "FAILED",
+        amountMinor: withdrawal.payoutAmountMinor ?? withdrawal.amountMinor,
+        currency: (withdrawal.payoutCurrency ?? withdrawal.currency).trim(),
         idempotencyKey: "manual-payout-failed:" + id + ":" + Date.now(),
         failureCode: "MANUAL_PAYOUT_FAILED", failureMessage: note,
         metadata: { mode: "MANUAL_CONFIRMATION", confirmedBy: adminId, providerCode: payoutAccount.providerCode },
@@ -469,8 +495,10 @@ export class FinanceAdminService {
     ]);
     return { ...pg, total, items: rows.map(x => ({
       id: x.id, userId: x.wallet.userId, phone: x.wallet.user.phone, amountMinor: x.amountMinor.toString(),
-      receiveAmountMinor: null, currency: x.currency.trim(), status: x.status,
-      channel: x.payoutAccount?.methodCode ?? "未绑定收款账户", providerCode: x.payoutAccount?.providerCode ?? null,
+      receiveAmountMinor: (x.payoutAmountMinor ?? x.amountMinor).toString(), currency: x.currency.trim(),
+      payoutCurrency: x.payoutCurrency?.trim() ?? x.currency.trim(), exchangeRate: x.exchangeRate?.toString() ?? null, exchangeRateFetchedAt: x.exchangeRateFetchedAt?.toISOString() ?? null, exchangeRateProviderUpdatedAt: x.exchangeRateProviderUpdatedAt?.toISOString() ?? null, exchangeRateEffectiveAt: x.exchangeRateEffectiveAt?.toISOString() ?? null,
+      status: x.status,
+      channel: x.payoutAccount?.methodCode ?? "未绑定收款账户", providerCode: x.payoutProviderCode ?? x.payoutAccount?.providerCode ?? null,
       accountHolder: x.payoutAccount?.accountHolder ?? null, maskedAccount: x.payoutAccount?.maskedAccount ?? null,
       createdAt: x.createdAt.toISOString(), reviewedAt: null,
     })) };

@@ -38,11 +38,13 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.wtp.app.data.AuthRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -1351,6 +1353,7 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
 @Composable
 private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit) {
     val isEnglish = language == "en"
+    val uriHandler = LocalUriHandler.current
     var items by remember { mutableStateOf<JSONArray?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -1409,6 +1412,18 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
                                 Text(amount, color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
                                 Text(statusLabel(item.optString("status")), color = Color(0xFF319CCB), fontWeight = FontWeight.SemiBold)
                             }
+                            val hasActualPayout = !item.isNull("actualPayoutAmountMinor")
+                            val payoutCurrency = if (hasActualPayout) item.optString("actualPayoutCurrency", item.optString("payoutCurrency", currency)) else item.optString("payoutCurrency", currency)
+                            val payoutMinor = if (hasActualPayout) item.optString("actualPayoutAmountMinor") else item.optString("payoutAmountMinor", item.optString("amountMinor", "0"))
+                            val payoutAmount = formatMinorByCurrency(payoutMinor, payoutCurrency)
+                            Text((if (hasActualPayout) { if (isEnglish) "Actual paid: " else "实际到账：" } else { if (isEnglish) "Estimated payout: " else "预计到账：" }) + payoutAmount, color = Color(0xFF123E56), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                            if (item.optString("exchangeRate").isNotBlank()) {
+                                Text((if (isEnglish) "Rate: " else "汇率：") + item.optString("exchangeRate") + " · " + item.optString("exchangeRateSource") + " · data " + item.optString("exchangeRateEffectiveAt", "—") + " · " + item.optString("exchangeRateProviderUpdatedAt", "—") + " · " + item.optString("exchangeRateFetchedAt"), color = Color(0xFF789087), style = MaterialTheme.typography.labelSmall)
+                                if (item.optString("exchangeRateSource").startsWith("exchangerate.dev")) {
+                                    Text("Rates by exchangerate.dev", color = Color(0xFF319CCB), style = MaterialTheme.typography.labelSmall, modifier = Modifier.clickable { uriHandler.openUri("https://exchangerate.dev") })
+                                }
+                            }
+                            Text(if (isEnglish) "Wallet debit: " + amount else "钱包扣款：" + amount, color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
                             Text(if (isEnglish) "Request ID: " + item.optString("id") else "申请编号：" + item.optString("id"), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
                             Text(item.optString("createdAt"), color = Color(0xFF98A2B3), style = MaterialTheme.typography.bodySmall)
                         }
@@ -1571,8 +1586,10 @@ private fun ApplyWithdrawalScreen(
     onSubmitted: () -> Unit
 ) {
     val isEnglish = language == "en"
+    val uriHandler = LocalUriHandler.current
     var accounts by remember { mutableStateOf(JSONArray()) }
     var balances by remember { mutableStateOf(JSONArray()) }
+    var quote by remember { mutableStateOf<JSONObject?>(null) }
     var selectedId by rememberSaveable { mutableStateOf("") }
     var amount by rememberSaveable { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
@@ -1599,14 +1616,50 @@ private fun ApplyWithdrawalScreen(
         loading = false
     }
 
+    LaunchedEffect(selectedId) {
+        quote = null
+        if (selectedId.isNotBlank()) {
+            runCatching { withContext(Dispatchers.IO) { AuthRepository.withdrawalQuote(selectedId) } }
+                .onSuccess { quote = it; error = null }
+                .onFailure { error = it.message ?: if (isEnglish) "Unable to load the latest exchange rate" else "获取最新汇率失败" }
+        }
+    }
+
+    // Ask the server to calculate the converted amount using its validated FX
+    // snapshot. The displayed estimate therefore uses the same rounding logic
+    // as the withdrawal service instead of a separate client-side calculation.
+    LaunchedEffect(selectedId, amount, quote?.optString("walletCurrency")) {
+        val baseQuote = quote ?: return@LaunchedEffect
+        val walletCurrency = baseQuote.optString("walletCurrency")
+        if (selectedId.isBlank() || amount.isBlank() || walletCurrency.isBlank()) return@LaunchedEffect
+        val fractionDigits = runCatching { java.util.Currency.getInstance(walletCurrency).defaultFractionDigits.coerceAtLeast(0) }.getOrDefault(2)
+        val minor = runCatching { java.math.BigDecimal(amount.trim()).movePointRight(fractionDigits).toBigIntegerExact().toString() }.getOrNull()
+            ?: return@LaunchedEffect
+        delay(350)
+        runCatching { withContext(Dispatchers.IO) { AuthRepository.withdrawalQuote(selectedId, minor) } }
+            .onSuccess { quote = it; error = null }
+            .onFailure { error = it.message ?: if (isEnglish) "Unable to refresh the withdrawal estimate" else "刷新预计到账金额失败" }
+    }
+
     val selected = (0 until accounts.length()).mapNotNull { accounts.optJSONObject(it) }.firstOrNull { it.optString("id") == selectedId }
-    val currency = selected?.optString("currency")?.trim().orEmpty()
+    val currency = quote?.optString("walletCurrency")?.takeIf { it.isNotBlank() } ?: ""
+    val payoutCurrency = quote?.optString("payoutCurrency")?.takeIf { it.isNotBlank() } ?: selected?.optString("currency")?.trim().orEmpty()
     val digits = if (currency.isBlank()) 2 else runCatching { java.util.Currency.getInstance(currency).defaultFractionDigits.coerceAtLeast(0) }.getOrDefault(2)
+    val payoutDigits = if (payoutCurrency.isBlank()) 2 else runCatching { java.util.Currency.getInstance(payoutCurrency).defaultFractionDigits.coerceAtLeast(0) }.getOrDefault(2)
     val availableMinor = (0 until balances.length()).mapNotNull { balances.optJSONObject(it) }
         .firstOrNull { it.optString("currency").trim().equals(currency, ignoreCase = true) }
         ?.optString("amountMinor", "0")?.toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
     val requestedMinor = runCatching { java.math.BigDecimal(amount.trim()).movePointRight(digits).toBigIntegerExact() }.getOrNull()
-    val amountValid = requestedMinor != null && requestedMinor > java.math.BigInteger.ZERO && requestedMinor <= availableMinor
+    val minimumMinor = runCatching { java.math.BigDecimal.valueOf(quote?.optDouble("minimumAmount", 0.0) ?: 0.0).movePointRight(digits).toBigIntegerExact() }.getOrDefault(java.math.BigInteger.ZERO)
+    val maximumMinor = runCatching { java.math.BigDecimal.valueOf(quote?.optDouble("maximumAmount", 0.0) ?: 0.0).movePointRight(digits).toBigIntegerExact() }.getOrDefault(java.math.BigInteger.ZERO)
+    val amountValid = requestedMinor != null && requestedMinor > java.math.BigInteger.ZERO &&
+        requestedMinor >= minimumMinor && maximumMinor > java.math.BigInteger.ZERO &&
+        requestedMinor <= maximumMinor && requestedMinor <= availableMinor
+    val estimatedPayout = runCatching {
+        val quotedMinor = quote?.optString("payoutAmountMinor")?.takeIf { it.isNotBlank() && it != "null" }
+        if (requestedMinor == null || quotedMinor == null || quote?.optString("amountMinor") != requestedMinor.toString()) null
+        else formatMinorByCurrency(quotedMinor, payoutCurrency).removeSuffix(" $payoutCurrency")
+    }.getOrNull()
 
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1623,8 +1676,15 @@ private fun ApplyWithdrawalScreen(
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(if (isEnglish) "Available balance" else "可提现余额", color = Color(0xFF667085))
-                        Text(if (selected == null) "—" else formatMinorByCurrency(availableMinor.toString(), currency), color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
-                        Text(if (isEnglish) "No minimum withdrawal amount." else "不设置最低提现金额。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall)
+                        Text(if (selected == null || currency.isBlank()) "—" else formatMinorByCurrency(availableMinor.toString(), currency), color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
+                        Text(if (isEnglish) "Withdrawal limits follow the current platform rules." else "提现限额以平台当前规则为准。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall)
+                        if (quote != null && currency.isNotBlank()) {
+                            Text((if (isEnglish) "Latest rate: " else "最新参考汇率：") + "1 " + currency + " = " + quote!!.optString("rate") + " " + payoutCurrency, color = Color(0xFF319CCB), style = MaterialTheme.typography.bodySmall)
+                            Text((if (isEnglish) "Rate source: " else "汇率来源：") + quote!!.optString("rateSource") + " · data date " + quote!!.optString("rateEffectiveAt", "—") + " · source updated " + quote!!.optString("rateProviderUpdatedAt", "—") + " · fetched " + quote!!.optString("rateFetchedAt"), color = Color(0xFF789087), style = MaterialTheme.typography.labelSmall)
+                            if (quote!!.optString("rateSource").startsWith("exchangerate.dev")) {
+                                Text("Rates by exchangerate.dev", color = Color(0xFF319CCB), style = MaterialTheme.typography.labelSmall, modifier = Modifier.clickable { uriHandler.openUri("https://exchangerate.dev") })
+                            }
+                        }
                     }
                 }
                 if (accounts.length() == 0) {
@@ -1659,6 +1719,10 @@ private fun ApplyWithdrawalScreen(
                         suffix = { Text(currency) }
                     )
                     Text((if (isEnglish) "Maximum available: " else "最多可提现：") + formatMinorByCurrency(availableMinor.toString(), currency), color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall)
+                    if (estimatedPayout != null) {
+                        Text((if (isEnglish) "Estimated payout: " else "预计到账：") + estimatedPayout + " " + payoutCurrency, color = Color(0xFF123E56), fontWeight = FontWeight.SemiBold)
+                        Text(if (isEnglish) "The server uses the latest available reference rate and saves it with your request. Actual settlement may vary by payout provider." else "提交时服务器会使用最新可用参考汇率并保存快照；实际出款金额可能受收款渠道报价影响。", color = Color(0xFF789087), style = MaterialTheme.typography.labelSmall)
+                    }
                     if (error != null) Text(error.orEmpty(), color = Color(0xFFB42318))
                     Button(
                         onClick = {
@@ -1676,7 +1740,7 @@ private fun ApplyWithdrawalScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        enabled = amountValid && selected != null && !saving,
+                        enabled = amountValid && quote != null && selected != null && !saving,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))
                     ) {
                         if (saving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
@@ -1692,17 +1756,47 @@ private fun ApplyWithdrawalScreen(
 @Composable
 private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: String, onBack: () -> Unit, onSaved: () -> Unit) {
     val isEnglish = language == "en"
-    var country by rememberSaveable { mutableStateOf("Pakistan · PKR") }
-    var method by rememberSaveable { mutableStateOf("JazzCash") }
+    var options by remember { mutableStateOf(JSONArray()) }
+    var countryCode by rememberSaveable { mutableStateOf("") }
+    var payoutCurrency by rememberSaveable { mutableStateOf("") }
+    var methodCode by rememberSaveable { mutableStateOf("") }
+    var providerCode by rememberSaveable { mutableStateOf("") }
     var account by rememberSaveable { mutableStateOf("") }
     var holder by rememberSaveable { mutableStateOf("") }
     var phone by rememberSaveable { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var countryExpanded by remember { mutableStateOf(false) }
+    var currencyExpanded by remember { mutableStateOf(false) }
     var methodExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val valid = account.matches(Regex("^03[0-9]{9}$")) && holder.isNotBlank()
+
+    LaunchedEffect(Unit) {
+        runCatching { withContext(Dispatchers.IO) { AuthRepository.payoutOptions() } }
+            .onSuccess { response ->
+                options = response.optJSONArray("items") ?: JSONArray()
+                val first = options.optJSONObject(0)
+                if (first != null) {
+                    countryCode = first.optString("countryCode")
+                    payoutCurrency = first.optString("payoutCurrency")
+                    methodCode = first.optString("methodCode")
+                    providerCode = first.optString("providerCode")
+                }
+                if (options.length() == 0) error = if (isEnglish) "No payout methods are currently available." else "目前没有已启用的收款方式，请联系平台客服。"
+            }
+            .onFailure { error = it.message ?: if (isEnglish) "Unable to load payout options." else "加载收款配置失败。" }
+        loading = false
+    }
+
+    val allOptions = (0 until options.length()).mapNotNull { options.optJSONObject(it) }
+    val countries = allOptions.filter { it.optString("countryCode").isNotBlank() }.distinctBy { it.optString("countryCode") }
+    val currencies = allOptions.filter { it.optString("countryCode") == countryCode }.distinctBy { it.optString("payoutCurrency") }
+    val methods = allOptions.filter { it.optString("countryCode") == countryCode && it.optString("payoutCurrency") == payoutCurrency }
+        .distinctBy { it.optString("methodCode") + "|" + it.optString("providerCode") }
+    val selectedOption = methods.firstOrNull { it.optString("methodCode") == methodCode && it.optString("providerCode") == providerCode } ?: methods.firstOrNull()
+    val valid = account.trim().length in 5..80 && holder.isNotBlank() && selectedOption != null
+
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color(0xFF123E56)) }
@@ -1714,40 +1808,83 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
                 Surface(color = Color(0xFFE2F5ED), shape = RoundedCornerShape(50)) { Icon(Icons.Default.Add, null, tint = Color(0xFF319CCB), modifier = Modifier.padding(8.dp)) }
                 Text(if (isEnglish) "Add account" else "新增账户", fontWeight = FontWeight.Bold, color = Color(0xFF123E56), style = MaterialTheme.typography.titleMedium)
             }
-            Text(if (isEnglish) "Select payout country" else "选择收款国家", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
-            Box {
-                OutlinedButton(onClick = { countryExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Icon(Icons.Default.Language, null, tint = Color(0xFF319CCB)); Spacer(Modifier.width(12.dp)); Text(country, modifier = Modifier.weight(1f), color = Color(0xFF123E56)); Icon(Icons.Default.ArrowDropDown, null)
+            if (loading) {
+                Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            } else {
+                Text(if (isEnglish) "Payout country" else "选择收款国家", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                Box {
+                    OutlinedButton(onClick = { countryExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                        Text(countries.firstOrNull { it.optString("countryCode") == countryCode }?.optString("countryName")?.plus(" · $countryCode") ?: countryCode.ifBlank { if (isEnglish) "Select country" else "请选择国家" }, modifier = Modifier.weight(1f), color = Color(0xFF123E56))
+                        Icon(Icons.Default.ArrowDropDown, null)
+                    }
+                    DropdownMenu(expanded = countryExpanded, onDismissRequest = { countryExpanded = false }) {
+                        countries.forEach { item ->
+                            DropdownMenuItem(text = { Text(item.optString("countryName") + " · " + item.optString("countryCode")) }, onClick = {
+                                countryCode = item.optString("countryCode")
+                                val next = allOptions.firstOrNull { it.optString("countryCode") == countryCode }
+                                payoutCurrency = next?.optString("payoutCurrency").orEmpty()
+                                methodCode = next?.optString("methodCode").orEmpty()
+                                providerCode = next?.optString("providerCode").orEmpty()
+                                countryExpanded = false
+                            })
+                        }
+                    }
                 }
-                DropdownMenu(expanded = countryExpanded, onDismissRequest = { countryExpanded = false }) {
-                    DropdownMenuItem(text = { Text("Pakistan · PKR") }, onClick = { country = "Pakistan · PKR"; countryExpanded = false })
+                Text(if (isEnglish) "Payout currency" else "收款货币", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                Box {
+                    OutlinedButton(onClick = { currencyExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                        Text(payoutCurrency.ifBlank { if (isEnglish) "Select currency" else "请选择货币" }, modifier = Modifier.weight(1f), color = Color(0xFF123E56))
+                        Icon(Icons.Default.ArrowDropDown, null)
+                    }
+                    DropdownMenu(expanded = currencyExpanded, onDismissRequest = { currencyExpanded = false }) {
+                        currencies.forEach { item ->
+                            DropdownMenuItem(text = { Text(item.optString("payoutCurrency")) }, onClick = {
+                                payoutCurrency = item.optString("payoutCurrency")
+                                val next = allOptions.firstOrNull { it.optString("countryCode") == countryCode && it.optString("payoutCurrency") == payoutCurrency }
+                                methodCode = next?.optString("methodCode").orEmpty()
+                                providerCode = next?.optString("providerCode").orEmpty()
+                                currencyExpanded = false
+                            })
+                        }
+                    }
                 }
+                Text(if (isEnglish) "Payout method" else "收款方式", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                Box {
+                    OutlinedButton(onClick = { methodExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                        Text(selectedOption?.optString("methodName") ?: methodCode.ifBlank { if (isEnglish) "Select method" else "请选择收款方式" }, modifier = Modifier.weight(1f), color = Color(0xFF123E56))
+                        Icon(Icons.Default.ArrowDropDown, null)
+                    }
+                    DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
+                        methods.forEach { item ->
+                            DropdownMenuItem(text = { Text(item.optString("methodName") + " · " + item.optString("providerName")) }, onClick = {
+                                methodCode = item.optString("methodCode")
+                                providerCode = item.optString("providerCode")
+                                methodExpanded = false
+                            })
+                        }
+                    }
+                }
+                OutlinedTextField(value = account, onValueChange = { account = it.take(80) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Payout account number *" else "收款账号 *") })
+                OutlinedTextField(value = holder, onValueChange = { holder = it.take(120) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder *" else "账户持有人姓名 *") })
+                OutlinedTextField(value = phone, onValueChange = { phone = it.take(30) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Phone number (optional)" else "手机号（选填）") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone))
             }
-            Text(if (isEnglish) "Payout method" else "收款方式", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
-            Box {
-                OutlinedButton(onClick = { methodExpanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Text(method, modifier = Modifier.weight(1f), color = Color(0xFF123E56)); Icon(Icons.Default.ArrowDropDown, null)
-                }
-                DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
-                    listOf("JazzCash", "EasyPaisa").forEach { item -> DropdownMenuItem(text = { Text(item) }, onClick = { method = item; methodExpanded = false }) }
-                }
-            }
-            OutlinedTextField(value = account, onValueChange = { account = it.filter(Char::isDigit).take(11) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Payout account number *" else "收款账号 *") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
-            Text(if (isEnglish) "11 digits, starts with 03. Enter your own account number." else "仅限 11 位数字，以 03 开头，请填写本人账号。", color = Color(0xFF789087), style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(value = holder, onValueChange = { holder = it.take(120) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder *" else "账户持有人姓名 *") })
-            OutlinedTextField(value = phone, onValueChange = { phone = it.filter(Char::isDigit).take(15) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Phone number (optional)" else "手机号（选填）") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone))
             if (error != null) Text(error.orEmpty(), color = Color(0xFFB42318), style = MaterialTheme.typography.bodySmall)
             Button(onClick = {
+                val option = selectedOption ?: return@Button
                 scope.launch {
                     saving = true; error = null
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            AuthRepository.addPayoutAccount("PK", "PKR", "manual-pk", if (method == "JazzCash") "jazzcash" else "easypaisa", holder, account, phone)
+                            AuthRepository.addPayoutAccount(
+                                option.optString("countryCode"), option.optString("payoutCurrency"),
+                                option.optString("providerCode"), option.optString("methodCode"),
+                                holder, account, phone
+                            )
                         }
                     }.onSuccess { onSaved() }.onFailure { error = it.message ?: if (isEnglish) "Unable to save account" else "保存失败" }
                     saving = false
                 }
-            }, enabled = valid && !saving, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFB8D7CC))) {
+            }, enabled = valid && !saving && !loading, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB), disabledContainerColor = Color(0xFFB8D7CC))) {
                 if (saving) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text(if (isEnglish) "Save account" else "保存账户", fontWeight = FontWeight.Bold)
             }
         }
