@@ -455,6 +455,9 @@ export class AiReviewAdminService {
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
     const keyword = input.keyword?.trim() ?? "";
     const status = input.status || "ALL";
+    const configuredDays = Number(process.env.TASK_EVIDENCE_RETENTION_DAYS ?? 30);
+    const retentionDays = Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 3650 ? configuredDays : 30;
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
     const where: any = {};
     if (status === "SUBMITTED") where.status = { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] };
     if (status === "URL_ISSUED") where.id = "00000000-0000-0000-0000-000000000000";
@@ -465,7 +468,8 @@ export class AiReviewAdminService {
       { claim: { is: { task: { is: { title: { contains: keyword, mode: "insensitive" } } } } } },
     ];
     if (input.taskType === "TASK") where.claim = { is: { task: { is: { category: { not: "" } } } } };
-    const [total, submissions] = await prisma.$transaction([
+    const terminalStatuses = { status: { in: ["APPROVED", "REJECTED"] } };
+    const [total, submissions, markedForDeletion, deletedObjects, deleteFailures] = await prisma.$transaction([
       prisma.taskSubmission.count({ where }),
       prisma.taskSubmission.findMany({
         where, orderBy: { submittedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize,
@@ -480,14 +484,24 @@ export class AiReviewAdminService {
           },
         },
       }),
-      prisma.taskSubmission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] } } }),
+      prisma.taskSubmission.count({ where: { ...terminalStatuses, submittedAt: { lte: cutoff }, evidenceDeletedAt: null } }),
+      prisma.taskSubmission.count({ where: { evidenceDeletedAt: { not: null } } }),
+      prisma.taskSubmission.count({ where: { evidenceDeleteLastError: { not: null }, evidenceDeletedAt: null } }),
     ]);
     return {
       page, pageSize, total,
-      stats: { total, filtered: submissions.length, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 },
+      stats: { total, filtered: submissions.length, markedForDeletion, deletedObjects, deleteFailures },
       records: submissions.map((item) => ({
         id: item.id, userPhone: item.claim.user.phone, targetPhone: item.claim.contactAssignment?.contactNumber.phoneE164 ?? null,
-        status: item.status, retentionStatus: "NORMAL", source: "实时屏幕截图",
+        status: item.status,
+        retentionStatus: item.evidenceDeletedAt ? "DELETED" : item.evidenceDeleteLastError ? "DELETE_FAILED" :
+          item.submittedAt <= cutoff && ["APPROVED", "REJECTED"].includes(item.status) ? "PENDING_DELETION" : "NORMAL",
+        retentionUntil: new Date(item.submittedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString(),
+        deletionAttempts: item.evidenceDeleteAttempts,
+        archivedAt: item.evidenceDeletedAt?.toISOString() ?? null,
+        nextRetryAt: item.evidenceDeleteNextAttemptAt?.toISOString() ?? null,
+        lastStorageError: item.evidenceDeleteLastError,
+        source: "实时屏幕截图",
         reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
           ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
           item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
