@@ -468,7 +468,7 @@ export class AiReviewAdminService {
       { claim: { is: { task: { is: { title: { contains: keyword, mode: "insensitive" } } } } } },
     ];
     if (input.taskType === "TASK") where.claim = { is: { task: { is: { category: { not: "" } } } } };
-    const terminalStatuses = { status: { in: ["APPROVED", "REJECTED"] } };
+    const terminalStatuses = { status: { in: ["APPROVED", "REJECTED"] as const } };
     const [total, submissions, markedForDeletion, deletedObjects, deleteFailures] = await prisma.$transaction([
       prisma.taskSubmission.count({ where }),
       prisma.taskSubmission.findMany({
