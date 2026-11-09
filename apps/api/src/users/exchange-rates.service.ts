@@ -171,6 +171,26 @@ export class ExchangeRatesService {
         providerUpdatedAt: null, effectiveAt: null, marketSession: null, stale: false,
       };
     }
+    const manualRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.exchangeRates.manual" }, select: { value: true } });
+    const manualItems = Array.isArray((manualRow?.value as any)?.items) ? (manualRow!.value as any).items as Array<Record<string, any>> : [];
+    const manual = manualItems.find(item =>
+      item.enabled !== false &&
+      String(item.from ?? "").trim().toUpperCase() === from &&
+      String(item.to ?? "").trim().toUpperCase() === to
+    );
+    if (manual) {
+      const validUntil = manual.validUntil ? Date.parse(String(manual.validUntil)) : null;
+      if (validUntil !== null && (!Number.isFinite(validUntil) || validUntil <= Date.now())) {
+        throw new BadRequestException("管理员设置的手动汇率已过期，请更新汇率后再提交提现。");
+      }
+      const rate = Number(manual.rate);
+      if (!Number.isFinite(rate) || rate <= 0) throw new BadRequestException("管理员设置的手动汇率无效。");
+      return {
+        rate, source: "MANUAL_ADMIN", fetchedAt: String(manual.updatedAt ?? new Date().toISOString()),
+        providerUpdatedAt: null, effectiveAt: String(manual.updatedAt ?? new Date().toISOString()),
+        marketSession: null, stale: false, manual: true, note: String(manual.note ?? ""),
+      };
+    }
     const snapshot = await this.latest();
     if (snapshot.stale) {
       throw new BadRequestException("汇率服务暂时不可用，缓存报价已过期；为避免错误到账金额，暂不能提交跨币种提现。");
