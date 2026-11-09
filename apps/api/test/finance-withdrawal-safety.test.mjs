@@ -107,15 +107,15 @@ test("APK upload validates ZIP directory and Android manifest before marking a r
 });
 
 
-test("business email verification is not required when disabled and only guards documented sensitive actions", () => {
-  const verification = readFileSync(new URL("../src/users/email-verification.service.ts", import.meta.url), "utf8");
+test("member withdrawals and payout-account management do not require email verification", () => {
+  const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
+  const usersModule = readFileSync(new URL("../src/users/users.module.ts", import.meta.url), "utf8");
   const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
   const payoutAccounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
-  assert.match(verification, /if \(value\.businessEmailVerification !== true\) return/);
-  assert.match(withdrawals, /await this\.emailVerification\.requireVerified\(userId\)/);
-  assert.match(payoutAccounts, /async remove\(userId: string, accountId: string\) \{\s*await this\.emailVerification\.requireVerified\(userId\)/);
-  const create = payoutAccounts.slice(payoutAccounts.indexOf("async create("), payoutAccounts.indexOf("async remove("));
-  assert.doesNotMatch(create, /requireVerified/);
+  assert.doesNotMatch(usersController, /email-verification\/(send|verify)/);
+  assert.doesNotMatch(usersModule, /EmailVerificationService/);
+  assert.doesNotMatch(withdrawals, /requireVerified|EmailVerificationService/);
+  assert.doesNotMatch(payoutAccounts, /requireVerified|EmailVerificationService/);
 });
 
 test("archived withdrawal rules cannot be re-enabled through toggle or edit APIs", () => {
