@@ -107,6 +107,20 @@ test("APK upload validates ZIP directory and Android manifest before marking a r
 });
 
 
+test("member dashboard returns pending task reward totals and lifetime credited earnings by currency", () => {
+  const dashboard = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(dashboard, /status: \{ in: \["SUBMITTED", "UNDER_REVIEW"\] \}, claim: \{ userId \}/);
+  assert.match(dashboard, /pendingRewardTotals\.set\(currency, \(pendingRewardTotals\.get\(currency\) \?\? 0n\) \+ task\.rewardMinor\)/);
+  assert.match(dashboard, /entry\.direction === "CREDIT"/);
+  assert.match(dashboard, /pendingRewards,/);
+  assert.match(dashboard, /totalEarnings,/);
+  assert.match(app, /dashboard\?\.optJSONArray\("pendingRewards"\)/);
+  assert.match(app, /dashboard\?\.optJSONArray\("totalEarnings"\)/);
+  assert.doesNotMatch(app, /"Pending rewards" else "待审核奖励", "—"/);
+  assert.doesNotMatch(app, /"Total earnings" else "累计收益", "—"/);
+});
+
 test("member withdrawals and payout-account management do not require email verification", () => {
   const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
   const usersModule = readFileSync(new URL("../src/users/users.module.ts", import.meta.url), "utf8");
