@@ -392,6 +392,8 @@ export class AiReviewAdminService {
 
 
   async getEvidenceDetail(submissionId: string) {
+    const configuredDays = Number(process.env.TASK_EVIDENCE_RETENTION_DAYS ?? 30);
+    const retentionDays = Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 3650 ? configuredDays : 30;
     const item = await prisma.taskSubmission.findUnique({
       where: { id: submissionId },
       include: {
