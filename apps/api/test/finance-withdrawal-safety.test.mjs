@@ -269,7 +269,7 @@ test("finance provider editor loads country and channel choices from payout cata
   assert.match(admin, /providerCatalogs\.countries/);
   assert.match(admin, /providerCatalogs\.methods/);
   assert.match(admin, /currencyDigits\(limitCurrency\)/);
-  assert.match(finance, /!\^\\d\+\$\/\.test\(minimumRaw\)/);
+  assert.match(finance, /!\/\^\\d\+\$\/\.test\(minimumRaw\)/);
 });
 
 test("APP payout options are derived from enabled admin withdrawal rules and payment providers", () => {
