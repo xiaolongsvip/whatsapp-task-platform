@@ -287,6 +287,13 @@ export class SystemSettingsService {
     const min = Number(input.minimumAmount), max = Number(input.maximumAmount), daily = Number(input.dailyLimit);
     if (!/^(?:[A-Z]{2}|GLOBAL)$/.test(countryCode) || !/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency) || !/^[A-Z0-9_-]{2,40}$/.test(method)) throw new BadRequestException("国家代码、钱包币种、代付币种和提现方式格式无效");
     if (channels.length === 0 || channels.some(channel => !/^[a-z0-9_-]{2,40}$/.test(channel))) throw new BadRequestException("请至少配置一个有效的收款渠道代码");
+    const catalogValue = await this.read("system.payoutCatalogs", { countries: [], currencies: [], methods: [] });
+    const countries = Array.isArray(catalogValue?.countries) ? catalogValue.countries : [];
+    const currencies = Array.isArray(catalogValue?.currencies) ? catalogValue.currencies : [];
+    const methods = Array.isArray(catalogValue?.methods) ? catalogValue.methods : [];
+    if (countries.length && countryCode !== "GLOBAL" && !countries.some((x: any) => x.code === countryCode && x.enabled !== false)) throw new BadRequestException("提现规则引用的国家未配置或已停用。");
+    if (currencies.length && (![walletCurrency, payoutCurrency].every(code => currencies.some((x: any) => x.code === code && x.enabled !== false)))) throw new BadRequestException("提现规则引用的钱包币种或出款币种未配置或已停用。");
+    if (methods.length && channels.some(channel => !methods.some((x: any) => String(x.channel ?? x.code).toLowerCase() === channel && x.enabled !== false && (!Array.isArray(x.countryCodes) || x.countryCodes.length === 0 || countryCode === "GLOBAL" || x.countryCodes.includes(countryCode)) && (!Array.isArray(x.currencyCodes) || x.currencyCodes.length === 0 || x.currencyCodes.includes(payoutCurrency))))) throw new BadRequestException("提现规则包含未启用或不适用于该国家、币种的收款方式。");
     const scale = 10 ** currencyDigits(walletCurrency);
     const limits = [min, max, daily];
     if (!limits.every(value => Number.isFinite(value) && Number.isSafeInteger(Math.round(value * scale)) && Math.abs(value * scale - Math.round(value * scale)) < 1e-7) ||
