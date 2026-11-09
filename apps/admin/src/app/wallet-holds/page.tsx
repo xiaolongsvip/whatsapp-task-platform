@@ -32,7 +32,7 @@ function toMinor(amount: string, currency: string) {
     throw new Error("请输入大于 0 的金额，" + currency + " 最多保留 " + digits + " 位小数。");
   }
   const [whole, fraction = ""] = amount.split(".");
-  const minor = (whole + (fraction + "0".repeat(digits)).slice(0, digits)).replace(/^0+(?=\\d)/, "");
+  const minor = (whole + (fraction + "0".repeat(digits)).slice(0, digits)).replace(/^0+(?=\d)/, "");
   return minor || "0";
 }
 function money(minor: string, currency: string) {
