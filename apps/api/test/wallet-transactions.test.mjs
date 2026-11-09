@@ -85,3 +85,9 @@ test("Android wallet screen displays the frozen amount returned by the wallet ov
   assert.match(app, /val frozen = total\("frozenMinor"\)/);
   assert.match(app, /"Frozen" else "风险冻结", frozen,/);
 });
+test("admin wallet hold records support server-backed pagination", () => {
+  const page = readFileSync(new URL("../../admin/src/app/wallet-holds/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /"&page=" \+ page \+ "&pageSize=" \+ pageSize/);
+  assert.match(page, /上一页/);
+  assert.match(page, /下一页/);
+});
