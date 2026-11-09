@@ -562,7 +562,7 @@ export class FinanceAdminService {
     const taskTitle = typeof input.taskTitle === "string" ? input.taskTitle.trim().slice(0, 160) : "";
     if (!identity) throw new BadRequestException("请输入用户手机号或用户 ID");
     if (!/^[A-Z]{3}$/.test(currency)) throw new BadRequestException("请输入有效的三位币种代码");
-    if (!/^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,2})?$/.test(amount) || Number(amount) <= 0) throw new BadRequestException("金额必须大于 0，最多保留两位小数");
+    if (!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(amount) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new BadRequestException("金额必须大于 0，最多保留两位小数");
     if (!direction) throw new BadRequestException("请选择增加或扣减");
     if (!reason || reason.length > 500) throw new BadRequestException("调账原因必填，最多 500 个字符");
     const [whole, fraction = ""] = amount.split(".");
