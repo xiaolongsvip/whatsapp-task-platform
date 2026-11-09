@@ -496,7 +496,7 @@ export class FinanceAdminService {
 
   async taskSettlements(query: { search?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
     const pg = pageArgs(query.page, query.pageSize);
-    const conditions: Prisma.Sql[] = [Prisma.sql`s.status = 'APPROVED'`];
+    const conditions = [Prisma.sql`s.status = 'APPROVED'`];
     if (query.from || query.to) {
       const range = dateRange(query.from, query.to);
       if (range.gte) conditions.push(Prisma.sql`s.submitted_at >= ${range.gte}`);
