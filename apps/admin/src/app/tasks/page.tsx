@@ -225,7 +225,6 @@ export default function AdminTasksPage() {
         category: form.category.trim(),
         rewardAmount: form.rewardAmount.trim(),
         currency: form.currency.trim().toUpperCase(),
-        capacity: null,
         startsAt: toIso(form.startsAt),
         endsAt: toIso(form.endsAt),
         messageTemplate: form.messageTemplate,
