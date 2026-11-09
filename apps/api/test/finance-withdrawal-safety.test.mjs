@@ -444,3 +444,10 @@ test("withdrawal records freeze wallet debit, payout conversion and FX provenanc
   assert.match(finance, /estimatedPayoutAmountMinor/);
   assert.match(finance, /idempotencyKey: "withdrawal-payout:" \+ id/);
 });
+
+test("manual payout requires an audited note when actual payout differs from the frozen estimate", () => {
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  assert.match(finance, /actualPayoutAmountMinor !== estimatedPayoutAmountMinor && !note/);
+  assert.match(finance, /实际出款金额与提现报价不一致，必须填写差异说明/);
+  assert.match(finance, /actualPayoutAmountMinor: actualPayoutAmountMinor\.toString\(\)/);
+});
