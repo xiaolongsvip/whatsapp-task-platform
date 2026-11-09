@@ -351,3 +351,11 @@ test("Android withdrawal estimate uses the server-calculated payout amount for t
   assert.match(app, /quote\?\.optString\("amountMinor"\) != requestedMinor\.toString\(\)/);
   assert.doesNotMatch(app, /multiply\(java\.math\.BigDecimal\(quote!!\.optString\("rate"\)\)\)/);
 });
+
+test("live FX mode requires a provider API key and the example environment selects live mode", () => {
+  const fx = readFileSync(new URL("../src/users/exchange-rates.service.ts", import.meta.url), "utf8");
+  const env = readFileSync(new URL("../../../.env.example", import.meta.url), "utf8");
+  assert.match(fx, /liveMode && !apiKey/);
+  assert.match(fx, /Live exchange-rate mode requires EXCHANGERATE_DEV_API_KEY/);
+  assert.match(env, /EXCHANGERATE_DEV_RATE_MODE=live/);
+});
