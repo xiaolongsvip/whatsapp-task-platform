@@ -55,6 +55,10 @@ export class ExchangeRatesService {
     try {
       const headers: Record<string, string> = { accept: "application/json" };
       const apiKey = process.env.EXCHANGERATE_DEV_API_KEY?.trim();
+      const liveMode = process.env.EXCHANGERATE_DEV_RATE_MODE?.trim().toLowerCase() === "live";
+      if (liveMode && !apiKey) {
+        throw new Error("Live exchange-rate mode requires EXCHANGERATE_DEV_API_KEY.");
+      }
       if (apiKey) headers.authorization = "Bearer " + apiKey;
       const response = await fetch("https://api.exchangerate.dev/v1/latest/USD", {
         headers,
