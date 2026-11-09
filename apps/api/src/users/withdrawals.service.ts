@@ -124,7 +124,7 @@ export class WithdrawalsService {
     payoutAccountId: string,
     amountMinorInput: string,
     timezone = "UTC",
-    expectedQuote?: { rate: string; source: string; fetchedAt: string },
+    expectedQuote?: { rate: string; source: string; fetchedAt: string; amountMinor: string; walletCurrency: string; payoutCurrency: string; payoutAmountMinor: string },
   ) {
     let amountMinor: bigint;
     if (typeof amountMinorInput !== "string" || !/^[0-9]+$/.test(amountMinorInput)) throw new BadRequestException("Withdrawal amount is invalid.");
@@ -143,19 +143,29 @@ export class WithdrawalsService {
     }
     const expectedRate = Number(expectedQuote.rate);
     const sameRate = Number.isFinite(expectedRate) && expectedRate.toFixed(12) === rate.rate.toFixed(12);
+    const sameAmount = expectedQuote.amountMinor === amountMinor.toString();
+    const sameCurrencies =
+      expectedQuote.walletCurrency.trim().toUpperCase() === context.walletCurrency &&
+      expectedQuote.payoutCurrency.trim().toUpperCase() === context.payoutCurrency;
     const sameSource = expectedQuote.source === rate.source;
     // Identity quotes are regenerated on each request, so their observation
     // timestamp is intentionally not compared. Other sources must match the
     // exact cached/manual observation shown to the member.
     const sameObservation = rate.source === "IDENTITY" ||
       Date.parse(expectedQuote.fetchedAt) === Date.parse(rate.fetchedAt);
-    if (!sameRate || !sameSource || !sameObservation) {
+    if (!sameRate || !sameSource || !sameObservation || !sameAmount || !sameCurrencies) {
       throw new ConflictException({
         code: "WITHDRAWAL_QUOTE_CHANGED",
         message: "The exchange rate changed after the quote was displayed. Refresh the quote and review the new payout amount.",
       });
     }
     const payoutAmountMinor = this.exchangeRates.toPayoutMinor(amountMinor, context.walletCurrency, context.payoutCurrency, rate.rate);
+    if (expectedQuote.payoutAmountMinor !== payoutAmountMinor.toString()) {
+      throw new ConflictException({
+        code: "WITHDRAWAL_QUOTE_CHANGED",
+        message: "The payout estimate no longer matches the displayed quote. Refresh the quote and review the new amount.",
+      });
+    }
     const minimumMinor = configuredMinor(context.rule.minimumAmount, context.walletCurrency);
     const maximumMinor = configuredMinor(context.rule.maximumAmount, context.walletCurrency);
     const dailyLimitMinor = configuredMinor(context.rule.dailyLimit, context.walletCurrency);
