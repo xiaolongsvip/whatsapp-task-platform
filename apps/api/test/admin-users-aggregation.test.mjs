@@ -19,3 +19,13 @@ test("user detail withdrawal totals cover all history while returning only the n
   assert.match(detail, /total: withdrawalTotal, pending: withdrawalPending, paid: withdrawalPaid/);
   assert.doesNotMatch(detail, /total: withdrawals\.length/);
 });
+
+
+test("admin user list exposes all statuses supported by its backend filter", () => {
+  const page = readFileSync(new URL("../../admin/src/app/users/page.tsx", import.meta.url), "utf8");
+  const service = readFileSync(new URL("../src/admin-users/admin-users.service.ts", import.meta.url), "utf8");
+  for (const status of ["ALL", "ACTIVE", "SUSPENDED", "PENDING", "CLOSED"]) {
+    assert.ok(service.includes('"' + status + '"'), "backend status missing: " + status);
+    assert.ok(page.includes('"' + status + '"'), "frontend status filter missing: " + status);
+  }
+});
