@@ -32,6 +32,8 @@ export default function WalletHoldsPage() {
   const [busy, setBusy] = useState(false);
   const [items, setItems] = useState<Hold[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const [status, setStatus] = useState("ACTIVE");
   const [walletId, setWalletId] = useState("");
   const [amount, setAmount] = useState("");
@@ -42,10 +44,10 @@ export default function WalletHoldsPage() {
   const [message, setMessage] = useState("");
   const [resolveReason, setResolveReason] = useState<Record<string, string>>({});
   const refresh = useCallback(async () => {
-    const result = await api<HoldList>("/api/v1/admin/wallet-holds?status=" + status + "&pageSize=100");
+    const result = await api<HoldList>("/api/v1/admin/wallet-holds?status=" + status + "&page=" + page + "&pageSize=" + pageSize);
     setItems(result.items);
     setTotal(result.total);
-  }, [status]);
+  }, [status, page]);
   useEffect(() => {
     api<{ id: string; email: string }>("/api/v1/admin-auth/me").then(async (admin) => {
       setEmail(admin.email); setAuthenticated(true); await refresh();
@@ -91,7 +93,7 @@ export default function WalletHoldsPage() {
     </header>
     {error && <div className="notice error">{error}</div>}{message && <div className="notice">{message}</div>}
     <section className="panel"><h2>冻结资金记录</h2><div className="stats-grid" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }}><div className="stat"><span>当前筛选记录</span><strong>{total}</strong></div><div className="stat"><span>当前页有效冻结</span><strong>{activeTotal}</strong></div></div>
-      <div className="action-row"><label className="muted">记录状态</label><select value={status} onChange={(e) => setStatus(e.target.value)} style={{ border: "1px solid #d5dfeb", borderRadius: 9, padding: "9px 11px" }}><option value="ACTIVE">冻结中</option><option value="RELEASED">已解冻</option><option value="CAPTURED">已扣除</option><option value="">全部状态</option></select><button className="secondary-btn" disabled={busy} onClick={() => void refresh()}>刷新列表</button></div>
+      <div className="action-row"><label className="muted">记录状态</label><select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} style={{ border: "1px solid #d5dfeb", borderRadius: 9, padding: "9px 11px" }}><option value="ACTIVE">冻结中</option><option value="RELEASED">已解冻</option><option value="CAPTURED">已扣除</option><option value="">全部状态</option></select><button className="secondary-btn" disabled={busy} onClick={() => void refresh()}>刷新列表</button></div>
       <div className="table-wrap" style={{ marginTop: 14 }}><table><thead><tr><th>用户手机号</th><th>钱包 ID</th><th>冻结金额</th><th>状态</th><th>冻结原因</th><th>业务关联</th><th>创建时间</th><th>处理操作</th></tr></thead><tbody>
         {items.map((item) => <tr key={item.id}><td>{item.phone}</td><td title={item.walletId}>{item.walletId.slice(0, 8)}…</td><td>{money(item.amountMinor, item.currency)}</td><td><span className={`pill ${item.status === "ACTIVE" ? "assigned" : item.status === "RELEASED" ? "available" : "blocked"}`}>{item.status === "ACTIVE" ? "冻结中" : item.status === "RELEASED" ? "已解冻" : "已扣除"}</span></td><td style={{ whiteSpace: "normal", minWidth: 180 }}>{item.reason}</td><td>{item.referenceType || "—"}{item.referenceId ? " / " + item.referenceId : ""}</td><td>{new Date(item.createdAt).toLocaleString()}</td><td style={{ minWidth: 240, whiteSpace: "normal" }}>
           {item.status === "ACTIVE" ? <><input placeholder="填写本次操作原因" value={resolveReason[item.id] || ""} onChange={(e) => setResolveReason((v) => ({ ...v, [item.id]: e.target.value }))} style={{ width: "100%", border: "1px solid #d5dfeb", borderRadius: 8, padding: 8, marginBottom: 7 }} /><div className="action-row" style={{ margin: 0 }}><button className="secondary-btn" disabled={busy} onClick={() => void resolve(item, "release")}>解冻</button><button className="danger-btn" disabled={busy} onClick={() => void resolve(item, "capture")}>扣除冻结款</button></div></> : <span className="muted">已处理</span>}
@@ -99,6 +101,11 @@ export default function WalletHoldsPage() {
         </td></tr>)}
         {items.length === 0 && <tr><td colSpan={8} className="muted">没有符合条件的冻结记录。</td></tr>}
       </tbody></table></div>
+      <div className="action-row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
+        <span className="muted">共 {total} 条 · 第 {page} / {Math.max(1, Math.ceil(total / pageSize))} 页</span>
+        <button className="secondary-btn" disabled={busy || page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</button>
+        <button className="secondary-btn" disabled={busy || page >= Math.ceil(total / pageSize)} onClick={() => setPage((value) => value + 1)}>下一页</button>
+      </div>
     </section>
     <section className="panel"><h2>新增冻结</h2><p className="muted">使用钱包 ID 定位账户。冻结金额必须小于或等于扣除提现预留和现有冻结后的可用余额。</p>
       <form onSubmit={freeze}><div className="form-grid">
