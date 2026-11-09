@@ -1176,7 +1176,7 @@ private fun WalletScreen(
                     }
                 }
                 if (shown == 0) Text(if (en) "No posted ledger entries yet" else "暂无已入账分类数据", color = Color(0xFF81919C), style = MaterialTheme.typography.bodySmall)
-                Text(if (en) "Frozen balance is not configured for this wallet yet." else "当前账本尚未启用独立冻结资金功能。", color = Color(0xFF81919C), style = MaterialTheme.typography.bodySmall)
+                Text(if (en) "Frozen balance is not configured for this wallet yet." else "冻结金额已从可提现余额中扣除；如有疑问请联系平台客服。", color = Color(0xFF81919C), style = MaterialTheme.typography.bodySmall)
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
