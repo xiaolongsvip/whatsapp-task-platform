@@ -142,7 +142,7 @@ export default function EvidenceRecords() {
             </div></section>
             <section className="evidence-detail-card"><h3>存储与生命周期</h3><div className="evidence-detail-grid">
               {field("存储生命周期",<span className={"evidence-pill " + (detail.retentionStatus === "DELETE_FAILED" ? "warning" : detail.retentionStatus === "DELETED" ? "info" : "normal")}>{retentionLabel(detail.retentionStatus)}</span>)}{field("删除尝试次数",detail.deletionAttempts)}
-              {field("归档时间",fmt(detail.archivedAt))}{field("下次重试时间",fmt(detail.nextRetryAt))}
+              {field("对象清理完成时间",fmt(detail.archivedAt))}{field("下次重试时间",fmt(detail.nextRetryAt))}
               {field("对象删除时间",fmt(detail.archivedAt))}{field("最近错误",detail.lastStorageError || "—")}
               {field("保留截止时间",fmt(detail.retentionUntil))}
             </div></section>
