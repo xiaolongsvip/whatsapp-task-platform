@@ -88,6 +88,8 @@ function publicSubmission(submission: {
 export class TasksService implements OnModuleInit, OnModuleDestroy {
   private expiryTimer: ReturnType<typeof setInterval> | null = null;
   private expiryRunInProgress = false;
+  private evidenceCleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private evidenceCleanupRunInProgress = false;
 
   constructor(private readonly storage: S3ObjectStorageService) {}
 
@@ -109,11 +111,87 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     void this.expireOverdueClaims().catch((error: unknown) => {
       console.error("[tasks] startup claim expiry failed", error);
     });
+
+    // Evidence cleanup is deliberately limited to terminal submissions. Pending
+    // or reviewable evidence is never eligible for deletion.
+    this.evidenceCleanupTimer = setInterval(() => {
+      if (this.evidenceCleanupRunInProgress) return;
+      this.evidenceCleanupRunInProgress = true;
+      void this.cleanupExpiredEvidence().catch((error: unknown) => {
+        console.error("[tasks] evidence retention cleanup failed", error);
+      }).finally(() => {
+        this.evidenceCleanupRunInProgress = false;
+      });
+    }, 60 * 60 * 1000);
+    this.evidenceCleanupTimer.unref?.();
+    void this.cleanupExpiredEvidence().catch((error: unknown) => {
+      console.error("[tasks] startup evidence retention cleanup failed", error);
+    });
   }
 
   onModuleDestroy() {
     if (this.expiryTimer) clearInterval(this.expiryTimer);
+    if (this.evidenceCleanupTimer) clearInterval(this.evidenceCleanupTimer);
     this.expiryTimer = null;
+    this.evidenceCleanupTimer = null;
+  }
+
+  private async cleanupExpiredEvidence() {
+    const configuredDays = Number(process.env.TASK_EVIDENCE_RETENTION_DAYS ?? 30);
+    const retentionDays = Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 3650
+      ? configuredDays
+      : 30;
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+    const candidates = await prisma.$queryRaw<Array<{ id: string; objectKey: string; attempts: number }>>`
+      WITH candidates AS (
+        SELECT id
+        FROM task_submissions
+        WHERE status IN ('APPROVED', 'REJECTED')
+          AND evidence_deleted_at IS NULL
+          AND submitted_at <= ${cutoff}
+          AND (evidence_delete_next_attempt_at IS NULL OR evidence_delete_next_attempt_at <= ${now})
+          AND (evidence_delete_locked_at IS NULL OR evidence_delete_locked_at < ${new Date(now.getTime() - 30 * 60 * 1000)})
+        ORDER BY submitted_at ASC, id ASC
+        LIMIT 50
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE task_submissions AS submission
+      SET evidence_delete_locked_at = ${now}
+      FROM candidates
+      WHERE submission.id = candidates.id
+      RETURNING submission.id, submission.object_key AS "objectKey",
+        submission.evidence_delete_attempts AS attempts
+    `;
+
+    for (const item of candidates) {
+      try {
+        await this.storage.deleteObject(item.objectKey);
+        await prisma.taskSubmission.update({
+          where: { id: item.id },
+          data: {
+            evidenceDeletedAt: new Date(),
+            evidenceDeleteLockedAt: null,
+            evidenceDeleteNextAttemptAt: null,
+            evidenceDeleteLastError: null,
+          },
+        });
+      } catch (error) {
+        const attempts = item.attempts + 1;
+        const delayMinutes = Math.min(24 * 60, 5 * 2 ** Math.min(attempts - 1, 8));
+        const message = error instanceof Error ? error.message.slice(0, 1000) : "Unknown object storage deletion error";
+        await prisma.taskSubmission.update({
+          where: { id: item.id },
+          data: {
+            evidenceDeleteAttempts: { increment: 1 },
+            evidenceDeleteNextAttemptAt: new Date(Date.now() + delayMinutes * 60 * 1000),
+            evidenceDeleteLockedAt: null,
+            evidenceDeleteLastError: message,
+          },
+        });
+        console.error("[tasks] evidence deletion will retry", { submissionId: item.id, attempts, delayMinutes });
+      }
+    }
   }
 
   async listPublished(userId: string) {
