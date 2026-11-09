@@ -13,7 +13,7 @@ const pageArgs = (page?: string, pageSize?: string) => {
 function majorToMinor(amount: string, currency: string): bigint {
   let digits: number;
   try {
-    digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
+    digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
   } catch {
     throw new BadRequestException("币种代码无效，无法确定金额精度");
   }
@@ -496,22 +496,11 @@ export class FinanceAdminService {
 
   async taskSettlements(query: { search?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
     const pg = pageArgs(query.page, query.pageSize);
-    const conditions = [Prisma.sql`s.status = 'APPROVED'`];
-    if (query.from || query.to) {
-      const range = dateRange(query.from, query.to);
-      if (range.gte) conditions.push(Prisma.sql`s.submitted_at >= ${range.gte}`);
-      if (range.lte) conditions.push(Prisma.sql`s.submitted_at <= ${range.lte}`);
-    }
+    const range = dateRange(query.from, query.to);
+    const fromDate = range.gte ?? null;
+    const toDate = range.lte ?? null;
     const search = query.search?.trim();
-    if (search) {
-      const pattern = `%${search}%`;
-      conditions.push(Prisma.sql`(u.phone ILIKE ${pattern} OR t.title ILIKE ${pattern} OR s.id::text ILIKE ${pattern} OR c.id::text ILIKE ${pattern})`);
-    }
-    const where = Prisma.join(conditions, " AND ");
-    const unpaidCondition = Prisma.sql`NOT EXISTS (
-      SELECT 1 FROM ledger_entries le
-      WHERE le.source_type = 'TASK_REWARD' AND le.source_id = c.id::text
-    )`;
+    const searchPattern = search ? `%${search}%` : null;
     const [countRows, rows] = await Promise.all([
       prisma.$queryRaw<Array<{ total: bigint }>>`
         SELECT COUNT(*)::bigint AS total
@@ -519,7 +508,14 @@ export class FinanceAdminService {
         INNER JOIN task_claims c ON c.id = s.claim_id
         INNER JOIN tasks t ON t.id = c.task_id
         INNER JOIN users u ON u.id = c.user_id
-        WHERE ${where} AND ${unpaidCondition}
+        WHERE s.status = 'APPROVED'
+          AND (${fromDate}::timestamptz IS NULL OR s.submitted_at >= ${fromDate}::timestamptz)
+          AND (${toDate}::timestamptz IS NULL OR s.submitted_at <= ${toDate}::timestamptz)
+          AND (${searchPattern}::text IS NULL OR u.phone ILIKE ${searchPattern}::text OR t.title ILIKE ${searchPattern}::text OR s.id::text ILIKE ${searchPattern}::text OR c.id::text ILIKE ${searchPattern}::text)
+          AND NOT EXISTS (
+            SELECT 1 FROM ledger_entries le
+            WHERE le.source_type = 'TASK_REWARD' AND le.source_id = c.id::text
+          )
       `,
       prisma.$queryRaw<Array<{ id: string; claimId: string; userId: string; phone: string; taskId: string; taskTitle: string; amountMinor: bigint; currency: string; submittedAt: Date }>>`
         SELECT s.id, c.id AS "claimId", u.id AS "userId", u.phone,
@@ -529,7 +525,14 @@ export class FinanceAdminService {
         INNER JOIN task_claims c ON c.id = s.claim_id
         INNER JOIN tasks t ON t.id = c.task_id
         INNER JOIN users u ON u.id = c.user_id
-        WHERE ${where} AND ${unpaidCondition}
+        WHERE s.status = 'APPROVED'
+          AND (${fromDate}::timestamptz IS NULL OR s.submitted_at >= ${fromDate}::timestamptz)
+          AND (${toDate}::timestamptz IS NULL OR s.submitted_at <= ${toDate}::timestamptz)
+          AND (${searchPattern}::text IS NULL OR u.phone ILIKE ${searchPattern}::text OR t.title ILIKE ${searchPattern}::text OR s.id::text ILIKE ${searchPattern}::text OR c.id::text ILIKE ${searchPattern}::text)
+          AND NOT EXISTS (
+            SELECT 1 FROM ledger_entries le
+            WHERE le.source_type = 'TASK_REWARD' AND le.source_id = c.id::text
+          )
         ORDER BY s.submitted_at DESC, s.id DESC
         LIMIT ${pg.take} OFFSET ${pg.skip}
       `,
