@@ -583,26 +583,83 @@ export class FinanceAdminService {
     const [approvedSubmissions, paidWithdrawals, successfulPayouts] = await Promise.all([
       prisma.taskSubmission.findMany({ where: { status: "APPROVED" }, take: 5000, orderBy: { submittedAt: "desc" },
         include: { claim: { include: { task: { select: { title: true, rewardMinor: true, currency: true } }, user: { select: { phone: true } } } } } }),
-      prisma.withdrawalRequest.findMany({ where: { status: "PAID" }, take: 5000, select: { id: true, walletId: true, amountMinor: true, currency: true, createdAt: true } }),
-      prisma.paymentTransaction.findMany({ where: { flow: "PAYOUT", status: "SUCCEEDED" }, take: 5000, select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, providerCode: true } }),
+      prisma.withdrawalRequest.findMany({ where: { status: "PAID" }, take: 5000, orderBy: { createdAt: "desc" },
+        select: { id: true, walletId: true, amountMinor: true, currency: true, payoutCurrency: true, payoutAmountMinor: true, createdAt: true } }),
+      prisma.paymentTransaction.findMany({ where: { flow: "PAYOUT", status: "SUCCEEDED" }, take: 5000, orderBy: { createdAt: "desc" },
+        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, providerCode: true } }),
     ]);
     const claimIds = [...new Set(approvedSubmissions.map(x => x.claimId))];
     const withdrawalIds = [...new Set(paidWithdrawals.map(x => x.id))];
     const [taskEntries, payoutEntries, payoutTransactions] = await Promise.all([
-      claimIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } }, select: { sourceId: true } }) : [],
-      withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } }, select: { sourceId: true } }) : [],
-      withdrawalIds.length ? prisma.paymentTransaction.findMany({ where: { withdrawalRequestId: { in: withdrawalIds }, flow: "PAYOUT", status: "SUCCEEDED" }, select: { withdrawalRequestId: true } }) : [],
+      claimIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } },
+        select: { sourceId: true, direction: true, amountMinor: true, currency: true } }) : [],
+      withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } },
+        select: { sourceId: true, direction: true, amountMinor: true, currency: true } }) : [],
+      withdrawalIds.length ? prisma.paymentTransaction.findMany({ where: { withdrawalRequestId: { in: withdrawalIds }, flow: "PAYOUT", status: "SUCCEEDED" },
+        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true } }) : [],
     ]);
-    const taskEntrySet = new Set(taskEntries.map(x => x.sourceId));
-    const payoutEntrySet = new Set(payoutEntries.map(x => x.sourceId));
-    const payoutTransactionSet = new Set(payoutTransactions.map(x => x.withdrawalRequestId));
-    for (const x of approvedSubmissions) if (!taskEntrySet.has(x.claimId)) items.push({
-      type: "TASK_REWARD_MISSING", recordId: x.id, user: x.claim.user.phone, task: x.claim.task.title,
-      amountMinor: x.claim.task.rewardMinor.toString(), currency: x.claim.task.currency.trim(), message: "审核已通过，但未找到任务奖励入账流水",
-    });
+    const groupBySource = <T extends { sourceId: string }>(rows: T[]) => {
+      const map = new Map<string, T[]>();
+      for (const row of rows) map.set(row.sourceId, [...(map.get(row.sourceId) ?? []), row]);
+      return map;
+    };
+    const taskEntriesByClaim = groupBySource(taskEntries);
+    const payoutEntriesByWithdrawal = groupBySource(payoutEntries);
+    const payoutsByWithdrawal = new Map<string, typeof payoutTransactions>();
+    for (const row of payoutTransactions) if (row.withdrawalRequestId) {
+      payoutsByWithdrawal.set(row.withdrawalRequestId, [...(payoutsByWithdrawal.get(row.withdrawalRequestId) ?? []), row]);
+    }
+    const checkedClaims = new Set<string>();
+    for (const x of approvedSubmissions) {
+      if (checkedClaims.has(x.claimId)) continue;
+      checkedClaims.add(x.claimId);
+      const rows = taskEntriesByClaim.get(x.claimId) ?? [];
+      const expectedAmount = x.claim.task.rewardMinor;
+      const expectedCurrency = x.claim.task.currency.trim().toUpperCase();
+      if (rows.length !== 1) {
+        items.push({ type: rows.length === 0 ? "TASK_REWARD_MISSING" : "TASK_REWARD_DUPLICATE", recordId: x.claimId,
+          user: x.claim.user.phone, task: x.claim.task.title, expectedAmountMinor: expectedAmount.toString(), expectedCurrency,
+          actualEntryCount: rows.length, message: rows.length === 0 ? "审核已通过，但未找到任务奖励流水" : "同一任务奖励存在多条流水" });
+        continue;
+      }
+      const entry = rows[0];
+      if (entry.direction !== "CREDIT" || entry.amountMinor !== expectedAmount || entry.currency.trim().toUpperCase() !== expectedCurrency) {
+        items.push({ type: "TASK_REWARD_AMOUNT_MISMATCH", recordId: x.claimId,
+          expectedAmountMinor: expectedAmount.toString(), expectedCurrency, actualAmountMinor: entry.amountMinor.toString(),
+          actualCurrency: entry.currency.trim(), actualDirection: entry.direction, message: "任务奖励流水的金额、币种或方向与任务配置不一致" });
+      }
+    }
     for (const x of paidWithdrawals) {
-      if (!payoutEntrySet.has(x.id)) items.push({ type: "WITHDRAWAL_LEDGER_MISSING", recordId: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "提现已标记付款成功，但未找到钱包扣款流水" });
-      if (!payoutTransactionSet.has(x.id)) items.push({ type: "WITHDRAWAL_TRANSACTION_MISSING", recordId: x.id, amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "提现已标记付款成功，但未找到成功的代付交易记录" });
+      const ledgerRows = payoutEntriesByWithdrawal.get(x.id) ?? [];
+      if (ledgerRows.length !== 1) {
+        items.push({ type: ledgerRows.length === 0 ? "WITHDRAWAL_LEDGER_MISSING" : "WITHDRAWAL_LEDGER_DUPLICATE", recordId: x.id,
+          expectedAmountMinor: x.amountMinor.toString(), expectedCurrency: x.currency.trim(), actualEntryCount: ledgerRows.length,
+          message: ledgerRows.length === 0 ? "提现已标记付款成功，但未找到钱包扣款流水" : "同一提现存在多条钱包扣款流水" });
+      } else {
+        const entry = ledgerRows[0];
+        if (entry.direction !== "DEBIT" || entry.amountMinor !== x.amountMinor || entry.currency.trim().toUpperCase() !== x.currency.trim().toUpperCase()) {
+          items.push({ type: "WITHDRAWAL_LEDGER_AMOUNT_MISMATCH", recordId: x.id,
+            expectedAmountMinor: x.amountMinor.toString(), expectedCurrency: x.currency.trim(), expectedDirection: "DEBIT",
+            actualAmountMinor: entry.amountMinor.toString(), actualCurrency: entry.currency.trim(), actualDirection: entry.direction,
+            message: "提现钱包扣款流水的金额、币种或方向与提现申请不一致" });
+        }
+      }
+      const transactions = payoutsByWithdrawal.get(x.id) ?? [];
+      if (transactions.length !== 1) {
+        items.push({ type: transactions.length === 0 ? "WITHDRAWAL_TRANSACTION_MISSING" : "WITHDRAWAL_TRANSACTION_DUPLICATE", recordId: x.id,
+          expectedAmountMinor: (x.payoutAmountMinor ?? x.amountMinor).toString(), expectedCurrency: (x.payoutCurrency ?? x.currency).trim(),
+          actualTransactionCount: transactions.length, message: transactions.length === 0 ? "提现已标记付款成功，但未找到成功的代付交易记录" : "同一提现存在多条成功代付交易" });
+      } else {
+        const transaction = transactions[0];
+        const expectedAmount = x.payoutAmountMinor ?? x.amountMinor;
+        const expectedCurrency = (x.payoutCurrency ?? x.currency).trim().toUpperCase();
+        if (transaction.amountMinor <= 0n || transaction.currency.trim().toUpperCase() !== expectedCurrency) {
+          items.push({ type: "WITHDRAWAL_PAYOUT_AMOUNT_MISMATCH", recordId: x.id,
+            expectedAmountMinor: expectedAmount.toString(), expectedCurrency,
+            actualAmountMinor: transaction.amountMinor.toString(), actualCurrency: transaction.currency.trim(),
+            message: "代付交易金额或币种无效，与提现出款币种不一致" });
+        }
+      }
     }
     const paidWithdrawalSet = new Set(paidWithdrawals.map(x => x.id));
     for (const x of successfulPayouts) if (x.withdrawalRequestId && !paidWithdrawalSet.has(x.withdrawalRequestId)) items.push({
@@ -613,12 +670,15 @@ export class FinanceAdminService {
     const exceptionCount = items.length;
     const completedAt = new Date();
     const status = exceptionCount === 0 ? "SUCCESS" : "FAILED";
-    const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length, exceptionCount };
+    const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, uniqueApprovedClaimsChecked: checkedClaims.size,
+      paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length,
+      amountDirectionCurrencyChecks: true, exceptionCount };
     const run = await prisma.financeReconciliationRun.create({ data: {
       triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500) as Prisma.InputJsonValue,
       createdByAdminId: adminId, createdAt: startedAt, completedAt,
     } });
-    return { id: run.id, status: run.status, checkedCount: run.checkedCount, exceptionCount: run.exceptionCount, summary, items: items.slice(0, 500), createdAt: run.createdAt.toISOString(), completedAt: run.completedAt?.toISOString() ?? null };
+    return { id: run.id, status: run.status, checkedCount: run.checkedCount, exceptionCount, summary, items: items.slice(0, 500),
+      createdAt: run.createdAt.toISOString(), completedAt: run.completedAt?.toISOString() ?? null };
   }
 
   async reconciliationRuns(query: { page?: string; pageSize?: string }) {
