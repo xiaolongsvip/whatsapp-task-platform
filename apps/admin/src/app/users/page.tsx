@@ -27,7 +27,23 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) throw new Error(typeof data.message === "string" ? data.message : "请求失败，请稍后重试。");
   return data as T;
 }
-const money = (balances: UserRow["balances"]) => balances.length ? balances.map(x => `${x.currency} ${(Number(x.amountMinor) / 100).toFixed(2)}`).join(" / ") : "US$0.000";
+function formatMinor(minor: string, currency: string) {
+  let amount: bigint;
+  let digits: number;
+  try {
+    amount = BigInt(minor);
+    digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return currency + " —";
+  }
+  const negative = amount < BigInt(0);
+  const absolute = negative ? -amount : amount;
+  const scale = BigInt(10) ** BigInt(digits);
+  const whole = (absolute / scale).toLocaleString("en-US");
+  const fraction = digits ? "." + (absolute % scale).toString().padStart(digits, "0") : "";
+  return currency + " " + (negative ? "-" : "") + whole + fraction;
+}
+const money = (balances: UserRow["balances"]) => balances.length ? balances.map(x => formatMinor(x.amountMinor, x.currency)).join(" / ") : "US$0.000";
 const dateText = (value: string) => new Date(value).toLocaleString("zh-CN", { hour12: false });
 
 export default function AdminUsersPage() {
