@@ -1,16 +1,12 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { prisma } from "@wtp/database";
-import { EmailVerificationService } from "./email-verification.service";
 import { startOfDay } from "./dashboard.service";
 
 const RESERVED_STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
 
 @Injectable()
 export class WithdrawalsService {
-  constructor(private readonly emailVerification: EmailVerificationService) {}
-
   async create(userId: string, payoutAccountId: string, amountMinorInput: string, timezone = "UTC") {
-    await this.emailVerification.requireVerified(userId);
     const amountMinor = BigInt(amountMinorInput);
     if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
       throw new BadRequestException("Withdrawal amount must be greater than zero.");
