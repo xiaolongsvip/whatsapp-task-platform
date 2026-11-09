@@ -92,7 +92,16 @@ export class StorageConfigService {
 
   async getRuntimeCredentials() {
     const row = await prisma.objectStorageConfig.findUnique({ where: { id: CONFIG_ID } });
-    if (!row || !row.enabled || !row.accessKeyCiphertext || !row.accessKeyIv || !row.accessKeyTag || !row.secretKeyCiphertext || !row.secretKeyIv || !row.secretKeyTag) return null;
+    // A saved admin-managed record is authoritative. In particular, disabling it
+    // must not silently reactivate older environment credentials.
+    if (!row) return null;
+    if (!row.enabled) {
+      throw new ServiceUnavailableException("后台对象存储配置已停用，请在存储设置中重新启用后再使用。");
+    }
+    if (!row.accessKeyCiphertext || !row.accessKeyIv || !row.accessKeyTag ||
+        !row.secretKeyCiphertext || !row.secretKeyIv || !row.secretKeyTag) {
+      throw new ServiceUnavailableException("后台对象存储凭据不完整，请重新保存 Access Key 和 Secret Key。");
+    }
     return {
       endpoint: row.endpoint, bucket: row.bucket, region: row.region,
       accessKey: decrypt(row.accessKeyCiphertext, row.accessKeyIv, row.accessKeyTag),
