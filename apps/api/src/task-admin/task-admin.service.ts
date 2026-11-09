@@ -184,9 +184,14 @@ export class TaskAdminService {
         case "REVIEW":
           return { AND: [notFrozen, activeTask, { status: "ASSIGNED", claim: { is: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } } }] };
         case "COMPLETED":
-          return { AND: [notFrozen, { OR: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] }] };
+          return { AND: [
+            { status: { not: "VOIDED" } },
+            notFrozen,
+            { OR: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] },
+          ] };
         case "CLOSED":
           return { AND: [
+            { status: { not: "VOIDED" } },
             notFrozen,
             { NOT: [{ status: "USED" }, { claim: { is: { status: "APPROVED" } } }] },
             { OR: [
@@ -195,7 +200,10 @@ export class TaskAdminService {
             ] },
           ] };
         case "FROZEN":
-          return { contactNumber: { is: { OR: [{ status: "BLOCKED" }, { consentStatus: "REVOKED" }] } } };
+          return { AND: [
+            { status: { not: "VOIDED" } },
+            { contactNumber: { is: { OR: [{ status: "BLOCKED" }, { consentStatus: "REVOKED" }] } } },
+          ] };
         case "VOIDED":
           return { status: "VOIDED" };
         default:
