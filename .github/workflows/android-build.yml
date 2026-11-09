@@ -2,12 +2,12 @@ name: Android Build
 
 on:
   push:
-    branches: [main, feature/automatic-task-slot-allocation]
+    branches: [main, feature/automatic-task-slot-allocation, fix/withdrawal-app-rule-alignment]
     paths:
       - "android/**"
       - ".github/workflows/android-build.yml"
   pull_request:
-    branches: [main]
+    branches: [main, fix/withdrawal-app-rule-alignment]
     paths:
       - "android/**"
       - ".github/workflows/android-build.yml"
