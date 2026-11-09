@@ -27,7 +27,7 @@ function currencyDigits(currency: string) {
 }
 function toMinor(amount: string, currency: string) {
   const digits = currencyDigits(currency);
-  const pattern = digits === 0 ? /^\\d+$/ : new RegExp("^\\d+(?:\\.\\d{1," + digits + "})?$");
+  const pattern = digits === 0 ? /^\d+$/ : new RegExp("^\\d+(?:\\.\\d{1," + digits + "})?$");
   if (!pattern.test(amount) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
     throw new Error("请输入大于 0 的金额，" + currency + " 最多保留 " + digits + " 位小数。");
   }
