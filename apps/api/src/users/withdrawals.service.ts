@@ -72,12 +72,12 @@ export class WithdrawalsService {
       [ruleMethod, methodCode].includes(provider.methodCode.trim().toUpperCase()) &&
       provider.supportedChannels.some(channel => channel.trim().toUpperCase() === methodCode)
     );
-    let providerCode = account.providerCode.trim().toUpperCase();
+    let providerCode = account.providerCode.trim();
     if (providerCode === "MANUAL-PK") {
       if (matches.length !== 1) throw new BadRequestException("The legacy payout account cannot be matched to exactly one enabled provider. Please update the payout account.");
       providerCode = matches[0].providerCode;
     }
-    if (!matches.some(provider => provider.providerCode === providerCode)) {
+    if (!matches.some(provider => provider.providerCode.trim().toUpperCase() === providerCode.trim().toUpperCase())) {
       throw new BadRequestException("The selected payout provider is not enabled for this country, currency and method.");
     }
     return { account, rule, providerCode, walletCurrency, payoutCurrency, countryCode, methodCode };
@@ -172,7 +172,7 @@ export class WithdrawalsService {
             throw new BadRequestException("Withdrawal limits changed. Please refresh the quote and try again.");
           }
           const provider = await tx.paymentProviderConfig.findUnique({
-            where: { providerCode: context.providerCode },
+            where: { providerCode: { equals: context.providerCode, mode: "insensitive" } },
             select: { providerCode: true, countryCode: true, methodCode: true, supportedChannels: true, supportedCurrencies: true, enabled: true },
           });
           const ruleMethod = String(currentRule.method ?? "").trim().toUpperCase();
