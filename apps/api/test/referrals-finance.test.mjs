@@ -9,7 +9,9 @@ test("referral commission listing filters status and paginates in SQL instead of
   assert.match(method, /prisma\.\$queryRaw[\s\S]*?COUNT\(\*\)::bigint AS total/);
   assert.match(method, /credit\.id IS NOT NULL/);
   assert.match(method, /credit\.id IS NULL/);
-  assert.match(method, /LIMIT \$\{pageSize\} OFFSET \$\{\(page - 1\) \* pageSize\}/);
+  assert.match(method, /LIMIT \\$\\{limit\\} OFFSET \\$\\{offset\\}/);
+  assert.match(method, /rowParams = \\[\\.\\.\\.params\\]/);
+  assert.match(method, /\$queryRawUnsafe/);
   assert.doesNotMatch(method, /referralReward\.findMany/);
   assert.doesNotMatch(method, /matching\.slice/);
 });
