@@ -13,3 +13,14 @@ test("finance dashboard actual payout total comes from successful PAYOUT transac
   assert.match(page, /money\(x\.amountMinor,x\.currency\)/);
   assert.doesNotMatch(page, /x\.amount\/100/);
 });
+
+
+test("finance page formats large minor-unit amounts and converts payout inputs without floating point", () => {
+  const formatter = page.slice(page.indexOf("const money="), page.indexOf("const date="));
+  assert.match(formatter, /BigInt\(v\)/);
+  assert.match(formatter, /BigInt\(10\)\*\*BigInt\(digits\)/);
+  assert.match(formatter, /const amountToMinor=\(value:string,currency:string\)=>/);
+  assert.match(formatter, /BigInt\(\(whole\+/);
+  assert.doesNotMatch(formatter, /Number\(v\)\/Math\.pow/);
+  assert.doesNotMatch(formatter, /Number\(raw\)\*Math\.pow/);
+});
