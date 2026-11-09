@@ -41,6 +41,11 @@ export class PayoutAccountsService {
       select: { providerCode: true, displayName: true, countryCode: true, methodCode: true, supportedChannels: true, supportedCurrencies: true },
       orderBy: { displayName: "asc" },
     });
+    const catalogRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.payoutCatalogs" }, select: { value: true } });
+    const catalogs = catalogRow?.value as any;
+    const countryCatalog = Array.isArray(catalogs?.countries) ? catalogs.countries : [];
+    const currencyCatalog = Array.isArray(catalogs?.currencies) ? catalogs.currencies : [];
+    const methodCatalog = Array.isArray(catalogs?.methods) ? catalogs.methods : [];
     const items: Array<Record<string, unknown>> = [];
     for (const rule of rules.filter(item => item.status === "ENABLED")) {
       const ruleCountry = String(rule.countryCode ?? "").trim().toUpperCase();
@@ -48,7 +53,15 @@ export class PayoutAccountsService {
       const payoutCurrency = String(rule.payoutCurrency ?? "").trim().toUpperCase();
       const channels = Array.isArray(rule.channels) ? rule.channels.map(value => String(value).trim().toLowerCase()) : [];
       if (!/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency)) continue;
+      const configuredCountry = countryCatalog.find((item: any) => String(item.code).toUpperCase() === ruleCountry);
+      const configuredCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === payoutCurrency);
+      if (countryCatalog.length && (!configuredCountry || configuredCountry.enabled === false)) continue;
+      if (currencyCatalog.length && (!configuredCurrency || configuredCurrency.enabled === false)) continue;
       for (const channel of channels) {
+        const configuredMethod = methodCatalog.find((item: any) => String(item.channel ?? item.code).toLowerCase() === channel);
+        if (methodCatalog.length && (!configuredMethod || configuredMethod.enabled === false)) continue;
+        if (configuredMethod?.countryCodes?.length && !configuredMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(ruleCountry)) continue;
+        if (configuredMethod?.currencyCodes?.length && !configuredMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(payoutCurrency)) continue;
         const duplicateRules = rules.filter(other =>
           other.status === "ENABLED" &&
           String(other.countryCode ?? "").trim().toUpperCase() === ruleCountry &&
