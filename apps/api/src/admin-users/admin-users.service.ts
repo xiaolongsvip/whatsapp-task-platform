@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { randomBytes } from "node:crypto";
 import * as argon2 from "argon2";
 import { prisma } from "@wtp/database";
+import { startOfDay } from "../users/dashboard.service";
 
 const validStatuses = ["ALL", "ACTIVE", "SUSPENDED", "PENDING", "CLOSED"] as const;
 type FilterStatus = typeof validStatuses[number];
@@ -121,11 +122,19 @@ export class AdminUsersService {
       if (!current.some((account) => account.id === row.user.id)) current.push(row.user);
       linkedAccounts.set(row.deviceIdentifier, current);
     }
-    const today = utcStart();
-    const [todayClaimed, claimGroups] = await Promise.all([
+    const today = startOfDay(user.profile?.timezone ?? "UTC");
+    const [todayClaimed, claimGroups, limitsRow] = await Promise.all([
       prisma.taskClaim.count({ where: { userId, claimedAt: { gte: today } } }),
       prisma.taskClaim.groupBy({ by: ["status"], where: { userId }, _count: { _all: true } }),
+      prisma.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } }),
     ]);
+    const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
+      ? limitsRow.value as Record<string, unknown>
+      : {};
+    const positiveInteger = (value: unknown, fallback: number) => {
+      const parsed = Number(value);
+      return Number.isInteger(parsed) && parsed >= 1 && parsed <= 1000000 ? parsed : fallback;
+    };
     const claimCounts = Object.fromEntries(claimGroups.map((group) => [group.status, group._count._all])) as Record<string, number>;
     const allClaimCount = claimGroups.reduce((sum, group) => sum + group._count._all, 0);
     const approved = claimCounts.APPROVED ?? 0;
@@ -151,8 +160,8 @@ export class AdminUsersService {
     const withdrawalTotal = withdrawalGroups.reduce((sum, group) => sum + group._count._all, 0);
     const withdrawalPending = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"].reduce((sum, status) => sum + withdrawalCount(status), 0);
     const withdrawalPaid = withdrawalCount("PAID");
-    const effectiveDailyLimit = user.profile?.dailyTaskLimit ?? 20;
-    const effectiveInterval = user.profile?.minClaimIntervalSeconds ?? 60;
+    const effectiveDailyLimit = user.profile?.dailyTaskLimit ?? positiveInteger(globalLimits.dailyLimit, 20);
+    const effectiveInterval = user.profile?.minClaimIntervalSeconds ?? positiveInteger(globalLimits.minimumIntervalSeconds, 60);
     return {
       basic: { id: user.id, phone: user.phone, referralCode: user.referralCode, inviter: user.invitedBy?.inviter ?? null, status: user.status, createdAt: user.createdAt, displayName: user.profile?.displayName ?? null, email: null, lastLoginAt: user.sessions[0]?.createdAt ?? null, reputationScore: user.profile?.reputationScore ?? 60, balances, todayClaimed, remainingToday: Math.max(0, effectiveDailyLimit - todayClaimed), effectiveDailyLimit, effectiveMinClaimIntervalSeconds: effectiveInterval, dailyTaskLimit: user.profile?.dailyTaskLimit ?? null, minClaimIntervalSeconds: user.profile?.minClaimIntervalSeconds ?? null, taskLimitSource: user.profile?.dailyTaskLimit == null ? "继承系统默认" : "用户自定义", intervalSource: user.profile?.minClaimIntervalSeconds == null ? "继承系统默认" : "用户自定义" },
       devices: { supported: true, items: user.devices.map((device) => ({
