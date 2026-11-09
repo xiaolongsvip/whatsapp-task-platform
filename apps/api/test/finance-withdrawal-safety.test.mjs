@@ -418,3 +418,8 @@ test("provider codes are resolved case-insensitively and the persisted canonical
   assert.match(withdrawals, /providerCode: \{ equals: context.providerCode, mode: "insensitive" \}/);
   assert.match(withdrawals, /provider.providerCode.trim\(\).toUpperCase\(\) === providerCode.trim\(\).toUpperCase\(\)/);
 });
+test("admin payout catalog editor splits entries on real newline characters", () => {
+  const admin = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
+  assert.match(admin, /value\.split\("\\n"\)/);
+  assert.doesNotMatch(admin, /value\.split\("\\\\n"\)/);
+});
