@@ -441,6 +441,7 @@ export class AiReviewAdminService {
       imageDimensions: null,
       contentHash: item.contentSha256,
       retentionStatus: item.evidenceDeletedAt ? "DELETED" : item.evidenceDeleteLastError ? "DELETE_FAILED" :
+        ["APPROVED", "REJECTED"].includes(item.status) &&
         item.submittedAt.getTime() <= Date.now() - retentionDays * 24 * 60 * 60 * 1000 ? "PENDING_DELETION" : "NORMAL",
       retentionUntil: new Date(item.submittedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString(),
       deletionAttempts: item.evidenceDeleteAttempts,
