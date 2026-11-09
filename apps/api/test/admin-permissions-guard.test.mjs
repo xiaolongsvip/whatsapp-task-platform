@@ -20,3 +20,12 @@ test("referral commission endpoint uses database pagination and does not load al
   assert.doesNotMatch(method, /referralReward\.findMany/);
   assert.doesNotMatch(method, /matching\.slice/);
 });
+
+
+test("system support, exchange-rate and payout-catalog routes have explicit permission mappings", () => {
+  const mapping = guard.split("\n").find((line) => line.includes("exchange-rates"));
+  assert.ok(mapping, "missing system settings route mapping");
+  for (const route of ["support", "exchange-rates", "payout-catalogs", "system.settings.read", "system.settings.manage"]) {
+    assert.ok(mapping.includes(route), "missing route or permission in mapping: " + route);
+  }
+});
