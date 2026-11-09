@@ -735,7 +735,8 @@ export class FinanceAdminService {
         const expectedCurrency = (x.payoutCurrency ?? x.currency).trim().toUpperCase();
         const paymentMetadata = transaction.metadata && typeof transaction.metadata === "object" ? transaction.metadata as Record<string, unknown> : {};
         const metadataActualAmount = String(paymentMetadata.actualPayoutAmountMinor ?? "");
-        if (transaction.amountMinor <= 0n || transaction.currency.trim().toUpperCase() !== expectedCurrency ||
+        if (transaction.amountMinor <= 0n || transaction.amountMinor !== expectedAmount ||
+            transaction.currency.trim().toUpperCase() !== expectedCurrency ||
             (metadataActualAmount !== "" && metadataActualAmount !== transaction.amountMinor.toString())) {
           items.push({ type: "WITHDRAWAL_PAYOUT_AMOUNT_MISMATCH", recordId: x.id,
             expectedAmountMinor: expectedAmount.toString(), expectedCurrency,
@@ -746,10 +747,19 @@ export class FinanceAdminService {
       }
     }
     const paidWithdrawalSet = new Set(paidWithdrawals.map(x => x.id));
-    for (const x of successfulPayouts) if (x.withdrawalRequestId && !paidWithdrawalSet.has(x.withdrawalRequestId)) items.push({
-      type: "PAYOUT_STATUS_MISMATCH", recordId: x.id, providerCode: x.providerCode,
-      amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "代付交易成功，但关联提现单并非已付款状态",
-    });
+    for (const x of successfulPayouts) {
+      if (!x.withdrawalRequestId) {
+        items.push({
+          type: "PAYOUT_WITHDRAWAL_LINK_MISSING", recordId: x.id, providerCode: x.providerCode,
+          amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "存在成功代付交易，但没有关联提现申请",
+        });
+      } else if (!paidWithdrawalSet.has(x.withdrawalRequestId)) {
+        items.push({
+          type: "PAYOUT_STATUS_MISMATCH", recordId: x.id, providerCode: x.providerCode,
+          amountMinor: x.amountMinor.toString(), currency: x.currency.trim(), message: "代付交易成功，但关联提现单并非已付款状态",
+        });
+      }
+    }
     const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length;
     const exceptionCount = items.length;
     const scanLimitReached = false;
