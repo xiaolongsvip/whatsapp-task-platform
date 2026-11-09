@@ -136,3 +136,14 @@ test("withdrawal rule limits reject unsupported precision and non-finite values"
   assert.equal((adminPage.match(/step="0.01"/g) ?? []).length, 3);
   assert.ok(!adminPage.includes('step="0.001"'));
 });
+
+
+test("daily withdrawal limit uses the member profile timezone instead of UTC midnight", () => {
+  const service = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  const controller = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
+  assert.ok(service.includes('import { startOfDay } from "./dashboard.service";'));
+  assert.ok(service.includes('timezone = "UTC"'));
+  assert.ok(service.includes("const dayStart = startOfDay(timezone)"));
+  assert.ok(controller.includes('user.profile?.timezone ?? "UTC"'));
+  assert.ok(!service.includes("dayStart.setUTCHours(0, 0, 0, 0)"));
+});
