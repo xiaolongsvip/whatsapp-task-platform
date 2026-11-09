@@ -36,7 +36,22 @@ async function api<T>(url: string): Promise<T> {
 }
 function dateString(date: Date) { return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); }
 function countryLabel(code: string) { const names: Record<string, string> = { PK: "巴基斯坦", NG: "尼日利亚", BD: "孟加拉国", KE: "肯尼亚", TZ: "坦桑尼亚", UG: "乌干达", GH: "加纳", IN: "印度", US: "美国", GB: "英国" }; return code === "UNSPECIFIED" ? "未标记" : names[code] ? names[code] + "（" + code + "）" : code; }
-function money(minor: string, currency: string) { return currency + " " + (Number(minor) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function money(minor: string, currency: string) {
+  let amountMinor: bigint;
+  let digits: number;
+  try {
+    amountMinor = BigInt(minor);
+    digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return currency + " —";
+  }
+  const negative = amountMinor < 0n;
+  const absolute = negative ? -amountMinor : amountMinor;
+  const scale = 10n ** BigInt(digits);
+  const whole = (absolute / scale).toLocaleString("en-US");
+  const fraction = digits ? "." + (absolute % scale).toString().padStart(digits, "0") : "";
+  return currency + " " + (negative ? "-" : "") + whole + fraction;
+}
 function amountLines(rows: Amount[]) { return rows.length ? rows.map(x => money(x.amountMinor, x.currency)) : ["—"]; }
 function amountChangeText(rows: { currency: string; change: number | null }[]) { return rows.length ? rows.map(x => x.currency + " " + (x.change === null ? "暂无对比" : (x.change > 0 ? "+" : "") + x.change.toFixed(1) + "%")).join(" / ") : "暂无可比较数据"; }
 function changeText(value: number | null) {
