@@ -45,9 +45,9 @@ function money(minor: string, currency: string) {
   } catch {
     return currency + " —";
   }
-  const negative = amountMinor < 0n;
+  const negative = amountMinor < BigInt(0);
   const absolute = negative ? -amountMinor : amountMinor;
-  const scale = 10n ** BigInt(digits);
+  const scale = BigInt(10) ** BigInt(digits);
   const whole = (absolute / scale).toLocaleString("en-US");
   const fraction = digits ? "." + (absolute % scale).toString().padStart(digits, "0") : "";
   return currency + " " + (negative ? "-" : "") + whole + fraction;
