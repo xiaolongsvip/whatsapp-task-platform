@@ -27,7 +27,7 @@ function currencyDigits(currency: string) {
 }
 function toMinor(amount: string, currency: string) {
   const digits = currencyDigits(currency);
-  const pattern = digits === 0 ? /^\\d+$/ : new RegExp("^\\\\d+(?:\\\\.\\\\d{1," + digits + "})?$");
+  const pattern = digits === 0 ? /^\\d+$/ : new RegExp("^\\d+(?:\\.\\d{1," + digits + "})?$");
   if (!pattern.test(amount) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
     throw new Error("请输入大于 0 的金额，" + currency + " 最多保留 " + digits + " 位小数。");
   }
@@ -99,8 +99,8 @@ export default function WalletHoldsPage() {
   async function freeze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
-      if (!/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) throw new Error("请输入大于 0 的金额，最多两位小数。");
-      const minor = Math.round(Number(amount) * 100).toString();
+      if (!walletCurrency) throw new Error("请先输入钱包 ID 并查询确认钱包币种。");
+      const minor = toMinor(amount, walletCurrency);
       await api("/api/v1/admin/wallet-holds", { method: "POST", body: JSON.stringify({
         walletId: walletId.trim(), amountMinor: minor, reason: reason.trim(), idempotencyKey: key(),
         referenceType: referenceType.trim() || undefined, referenceId: referenceId.trim() || undefined,
