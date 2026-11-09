@@ -29,6 +29,7 @@ test("admin storage UI saves before testing the persisted connection", async () 
   assert.match(source, /method: "PUT"/);
   assert.match(source, /method: "POST"/);
   assert.ok(source.includes("!currentConfig.configured || !currentConfig.enabled"));
+  assert.ok(source.includes("hasUnsavedChanges || !currentConfig.configured"));
   assert.match(source, /setAccessKey\\("\\")/);
   assert.match(source, /setSecretKey\\("\\")/);
 });
