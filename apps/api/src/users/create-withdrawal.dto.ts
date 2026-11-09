@@ -17,7 +17,7 @@ export class CreateWithdrawalDto {
   expectedRate!: string;
 
   @IsString()
-  @Matches(/^[A-Za-z_][A-Za-z0-9_./-]{0,63}$/)
+  @Matches(/^[A-Za-z_][A-Za-z0-9_.\/-]{0,63}$/)
   expectedRateSource!: string;
 
   @IsString()
