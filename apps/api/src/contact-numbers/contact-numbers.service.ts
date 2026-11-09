@@ -223,7 +223,7 @@ export class ContactNumbersService {
     const take = Number.isFinite(parsedLimit) ? Math.min(500, Math.max(1, parsedLimit)) : 200;
     const search = searchInput?.trim();
     const rows = await prisma.contactNumber.findMany({
-      where: search ? { phoneE164: { contains: search.replace(/\\D/g, "") } } : undefined,
+      where: search ? { phoneE164: { contains: search.replace(/\D/g, "") } } : undefined,
       orderBy: { importOrder: "asc" },
       take,
       include: { assignments: { include: { claim: { select: { status: true } } }, orderBy: { assignedAt: "desc" } } },
