@@ -107,6 +107,40 @@ test("APK upload validates ZIP directory and Android manifest before marking a r
 });
 
 
+test("AI review retains automatic approval and automatic rejection with uncertain cases escalated", () => {
+  const worker = readFileSync(new URL("../src/ai-config/ai-review.worker.ts", import.meta.url), "utf8");
+  assert.match(worker, /parsed\.decision === "APPROVE"/);
+  assert.match(worker, /parsed\.confidence >= config\.approveThreshold/);
+  assert.match(worker, /parsed\.decision === "REJECT"/);
+  assert.match(worker, /parsed\.confidence >= config\.rejectThreshold/);
+  assert.match(worker, /await this\.approve\(job\.id, parsed\)/);
+  assert.match(worker, /await this\.reject\(job\.id, parsed\)/);
+  assert.match(worker, /status: "NEEDS_REVIEW"/);
+  assert.match(worker, /status: "APPROVED"/);
+  assert.match(worker, /status: "REJECTED"/);
+});
+
+test("Android member API paths have matching authenticated API controllers", () => {
+  const repository = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
+  const auth = readFileSync(new URL("../src/auth/auth.controller.ts", import.meta.url), "utf8");
+  const users = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
+  const tasks = readFileSync(new URL("../src/tasks/tasks.controller.ts", import.meta.url), "utf8");
+  const updates = readFileSync(new URL("../src/system-settings/public-app-update.controller.ts", import.meta.url), "utf8");
+  for (const route of ['"auth/login"', '"auth/register"', '"auth/refresh"', '"auth/logout"']) {
+    assert.ok(repository.includes(route), "missing Android route: " + route);
+  }
+  for (const route of ['"users/dashboard"', '"users/promotion"', '"users/commission-records"', '"users/wallet-overview"', '"users/wallet-transactions?limit=$limit"', '"users/withdrawals"', '"users/payout-accounts"', '"users/team"', '"users/me/password"']) {
+    assert.ok(repository.includes(route), "missing Android route: " + route);
+  }
+  assert.match(auth, /@Post\("login"\)/);
+  assert.match(users, /@Get\("dashboard"\)/);
+  assert.match(users, /@Get\("wallet-overview"\)/);
+  assert.match(users, /@Post\("withdrawals"\)/);
+  assert.match(tasks, /@Post\(":taskId\/claims"\)/);
+  assert.match(updates, /@Get\("update"\)/);
+  assert.match(updates, /@Get\("support"\)/);
+});
+
 test("member dashboard returns pending task reward totals and lifetime credited earnings by currency", () => {
   const dashboard = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
   const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
