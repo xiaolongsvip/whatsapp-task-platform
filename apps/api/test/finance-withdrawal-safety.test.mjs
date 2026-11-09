@@ -487,10 +487,10 @@ test("withdrawal submission requires the displayed FX quote and rejects changed 
   assert.match(dto, /expectedWalletCurrency!/);
   assert.match(dto, /expectedPayoutCurrency!/);
   assert.match(dto, /expectedPayoutAmountMinor!/);
-  assert.match(dto, /A-Za-z0-9_.\\/-/);
+  assert.ok(dto.includes(String.raw`A-Za-z0-9_.\\/-`));
   assert.match(controller, /fetchedAt: body\.expectedRateFetchedAt/);
   assert.match(withdrawals, /WITHDRAWAL_QUOTE_CHANGED/);
-  assert.match(withdrawals, /!sameRate \|\| !sameSource \|\| !sameObservation/);
+  assert.match(withdrawals, /!sameRate \\|\\| !sameSource \\|\\| !sameObservation \\|\\| !sameAmount \\|\\| !sameCurrencies/);
   assert.match(withdrawals, /rate\.source === "IDENTITY"/);
   assert.match(repo, /expectedRateFetchedAt/);
   assert.match(repo, /expectedQuoteAmountMinor/);
