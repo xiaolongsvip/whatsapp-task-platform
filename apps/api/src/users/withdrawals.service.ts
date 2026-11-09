@@ -34,6 +34,19 @@ export class WithdrawalsService {
     const payoutCurrency = account.currency.trim().toUpperCase();
     const countryCode = account.countryCode.trim().toUpperCase();
     const methodCode = account.methodCode.trim().toUpperCase();
+    const catalogRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.payoutCatalogs" }, select: { value: true } });
+    const catalogs = catalogRow?.value as any;
+    const countryCatalog = Array.isArray(catalogs?.countries) ? catalogs.countries : [];
+    const currencyCatalog = Array.isArray(catalogs?.currencies) ? catalogs.currencies : [];
+    const methodCatalog = Array.isArray(catalogs?.methods) ? catalogs.methods : [];
+    const configuredCountry = countryCatalog.find((item: any) => String(item.code).toUpperCase() === countryCode);
+    const configuredCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === payoutCurrency);
+    const configuredMethod = methodCatalog.find((item: any) => String(item.channel ?? item.code).toLowerCase() === methodCode.toLowerCase());
+    if (countryCatalog.length && (!configuredCountry || configuredCountry.enabled === false)) throw new BadRequestException("This payout country is no longer available.");
+    if (currencyCatalog.length && (!configuredCurrency || configuredCurrency.enabled === false)) throw new BadRequestException("This payout currency is no longer available.");
+    if (methodCatalog.length && (!configuredMethod || configuredMethod.enabled === false)) throw new BadRequestException("This payout method is no longer available.");
+    if (configuredMethod?.countryCodes?.length && !configuredMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(countryCode)) throw new BadRequestException("This payout method is not available in this country.");
+    if (configuredMethod?.currencyCodes?.length && !configuredMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(payoutCurrency)) throw new BadRequestException("This payout method does not support this currency.");
     const rulesRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
     const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ countryCode: "PK", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", status: "ENABLED", minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, channels: ["jazzcash", "easypaisa"] }];
     const matchesRule = (item: Record<string, unknown>) =>
@@ -128,6 +141,17 @@ export class WithdrawalsService {
             account.countryCode.trim().toUpperCase() !== context.countryCode ||
             account.methodCode.trim().toUpperCase() !== context.methodCode) {
             throw new BadRequestException("The payout account changed. Please refresh and try again.");
+          }
+          const catalogRow = await tx.taskConfiguration.findUnique({ where: { key: "system.payoutCatalogs" }, select: { value: true } });
+          const catalogs = catalogRow?.value as any;
+          const countryCatalog = Array.isArray(catalogs?.countries) ? catalogs.countries : [];
+          const currencyCatalog = Array.isArray(catalogs?.currencies) ? catalogs.currencies : [];
+          const methodCatalog = Array.isArray(catalogs?.methods) ? catalogs.methods : [];
+          const currentCountry = countryCatalog.find((item: any) => String(item.code).toUpperCase() === context.countryCode);
+          const currentCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === context.payoutCurrency);
+          const currentMethod = methodCatalog.find((item: any) => String(item.channel ?? item.code).toLowerCase() === context.methodCode.toLowerCase());
+          if ((countryCatalog.length && (!currentCountry || currentCountry.enabled === false)) || (currencyCatalog.length && (!currentCurrency || currentCurrency.enabled === false)) || (methodCatalog.length && (!currentMethod || currentMethod.enabled === false)) || (currentMethod?.countryCodes?.length && !currentMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(context.countryCode)) || (currentMethod?.currencyCodes?.length && !currentMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(context.payoutCurrency))) {
+            throw new BadRequestException("The payout country, currency or method configuration changed. Please refresh your payout account.");
           }
           const rulesRow = await tx.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
           const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ countryCode: "PK", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", status: "ENABLED", minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, channels: ["jazzcash", "easypaisa"] }];
