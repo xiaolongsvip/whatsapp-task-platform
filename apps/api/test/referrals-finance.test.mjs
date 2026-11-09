@@ -29,3 +29,11 @@ test("referral commission search includes source and beneficiary identifiers and
     assert.ok(method.includes(field), "missing commission search field: " + field);
   }
 });
+
+
+test("referral commission search only casts canonical UUID strings to UUID", () => {
+  const method = service.slice(service.indexOf("async listCommissions("), service.indexOf("async getSettings()"));
+  assert.match(method, /\^\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-\[1-8\]\[0-9a-f\]\{3\}-\[89ab\]\[0-9a-f\]\{3\}-\[0-9a-f\]\{12\}\$/i);
+  assert.match(method, /rr\.source_user_id = \$\{id\}::uuid/);
+  assert.match(method, /rr\.beneficiary_id = \$\{id\}::uuid/);
+});
