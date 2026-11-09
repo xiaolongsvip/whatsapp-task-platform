@@ -29,3 +29,13 @@ test("admin user list exposes all statuses supported by its backend filter", () 
     assert.ok(page.includes('"' + status + '"'), "frontend status filter missing: " + status);
   }
 });
+
+
+test("user detail uses the same global claim limits and profile timezone as task claiming", () => {
+  const detail = service.slice(service.indexOf("async detail("), service.indexOf("async deviceHistory("));
+  assert.match(detail, /startOfDay\(user\.profile\?\.timezone \?\? "UTC"\)/);
+  assert.match(detail, /taskConfiguration\.findUnique\(\{ where: \{ key: "claim-limits" \}/);
+  assert.match(detail, /globalLimits\.dailyLimit/);
+  assert.match(detail, /globalLimits\.minimumIntervalSeconds/);
+  assert.doesNotMatch(detail, /effectiveDailyLimit = user\.profile\?\.dailyTaskLimit \?\? 20;/);
+});
