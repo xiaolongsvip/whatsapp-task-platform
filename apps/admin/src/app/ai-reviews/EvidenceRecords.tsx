@@ -6,7 +6,7 @@ import AdminSidebar from "../../components/AdminSidebar";
 
 type EvidenceRecord = {
   id: string; userPhone: string; targetPhone: string | null; status: string;
-  retentionStatus: string; source: string; reviewStatus: string; submittedAt: string;
+  retentionStatus: string; retentionUntil?: string | null; deletionAttempts?: number; archivedAt?: string | null; nextRetryAt?: string | null; lastStorageError?: string | null; source: string; reviewStatus: string; submittedAt: string;
   originalName: string | null; mimeType: string | null; sizeBytes: number | null; taskTitle: string;
 };
 type EvidenceDetail = EvidenceRecord & {
@@ -27,6 +27,7 @@ type EvidenceResponse = {
 const empty: EvidenceResponse = { page: 1, pageSize: 20, total: 0, stats: { total: 0, filtered: 0, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 }, records: [] };
 const tabs = [{ key: "ALL", label: "全部" }, { key: "URL_ISSUED", label: "已签发上传地址" }, { key: "SUBMITTED", label: "已提交" }];
 const fmt = (v: string | null | undefined) => v ? new Date(v).toLocaleString("zh-CN", { hour12: false }) : "—";
+const retentionLabel = (v: string) => ({ NORMAL: "保留中", PENDING_DELETION: "待清理", DELETE_FAILED: "删除失败，等待重试", DELETED: "对象已删除" }[v] || v || "未知");
 const bytes = (n: number | null) => n == null ? "—" : n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB";
 const field = (label: string, value: React.ReactNode) => <div className="evidence-detail-field"><span>{label}</span><strong>{value ?? "未记录"}</strong></div>;
 
@@ -78,9 +79,9 @@ export default function EvidenceRecords() {
   const statCards = [
     ["证据总数", data.stats.total, "来自真实提交记录分页总数", "#2864ed"],
     ["当前筛选", data.stats.filtered, "本页筛选返回条数", "#2864ed"],
-    ["已归档待删除", data.stats.markedForDeletion, "保留 90 天后处理", "#64748b"],
+    ["待清理", data.stats.markedForDeletion, "已完成审核且超过保留期限", "#64748b"],
     ["对象已删除", data.stats.deletedObjects, "业务证据与识别元数据保留", "#10b981"],
-    ["删除失败", data.stats.deleteFailures, "可由授权管理员重新排队删除", "#64748b"],
+    ["删除失败", data.stats.deleteFailures, "系统将自动退避重试", "#64748b"],
   ];
   const imageUrl = preview ? "/api/v1/admin/task-submissions/" + preview.id + "/evidence" : "";
   return <div className="dashboard-app">
@@ -108,7 +109,7 @@ export default function EvidenceRecords() {
           <tbody>{loading ? <tr><td colSpan={8} className="evidence-empty">正在加载证据记录…</td></tr> : data.records.length === 0 ? <tr><td colSpan={8} className="evidence-empty">暂无截图证据</td></tr> : data.records.map(item => <tr key={item.id}>
             <td>{item.userPhone || "—"}</td><td>{item.targetPhone || "—"}</td>
             <td><span className="evidence-pill submitted">{item.status === "APPROVED" ? "已通过" : item.status === "REJECTED" ? "已拒绝" : "已提交"}</span></td>
-            <td><span className="evidence-pill normal">正常</span></td><td>{item.source}</td>
+            <td><span className={"evidence-pill " + (item.retentionStatus === "DELETE_FAILED" ? "warning" : item.retentionStatus === "DELETED" ? "info" : "normal")}>{retentionLabel(item.retentionStatus)}</span></td><td>{item.source}</td>
             <td><span className={"evidence-pill " + (item.reviewStatus.includes("通过") ? "success" : item.reviewStatus.includes("复核") ? "warning" : "info")}>{item.reviewStatus}</span></td>
             <td>{fmt(item.submittedAt)}</td><td><button className="evidence-view" onClick={() => void openDetail(item)}>查看</button></td>
           </tr>)}</tbody></table></div>
@@ -140,9 +141,9 @@ export default function EvidenceRecords() {
               {field("读取 URL 过期","由授权接口实时读取")}
             </div></section>
             <section className="evidence-detail-card"><h3>存储与生命周期</h3><div className="evidence-detail-grid">
-              {field("存储生命周期",<span className="evidence-pill normal">{detail.retentionStatus || "正常"}</span>)}{field("删除尝试次数",detail.deletionAttempts)}
+              {field("存储生命周期",<span className={"evidence-pill " + (detail.retentionStatus === "DELETE_FAILED" ? "warning" : detail.retentionStatus === "DELETED" ? "info" : "normal")}>{retentionLabel(detail.retentionStatus)}</span>)}{field("删除尝试次数",detail.deletionAttempts)}
               {field("归档时间",fmt(detail.archivedAt))}{field("下次重试时间",fmt(detail.nextRetryAt))}
-              {field("对象删除时间","未记录")}{field("最近错误",detail.lastStorageError || "—")}
+              {field("对象删除时间",fmt(detail.archivedAt))}{field("最近错误",detail.lastStorageError || "—")}
               {field("保留截止时间",fmt(detail.retentionUntil))}
             </div></section>
           </div>
