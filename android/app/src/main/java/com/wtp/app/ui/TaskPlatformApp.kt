@@ -246,7 +246,7 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
                 Spacer(Modifier.weight(1f)); Text(if (en) "My" else "我的", color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Spacer(Modifier.weight(1f))
                 Icon(Icons.Default.HeadsetMic, if (en) "Customer support" else "联系客服", tint = Color(0xFF5AAED0), modifier = Modifier.clickable { dialog = "support" }); Spacer(Modifier.width(14.dp)); Icon(Icons.Default.Language, null, tint = Color(0xFF5AAED0))
             }
-            Row(Modifier.fillMaxWidth().clickable { dialog = "security" }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clickable(onClick = onAccountSecurity).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color(0xFFDDF3FF), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)) { Icon(Icons.Default.Person, null, tint = Color(0xFF319CCB), modifier = Modifier.size(68.dp).padding(17.dp)) }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
