@@ -37,7 +37,15 @@ export class WalletHoldsAdminService {
       try {
         return await prisma.$transaction(async (tx) => {
           const existing = await tx.walletHold.findUnique({ where: { idempotencyKey: key } });
-          if (existing) return { success: true, holdId: existing.id, status: existing.status, idempotent: true };
+          if (existing) {
+            const sameRequest = existing.walletId === input.walletId &&
+              existing.amountMinor === amount &&
+              existing.reason === reason &&
+              existing.referenceType === (input.referenceType?.trim().slice(0,80) || null) &&
+              existing.referenceId === (input.referenceId?.trim().slice(0,160) || null);
+            if (!sameRequest) throw new ConflictException("幂等键已用于不同的冻结请求，请勿重复使用。");
+            return { success: true, holdId: existing.id, status: existing.status, idempotent: true };
+          }
           const wallet = await tx.wallet.findUnique({ where: { id: input.walletId }, select: { id: true, currency: true } });
           if (!wallet) throw new NotFoundException("钱包不存在。");
           const [entries, withdrawals, holds] = await Promise.all([
@@ -76,7 +84,12 @@ export class WalletHoldsAdminService {
       if (!hold) throw new NotFoundException("冻结记录不存在。");
       const eventType = action === "RELEASE" ? "RELEASED" : "CAPTURED";
       const prior = await tx.walletHoldEvent.findUnique({ where: { idempotencyKey: key } });
-      if (prior) return { success: true, holdId, status: action === "RELEASE" ? "RELEASED" : "CAPTURED", idempotent: true };
+      if (prior) {
+        if (prior.holdId !== holdId || prior.eventType !== eventType) {
+          throw new ConflictException("幂等键已用于其他冻结资金操作，请勿重复使用。");
+        }
+        return { success: true, holdId, status: hold.status, idempotent: true };
+      }
       if (hold.status !== "ACTIVE") throw new ConflictException("该冻结记录已处理，不能重复操作。");
       const changed = await tx.walletHold.updateMany({ where: { id: holdId, status: "ACTIVE" }, data: { status: action === "RELEASE" ? "RELEASED" : "CAPTURED", resolvedByAdminId: adminId, resolvedAt: new Date() } });
       if (changed.count !== 1) throw new ConflictException("冻结记录状态已变化，请刷新后重试。");
