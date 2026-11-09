@@ -251,6 +251,17 @@ test("live exchange rates are fetched server-side, cached, and never silently re
   assert.match(rates, /toPayoutMinor/);
 });
 
+test("payout providers accept catalog-configured countries and currencies instead of a fixed country allowlist", () => {
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  assert.match(finance, /private async validateProviderInput/);
+  assert.match(finance, /\^\(GLOBAL\|\[A-Z\]\{2\}\)\$/);
+  assert.doesNotMatch(finance, /GLOBAL\|PK\|NG\|BD/);
+  assert.match(finance, /system\.payoutCatalogs/);
+  assert.match(finance, /服务商引用的国家未配置或已停用/);
+  assert.match(finance, /服务商引用了未配置或已停用的出款币种/);
+  assert.match(finance, /await this\.validateProviderInput/);
+});
+
 test("APP payout options are derived from enabled admin withdrawal rules and payment providers", () => {
   const accounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
   const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
