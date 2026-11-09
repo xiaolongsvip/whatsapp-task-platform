@@ -28,5 +28,5 @@ test("task edit does not overwrite an existing capacity with an implicit null", 
 
 test("task record detail drawer renders the VOIDED status label", async () => {
   const source = await readSource("../../admin/src/app/tasks/page.tsx");
-  assert.equal((source.match(/VOIDED:"已作废"/g) || []).length, 2);
+  assert.equal((source.match(/VOIDED:"已作废"/g) || []).length, 4);
 });
