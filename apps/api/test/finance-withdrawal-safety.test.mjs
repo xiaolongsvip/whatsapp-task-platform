@@ -564,3 +564,15 @@ test("finance reconciliation reports successful payout transactions without a li
   assert.match(service, /PAYOUT_WITHDRAWAL_LINK_MISSING/);
   assert.match(service, /存在成功代付交易，但没有关联提现申请/);
 });
+
+
+test("risk events retain the risk-only scope while applying keyword, status and level filters before pagination", () => {
+  const admin = readFileSync(new URL("../src/ai-config/ai-review-admin.service.ts", import.meta.url), "utf8");
+  const method = admin.slice(admin.indexOf("async listRiskEvents("), admin.indexOf("async listRiskUsers("));
+  assert.match(method, /target_type = 'RISK_EVENT' OR LEFT\(action, 5\) = 'RISK_'/);
+  assert.match(method, /target_type <> 'RISK_RULE'/);
+  assert.match(method, /metadata->>'status'/);
+  assert.match(method, /metadata->>'riskLevel'/);
+  assert.match(method, /LIMIT \$\{pageSize\} OFFSET \$\{skip\}/);
+  assert.doesNotMatch(method, /where\.OR =/);
+});
