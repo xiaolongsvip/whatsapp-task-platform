@@ -5,11 +5,10 @@ import { DashboardService } from "./dashboard.service";
 import { PayoutAccountsService } from "./payout-accounts.service";
 import { WithdrawalsService } from "./withdrawals.service";
 import { UserDeviceService } from "./device.service";
-import { EmailVerificationService } from "./email-verification.service";
 
 @Module({
   imports: [AuthModule],
   controllers: [UsersController],
-  providers: [DashboardService, PayoutAccountsService, WithdrawalsService, UserDeviceService, EmailVerificationService],
+  providers: [DashboardService, PayoutAccountsService, WithdrawalsService, UserDeviceService],
 })
 export class UsersModule {}
