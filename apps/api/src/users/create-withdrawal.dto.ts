@@ -17,10 +17,26 @@ export class CreateWithdrawalDto {
   expectedRate!: string;
 
   @IsString()
-  @Matches(/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/)
+  @Matches(/^[A-Za-z_][A-Za-z0-9_./-]{0,63}$/)
   expectedRateSource!: string;
 
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}T/)
   expectedRateFetchedAt!: string;
+
+  @IsString()
+  @Matches(/^[0-9]{1,19}$/)
+  expectedQuoteAmountMinor!: string;
+
+  @IsString()
+  @Matches(/^[A-Z]{3}$/)
+  expectedWalletCurrency!: string;
+
+  @IsString()
+  @Matches(/^[A-Z]{3}$/)
+  expectedPayoutCurrency!: string;
+
+  @IsString()
+  @Matches(/^[0-9]{1,19}$/)
+  expectedPayoutAmountMinor!: string;
 }
