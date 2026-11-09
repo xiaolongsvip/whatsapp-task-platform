@@ -645,13 +645,28 @@ export class FinanceAdminService {
   async runFinanceReconciliation(adminId: string) {
     const startedAt = new Date();
     const items: Array<Record<string, unknown>> = [];
+    const batchSize = 1000;
+    const fetchAll = async <T>(load: (skip: number, take: number) => Promise<T[]>): Promise<T[]> => {
+      const all: T[] = [];
+      for (let skip = 0; ; skip += batchSize) {
+        const batch = await load(skip, batchSize);
+        all.push(...batch);
+        if (batch.length < batchSize) return all;
+      }
+    };
     const [approvedSubmissions, paidWithdrawals, successfulPayouts] = await Promise.all([
-      prisma.taskSubmission.findMany({ where: { status: "APPROVED" }, take: 5000, orderBy: { submittedAt: "desc" },
-        include: { claim: { include: { task: { select: { title: true, rewardMinor: true, currency: true } }, user: { select: { phone: true } } } } } }),
-      prisma.withdrawalRequest.findMany({ where: { status: "PAID" }, take: 5000, orderBy: { createdAt: "desc" },
-        select: { id: true, walletId: true, amountMinor: true, currency: true, payoutCurrency: true, payoutAmountMinor: true, createdAt: true } }),
-      prisma.paymentTransaction.findMany({ where: { flow: "PAYOUT", status: "SUCCEEDED" }, take: 5000, orderBy: { createdAt: "desc" },
-        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, providerCode: true, metadata: true } }),
+      fetchAll((skip, take) => prisma.taskSubmission.findMany({
+        where: { status: "APPROVED" }, skip, take, orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
+        include: { claim: { include: { task: { select: { title: true, rewardMinor: true, currency: true } }, user: { select: { phone: true } } } } },
+      })),
+      fetchAll((skip, take) => prisma.withdrawalRequest.findMany({
+        where: { status: "PAID" }, skip, take, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, walletId: true, amountMinor: true, currency: true, payoutCurrency: true, payoutAmountMinor: true, createdAt: true },
+      })),
+      fetchAll((skip, take) => prisma.paymentTransaction.findMany({
+        where: { flow: "PAYOUT", status: "SUCCEEDED" }, skip, take, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, providerCode: true, metadata: true },
+      })),
     ]);
     const claimIds = [...new Set(approvedSubmissions.map(x => x.claimId))];
     const withdrawalIds = [...new Set(paidWithdrawals.map(x => x.id))];
@@ -737,12 +752,12 @@ export class FinanceAdminService {
     });
     const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length;
     const exceptionCount = items.length;
-    const scanLimitReached = approvedSubmissions.length === 5000 || paidWithdrawals.length === 5000 || successfulPayouts.length === 5000;
+    const scanLimitReached = false;
     const completedAt = new Date();
     const status = scanLimitReached ? "INCOMPLETE" : exceptionCount === 0 ? "SUCCESS" : "FAILED";
     const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, uniqueApprovedClaimsChecked: checkedClaims.size,
       paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length,
-      amountDirectionCurrencyChecks: true, scanLimit: 5000, scanLimitReached, exceptionCount };
+      amountDirectionCurrencyChecks: true, batchSize, scanLimitReached, exceptionCount };
     const run = await prisma.financeReconciliationRun.create({ data: {
       triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500) as Prisma.InputJsonValue,
       createdByAdminId: adminId, createdAt: startedAt, completedAt,
