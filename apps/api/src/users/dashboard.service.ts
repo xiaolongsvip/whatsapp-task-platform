@@ -325,6 +325,9 @@ export class DashboardService {
           select: { id: true, sourceType: true, sourceId: true, direction: true, amountMinor: true, currency: true, createdAt: true },
         },
         withdrawals: {
+          // PAID withdrawals already have a corresponding WITHDRAWAL_PAYOUT ledger debit.
+          // Keep non-paid requests visible as workflow records without duplicating posted money movement.
+          where: { status: { not: "PAID" } },
           orderBy: { createdAt: "desc" },
           take,
           select: { id: true, amountMinor: true, currency: true, status: true, createdAt: true, updatedAt: true },
