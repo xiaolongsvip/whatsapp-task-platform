@@ -572,6 +572,7 @@ test("risk events retain the risk-only scope while applying keyword, status and 
   assert.match(method, /target_type = 'RISK_EVENT' OR LEFT\(action, 5\) = 'RISK_'/);
   assert.match(method, /target_type <> 'RISK_RULE'/);
   assert.match(method, /metadata->>'status'/);
+  assert.match(method, /metadata->>'riskType'/);
   assert.match(method, /metadata->>'riskLevel'/);
   assert.match(method, /LIMIT \$\{pageSize\} OFFSET \$\{skip\}/);
   assert.doesNotMatch(method, /where\.OR =/);
