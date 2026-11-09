@@ -586,7 +586,7 @@ export class FinanceAdminService {
       prisma.withdrawalRequest.findMany({ where: { status: "PAID" }, take: 5000, orderBy: { createdAt: "desc" },
         select: { id: true, walletId: true, amountMinor: true, currency: true, payoutCurrency: true, payoutAmountMinor: true, createdAt: true } }),
       prisma.paymentTransaction.findMany({ where: { flow: "PAYOUT", status: "SUCCEEDED" }, take: 5000, orderBy: { createdAt: "desc" },
-        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, providerCode: true } }),
+        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, providerCode: true, metadata: true } }),
     ]);
     const claimIds = [...new Set(approvedSubmissions.map(x => x.claimId))];
     const withdrawalIds = [...new Set(paidWithdrawals.map(x => x.id))];
@@ -596,7 +596,7 @@ export class FinanceAdminService {
       withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } },
         select: { sourceId: true, direction: true, amountMinor: true, currency: true } }) : [],
       withdrawalIds.length ? prisma.paymentTransaction.findMany({ where: { withdrawalRequestId: { in: withdrawalIds }, flow: "PAYOUT", status: "SUCCEEDED" },
-        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true } }) : [],
+        select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, metadata: true } }) : [],
     ]);
     const groupBySource = <T extends { sourceId: string }>(rows: T[]) => {
       const map = new Map<string, T[]>();
@@ -653,11 +653,15 @@ export class FinanceAdminService {
         const transaction = transactions[0];
         const expectedAmount = x.payoutAmountMinor ?? x.amountMinor;
         const expectedCurrency = (x.payoutCurrency ?? x.currency).trim().toUpperCase();
-        if (transaction.amountMinor <= 0n || transaction.currency.trim().toUpperCase() !== expectedCurrency) {
+        const paymentMetadata = transaction.metadata && typeof transaction.metadata === "object" ? transaction.metadata as Record<string, unknown> : {};
+        const metadataActualAmount = String(paymentMetadata.actualPayoutAmountMinor ?? "");
+        if (transaction.amountMinor <= 0n || transaction.currency.trim().toUpperCase() !== expectedCurrency ||
+            (metadataActualAmount !== "" && metadataActualAmount !== transaction.amountMinor.toString())) {
           items.push({ type: "WITHDRAWAL_PAYOUT_AMOUNT_MISMATCH", recordId: x.id,
             expectedAmountMinor: expectedAmount.toString(), expectedCurrency,
-            actualAmountMinor: transaction.amountMinor.toString(), actualCurrency: transaction.currency.trim(),
-            message: "代付交易金额或币种无效，与提现出款币种不一致" });
+            actualAmountMinor: transaction.amountMinor.toString(), metadataActualAmountMinor: metadataActualAmount || null,
+            actualCurrency: transaction.currency.trim(),
+            message: "代付交易金额、币种或付款快照与提现出款记录不一致" });
         }
       }
     }
@@ -668,11 +672,12 @@ export class FinanceAdminService {
     });
     const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length;
     const exceptionCount = items.length;
+    const scanLimitReached = approvedSubmissions.length === 5000 || paidWithdrawals.length === 5000 || successfulPayouts.length === 5000;
     const completedAt = new Date();
-    const status = exceptionCount === 0 ? "SUCCESS" : "FAILED";
+    const status = scanLimitReached ? "INCOMPLETE" : exceptionCount === 0 ? "SUCCESS" : "FAILED";
     const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, uniqueApprovedClaimsChecked: checkedClaims.size,
       paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length,
-      amountDirectionCurrencyChecks: true, exceptionCount };
+      amountDirectionCurrencyChecks: true, scanLimit: 5000, scanLimitReached, exceptionCount };
     const run = await prisma.financeReconciliationRun.create({ data: {
       triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500) as Prisma.InputJsonValue,
       createdByAdminId: adminId, createdAt: startedAt, completedAt,
