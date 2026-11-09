@@ -5,7 +5,7 @@ import { ExchangeRatesService } from "./exchange-rates.service";
 
 const RESERVED_STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
 const currencyDigits = (currency: string) => {
-  try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits); }
+  try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2); }
   catch { return 2; }
 };
 const configuredMinor = (amount: unknown, currency: string) =>
