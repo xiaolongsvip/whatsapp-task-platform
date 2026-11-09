@@ -217,7 +217,8 @@ test("member payout accounts resolve the legacy APP provider placeholder to one 
 test("withdrawal creation validates provider configuration and matches rule channels to payout method", () => {
   const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
   assert.match(withdrawals, /channels\.some\(channel => String\(channel\)\.trim\(\)\.toUpperCase\(\) === methodCode\)/);
-  assert.match(withdrawals, /paymentProviderConfig\.findUnique/);
+  assert.match(withdrawals, /paymentProviderConfig\.findMany/);
+  assert.match(withdrawals, /tx\.paymentProviderConfig\.findFirst/);
   assert.match(withdrawals, /provider\.enabled/);
   assert.match(withdrawals, /provider\.supportedCurrencies\.some\(value => value\.trim\(\)\.toUpperCase\(\) === context\.payoutCurrency\)/);
   assert.match(withdrawals, /provider\.supportedChannels\.some/);
@@ -228,7 +229,7 @@ test("legacy manual-pk accounts are resolved transactionally before a withdrawal
   const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
   assert.match(withdrawals, /providerCode === "MANUAL-PK"/);
   assert.match(withdrawals, /legacy payout account cannot be matched to exactly one enabled provider/);
-  assert.match(withdrawals, /tx\.payoutAccount\.update\(\{ where: \{ id: account\.id \}, data: \{ providerCode: resolvedProviderCode \} \}\)/);
+  assert.match(withdrawals, /tx\.payoutAccount\.update\(\{ where: \{ id: account\.id \}, data: \{ providerCode: context\.providerCode \} \}\)/);
 });
 
 test("live exchange rates are fetched server-side, cached, and never silently replaced by an expired rate", () => {
