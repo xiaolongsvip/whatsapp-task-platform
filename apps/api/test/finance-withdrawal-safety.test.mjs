@@ -472,3 +472,22 @@ test("reconciliation does not report success when scan limit is reached and chec
   assert.match(admin, /x\.status==="INCOMPLETE"\?"扫描不完整"/);
   assert.match(admin, /reconciliationDetail\.status==="INCOMPLETE"\?"扫描不完整"/);
 });
+
+
+test("withdrawal submission requires the displayed FX quote and rejects changed rate observations", () => {
+  const dto = readFileSync(new URL("../src/users/create-withdrawal.dto.ts", import.meta.url), "utf8");
+  const controller = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  const repo = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(dto, /expectedRate!/);
+  assert.match(dto, /expectedRateSource!/);
+  assert.match(dto, /expectedRateFetchedAt!/);
+  assert.match(controller, /expectedQuoteFetchedAt: body\.expectedRateFetchedAt/);
+  assert.match(withdrawals, /WITHDRAWAL_QUOTE_CHANGED/);
+  assert.match(withdrawals, /sameRate && sameSource && sameObservation/);
+  assert.match(withdrawals, /rate\.source === "IDENTITY"/);
+  assert.match(repo, /expectedRateFetchedAt/);
+  assert.match(app, /estimatedPayout != null/);
+  assert.match(app, /AuthRepository\.createWithdrawal\(id, minor, quote/);
+});
