@@ -173,84 +173,83 @@ export class AdminReferralsService {
     if (to && /^\\d{4}-\\d{2}-\\d{2}$/.test(toInput ?? "")) to.setHours(23, 59, 59, 999);
     if (from && to && from > to) throw new BadRequestException("开始日期不能晚于结束日期。");
 
+    // Build only placeholder tokens here. All user-provided values remain bound
+    // parameters passed separately to Prisma, never interpolated into SQL text.
+    const params: unknown[] = [];
+    const bind = (value: unknown) => {
+      params.push(value);
+      return "$" + params.length;
+    };
+    const conditions: string[] = [];
+    if (depth !== undefined) conditions.push("rr.depth = " + bind(depth));
+    if (from) conditions.push("rr.created_at >= " + bind(from));
+    if (to) conditions.push("rr.created_at <= " + bind(to));
     const search = searchInput?.trim();
-    const conditions: Prisma.Sql[] = [];
-    if (depth !== undefined) conditions.push(Prisma.sql`rr.depth = ${depth}`);
-    if (from) conditions.push(Prisma.sql`rr.created_at >= ${from}`);
-    if (to) conditions.push(Prisma.sql`rr.created_at <= ${to}`);
     if (search) {
-      const pattern = `%${search}%`;
-      const parts: Prisma.Sql[] = [
-        Prisma.sql`rr.source_event_id ILIKE ${pattern}`,
-        Prisma.sql`source_user.phone ILIKE ${pattern}`,
-        Prisma.sql`source_user.referral_code ILIKE ${pattern}`,
-        Prisma.sql`beneficiary.phone ILIKE ${pattern}`,
-        Prisma.sql`beneficiary.referral_code ILIKE ${pattern}`,
+      const pattern = bind("%" + search + "%");
+      const fields = [
+        "rr.source_event_id ILIKE " + pattern,
+        "source_user.phone ILIKE " + pattern,
+        "source_user.referral_code ILIKE " + pattern,
+        "beneficiary.phone ILIKE " + pattern,
+        "beneficiary.referral_code ILIKE " + pattern,
       ];
       if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search)) {
-        parts.push(Prisma.sql`rr.source_event_id = ${search}`);
-        parts.push(Prisma.sql`rr.source_user_id = ${search}::uuid`);
-        parts.push(Prisma.sql`rr.beneficiary_id = ${search}::uuid`);
+        const id = bind(search);
+        fields.push("rr.source_event_id = " + id);
+        fields.push("rr.source_user_id = " + id + "::uuid");
+        fields.push("rr.beneficiary_id = " + id + "::uuid");
       }
-      conditions.push(Prisma.sql`(${Prisma.join(parts, " OR ")})`);
+      conditions.push("(" + fields.join(" OR ") + ")");
     }
-    const baseWhere = conditions.length ? Prisma.join(conditions, " AND ") : Prisma.sql`TRUE`;
-    const statusWhere = status === "CREDITED"
-      ? Prisma.sql`credit.id IS NOT NULL`
-      : status === "PENDING" ? Prisma.sql`credit.id IS NULL` : Prisma.sql`TRUE`;
-    const where = Prisma.sql`${baseWhere} AND ${statusWhere}`;
-
-    const [countRows, rows, aggregateRows] = await Promise.all([
-      prisma.$queryRaw<Array<{ total: bigint }>>`
-        SELECT COUNT(*)::bigint AS total
+    const baseWhere = conditions.length ? conditions.join(" AND ") : "TRUE";
+    const statusWhere = status === "CREDITED" ? "credit.id IS NOT NULL" :
+      status === "PENDING" ? "credit.id IS NULL" : "TRUE";
+    const joins = `
         FROM referral_rewards rr
         LEFT JOIN ledger_entries credit
           ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
         LEFT JOIN users source_user ON source_user.id = rr.source_user_id
-        LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id
-        WHERE ${where}
-      `,
-      prisma.$queryRaw<Array<{
+        LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id`;
+    const where = baseWhere + " AND " + statusWhere;
+    const rowParams = [...params];
+    const limit = "$" + (rowParams.push(pageSize));
+    const offset = "$" + (rowParams.push((page - 1) * pageSize));
+
+    const [countRows, rows, aggregateRows] = await Promise.all([
+      prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
+        "SELECT COUNT(*)::bigint AS total " + joins + " WHERE " + where, ...params),
+      prisma.$queryRawUnsafe<Array<{
         id: string; beneficiaryId: string; beneficiaryPhone: string | null;
         sourceUserId: string; sourcePhone: string | null; sourceEventId: string;
         sourceTaskTitle: string | null; depth: number; amountMinor: bigint;
         currency: string; status: "CREDITED" | "PENDING"; creditedAt: Date | null; createdAt: Date;
-      }>>`
-        SELECT rr.id, rr.beneficiary_id AS "beneficiaryId", beneficiary.phone AS "beneficiaryPhone",
+      }>>(
+        `SELECT rr.id, rr.beneficiary_id AS "beneficiaryId", beneficiary.phone AS "beneficiaryPhone",
           rr.source_user_id AS "sourceUserId", source_user.phone AS "sourcePhone",
           rr.source_event_id AS "sourceEventId", task.title AS "sourceTaskTitle",
           rr.depth, rr.amount_minor AS "amountMinor", rr.currency,
           CASE WHEN credit.id IS NULL THEN 'PENDING' ELSE 'CREDITED' END AS status,
           credit.created_at AS "creditedAt", rr.created_at AS "createdAt"
-        FROM referral_rewards rr
-        LEFT JOIN ledger_entries credit
-          ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
-        LEFT JOIN users source_user ON source_user.id = rr.source_user_id
-        LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id
+        ${joins}
         LEFT JOIN task_claims claim ON claim.id::text = rr.source_event_id
         LEFT JOIN tasks task ON task.id = claim.task_id
         WHERE ${where}
         ORDER BY rr.created_at DESC, rr.id DESC
-        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
-      `,
-      prisma.$queryRaw<Array<{
+        LIMIT ${limit} OFFSET ${offset}`, ...rowParams),
+      prisma.$queryRawUnsafe<Array<{
         currency: string; creditedCount: bigint; pendingCount: bigint;
         creditedMinor: bigint | null; pendingMinor: bigint | null;
-      }>>`
-        SELECT rr.currency,
+      }>>(
+        `SELECT rr.currency,
           COUNT(*) FILTER (WHERE credit.id IS NOT NULL)::bigint AS "creditedCount",
           COUNT(*) FILTER (WHERE credit.id IS NULL)::bigint AS "pendingCount",
           COALESCE(SUM(rr.amount_minor) FILTER (WHERE credit.id IS NOT NULL), 0)::bigint AS "creditedMinor",
           COALESCE(SUM(rr.amount_minor) FILTER (WHERE credit.id IS NULL), 0)::bigint AS "pendingMinor"
-        FROM referral_rewards rr
-        LEFT JOIN ledger_entries credit
-          ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
-        LEFT JOIN users source_user ON source_user.id = rr.source_user_id
-        LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id
+        ${joins}
         WHERE ${baseWhere}
         GROUP BY rr.currency
-        ORDER BY rr.currency
-      `,
+        ORDER BY rr.currency`, ...params),
     ]);
     const statistics = aggregateRows.map((row) => {
       const creditedMinor = row.creditedMinor ?? 0n;
@@ -263,9 +262,9 @@ export class AdminReferralsService {
         totalCount: creditedCount + pendingCount, totalMinor: (creditedMinor + pendingMinor).toString(),
       };
     });
+    const total = Number(countRows[0]?.total ?? 0n);
     return {
-      total: Number(countRows[0]?.total ?? 0n), page, pageSize,
-      totalPages: Math.max(1, Math.ceil(Number(countRows[0]?.total ?? 0n) / pageSize)),
+      total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)),
       items: rows.map((row) => ({
         id: row.id, beneficiaryId: row.beneficiaryId, beneficiaryPhone: row.beneficiaryPhone ?? "—",
         sourceUserId: row.sourceUserId, sourcePhone: row.sourcePhone ?? "—",
