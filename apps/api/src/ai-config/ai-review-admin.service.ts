@@ -9,9 +9,10 @@ export class AiReviewAdminService {
   async getEvidence(submissionId: string) {
     const submission = await prisma.taskSubmission.findUnique({
       where: { id: submissionId },
-      select: { objectKey: true, mimeType: true, originalName: true },
+      select: { objectKey: true, mimeType: true, originalName: true, evidenceDeletedAt: true },
     });
     if (!submission) throw new NotFoundException("任务提交记录不存在。");
+    if (submission.evidenceDeletedAt) throw new NotFoundException("该截图已超过保留期限并从对象存储删除。");
     const buffer = await this.storage.getObjectBuffer(submission.objectKey);
     const mimeType = ["image/jpeg", "image/png", "image/webp"].includes(submission.mimeType || "")
       ? submission.mimeType!
@@ -436,13 +437,14 @@ export class AiReviewAdminService {
       submittedAt: item.submittedAt.toISOString(),
       objectKey: item.objectKey,
       imageDimensions: null,
-      contentHash: null,
-      retentionStatus: "正常",
-      retentionUntil: null,
-      deletionAttempts: 0,
-      archivedAt: null,
-      nextRetryAt: null,
-      lastStorageError: null,
+      contentHash: item.contentSha256,
+      retentionStatus: item.evidenceDeletedAt ? "DELETED" : item.evidenceDeleteLastError ? "DELETE_FAILED" :
+        item.submittedAt.getTime() <= Date.now() - retentionDays * 24 * 60 * 60 * 1000 ? "PENDING_DELETION" : "NORMAL",
+      retentionUntil: new Date(item.submittedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString(),
+      deletionAttempts: item.evidenceDeleteAttempts,
+      archivedAt: item.evidenceDeletedAt?.toISOString() ?? null,
+      nextRetryAt: item.evidenceDeleteNextAttemptAt?.toISOString() ?? null,
+      lastStorageError: item.evidenceDeleteLastError,
     };
   }
 
