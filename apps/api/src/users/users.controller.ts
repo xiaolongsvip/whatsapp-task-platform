@@ -58,7 +58,7 @@ export class UsersController {
   @Post("withdrawals")
   async createWithdrawal(@Req() request: Request, @Body() body: CreateWithdrawalDto) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.withdrawals.create(user.id, body.payoutAccountId, body.amountMinor);
+    return this.withdrawals.create(user.id, body.payoutAccountId, body.amountMinor, user.profile?.timezone ?? "UTC");
   }
 
   @Get("payout-accounts")
