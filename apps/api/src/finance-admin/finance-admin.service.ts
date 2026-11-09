@@ -26,8 +26,8 @@ function majorToMinor(amount: string, currency: string): bigint {
   return BigInt(whole) * (10n ** BigInt(digits)) + BigInt((fraction + "0".repeat(digits)).slice(0, digits) || "0");
 }
 const dateRange = (from?: string, to?: string) => ({
-  ...(from && /^\\d{4}-\\d{2}-\\d{2}$/.test(from) ? { gte: new Date(from + "T00:00:00.000Z") } : {}),
-  ...(to && /^\\d{4}-\\d{2}-\\d{2}$/.test(to) ? { lte: new Date(to + "T23:59:59.999Z") } : {}),
+  ...(from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? { gte: new Date(from + "T00:00:00.000Z") } : {}),
+  ...(to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? { lte: new Date(to + "T23:59:59.999Z") } : {}),
 });
 
 @Injectable()
