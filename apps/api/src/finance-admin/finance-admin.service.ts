@@ -18,29 +18,16 @@ function majorToMinor(amount: string, currency: string): bigint {
     throw new BadRequestException("币种代码无效，无法确定金额精度");
   }
   const fractionPattern = digits === 0 ? "" : `(?:\\.\\d{1,${digits}})?`;
-  const pattern = new RegExp(`^(?:0|[1-9]\\d{0,11})${fractionPattern}import { Injectable, BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
-import { prisma, type Prisma } from "@wtp/database";
-
-const RESERVED = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
-const PAGE_MAX = 100;
-const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-const pageArgs = (page?: string, pageSize?: string) => {
-  const p = Math.max(1, Number.parseInt(page || "1", 10) || 1);
-  const size = Math.min(PAGE_MAX, Math.max(1, Number.parseInt(pageSize || "20", 10) || 20));
-  return { page: p, pageSize: size, skip: (p - 1) * size, take: size };
-};
-);
+  const pattern = new RegExp(`^(?:0|[1-9]\\d{0,11})${fractionPattern}$`);
   if (!pattern.test(amount) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
     throw new BadRequestException(`金额必须大于 0，${currency} 最多保留 ${digits} 位小数`);
   }
   const [whole, fraction = ""] = amount.split(".");
   return BigInt(whole) * (10n ** BigInt(digits)) + BigInt((fraction + "0".repeat(digits)).slice(0, digits) || "0");
 }
-
 const dateRange = (from?: string, to?: string) => ({
-  ...(from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? { gte: new Date(from + "T00:00:00.000Z") } : {}),
-  ...(to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? { lte: new Date(to + "T23:59:59.999Z") } : {}),
+  ...(from && /^\\d{4}-\\d{2}-\\d{2}$/.test(from) ? { gte: new Date(from + "T00:00:00.000Z") } : {}),
+  ...(to && /^\\d{4}-\\d{2}-\\d{2}$/.test(to) ? { lte: new Date(to + "T23:59:59.999Z") } : {}),
 });
 
 @Injectable()
