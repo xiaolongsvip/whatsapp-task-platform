@@ -48,14 +48,14 @@ export class WalletHoldsAdminService {
           }
           const wallet = await tx.wallet.findUnique({ where: { id: input.walletId }, select: { id: true, currency: true } });
           if (!wallet) throw new NotFoundException("钱包不存在。");
-          const [entries, withdrawals, holds] = await Promise.all([
-            tx.ledgerEntry.findMany({ where: { walletId: wallet.id }, select: { direction: true, amountMinor: true } }),
-            tx.withdrawalRequest.findMany({ where: { walletId: wallet.id, status: { in: [...RESERVED] } }, select: { amountMinor: true } }),
+          const [ledgerGroups, withdrawals, holds] = await Promise.all([
+            tx.ledgerEntry.groupBy({ by: ["direction"], where: { walletId: wallet.id }, _sum: { amountMinor: true } }),
+            tx.withdrawalRequest.aggregate({ where: { walletId: wallet.id, status: { in: [...RESERVED] } }, _sum: { amountMinor: true } }),
             tx.walletHold.aggregate({ where: { walletId: wallet.id, status: "ACTIVE" }, _sum: { amountMinor: true } }),
           ]);
-          const credits = entries.filter((e) => e.direction === "CREDIT").reduce((v,e) => v+e.amountMinor,0n);
-          const debits = entries.filter((e) => e.direction === "DEBIT").reduce((v,e) => v+e.amountMinor,0n);
-          const reserved = withdrawals.reduce((v,e) => v+e.amountMinor,0n);
+          const credits = ledgerGroups.find((entry) => entry.direction === "CREDIT")?._sum.amountMinor ?? 0n;
+          const debits = ledgerGroups.find((entry) => entry.direction === "DEBIT")?._sum.amountMinor ?? 0n;
+          const reserved = withdrawals._sum.amountMinor ?? 0n;
           const frozen = holds._sum.amountMinor ?? 0n;
           if (amount > credits - debits - reserved - frozen) throw new BadRequestException("冻结金额超过当前可用余额。");
           const hold = await tx.walletHold.create({ data: {
