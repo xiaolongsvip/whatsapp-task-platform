@@ -16,10 +16,41 @@ const btn:React.CSSProperties={height:34,padding:"0 12px",border:"1px solid #dce
 const th:React.CSSProperties={textAlign:"left",padding:"11px 10px",fontSize:11,color:"#718096",background:"#f8fafc",whiteSpace:"nowrap",borderBottom:"1px solid #edf1f6"};
 const td:React.CSSProperties={padding:"12px 10px",fontSize:12,color:"#34445b",borderBottom:"1px solid #edf1f6",whiteSpace:"nowrap"};
 async function get<T>(url:string):Promise<T>{const r=await fetch(url,{credentials:"include"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||"读取财务数据失败");return d as T;}
-const money=(v:string,c:string)=>{const digits=(()=>{try{return Math.max(0,new Intl.NumberFormat("en",{style:"currency",currency:c}).resolvedOptions().maximumFractionDigits ?? 2);}catch{return 2;}})();return c+" "+(Number(v)/Math.pow(10,digits)).toFixed(digits);};
+const money=(v:string,c:string)=>{
+ const digits=currencyDigits(c);
+ try{
+  const amount=BigInt(v);
+  const negative=amount<BigInt(0);
+  const absolute=negative?-amount:amount;
+  const scale=BigInt(10)**BigInt(digits);
+  const whole=(absolute/scale).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
+  const fraction=digits?"."+(absolute%scale).toString().padStart(digits,"0"):"";
+  return c+" "+(negative?"-":"")+whole+fraction;
+ }catch{return c+" —";}
+};
 const currencyDigits=(currency:string)=>{try{return Math.max(0,new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits ?? 2);}catch{return 2;}};
-const amountToMinor=(value:string,currency:string)=>{const raw=value.trim();if(!/^[0-9]+(?:\.[0-9]+)?$/.test(raw))return null;const digits=currencyDigits(currency);const scaled=Number(raw)*Math.pow(10,digits);if(!Number.isFinite(scaled)||!Number.isSafeInteger(Math.round(scaled))||Math.abs(scaled-Math.round(scaled))>1e-7)return null;return String(Math.round(scaled));};
-const minorToMajor=(minor:string,currency:string)=>{const digits=currencyDigits(currency);const value=Number(minor||"0")/Math.pow(10,digits);return Number.isFinite(value)?value.toFixed(digits):"0".repeat(digits?0:1)+(digits?"."+("0".repeat(digits)):"");};
+const amountToMinor=(value:string,currency:string)=>{
+ const raw=value.trim();const digits=currencyDigits(currency);
+ const pattern=digits===0?/^[0-9]+$/:new RegExp("^[0-9]+(?:\\.[0-9]{1,"+digits+"})?$");
+ if(!pattern.test(raw))return null;
+ const [whole,fraction=""]=raw.split(".");
+ try{
+  const amount=BigInt((whole+(fraction+"0".repeat(digits)).slice(0,digits)).replace(/^0+(?=\d)/,"")||"0");
+  return amount>BigInt(0)&&amount<=BigInt("9223372036854775807")?amount.toString():null;
+ }catch{return null;}
+};
+const minorToMajor=(minor:string,currency:string)=>{
+ const digits=currencyDigits(currency);
+ try{
+  const amount=BigInt(minor||"0");
+  const negative=amount<BigInt(0);
+  const absolute=negative?-amount:amount;
+  const scale=BigInt(10)**BigInt(digits);
+  const whole=(absolute/scale).toString();
+  const fraction=digits?"."+(absolute%scale).toString().padStart(digits,"0"):"";
+  return (negative?"-":"")+whole+fraction;
+ }catch{return digits?"0."+"0".repeat(digits):"0";}
+};
 const date=(v:string)=>new Date(v).toLocaleString("zh-CN",{hour12:false});
 function Pill({value}:{value:string}){const ok=["PAID","SUCCEEDED","ACTIVE","已启用"].includes(value);const bad=["FAILED","REJECTED","CANCELLED","DISABLED","已停用"].includes(value);return <span style={{padding:"3px 8px",borderRadius:5,fontSize:10,color:ok?"#15945b":bad?"#c43d3d":"#2868ee",background:ok?"#e9fbf1":bad?"#fff0f0":"#edf4ff"}}>{value}</span>;}
 export default function FinancePage(){
