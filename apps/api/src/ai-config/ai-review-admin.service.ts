@@ -545,24 +545,95 @@ export class AiReviewAdminService {
 
 
   async listRiskEvents(input: { page?: number; pageSize?: number; keyword?: string; level?: string; status?: string }) {
-    const page = Math.max(1, input.page || 1);
-    const pageSize = Math.min(100, Math.max(1, input.pageSize || 20));
-    const where: any = { OR: [{ targetType: "RISK_EVENT" }, { action: { startsWith: "RISK_" } }], NOT: { targetType: "RISK_RULE" } };
-    if (input.keyword) where.OR = [
-      { action: { contains: input.keyword, mode: "insensitive" } },
-      { targetId: { contains: input.keyword, mode: "insensitive" } },
-    ];
-    const [total, rows] = await prisma.$transaction([
-      prisma.auditEvent.count({ where }),
-      prisma.auditEvent.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    const page = Math.max(1, Math.floor(Number(input.page) || 1));
+    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
+    const keyword = input.keyword?.trim() || null;
+    const level = input.level?.trim() || null;
+    const status = input.status?.trim() || null;
+    const skip = (page - 1) * pageSize;
+    const [statsRows, rows] = await Promise.all([
+      prisma.$queryRaw<Array<{ total: bigint; open: bigint; high: bigint; critical: bigint; affectedUsers: bigint }>>`
+        SELECT
+          COUNT(*)::bigint AS total,
+          COUNT(*) FILTER (WHERE COALESCE(metadata->>'status', 'OPEN') = 'OPEN')::bigint AS open,
+          COUNT(*) FILTER (WHERE COALESCE(metadata->>'riskLevel',
+            CASE
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 90 THEN 'CRITICAL'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 70 THEN 'HIGH'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 40 THEN 'MEDIUM'
+              ELSE 'LOW'
+            END) = 'HIGH')::bigint AS high,
+          COUNT(*) FILTER (WHERE COALESCE(metadata->>'riskLevel',
+            CASE
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 90 THEN 'CRITICAL'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 70 THEN 'HIGH'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 40 THEN 'MEDIUM'
+              ELSE 'LOW'
+            END) = 'CRITICAL')::bigint AS critical,
+          COUNT(DISTINCT COALESCE(NULLIF(metadata->>'userId', ''), actor_id::text))::bigint AS "affectedUsers"
+        FROM audit_events
+        WHERE (target_type = 'RISK_EVENT' OR LEFT(action, 5) = 'RISK_')
+          AND target_type <> 'RISK_RULE'
+          AND (${keyword}::text IS NULL OR action ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(target_id, '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'phone', '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'userId', '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'description', '') ILIKE '%' || ${keyword} || '%')
+          AND (${status}::text IS NULL OR COALESCE(metadata->>'status', 'OPEN') = ${status})
+          AND (${level}::text IS NULL OR COALESCE(metadata->>'riskLevel',
+            CASE
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 90 THEN 'CRITICAL'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 70 THEN 'HIGH'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 40 THEN 'MEDIUM'
+              ELSE 'LOW'
+            END) = ${level})
+      `,
+      prisma.$queryRaw<Array<{ id: string; action: string; targetId: string | null; metadata: unknown; actorId: string | null; createdAt: Date }>>`
+        SELECT id, action, target_id AS "targetId", metadata, actor_id AS "actorId", created_at AS "createdAt"
+        FROM audit_events
+        WHERE (target_type = 'RISK_EVENT' OR LEFT(action, 5) = 'RISK_')
+          AND target_type <> 'RISK_RULE'
+          AND (${keyword}::text IS NULL OR action ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(target_id, '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'phone', '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'userId', '') ILIKE '%' || ${keyword} || '%'
+            OR COALESCE(metadata->>'description', '') ILIKE '%' || ${keyword} || '%')
+          AND (${status}::text IS NULL OR COALESCE(metadata->>'status', 'OPEN') = ${status})
+          AND (${level}::text IS NULL OR COALESCE(metadata->>'riskLevel',
+            CASE
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 90 THEN 'CRITICAL'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 70 THEN 'HIGH'
+              WHEN (CASE WHEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', '')) ~ '^-?[0-9]+([.][0-9]+)?$'
+                THEN COALESCE(NULLIF(metadata->>'riskScore', ''), NULLIF(metadata->>'score', ''))::numeric ELSE 0 END) >= 40 THEN 'MEDIUM'
+              ELSE 'LOW'
+            END) = ${level})
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${pageSize} OFFSET ${skip}
+      `,
     ]);
     const events = rows.map((row) => {
       const meta = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata as Record<string, unknown> : {};
-      const score = Number(meta.riskScore ?? meta.score ?? 0);
+      const rawScore = Number(meta.riskScore ?? meta.score ?? 0);
+      const score = Number.isFinite(rawScore) ? rawScore : 0;
       const level = String(meta.riskLevel ?? (score >= 90 ? "CRITICAL" : score >= 70 ? "HIGH" : score >= 40 ? "MEDIUM" : "LOW"));
       return { id: row.id, type: String(meta.riskType ?? row.action), level, score, status: String(meta.status ?? "OPEN"), userId: String(meta.userId ?? row.actorId ?? ""), phone: String(meta.phone ?? ""), createdAt: row.createdAt.toISOString(), description: String(meta.description ?? meta.reason ?? "") };
-    }).filter((event) => !input.level || event.level === input.level);
-    return { events, total: input.level ? events.length : total, page, pageSize, stats: { open: total, high: events.filter(x => x.level === "HIGH").length, critical: events.filter(x => x.level === "CRITICAL").length } };
+    });
+    const stats = statsRows[0];
+    return {
+      events, total: Number(stats?.total ?? 0n), page, pageSize,
+      stats: { open: Number(stats?.open ?? 0n), high: Number(stats?.high ?? 0n), critical: Number(stats?.critical ?? 0n), affectedUsers: Number(stats?.affectedUsers ?? 0n) },
+    };
   }
 
   async listRiskUsers(input: { keyword?: string; page?: number; pageSize?: number }) {
