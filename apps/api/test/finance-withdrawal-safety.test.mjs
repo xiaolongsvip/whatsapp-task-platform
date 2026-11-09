@@ -397,3 +397,24 @@ test("admin-managed payout catalogs validate and expose countries, currencies an
   assert.match(app, /AuthRepository\.payoutOptions\(\)/);
   assert.match(app, /options = response\.optJSONArray\("items"\)/);
 });
+
+test("payout catalog availability is enforced at account creation and again during withdrawal", () => {
+  const accounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
+  assert.match(accounts, /This payout country is not currently available/);
+  assert.match(accounts, /This payout method is not currently available/);
+  assert.match(withdrawals, /This payout country is no longer available/);
+  assert.match(withdrawals, /payout country, currency or method configuration changed/);
+  assert.match(settings, /提现规则引用的钱包币种或出款币种未配置或已停用/);
+  assert.match(settings, /提现规则包含未启用或不适用于该国家、币种的收款方式/);
+});
+
+test("provider codes are resolved case-insensitively and the persisted canonical provider code is reused", () => {
+  const accounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  assert.match(accounts, /providerCode: \{ equals: resolvedProviderCode, mode: "insensitive" \}/);
+  assert.match(accounts, /resolvedProviderCode = provider.providerCode/);
+  assert.match(withdrawals, /providerCode: \{ equals: context.providerCode, mode: "insensitive" \}/);
+  assert.match(withdrawals, /provider.providerCode.trim\(\).toUpperCase\(\) === providerCode.trim\(\).toUpperCase\(\)/);
+});
