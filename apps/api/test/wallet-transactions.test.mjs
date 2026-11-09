@@ -25,6 +25,20 @@ test("wallet transaction history includes withdrawal request status without doub
   assert.match(service, /wallet\.withdrawals/);
 });
 
+test("paid withdrawals are represented by their posted ledger debit only once", () => {
+  assert.match(service, /where: \{ status: \{ not: "PAID" \} \}/);
+  assert.match(service, /PAID withdrawals already have a corresponding WITHDRAWAL_PAYOUT ledger debit/);
+});
+
+test("wallet hold idempotency keys cannot be reused for a different freeze or resolution", () => {
+  const holds = readFileSync(new URL("../src/wallet-holds-admin/wallet-holds-admin.service.ts", import.meta.url), "utf8");
+  assert.match(holds, /sameRequest = existing\.walletId === input\.walletId/);
+  assert.match(holds, /existing\.amountMinor === amount/);
+  assert.match(holds, /prior\.holdId !== holdId \|\| prior\.eventType !== eventType/);
+  assert.match(holds, /幂等键已用于不同的冻结请求/);
+  assert.match(holds, /幂等键已用于其他冻结资金操作/);
+});
+
 test("wallet overview aggregates lifetime ledger totals and separates withdrawal reserves", () => {
   assert.match(service, /async getWalletOverview\(userId: string\)/);
   assert.match(service, /prisma\.ledgerEntry\.groupBy/);
