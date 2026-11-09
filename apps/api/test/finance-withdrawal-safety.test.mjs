@@ -496,5 +496,7 @@ test("withdrawal submission requires the displayed FX quote and rejects changed 
   assert.match(repo, /expectedQuoteAmountMinor/);
   assert.match(repo, /expectedPayoutAmountMinor/);
   assert.match(app, /estimatedPayout != null/);
+  assert.match(app, /withdrawalQuote\(id, minor\)/);
+  assert.match(app, /payout estimate no longer matches/);
   assert.match(app, /AuthRepository\.createWithdrawal\(id, minor, quote/);
 });
