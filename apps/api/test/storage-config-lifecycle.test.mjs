@@ -21,7 +21,7 @@ test("saved disabled object storage configuration cannot fall back to environmen
 
 test("storage configuration routes require an active admin session", async () => {
   const source = await readSource("../src/storage-config/storage-config.controller.ts");
-  assert.equal((source.match(/await this\\.auth\\.getCurrentAdmin\\(token\\(request\\)\\)/g) || []).length, 3);
+  assert.equal(source.split("await this.auth.getCurrentAdmin(token(request))").length - 1, 3);
 });
 
 test("admin storage UI saves before testing the persisted connection", async () => {
@@ -31,4 +31,11 @@ test("admin storage UI saves before testing the persisted connection", async () 
   assert.ok(source.includes("!currentConfig.configured || !currentConfig.enabled"));
   assert.match(source, /setAccessKey\\("\\")/);
   assert.match(source, /setSecretKey\\("\\")/);
+});
+
+test("storage config rejects endpoint query credentials and invalid bucket names", async () => {
+  const source = await readSource("../src/storage-config/storage-config.service.ts");
+  assert.ok(source.includes("endpoint.username || endpoint.password || endpoint.search || endpoint.hash"));
+  assert.ok(source.includes("bucket.includes(\"..\")"));
+  assert.ok(source.includes("Bucket 名称必须为 3–63 位"));
 });
