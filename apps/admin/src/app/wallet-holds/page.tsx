@@ -18,9 +18,30 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) throw new Error(typeof data.message === "string" ? data.message : "请求失败，请检查 API 服务。");
   return data as T;
 }
+function currencyDigits(currency: string) {
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
+  } catch {
+    throw new Error("钱包币种代码无效，无法确定金额精度。");
+  }
+}
+function toMinor(amount: string, currency: string) {
+  const digits = currencyDigits(currency);
+  const pattern = digits === 0 ? /^\\d+$/ : new RegExp("^\\\\d+(?:\\\\.\\\\d{1," + digits + "})?$");
+  if (!pattern.test(amount) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+    throw new Error("请输入大于 0 的金额，" + currency + " 最多保留 " + digits + " 位小数。");
+  }
+  const [whole, fraction = ""] = amount.split(".");
+  return (BigInt(whole) * (10n ** BigInt(digits)) + BigInt((fraction + "0".repeat(digits)).slice(0, digits) || "0")).toString();
+}
 function money(minor: string, currency: string) {
-  const value = Number(minor) / 100;
-  return Number.isFinite(value) ? currency + " " + value.toFixed(2) : currency + " —";
+  try {
+    const digits = currencyDigits(currency);
+    const value = Number(minor) / (10 ** digits);
+    return Number.isFinite(value) ? currency + " " + value.toFixed(digits) : currency + " —";
+  } catch {
+    return currency + " —";
+  }
 }
 function key() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -36,6 +57,8 @@ export default function WalletHoldsPage() {
   const pageSize = 20;
   const [status, setStatus] = useState("ACTIVE");
   const [walletId, setWalletId] = useState("");
+  const [walletCurrency, setWalletCurrency] = useState("");
+  const [walletLookupBusy, setWalletLookupBusy] = useState(false);
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [referenceType, setReferenceType] = useState("");
@@ -53,6 +76,26 @@ export default function WalletHoldsPage() {
       setEmail(admin.email); setAuthenticated(true); await refresh();
     }).catch(() => setAuthenticated(false)).finally(() => setLoading(false));
   }, [refresh]);
+  async function lookupWallet() {
+    const id = walletId.trim();
+    setWalletCurrency("");
+    if (!id) return;
+    setWalletLookupBusy(true);
+    try {
+      const result = await api<{ items: Array<{ id: string; currency: string }> }>(
+        "/api/v1/admin/finance/wallets?search=" + encodeURIComponent(id) + "&page=1&pageSize=1",
+      );
+      const wallet = result.items.find((item) => item.id === id);
+      if (!wallet) throw new Error("没有找到该钱包，请检查钱包 ID。");
+      currencyDigits(wallet.currency);
+      setWalletCurrency(wallet.currency);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "查询钱包币种失败。");
+    } finally {
+      setWalletLookupBusy(false);
+    }
+  }
   async function freeze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
@@ -109,8 +152,8 @@ export default function WalletHoldsPage() {
     </section>
     <section className="panel"><h2>新增冻结</h2><p className="muted">使用钱包 ID 定位账户。冻结金额必须小于或等于扣除提现预留和现有冻结后的可用余额。</p>
       <form onSubmit={freeze}><div className="form-grid">
-        <div className="field"><label>钱包 ID</label><input value={walletId} onChange={(e) => setWalletId(e.target.value)} placeholder="粘贴用户钱包 UUID" required /></div>
-        <div className="field"><label>冻结金额</label><input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="例如 25.00" required /></div>
+        <div className="field"><label>钱包 ID</label><input value={walletId} onChange={(e) => { setWalletId(e.target.value); setWalletCurrency(""); }} onBlur={() => void lookupWallet()} placeholder="粘贴用户钱包 UUID" required /><span className="muted">{walletLookupBusy ? "正在查询钱包…" : walletCurrency ? "钱包币种：" + walletCurrency : "输入钱包 ID 后离开输入框，系统会查询币种"}</span></div>
+        <div className="field"><label>冻结金额{walletCurrency ? "（" + walletCurrency + "，最多 " + currencyDigits(walletCurrency) + " 位小数）" : ""}</label><input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder={walletCurrency ? (currencyDigits(walletCurrency) === 0 ? "输入整数金额" : "例如 25." + "0".repeat(currencyDigits(walletCurrency))) : "请先查询钱包币种"} disabled={!walletCurrency || walletLookupBusy} required /></div>
         <div className="field"><label>业务类型（可选）</label><input value={referenceType} onChange={(e) => setReferenceType(e.target.value)} maxLength={80} placeholder="例如：RISK_REVIEW" /></div>
         <div className="field"><label>业务单号（可选）</label><input value={referenceId} onChange={(e) => setReferenceId(e.target.value)} maxLength={160} /></div>
       </div><div className="field" style={{ marginTop: 14 }}><label>冻结原因</label><textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required /></div>
