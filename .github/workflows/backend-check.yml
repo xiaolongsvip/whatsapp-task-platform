@@ -2,7 +2,7 @@ name: Backend and Database Check
 
 on:
   push:
-    branches: [main, feature/automatic-task-slot-allocation]
+    branches: [main, feature/automatic-task-slot-allocation, fix/withdrawal-app-rule-alignment]
     paths:
       - "apps/api/**"
       - "packages/database/**"
@@ -11,7 +11,7 @@ on:
       - "package.json"
       - ".github/workflows/backend-check.yml"
   pull_request:
-    branches: [main]
+    branches: [main, fix/withdrawal-app-rule-alignment]
     paths:
       - "apps/api/**"
       - "packages/database/**"
