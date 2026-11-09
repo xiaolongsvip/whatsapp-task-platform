@@ -238,10 +238,13 @@ object AuthRepository {
 
     fun withdrawalHistory(): JSONObject = request("GET", "users/withdrawals")
 
-    fun createWithdrawal(payoutAccountId: String, amountMinor: String): JSONObject =
+    fun createWithdrawal(payoutAccountId: String, amountMinor: String, quote: JSONObject): JSONObject =
         request("POST", "users/withdrawals", JSONObject()
             .put("payoutAccountId", payoutAccountId)
-            .put("amountMinor", amountMinor))
+            .put("amountMinor", amountMinor)
+            .put("expectedRate", quote.optString("rate"))
+            .put("expectedRateSource", quote.optString("rateSource"))
+            .put("expectedRateFetchedAt", quote.optString("rateFetchedAt")))
 
     fun payoutOptions(): JSONObject = request("GET", "users/payout-options")
 
