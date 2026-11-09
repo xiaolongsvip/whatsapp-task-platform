@@ -483,11 +483,18 @@ test("withdrawal submission requires the displayed FX quote and rejects changed 
   assert.match(dto, /expectedRate!/);
   assert.match(dto, /expectedRateSource!/);
   assert.match(dto, /expectedRateFetchedAt!/);
+  assert.match(dto, /expectedQuoteAmountMinor!/);
+  assert.match(dto, /expectedWalletCurrency!/);
+  assert.match(dto, /expectedPayoutCurrency!/);
+  assert.match(dto, /expectedPayoutAmountMinor!/);
+  assert.match(dto, /A-Za-z0-9_.\\/-/);
   assert.match(controller, /fetchedAt: body\.expectedRateFetchedAt/);
   assert.match(withdrawals, /WITHDRAWAL_QUOTE_CHANGED/);
   assert.match(withdrawals, /!sameRate \|\| !sameSource \|\| !sameObservation/);
   assert.match(withdrawals, /rate\.source === "IDENTITY"/);
   assert.match(repo, /expectedRateFetchedAt/);
+  assert.match(repo, /expectedQuoteAmountMinor/);
+  assert.match(repo, /expectedPayoutAmountMinor/);
   assert.match(app, /estimatedPayout != null/);
   assert.match(app, /AuthRepository\.createWithdrawal\(id, minor, quote/);
 });
