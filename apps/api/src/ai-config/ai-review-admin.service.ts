@@ -468,7 +468,6 @@ export class AiReviewAdminService {
       { claim: { is: { task: { is: { title: { contains: keyword, mode: "insensitive" } } } } } },
     ];
     if (input.taskType === "TASK") where.claim = { is: { task: { is: { category: { not: "" } } } } };
-    const terminalStatuses = { status: { in: ["APPROVED", "REJECTED"] as const } };
     const [total, submissions, markedForDeletion, deletedObjects, deleteFailures] = await prisma.$transaction([
       prisma.taskSubmission.count({ where }),
       prisma.taskSubmission.findMany({
@@ -484,7 +483,7 @@ export class AiReviewAdminService {
           },
         },
       }),
-      prisma.taskSubmission.count({ where: { ...terminalStatuses, submittedAt: { lte: cutoff }, evidenceDeletedAt: null } }),
+      prisma.taskSubmission.count({ where: { status: { in: ["APPROVED", "REJECTED"] }, submittedAt: { lte: cutoff }, evidenceDeletedAt: null } }),
       prisma.taskSubmission.count({ where: { evidenceDeletedAt: { not: null } } }),
       prisma.taskSubmission.count({ where: { evidenceDeleteLastError: { not: null }, evidenceDeletedAt: null } }),
     ]);
