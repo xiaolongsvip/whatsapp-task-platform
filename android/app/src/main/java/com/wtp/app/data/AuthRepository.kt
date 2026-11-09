@@ -222,6 +222,8 @@ object AuthRepository {
 
     fun publicAppUpdate(): JSONObject = request("GET", "app/update")
 
+    fun publicAppSupport(): JSONObject = request("GET", "app/support")
+
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
 
     fun promotionSummary(): JSONObject = request("GET", "users/promotion")
