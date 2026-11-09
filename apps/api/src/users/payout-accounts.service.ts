@@ -55,8 +55,9 @@ export class PayoutAccountsService {
       if (!/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency)) continue;
       const configuredCountry = countryCatalog.find((item: any) => String(item.code).toUpperCase() === ruleCountry);
       const configuredCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === payoutCurrency);
-      if (countryCatalog.length && (!configuredCountry || configuredCountry.enabled === false)) continue;
-      if (currencyCatalog.length && (!configuredCurrency || configuredCurrency.enabled === false)) continue;
+      if (countryCatalog.length && ruleCountry !== "GLOBAL" && (!configuredCountry || configuredCountry.enabled === false)) continue;
+      const configuredWalletCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === walletCurrency);
+      if (currencyCatalog.length && (!configuredCurrency || configuredCurrency.enabled === false || !configuredWalletCurrency || configuredWalletCurrency.enabled === false)) continue;
       for (const channel of channels) {
         const configuredMethod = methodCatalog.find((item: any) => String(item.channel ?? item.code).toLowerCase() === channel);
         if (methodCatalog.length && (!configuredMethod || configuredMethod.enabled === false)) continue;
