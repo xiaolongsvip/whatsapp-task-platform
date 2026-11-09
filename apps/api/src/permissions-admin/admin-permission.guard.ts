@@ -79,7 +79,7 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/finance\/payout-accounts(?:\/summary|\/[^/]+(?:\/history)?)?$/)) return "finance.payout_accounts.read";
     if (is(/^\/admin\/finance\/providers(?:\/[^/]+(?:\/enabled)?)?$/)) return method === "GET" ? "finance.payout_channels.read" : "finance.providers.manage";
     if (is(/^\/admin\/finance\/settlements(?:\/overview|\/tasks|\/payouts)$/)) return "finance.tasks.read";
-    if (is(/^\/admin\/finance\/adjustments$/)) return method === "GET" ? "finance.tasks.read" : "finance.tasks.manage";
+    if (is(/^\/admin\/finance\/adjustments$/)) return method === "GET" ? "finance.wallets.read" : "finance.wallets.adjust";
     if (is(/^\/admin\/finance\/reconciliations(?:\/run|\/[^/]+)?$/)) return method === "GET" ? "finance.reconciliation.read" : "finance.reconciliation.manage";
     if (is(/^\/admin\/finance\/transactions$/)) return "finance.transactions.read";
     if (is(/^\/admin\/finance\/summary$/)) return "finance.reconciliation.read";
