@@ -55,7 +55,7 @@ export class DashboardService {
     const today = startOfDay(timezone);
     const now = new Date();
 
-    const [wallets, settledToday, pendingReview, claimedToday, tasks, profile, latestClaim] = await Promise.all([
+    const [wallets, settledToday, pendingReview, claimedToday, tasks, profile, latestClaim, pendingSubmissions] = await Promise.all([
       prisma.wallet.findMany({
         where: { userId },
         include: {
@@ -104,6 +104,10 @@ export class DashboardService {
       }),
       prisma.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } }),
       prisma.taskClaim.findFirst({ where: { userId }, orderBy: { claimedAt: "desc" }, select: { claimedAt: true } }),
+      prisma.taskSubmission.findMany({
+        where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] }, claim: { userId } },
+        select: { claim: { select: { task: { select: { rewardMinor: true, currency: true } } } } },
+      }),
     ]);
 
     const balances = wallets.map((wallet) => {
@@ -121,6 +125,21 @@ export class DashboardService {
         amountMinor: (withdrawable > 0n ? withdrawable : 0n).toString(),
       };
     });
+
+    const pendingRewardTotals = new Map<string, bigint>();
+    for (const submission of pendingSubmissions) {
+      const task = submission.claim.task;
+      const currency = task.currency.trim();
+      pendingRewardTotals.set(currency, (pendingRewardTotals.get(currency) ?? 0n) + task.rewardMinor);
+    }
+    const totalEarningTotals = new Map<string, bigint>();
+    for (const wallet of wallets) {
+      const currency = wallet.currency.trim();
+      const credited = wallet.entries.filter((entry) => entry.direction === "CREDIT").reduce((sum, entry) => sum + entry.amountMinor, 0n);
+      totalEarningTotals.set(currency, (totalEarningTotals.get(currency) ?? 0n) + credited);
+    }
+    const pendingRewards = [...pendingRewardTotals.entries()].map(([currency, amount]) => ({ currency, amountMinor: amount.toString() }));
+    const totalEarnings = [...totalEarningTotals.entries()].map(([currency, amount]) => ({ currency, amountMinor: amount.toString() }));
 
     // Stable dashboard contract. The admin-managed persistent setting will
     // replace this provisional display default when the admin settings module is implemented.
@@ -155,6 +174,8 @@ export class DashboardService {
         claimedToday,
       },
       balances,
+      pendingRewards,
+      totalEarnings,
       tasks: tasks.map((task) => ({
         ...task,
         rewardMinor: task.rewardMinor.toString(),
