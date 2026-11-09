@@ -312,6 +312,16 @@ export class SystemSettingsService {
       String(x.method).toUpperCase() === method)) {
       throw new BadRequestException("相同国家、出款币种和提现方式已有启用中的规则，请先停用旧规则。");
     }
+    // Withdrawal lookup resolves a rule by country, payout currency and channel.
+    // Reject overlapping channels here so an admin cannot save a rule that the
+    // member APP cannot resolve deterministically.
+    if (rule.status === "ENABLED" && items.some(x => x.id !== ruleId && x.status === "ENABLED" &&
+      String(x.countryCode).toUpperCase() === countryCode &&
+      String(x.payoutCurrency).toUpperCase() === payoutCurrency &&
+      Array.isArray(x.channels) &&
+      x.channels.some(channel => channels.includes(String(channel).trim().toLowerCase())))) {
+      throw new BadRequestException("相同国家和出款币种的收款渠道已被其他启用规则占用，请调整渠道或停用旧规则。");
+    }
     const index = items.findIndex(x => x.id === ruleId);
     if (index >= 0) items[index] = rule; else items.unshift(rule);
     await this.write("system.withdrawalRules", items);
@@ -330,6 +340,14 @@ export class SystemSettingsService {
       String(x.payoutCurrency).toUpperCase() === String(rule.payoutCurrency).toUpperCase() &&
       String(x.method).toUpperCase() === String(rule.method).toUpperCase())) {
       throw new BadRequestException("相同国家、出款币种和提现方式已有启用中的规则。");
+    }
+    const ruleChannels = Array.isArray(rule.channels) ? rule.channels.map((channel: unknown) => String(channel).trim().toLowerCase()) : [];
+    if (rule.status !== "ENABLED" && items.some(x => x.id !== id && x.status === "ENABLED" &&
+      String(x.countryCode).toUpperCase() === String(rule.countryCode).toUpperCase() &&
+      String(x.payoutCurrency).toUpperCase() === String(rule.payoutCurrency).toUpperCase() &&
+      Array.isArray(x.channels) &&
+      x.channels.some(channel => ruleChannels.includes(String(channel).trim().toLowerCase())))) {
+      throw new BadRequestException("相同国家和出款币种的收款渠道已被其他启用规则占用，请调整渠道或停用旧规则。");
     }
     rule.status = rule.status === "ENABLED" ? "DISABLED" : "ENABLED";
     rule.updatedAt = new Date().toISOString();
