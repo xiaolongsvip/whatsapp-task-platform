@@ -5,6 +5,7 @@ type Range = { from: Date; to: Date };
 type TrendRow = { period: string; status: string; count: number | bigint };
 type CountryTaskRow = { country: string; taskCount: number; approvedCount: number; rejectedCount: number };
 type CountryPaidRow = { country: string; currency: string; amountMinor: string };
+type CurrencyAmountRow = { currency: string; amountMinor: bigint | null };
 const DAY = 86400000;
 
 function validDate(value: string) {
@@ -74,6 +75,7 @@ export class ReportsService {
     const [
       taskTotal, previousTaskTotal, activeUsers, previousActiveUsers, distribution, previousDistribution,
       withdrawalApplications, previousWithdrawalApplications, actualPayout, previousActualPayout,
+      expectedPayoutApplications, previousExpectedPayoutApplications,
       trendRows, countryTaskRows, countryPaidRows,
     ] = await Promise.all([
       prisma.taskClaim.count({ where: claimWhere(range) }),
@@ -86,6 +88,8 @@ export class ReportsService {
       prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: previous.from, lte: previous.to } }, _sum: { amountMinor: true } }),
       prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(range), _sum: { amountMinor: true } }),
       prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(previous), _sum: { amountMinor: true } }),
+      prisma.$queryRaw<CurrencyAmountRow[]>`SELECT COALESCE(NULLIF(BTRIM(payout_currency), ''), currency) AS currency, SUM(COALESCE(payout_amount_minor, amount_minor))::bigint AS "amountMinor" FROM withdrawal_requests WHERE created_at >= ${range.from} AND created_at <= ${range.to} GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<CurrencyAmountRow[]>`SELECT COALESCE(NULLIF(BTRIM(payout_currency), ''), currency) AS currency, SUM(COALESCE(payout_amount_minor, amount_minor))::bigint AS "amountMinor" FROM withdrawal_requests WHERE created_at >= ${previous.from} AND created_at <= ${previous.to} GROUP BY 1 ORDER BY 1`,
       prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, claimed_at + (${-offsetOf(query.fromOffset)} * interval '1 minute')), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_claims WHERE claimed_at >= ${range.from} AND claimed_at <= ${range.to} AND (${status ?? null}::text IS NULL OR status::text = ${status ?? null}) GROUP BY 1, 2 ORDER BY 1`,
       prisma.$queryRaw<CountryTaskRow[]>`SELECT COALESCE(NULLIF(BTRIM(cn.country_code), ''), 'UNSPECIFIED') AS country, COUNT(DISTINCT tc.id)::int AS "taskCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'APPROVED')::int AS "approvedCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'REJECTED')::int AS "rejectedCount" FROM task_claims tc LEFT JOIN contact_assignments ca ON ca.claim_id = tc.id LEFT JOIN contact_numbers cn ON cn.id = ca.contact_number_id WHERE tc.claimed_at >= ${range.from} AND tc.claimed_at <= ${range.to} AND (${status ?? null}::text IS NULL OR tc.status::text = ${status ?? null}) GROUP BY 1 ORDER BY 1`,
       prisma.$queryRaw<CountryPaidRow[]>`SELECT COALESCE(NULLIF(BTRIM(pa.country_code), ''), 'UNSPECIFIED') AS country, pt.currency, SUM(pt.amount_minor)::text AS "amountMinor" FROM payment_transactions pt LEFT JOIN withdrawal_requests wr ON wr.id = pt.withdrawal_request_id LEFT JOIN payout_accounts pa ON pa.id = wr.payout_account_id WHERE pt.flow::text = 'PAYOUT' AND pt.status::text = 'SUCCEEDED' AND pt.updated_at >= ${range.from} AND pt.updated_at <= ${range.to} GROUP BY 1, pt.currency ORDER BY 1, pt.currency`,
@@ -115,11 +119,11 @@ export class ReportsService {
       periods.set(row.period, item);
     }
     const trend = [...periods.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, ...value }));
-    const currencySet = new Set([...withdrawalApplications, ...actualPayout].map(x => x.currency.trim()));
+    const currencySet = new Set([...expectedPayoutApplications, ...actualPayout].map(x => x.currency.trim()));
     const finance = [...currencySet].sort().map(currency => {
-      const requested = withdrawalApplications.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      const requested = expectedPayoutApplications.find(x => x.currency.trim() === currency)?.amountMinor ?? 0n;
       const paid = actualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
-      const previousRequested = previousWithdrawalApplications.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      const previousRequested = previousExpectedPayoutApplications.find(x => x.currency.trim() === currency)?.amountMinor ?? 0n;
       const previousPaid = previousActualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
       return { currency, requestedMinor: requested.toString(), paidMinor: paid.toString(), estimatedDifferenceMinor: (requested - paid).toString(), requestedChange: change(Number(requested), Number(previousRequested)), paidChange: change(Number(paid), Number(previousPaid)), differenceChange: change(Number(requested - paid), Number(previousRequested - previousPaid)) };
     });
@@ -174,7 +178,7 @@ export class ReportsService {
         "审核状态环形图只统计已提交、审核中、已通过、已拒绝的任务领取记录；不把尚未提交的领取任务算入审核分母。",
         "活跃用户按所选周期内领取过符合筛选条件任务的去重用户数统计。",
         "国家明细中，任务数量按任务关联号码国家统计，实际支出按收款账户国家统计；没有对应国家资料的记录归入“未标记”。",
-        "跨币种金额分别展示，不进行汇率换算；申请金额与实际支出的差额不是钱包余额。",
+        "顶部提现申请金额按钱包扣款币种统计；财务摘要按提现单保存的预计出款币种/金额与成功代付交易比较，跨币种数据不会直接相减；预计差额不是钱包余额。",
       ],
     };
   }
