@@ -444,6 +444,11 @@ model TaskSubmission {
   sizeBytes      Int?             @map("size_bytes")
   originalName   String?          @map("original_name")
   contentSha256  String?          @map("content_sha256") @db.Char(64)
+  evidenceDeletedAt DateTime?      @map("evidence_deleted_at")
+  evidenceDeleteAttempts Int       @default(0) @map("evidence_delete_attempts")
+  evidenceDeleteNextAttemptAt DateTime? @map("evidence_delete_next_attempt_at")
+  evidenceDeleteLockedAt DateTime? @map("evidence_delete_locked_at")
+  evidenceDeleteLastError String?  @map("evidence_delete_last_error") @db.Text
   submittedAt    DateTime         @default(now()) @map("submitted_at")
   claim          TaskClaim        @relation(fields: [claimId], references: [id], onDelete: Restrict)
   reviews        TaskReview[]
@@ -452,6 +457,8 @@ model TaskSubmission {
   @@index([status, submittedAt])
   @@index([claimId, submittedAt])
   @@index([contentSha256])
+  @@index([status, submittedAt, evidenceDeletedAt])
+  @@index([evidenceDeleteNextAttemptAt, evidenceDeleteLockedAt])
   @@map("task_submissions")
 }
 
