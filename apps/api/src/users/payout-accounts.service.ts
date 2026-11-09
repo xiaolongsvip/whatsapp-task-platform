@@ -178,8 +178,8 @@ export class PayoutAccountsService {
       }
       resolvedProviderCode = matches[0].providerCode;
     } else {
-      const provider = await prisma.paymentProviderConfig.findUnique({
-        where: { providerCode: resolvedProviderCode },
+      const provider = await prisma.paymentProviderConfig.findFirst({
+        where: { providerCode: { equals: resolvedProviderCode, mode: "insensitive" } },
         select: { providerCode: true, countryCode: true, methodCode: true, supportedChannels: true, supportedCurrencies: true, enabled: true },
       });
       if (!provider || !provider.enabled ||
@@ -188,6 +188,7 @@ export class PayoutAccountsService {
         !providerMatchesMethod(provider)) {
         throw new BadRequestException("The selected payout provider is not enabled for this country, currency and method.");
       }
+      resolvedProviderCode = provider.providerCode;
     }
     const details = JSON.stringify({ accountNumber, phoneNumber: input.phoneNumber?.trim() || null });
     const encrypted = encrypt(details);
