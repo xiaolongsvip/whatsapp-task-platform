@@ -242,11 +242,15 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     await this.expireOverdueClaims(userId);
     const replay = await prisma.taskClaim.findUnique({
       where: { idempotencyKey: key },
-      include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
+      include: {
+        task: true,
+        taskSlot: true,
+        contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
+      },
     });
     if (replay) {
-      if (replay.userId !== userId || replay.taskId !== taskId) {
-        throw new ConflictException("该幂等键已用于其他任务领取。");
+      if (replay.userId !== userId || replay.taskId !== taskId || replay.taskSlot?.id !== slotId) {
+        throw new ConflictException("该幂等键已用于其他任务或号码领取。");
       }
       return this.claimResponse(replay);
     }
@@ -360,9 +364,15 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
         const existing = await prisma.taskClaim.findUnique({
           where: { idempotencyKey: key },
-          include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
+          include: {
+            task: true,
+            taskSlot: true,
+            contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
+          },
         });
-        if (existing && existing.userId === userId && existing.taskId === taskId) return this.claimResponse(existing);
+        if (existing && existing.userId === userId && existing.taskId === taskId && existing.taskSlot?.id === slotId) {
+          return this.claimResponse(existing);
+        }
       }
       throw error;
     }
