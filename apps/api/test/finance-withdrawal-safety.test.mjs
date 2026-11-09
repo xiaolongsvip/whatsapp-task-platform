@@ -423,3 +423,24 @@ test("admin payout catalog editor splits entries on real newline characters", ()
   assert.match(admin, /value\.split\("\\n"\)/);
   assert.doesNotMatch(admin, /value\.split\("\\\\n"\)/);
 });
+
+test("withdrawal quote and create reject malformed or out-of-range minor-unit amounts", () => {
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  assert.match(withdrawals, /if \(!\/\^\[0-9\]\+\$\/\.test\(amountMinorInput\)\) throw new BadRequestException\("Withdrawal amount is invalid\."\)/);
+  assert.match(withdrawals, /amountMinor > 9223372036854775807n/);
+  assert.match(withdrawals, /The wallet currency for this withdrawal rule is no longer available/);
+  assert.match(withdrawals, /currentWalletCurrency\.enabled === false/);
+});
+
+test("withdrawal records freeze wallet debit, payout conversion and FX provenance", () => {
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  assert.match(withdrawals, /amountMinor, currency: context\.walletCurrency/);
+  assert.match(withdrawals, /payoutCurrency: context\.payoutCurrency, payoutAmountMinor/);
+  assert.match(withdrawals, /exchangeRateSource: rate\.source/);
+  assert.match(withdrawals, /exchangeRateProviderUpdatedAt/);
+  assert.match(withdrawals, /exchangeRateEffectiveAt/);
+  assert.match(finance, /actualPayoutAmountMinor/);
+  assert.match(finance, /estimatedPayoutAmountMinor/);
+  assert.match(finance, /idempotencyKey: "withdrawal-payout:" \+ id/);
+});
