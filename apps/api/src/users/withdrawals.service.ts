@@ -64,6 +64,10 @@ export class WithdrawalsService {
     if (!/^[A-Z]{3}$/.test(walletCurrency) || !/^[A-Z]{3}$/.test(payoutCurrency)) {
       throw new BadRequestException("The withdrawal rule contains an invalid wallet or payout currency.");
     }
+    const configuredWalletCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === walletCurrency);
+    if (currencyCatalog.length && (!configuredWalletCurrency || configuredWalletCurrency.enabled === false)) {
+      throw new BadRequestException("The wallet currency for this withdrawal rule is no longer available.");
+    }
     const providers = await prisma.paymentProviderConfig.findMany({
       where: { enabled: true, countryCode: { in: [countryCode, "GLOBAL"] }, supportedCurrencies: { has: payoutCurrency } },
       select: { providerCode: true, methodCode: true, supportedChannels: true },
@@ -86,7 +90,12 @@ export class WithdrawalsService {
   async quote(userId: string, payoutAccountId: string, amountMinorInput?: string) {
     const context = await this.context(userId, payoutAccountId);
     const rate = await this.exchangeRates.getRate(context.walletCurrency, context.payoutCurrency);
-    const amountMinor = amountMinorInput ? BigInt(amountMinorInput) : null;
+    let amountMinor: bigint | null = null;
+    if (amountMinorInput !== undefined) {
+      if (!/^[0-9]+$/.test(amountMinorInput)) throw new BadRequestException("Withdrawal amount is invalid.");
+      try { amountMinor = BigInt(amountMinorInput); } catch { throw new BadRequestException("Withdrawal amount is invalid."); }
+      if (amountMinor <= 0n || amountMinor > 9223372036854775807n) throw new BadRequestException("Withdrawal amount must be greater than zero and within the supported range.");
+    }
     const payoutAmountMinor = amountMinor === null ? null :
       this.exchangeRates.toPayoutMinor(amountMinor, context.walletCurrency, context.payoutCurrency, rate.rate);
     return {
@@ -112,6 +121,7 @@ export class WithdrawalsService {
 
   async create(userId: string, payoutAccountId: string, amountMinorInput: string, timezone = "UTC") {
     let amountMinor: bigint;
+    if (typeof amountMinorInput !== "string" || !/^[0-9]+$/.test(amountMinorInput)) throw new BadRequestException("Withdrawal amount is invalid.");
     try { amountMinor = BigInt(amountMinorInput); }
     catch { throw new BadRequestException("Withdrawal amount is invalid."); }
     if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
@@ -149,8 +159,9 @@ export class WithdrawalsService {
           const methodCatalog = Array.isArray(catalogs?.methods) ? catalogs.methods : [];
           const currentCountry = countryCatalog.find((item: any) => String(item.code).toUpperCase() === context.countryCode);
           const currentCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === context.payoutCurrency);
+          const currentWalletCurrency = currencyCatalog.find((item: any) => String(item.code).toUpperCase() === context.walletCurrency);
           const currentMethod = methodCatalog.find((item: any) => String(item.channel ?? item.code).toLowerCase() === context.methodCode.toLowerCase());
-          if ((countryCatalog.length && (!currentCountry || currentCountry.enabled === false)) || (currencyCatalog.length && (!currentCurrency || currentCurrency.enabled === false)) || (methodCatalog.length && (!currentMethod || currentMethod.enabled === false)) || (currentMethod?.countryCodes?.length && !currentMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(context.countryCode)) || (currentMethod?.currencyCodes?.length && !currentMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(context.payoutCurrency))) {
+          if ((countryCatalog.length && (!currentCountry || currentCountry.enabled === false)) || (currencyCatalog.length && (!currentCurrency || currentCurrency.enabled === false || !currentWalletCurrency || currentWalletCurrency.enabled === false)) || (methodCatalog.length && (!currentMethod || currentMethod.enabled === false)) || (currentMethod?.countryCodes?.length && !currentMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(context.countryCode)) || (currentMethod?.currencyCodes?.length && !currentMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(context.payoutCurrency))) {
             throw new BadRequestException("The payout country, currency or method configuration changed. Please refresh your payout account.");
           }
           const rulesRow = await tx.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
