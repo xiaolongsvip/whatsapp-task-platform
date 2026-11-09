@@ -158,6 +158,9 @@ export class FinanceAdminService {
         if (actualPayoutAmountMinor <= 0n || actualPayoutAmountMinor > 9223372036854775807n) {
           throw new BadRequestException("实际出款金额必须大于零且在有效范围内。");
         }
+        if (actualPayoutAmountMinor !== estimatedPayoutAmountMinor && !note) {
+          throw new BadRequestException("实际出款金额与提现报价不一致，必须填写差异说明后才能确认付款。");
+        }
         if (!provider.supportedCurrencies.some(currency => currency.trim().toUpperCase() === payoutCurrency.toUpperCase())) {
           throw new BadRequestException("该服务商未配置此提现出款币种，不能登记付款");
         }
