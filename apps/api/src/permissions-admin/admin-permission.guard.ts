@@ -118,6 +118,7 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/storage-config(?:\/test)?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/(?:account-security|risk)$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
+    if (is(/^\/admin\/system-settings\/(?:support|exchange-rates(?:\/(?:refresh|manual(?:\/disable)?)?)?|payout-catalogs)$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/version(?:\/upload|\/\d+\/(?:publish|revoke))?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/help\/articles(?:\/[^/]+(?:\/(?:publish|pin|restore|permanent))?)?$/)) return method === "GET" ? "system.settings.read" : "system.settings.manage";
     if (is(/^\/admin\/system-settings\/help\/assets\/(?:upload-url|verify)$/)) return "system.settings.manage";
