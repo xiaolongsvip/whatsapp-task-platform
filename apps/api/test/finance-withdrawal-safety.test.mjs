@@ -451,3 +451,14 @@ test("manual payout requires an audited note when actual payout differs from the
   assert.match(finance, /实际出款金额与提现报价不一致，必须填写差异说明/);
   assert.match(finance, /actualPayoutAmountMinor: actualPayoutAmountMinor\.toString\(\)/);
 });
+
+test("finance reconciliation validates ledger direction, amount, currency and duplicate settlement rows", () => {
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  assert.match(finance, /TASK_REWARD_AMOUNT_MISMATCH/);
+  assert.match(finance, /WITHDRAWAL_LEDGER_AMOUNT_MISMATCH/);
+  assert.match(finance, /WITHDRAWAL_PAYOUT_AMOUNT_MISMATCH/);
+  assert.match(finance, /TASK_REWARD_DUPLICATE/);
+  assert.match(finance, /WITHDRAWAL_LEDGER_DUPLICATE/);
+  assert.match(finance, /WITHDRAWAL_TRANSACTION_DUPLICATE/);
+  assert.match(finance, /amountDirectionCurrencyChecks: true/);
+});
