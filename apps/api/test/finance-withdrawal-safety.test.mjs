@@ -182,7 +182,7 @@ test("withdrawal rule limits reject unsupported precision and non-finite values"
   assert.ok(settings.includes("Number.isFinite(value)"));
   assert.ok(settings.includes("const scale = 10 ** currencyDigits(walletCurrency)"));
   assert.ok(settings.includes("Math.abs(value * scale - Math.round(value * scale)) < 1e-7"));
-  assert.equal((adminPage.match(/step="0.01"/g) ?? []).length, 3);
+  assert.equal((adminPage.match(/step="any"/g) ?? []).length, 4);
   assert.ok(!adminPage.includes('step="0.001"'));
 });
 
