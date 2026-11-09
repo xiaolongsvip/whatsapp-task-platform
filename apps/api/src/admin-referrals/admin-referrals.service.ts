@@ -166,59 +166,116 @@ export class AdminReferralsService {
     const status = statusInput?.trim().toUpperCase() || "ALL";
     if (!["ALL", "CREDITED", "PENDING"].includes(status)) throw new BadRequestException("佣金入账状态筛选无效。");
     const depth = depthInput ? Number.parseInt(depthInput, 10) : undefined;
-    if (depth !== undefined && ![1, 2, 3].includes(depth)) throw new BadRequestException("分佣层级筛选无效。");
+    if (depth !== undefined && ![1, 2, 3].includes(depth)) throw new BadRequestException("佣金层级筛选无效。");
     const from = fromInput ? new Date(fromInput) : undefined;
     const to = toInput ? new Date(toInput) : undefined;
     if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) throw new BadRequestException("日期筛选格式无效。");
-    if (to && /^\d{4}-\d{2}-\d{2}$/.test(toInput ?? "")) to.setHours(23, 59, 59, 999);
+    if (to && /^\\d{4}-\\d{2}-\\d{2}$/.test(toInput ?? "")) to.setHours(23, 59, 59, 999);
     if (from && to && from > to) throw new BadRequestException("开始日期不能晚于结束日期。");
+
     const search = searchInput?.trim();
-    const matchedUsers = search ? await prisma.user.findMany({
-      where: { OR: [{ phone: { contains: search, mode: "insensitive" } }, { referralCode: { contains: search, mode: "insensitive" } }] },
-      select: { id: true }, take: 500,
-    }) : [];
-    const where: Prisma.ReferralRewardWhereInput = {
-      ...(depth ? { depth } : {}),
-      ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
-      ...(search ? { OR: [
-        { sourceEventId: { contains: search, mode: "insensitive" } },
-        ...( /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search) ? [{ sourceEventId: search }, { sourceUserId: search }, { beneficiaryId: search }] : []),
-        ...(matchedUsers.length ? [{ sourceUserId: { in: matchedUsers.map((user) => user.id) } }, { beneficiaryId: { in: matchedUsers.map((user) => user.id) } }] : []),
-      ] } : {}),
-    };
-    const rows = await prisma.referralReward.findMany({ where, orderBy: { createdAt: "desc" },
-      select: { id: true, beneficiaryId: true, sourceUserId: true, sourceEventId: true, depth: true, amountMinor: true, currency: true, idempotencyKey: true, createdAt: true } });
-    const keys = rows.map((row) => row.idempotencyKey);
-    const credits = keys.length ? await prisma.ledgerEntry.findMany({ where: { idempotencyKey: { in: keys }, direction: "CREDIT" }, select: { idempotencyKey: true, createdAt: true } }) : [];
-    const creditMap = new Map(credits.map((row) => [row.idempotencyKey, row.createdAt]));
-    const allItems = rows.map((row) => ({ ...row,
-      status: creditMap.has(row.idempotencyKey) ? "CREDITED" as const : "PENDING" as const,
-      creditedAt: creditMap.get(row.idempotencyKey) ?? null,
-    }));
-    const matching = status === "ALL" ? allItems : allItems.filter((row) => row.status === status);
-    const total = matching.length;
-    const pageRows = matching.slice((page - 1) * pageSize, page * pageSize);
-    const peopleIds = [...new Set(pageRows.flatMap((row) => [row.beneficiaryId, row.sourceUserId]))];
-    const sourceIds = [...new Set(pageRows.map((row) => row.sourceEventId).filter((id) => /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)))];
-    const [people, sourceClaims] = await Promise.all([
-      peopleIds.length ? prisma.user.findMany({ where: { id: { in: peopleIds } }, select: { id: true, phone: true } }) : [],
-      sourceIds.length ? prisma.taskClaim.findMany({ where: { id: { in: sourceIds } }, select: { id: true, task: { select: { title: true } } } }) : [],
-    ]);
-    const peopleMap = new Map(people.map((row) => [row.id, row.phone]));
-    const taskMap = new Map(sourceClaims.map((row) => [row.id, row.task.title]));
-    const items = pageRows.map((row) => ({ id: row.id, beneficiaryId: row.beneficiaryId, beneficiaryPhone: peopleMap.get(row.beneficiaryId) ?? "—",
-      sourceUserId: row.sourceUserId, sourcePhone: peopleMap.get(row.sourceUserId) ?? "—", sourceEventId: row.sourceEventId, sourceTaskTitle: taskMap.get(row.sourceEventId) ?? null,
-      depth: row.depth, amountMinor: row.amountMinor.toString(), currency: row.currency.trim(), status: row.status,
-      creditedAt: row.creditedAt?.toISOString() ?? null, createdAt: row.createdAt.toISOString() }));
-    const totals = new Map<string, { creditedCount: number; pendingCount: number; creditedMinor: bigint; pendingMinor: bigint }>();
-    for (const row of allItems) {
-      const value = totals.get(row.currency) ?? { creditedCount: 0, pendingCount: 0, creditedMinor: 0n, pendingMinor: 0n };
-      if (row.status === "CREDITED") { value.creditedCount += 1; value.creditedMinor += row.amountMinor; }
-      else { value.pendingCount += 1; value.pendingMinor += row.amountMinor; }
-      totals.set(row.currency, value);
+    const conditions: Prisma.Sql[] = [];
+    if (depth !== undefined) conditions.push(Prisma.sql`rr.depth = ${depth}`);
+    if (from) conditions.push(Prisma.sql`rr.created_at >= ${from}`);
+    if (to) conditions.push(Prisma.sql`rr.created_at <= ${to}`);
+    if (search) {
+      const pattern = `%${search}%`;
+      const parts: Prisma.Sql[] = [
+        Prisma.sql`rr.source_event_id ILIKE ${pattern}`,
+        Prisma.sql`source_user.phone ILIKE ${pattern}`,
+        Prisma.sql`source_user.referral_code ILIKE ${pattern}`,
+        Prisma.sql`beneficiary.phone ILIKE ${pattern}`,
+        Prisma.sql`beneficiary.referral_code ILIKE ${pattern}`,
+      ];
+      if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search)) {
+        parts.push(Prisma.sql`rr.source_event_id = ${search}`);
+        parts.push(Prisma.sql`rr.source_user_id = ${search}::uuid`);
+        parts.push(Prisma.sql`rr.beneficiary_id = ${search}::uuid`);
+      }
+      conditions.push(Prisma.sql`(${Prisma.join(parts, " OR ")})`);
     }
-    return { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), items,
-      statistics: [...totals.entries()].map(([currency, value]) => ({ currency, ...value, creditedMinor: value.creditedMinor.toString(), pendingMinor: value.pendingMinor.toString(), totalCount: value.creditedCount + value.pendingCount, totalMinor: (value.creditedMinor + value.pendingMinor).toString() })) };
+    const baseWhere = conditions.length ? Prisma.join(conditions, " AND ") : Prisma.sql`TRUE`;
+    const statusWhere = status === "CREDITED"
+      ? Prisma.sql`credit.id IS NOT NULL`
+      : status === "PENDING" ? Prisma.sql`credit.id IS NULL` : Prisma.sql`TRUE`;
+    const where = Prisma.sql`${baseWhere} AND ${statusWhere}`;
+
+    const [countRows, rows, aggregateRows] = await Promise.all([
+      prisma.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*)::bigint AS total
+        FROM referral_rewards rr
+        LEFT JOIN ledger_entries credit
+          ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
+        LEFT JOIN users source_user ON source_user.id = rr.source_user_id
+        LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id
+        WHERE ${where}
+      `,
+      prisma.$queryRaw<Array<{
+        id: string; beneficiaryId: string; beneficiaryPhone: string | null;
+        sourceUserId: string; sourcePhone: string | null; sourceEventId: string;
+        sourceTaskTitle: string | null; depth: number; amountMinor: bigint;
+        currency: string; status: "CREDITED" | "PENDING"; creditedAt: Date | null; createdAt: Date;
+      }>>`
+        SELECT rr.id, rr.beneficiary_id AS "beneficiaryId", beneficiary.phone AS "beneficiaryPhone",
+          rr.source_user_id AS "sourceUserId", source_user.phone AS "sourcePhone",
+          rr.source_event_id AS "sourceEventId", task.title AS "sourceTaskTitle",
+          rr.depth, rr.amount_minor AS "amountMinor", rr.currency,
+          CASE WHEN credit.id IS NULL THEN 'PENDING' ELSE 'CREDITED' END AS status,
+          credit.created_at AS "creditedAt", rr.created_at AS "createdAt"
+        FROM referral_rewards rr
+        LEFT JOIN ledger_entries credit
+          ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
+        LEFT JOIN users source_user ON source_user.id = rr.source_user_id
+        LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id
+        LEFT JOIN task_claims claim ON claim.id::text = rr.source_event_id
+        LEFT JOIN tasks task ON task.id = claim.task_id
+        WHERE ${where}
+        ORDER BY rr.created_at DESC, rr.id DESC
+        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+      `,
+      prisma.$queryRaw<Array<{
+        currency: string; creditedCount: bigint; pendingCount: bigint;
+        creditedMinor: bigint | null; pendingMinor: bigint | null;
+      }>>`
+        SELECT rr.currency,
+          COUNT(*) FILTER (WHERE credit.id IS NOT NULL)::bigint AS "creditedCount",
+          COUNT(*) FILTER (WHERE credit.id IS NULL)::bigint AS "pendingCount",
+          COALESCE(SUM(rr.amount_minor) FILTER (WHERE credit.id IS NOT NULL), 0)::bigint AS "creditedMinor",
+          COALESCE(SUM(rr.amount_minor) FILTER (WHERE credit.id IS NULL), 0)::bigint AS "pendingMinor"
+        FROM referral_rewards rr
+        LEFT JOIN ledger_entries credit
+          ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
+        LEFT JOIN users source_user ON source_user.id = rr.source_user_id
+        LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id
+        WHERE ${baseWhere}
+        GROUP BY rr.currency
+        ORDER BY rr.currency
+      `,
+    ]);
+    const statistics = aggregateRows.map((row) => {
+      const creditedMinor = row.creditedMinor ?? 0n;
+      const pendingMinor = row.pendingMinor ?? 0n;
+      const creditedCount = Number(row.creditedCount);
+      const pendingCount = Number(row.pendingCount);
+      return {
+        currency: row.currency.trim(), creditedCount, pendingCount,
+        creditedMinor: creditedMinor.toString(), pendingMinor: pendingMinor.toString(),
+        totalCount: creditedCount + pendingCount, totalMinor: (creditedMinor + pendingMinor).toString(),
+      };
+    });
+    return {
+      total: Number(countRows[0]?.total ?? 0n), page, pageSize,
+      totalPages: Math.max(1, Math.ceil(Number(countRows[0]?.total ?? 0n) / pageSize)),
+      items: rows.map((row) => ({
+        id: row.id, beneficiaryId: row.beneficiaryId, beneficiaryPhone: row.beneficiaryPhone ?? "—",
+        sourceUserId: row.sourceUserId, sourcePhone: row.sourcePhone ?? "—",
+        sourceEventId: row.sourceEventId, sourceTaskTitle: row.sourceTaskTitle,
+        depth: row.depth, amountMinor: row.amountMinor.toString(), currency: row.currency.trim(),
+        status: row.status, creditedAt: row.creditedAt?.toISOString() ?? null,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      statistics,
+    };
   }
 
   async getSettings() {
