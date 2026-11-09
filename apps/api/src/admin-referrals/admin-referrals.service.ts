@@ -194,7 +194,7 @@ export class AdminReferralsService {
         "beneficiary.phone ILIKE " + pattern,
         "beneficiary.referral_code ILIKE " + pattern,
       ];
-      if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(search)) {
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(search)) {
         const id = bind(search);
         fields.push("rr.source_event_id = " + id);
         fields.push("rr.source_user_id = " + id + "::uuid");
