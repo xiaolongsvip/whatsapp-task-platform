@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import { EmailVerificationService } from "./email-verification.service";
+import { startOfDay } from "./dashboard.service";
 
 const RESERVED_STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] as const;
 
@@ -8,7 +9,7 @@ const RESERVED_STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"
 export class WithdrawalsService {
   constructor(private readonly emailVerification: EmailVerificationService) {}
 
-  async create(userId: string, payoutAccountId: string, amountMinorInput: string) {
+  async create(userId: string, payoutAccountId: string, amountMinorInput: string, timezone = "UTC") {
     await this.emailVerification.requireVerified(userId);
     const amountMinor = BigInt(amountMinorInput);
     if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
@@ -64,8 +65,7 @@ export class WithdrawalsService {
           if (!wallet) {
             throw new BadRequestException("No wallet is available for this payout currency.");
           }
-          const dayStart = new Date();
-          dayStart.setUTCHours(0, 0, 0, 0);
+          const dayStart = startOfDay(timezone);
           const dailyUsed = await tx.withdrawalRequest.aggregate({
             where: { walletId: wallet.id, createdAt: { gte: dayStart }, status: { notIn: ["REJECTED", "FAILED", "CANCELLED"] } },
             _sum: { amountMinor: true },
