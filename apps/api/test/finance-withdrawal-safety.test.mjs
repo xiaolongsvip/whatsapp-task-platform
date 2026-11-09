@@ -496,8 +496,11 @@ test("finance reconciliation validates ledger direction, amount, currency and du
 test("reconciliation does not report success when scan limit is reached and checks payment metadata", () => {
   const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
   const admin = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
-  assert.match(finance, /scanLimitReached = approvedSubmissions\.length === 5000/);
-  assert.match(finance, /scanLimitReached \? "INCOMPLETE"/);
+  assert.match(finance, /const batchSize = 1000/);
+  assert.match(finance, /fetchAll = async/);
+  assert.match(finance, /skip, take/);
+  assert.match(finance, /scanLimitReached = false/);
+  assert.doesNotMatch(finance, /take: 5000/);
   assert.match(finance, /metadataActualAmount !== transaction\.amountMinor\.toString\(\)/);
   assert.match(admin, /x\.status==="INCOMPLETE"\?"扫描不完整"/);
   assert.match(admin, /reconciliationDetail\.status==="INCOMPLETE"\?"扫描不完整"/);
