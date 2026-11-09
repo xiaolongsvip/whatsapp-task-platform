@@ -224,6 +224,7 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
     var updateInfo by remember { mutableStateOf<JSONObject?>(null) }
     var updateLoading by remember { mutableStateOf(false) }
     var updateError by remember { mutableStateOf<String?>(null) }
+    var supportUrl by remember { mutableStateOf<String?>(null) }
     val currentVersion = com.wtp.app.BuildConfig.VERSION_NAME
     val overlay = Settings.canDrawOverlays(context)
     LaunchedEffect(Unit) {
@@ -231,6 +232,7 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
             user = runCatching { AuthRepository.currentUser() }.getOrNull()
             dashboard = runCatching { AuthRepository.dashboard() }.getOrNull()
             updateInfo = runCatching { AuthRepository.publicAppUpdate() }.getOrNull()
+            supportUrl = runCatching { AuthRepository.publicAppSupport().optString("supportUrl").takeIf { it.startsWith("https://") } }.getOrNull()
         }
     }
     val availableBalance = formatAvailableBalances(dashboard?.optJSONArray("balances"))
@@ -335,7 +337,17 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
                 }) { Text(if (en) "Check again" else "重新检查") }
             }
         )
-    } else if (dialog.isNotEmpty()) AlertDialog(onDismissRequest = { dialog = "" }, title = { Text(title) }, text = { Text(when (dialog) { "support" -> if (en) "Please contact platform support." else "如需帮助，请联系平台客服。"; "security" -> if (en) "Account security settings will be available in a later release." else "账号安全设置功能将在后续版本接入。"; "tutorial" -> if (en) "Follow task instructions and submit valid evidence." else "请按照任务说明完成操作，并提交真实有效的任务凭证供平台审核。"; else -> "" }) }, confirmButton = { TextButton(onClick = { dialog = "" }) { Text(if (en) "OK" else "知道了") } })
+    } else if (dialog == "support") AlertDialog(
+        onDismissRequest = { dialog = "" },
+        title = { Text(title) },
+        text = { Text(if (supportUrl.isNullOrBlank()) { if (en) "Customer support has not been configured yet." else "客服联系方式尚未配置，请联系平台管理员。" } else { if (en) "Open the platform customer support page?" else "即将打开平台客服页面。" }) },
+        confirmButton = { TextButton(onClick = {
+            val url = supportUrl
+            if (!url.isNullOrBlank()) runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            dialog = ""
+        }) { Text(if (supportUrl.isNullOrBlank()) { if (en) "OK" else "知道了" } else { if (en) "Open support" else "打开客服" }) } },
+        dismissButton = { if (!supportUrl.isNullOrBlank()) TextButton(onClick = { dialog = "" }) { Text(if (en) "Cancel" else "取消") } }
+    ) else if (dialog.isNotEmpty()) AlertDialog(onDismissRequest = { dialog = "" }, title = { Text(title) }, text = { Text(when (dialog) { "security" -> if (en) "Account security settings will be available in a later release." else "账号安全设置功能将在后续版本接入。"; "tutorial" -> if (en) "Follow task instructions and submit valid evidence." else "请按照任务说明完成操作，并提交真实有效的任务凭证供平台审核。"; else -> "" }) }, confirmButton = { TextButton(onClick = { dialog = "" }) { Text(if (en) "OK" else "知道了") } })
 }
 
 @Composable
