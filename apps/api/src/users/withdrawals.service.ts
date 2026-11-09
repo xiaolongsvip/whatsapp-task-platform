@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "./dashboard.service";
 import { ExchangeRatesService } from "./exchange-rates.service";
@@ -119,7 +119,13 @@ export class WithdrawalsService {
     };
   }
 
-  async create(userId: string, payoutAccountId: string, amountMinorInput: string, timezone = "UTC") {
+  async create(
+    userId: string,
+    payoutAccountId: string,
+    amountMinorInput: string,
+    timezone = "UTC",
+    expectedQuote?: { rate: string; source: string; fetchedAt: string },
+  ) {
     let amountMinor: bigint;
     if (typeof amountMinorInput !== "string" || !/^[0-9]+$/.test(amountMinorInput)) throw new BadRequestException("Withdrawal amount is invalid.");
     try { amountMinor = BigInt(amountMinorInput); }
@@ -132,6 +138,23 @@ export class WithdrawalsService {
     // rate and converted payout amount are then frozen on the withdrawal record.
     const context = await this.context(userId, payoutAccountId);
     const rate = await this.exchangeRates.getRate(context.walletCurrency, context.payoutCurrency);
+    if (!expectedQuote || !expectedQuote.rate || !expectedQuote.source || !expectedQuote.fetchedAt) {
+      throw new BadRequestException("Withdrawal quote is missing. Refresh the quote before submitting.");
+    }
+    const expectedRate = Number(expectedQuote.rate);
+    const sameRate = Number.isFinite(expectedRate) && expectedRate.toFixed(12) === rate.rate.toFixed(12);
+    const sameSource = expectedQuote.source === rate.source;
+    // Identity quotes are regenerated on each request, so their observation
+    // timestamp is intentionally not compared. Other sources must match the
+    // exact cached/manual observation shown to the member.
+    const sameObservation = rate.source === "IDENTITY" ||
+      Date.parse(expectedQuote.fetchedAt) === Date.parse(rate.fetchedAt);
+    if (!sameRate || !sameSource || !sameObservation) {
+      throw new ConflictException({
+        code: "WITHDRAWAL_QUOTE_CHANGED",
+        message: "The exchange rate changed after the quote was displayed. Refresh the quote and review the new payout amount.",
+      });
+    }
     const payoutAmountMinor = this.exchangeRates.toPayoutMinor(amountMinor, context.walletCurrency, context.payoutCurrency, rate.rate);
     const minimumMinor = configuredMinor(context.rule.minimumAmount, context.walletCurrency);
     const maximumMinor = configuredMinor(context.rule.maximumAmount, context.walletCurrency);
