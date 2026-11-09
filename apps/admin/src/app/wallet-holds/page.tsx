@@ -20,7 +20,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 function currencyDigits(currency: string) {
   try {
-    return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
+    return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
   } catch {
     throw new Error("钱包币种代码无效，无法确定金额精度。");
   }
@@ -32,7 +32,8 @@ function toMinor(amount: string, currency: string) {
     throw new Error("请输入大于 0 的金额，" + currency + " 最多保留 " + digits + " 位小数。");
   }
   const [whole, fraction = ""] = amount.split(".");
-  return (BigInt(whole) * (10n ** BigInt(digits)) + BigInt((fraction + "0".repeat(digits)).slice(0, digits) || "0")).toString();
+  const minor = (whole + (fraction + "0".repeat(digits)).slice(0, digits)).replace(/^0+(?=\\d)/, "");
+  return minor || "0";
 }
 function money(minor: string, currency: string) {
   try {
