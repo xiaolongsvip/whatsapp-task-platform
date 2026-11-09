@@ -223,6 +223,55 @@ export class SystemSettingsService {
     return metadata;
   }
 
+  async getPayoutCatalogs() {
+    const value = await this.read("system.payoutCatalogs", { countries: [], currencies: [], methods: [] });
+    return {
+      countries: Array.isArray(value?.countries) ? value.countries : [],
+      currencies: Array.isArray(value?.currencies) ? value.currencies : [],
+      methods: Array.isArray(value?.methods) ? value.methods : [],
+    };
+  }
+
+  async savePayoutCatalogs(input: JsonRecord, adminId: string) {
+    const normalize = (value: unknown, pattern: RegExp, label: string) => {
+      if (!Array.isArray(value)) throw new BadRequestException(label + "必须是数组。");
+      const seen = new Set<string>();
+      return value.map((raw: any) => {
+        const code = String(raw?.code ?? "").trim().toUpperCase();
+        const name = String(raw?.name ?? "").trim();
+        if (!pattern.test(code) || !name || name.length > 100 || seen.has(code)) {
+          throw new BadRequestException(label + "代码无效、名称为空或存在重复代码。");
+        }
+        seen.add(code);
+        return { code, name, enabled: raw?.enabled !== false };
+      });
+    };
+    const countries = normalize(input.countries, /^[A-Z]{2}$/, "国家目录");
+    const currencies = normalize(input.currencies, /^[A-Z]{3}$/, "货币目录").map((item: any, index: number) => {
+      const raw = (input.currencies as any[])[index];
+      const fractionDigits = Number(raw?.fractionDigits ?? currencyDigits(item.code));
+      if (!Number.isInteger(fractionDigits) || fractionDigits < 0 || fractionDigits > 6) throw new BadRequestException("货币小数位必须是 0 到 6 的整数。");
+      return { ...item, fractionDigits };
+    });
+    if (!Array.isArray(input.methods)) throw new BadRequestException("收款方式目录必须是数组。");
+    const methodCodes = new Set<string>();
+    const methods = input.methods.map((raw: any) => {
+      const code = String(raw?.code ?? "").trim().toLowerCase();
+      const name = String(raw?.name ?? "").trim();
+      const channel = String(raw?.channel ?? code).trim().toLowerCase();
+      const countryCodes = Array.isArray(raw?.countryCodes) ? raw.countryCodes.map((x: unknown) => String(x).trim().toUpperCase()) : [];
+      const currencyCodes = Array.isArray(raw?.currencyCodes) ? raw.currencyCodes.map((x: unknown) => String(x).trim().toUpperCase()) : [];
+      if (!/^[a-z0-9_-]{2,40}$/.test(code) || !/^[a-z0-9_-]{2,40}$/.test(channel) || !name || name.length > 100 || methodCodes.has(code)) throw new BadRequestException("收款方式代码、渠道或名称无效，或存在重复代码。");
+      if (countryCodes.some((x: string) => !/^[A-Z]{2}$/.test(x) || !countries.some((v: any) => v.code === x)) || currencyCodes.some((x: string) => !/^[A-Z]{3}$/.test(x) || !currencies.some((v: any) => v.code === x))) throw new BadRequestException("收款方式关联了不存在的国家或货币。");
+      methodCodes.add(code);
+      return { code, name, channel, countryCodes, currencyCodes, enabled: raw?.enabled !== false };
+    });
+    const safe = { countries, currencies, methods, updatedAt: new Date().toISOString() };
+    await this.write("system.payoutCatalogs", safe);
+    await this.audit(adminId, "PAYOUT_CATALOGS_UPDATED", "system.payoutCatalogs", safe);
+    return safe;
+  }
+
   async listWithdrawalRules(query: Record<string,string>) {
     const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
     return items.filter((x: any) => (!query.country || query.country === x.countryCode) && (!query.currency || query.currency === x.walletCurrency) && (!query.method || query.method === x.method) && (!query.status || query.status === x.status));
