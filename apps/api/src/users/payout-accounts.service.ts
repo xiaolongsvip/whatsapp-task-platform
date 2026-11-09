@@ -61,7 +61,7 @@ export class PayoutAccountsService {
       for (const channel of channels) {
         const configuredMethod = methodCatalog.find((item: any) => String(item.channel ?? item.code).toLowerCase() === channel);
         if (methodCatalog.length && (!configuredMethod || configuredMethod.enabled === false)) continue;
-        if (configuredMethod?.countryCodes?.length && !configuredMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(ruleCountry)) continue;
+        if (configuredMethod?.countryCodes?.length && ruleCountry !== "GLOBAL" && !configuredMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(ruleCountry)) continue;
         if (configuredMethod?.currencyCodes?.length && !configuredMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(payoutCurrency)) continue;
         const duplicateRules = rules.filter(other =>
           other.status === "ENABLED" &&
@@ -79,6 +79,9 @@ export class PayoutAccountsService {
         for (const provider of matches) {
           const countryCode = ruleCountry === "GLOBAL" ? provider.countryCode.trim().toUpperCase() : ruleCountry;
           if (!/^[A-Z]{2}$/.test(countryCode)) continue;
+          const resolvedCountry = countryCatalog.find((item: any) => String(item.code).toUpperCase() === countryCode);
+          if (countryCatalog.length && (!resolvedCountry || resolvedCountry.enabled === false)) continue;
+          if (configuredMethod?.countryCodes?.length && !configuredMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(countryCode)) continue;
           if (ruleCountry === "GLOBAL" && rules.some(other =>
             other.status === "ENABLED" &&
             String(other.countryCode ?? "").trim().toUpperCase() === countryCode &&
@@ -86,9 +89,9 @@ export class PayoutAccountsService {
             Array.isArray(other.channels) && other.channels.some(value => String(value).trim().toLowerCase() === channel)
           )) continue;
           items.push({
-            countryCode, countryName: ruleCountry === "GLOBAL" ? countryCode : String(rule.countryName ?? countryCode),
-            walletCurrency, payoutCurrency, methodCode: channel,
-            methodName: channel.replace(/[_-]/g, " ").replace(/\b\w/g, value => value.toUpperCase()),
+            countryCode, countryName: resolvedCountry?.name ?? (ruleCountry === "GLOBAL" ? countryCode : String(rule.countryName ?? countryCode)),
+            walletCurrency, payoutCurrency, currencyName: configuredCurrency?.name ?? payoutCurrency, methodCode: channel,
+            methodName: configuredMethod?.name ?? channel.replace(/[_-]/g, " ").replace(/\b\w/g, value => value.toUpperCase()),
             providerCode: provider.providerCode, providerName: provider.displayName,
             minimumAmount: Number(rule.minimumAmount ?? 0),
             maximumAmount: Number(rule.maximumAmount ?? 0),
