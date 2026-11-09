@@ -180,7 +180,8 @@ test("withdrawal rule limits reject unsupported precision and non-finite values"
   const settings = readFileSync(new URL("../src/system-settings/system-settings.service.ts", import.meta.url), "utf8");
   const adminPage = readFileSync(new URL("../../admin/src/app/system-settings/page.tsx", import.meta.url), "utf8");
   assert.ok(settings.includes("Number.isFinite(value)"));
-  assert.ok(settings.includes("Math.abs(value * 100 - Math.round(value * 100)) < 1e-7"));
+  assert.ok(settings.includes("const scale = 10 ** currencyDigits(walletCurrency)"));
+  assert.ok(settings.includes("Math.abs(value * scale - Math.round(value * scale)) < 1e-7"));
   assert.equal((adminPage.match(/step="0.01"/g) ?? []).length, 3);
   assert.ok(!adminPage.includes('step="0.001"'));
 });
