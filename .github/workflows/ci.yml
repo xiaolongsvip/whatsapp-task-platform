@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, feature/automatic-task-slot-allocation]
+    branches: [main, feature/automatic-task-slot-allocation, fix/withdrawal-app-rule-alignment]
   pull_request:
-    branches: [main]
+    branches: [main, fix/withdrawal-app-rule-alignment]
 
 concurrency:
   group: wtp-ci-${{ github.ref }}
