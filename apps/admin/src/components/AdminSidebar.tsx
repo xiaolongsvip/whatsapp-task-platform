@@ -4,13 +4,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { BarChart3, ChevronDown, ClipboardCheck, ClipboardList, FileClock, HandCoins, LayoutDashboard, MessageSquare, Phone, Settings, Shield, Users, WalletCards, Image, ShieldAlert, Sprout } from "lucide-react";
+import { BarChart3, ChevronDown, ClipboardCheck, ClipboardList, FileClock, HandCoins, LayoutDashboard, MessageSquare, Phone, Settings, Shield, Users, WalletCards, Image, ShieldAlert, Sprout, Database } from "lucide-react";
 
 const primary = [
   { href: "/", label: "控制台", Icon: LayoutDashboard },
   { href: "/users", label: "用户管理", Icon: Users },
   { href: "/tasks", label: "任务管理", Icon: Phone },
   { href: "/executions", label: "执行记录", Icon: ClipboardList },
+  { href: "/contact-numbers", label: "号码池管理", Icon: Database },
 ];
 const reviewItems = [
   { href: "/ai-reviews", label: "人工审核", Icon: ClipboardCheck },
