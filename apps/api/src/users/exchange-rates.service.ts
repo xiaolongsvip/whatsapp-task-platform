@@ -111,6 +111,55 @@ export class ExchangeRatesService {
     }
   }
 
+  async manualRates() {
+    const row = await prisma.taskConfiguration.findUnique({ where: { key: "system.exchangeRates.manual" }, select: { value: true } });
+    const value = row?.value as any;
+    return { items: Array.isArray(value?.items) ? value.items : [] };
+  }
+
+  async setManualRate(input: { from: string; to: string; rate: number; validUntil?: string | null; note?: string }, adminId: string) {
+    const from = String(input.from ?? "").trim().toUpperCase();
+    const to = String(input.to ?? "").trim().toUpperCase();
+    const rate = Number(input.rate);
+    if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to) || from === to) {
+      throw new BadRequestException("请填写不同的三位 ISO 货币代码。");
+    }
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 1000000000) {
+      throw new BadRequestException("汇率必须是大于零的有效数字。");
+    }
+    const validUntil = input.validUntil ? new Date(input.validUntil) : null;
+    if (validUntil && (!Number.isFinite(validUntil.getTime()) || validUntil.getTime() <= Date.now())) {
+      throw new BadRequestException("手动汇率有效期必须晚于当前时间。");
+    }
+    const row = await prisma.taskConfiguration.findUnique({ where: { key: "system.exchangeRates.manual" }, select: { value: true } });
+    const current = row?.value as any;
+    const items = Array.isArray(current?.items) ? [...current.items] : [];
+    const item = { id: from + "_" + to, from, to, rate, source: "MANUAL_ADMIN", updatedAt: new Date().toISOString(), validUntil: validUntil?.toISOString() ?? null, note: String(input.note ?? "").trim().slice(0, 300), updatedBy: adminId, enabled: true };
+    const index = items.findIndex((x: any) => String(x.from).toUpperCase() === from && String(x.to).toUpperCase() === to);
+    if (index >= 0) items[index] = item; else items.unshift(item);
+    await prisma.taskConfiguration.upsert({
+      where: { key: "system.exchangeRates.manual" },
+      create: { key: "system.exchangeRates.manual", value: { items } as any },
+      update: { value: { items } as any },
+    });
+    await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "MANUAL_EXCHANGE_RATE_UPDATED", targetType: "SYSTEM_SETTING", targetId: item.id, metadata: { from, to, rate, validUntil: item.validUntil, note: item.note } } });
+    return item;
+  }
+
+  async disableManualRate(fromInput: string, toInput: string, adminId: string) {
+    const from = String(fromInput ?? "").trim().toUpperCase(), to = String(toInput ?? "").trim().toUpperCase();
+    const row = await prisma.taskConfiguration.findUnique({ where: { key: "system.exchangeRates.manual" }, select: { value: true } });
+    const current = row?.value as any;
+    const items = Array.isArray(current?.items) ? [...current.items] : [];
+    const item = items.find((x: any) => String(x.from).toUpperCase() === from && String(x.to).toUpperCase() === to);
+    if (!item) throw new BadRequestException("指定的手动汇率不存在。");
+    item.enabled = false;
+    item.disabledAt = new Date().toISOString();
+    await prisma.taskConfiguration.upsert({ where: { key: "system.exchangeRates.manual" }, create: { key: "system.exchangeRates.manual", value: { items } as any }, update: { value: { items } as any } });
+    await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action: "MANUAL_EXCHANGE_RATE_DISABLED", targetType: "SYSTEM_SETTING", targetId: from + "_" + to, metadata: { from, to } } });
+    return { from, to, enabled: false };
+  }
+
   async getRate(fromInput: string, toInput: string) {
     const from = fromInput.trim().toUpperCase(), to = toInput.trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) {
