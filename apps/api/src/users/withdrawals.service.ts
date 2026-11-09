@@ -171,7 +171,7 @@ export class WithdrawalsService {
           if (amountMinor < currentMinimumMinor || currentMaximumMinor <= 0n || amountMinor > currentMaximumMinor || currentDailyLimitMinor <= 0n) {
             throw new BadRequestException("Withdrawal limits changed. Please refresh the quote and try again.");
           }
-          const provider = await tx.paymentProviderConfig.findUnique({
+          const provider = await tx.paymentProviderConfig.findFirst({
             where: { providerCode: { equals: context.providerCode, mode: "insensitive" } },
             select: { providerCode: true, countryCode: true, methodCode: true, supportedChannels: true, supportedCurrencies: true, enabled: true },
           });
