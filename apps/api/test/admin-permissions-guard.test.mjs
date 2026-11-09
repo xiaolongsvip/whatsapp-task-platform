@@ -7,7 +7,8 @@ const referrals = readFileSync(new URL("../src/admin-referrals/admin-referrals.s
 const financePage = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
 
 test("manual finance adjustments require wallet read and wallet balance adjustment permissions", () => {
-  assert.match(guard, /\/admin\/finance\/adjustments\$\/\)\) return method === "GET" \? "finance\.wallets\.read" : "finance\.wallets\.adjust"/);
+  const mapping = guard.split("\n").find((line) => line.includes("adjustments$/"));
+  assert.ok(mapping?.includes('method === "GET" ? "finance.wallets.read" : "finance.wallets.adjust"'));
   assert.match(financePage, /新建任务调账/);
   assert.match(financePage, /将立即写入钱包流水/);
 });
