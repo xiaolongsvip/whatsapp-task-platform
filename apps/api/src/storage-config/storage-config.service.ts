@@ -48,6 +48,13 @@ export class StorageConfigService {
     if (endpoint.protocol !== "https:" && !(process.env.NODE_ENV !== "production" && localHttp)) {
       throw new BadRequestException("对象存储 Endpoint 必须使用 HTTPS。");
     }
+    if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+      throw new BadRequestException("Endpoint 不能包含账号密码、查询参数或片段；请只填写存储服务地址。");
+    }
+    const bucket = input.bucket.trim();
+    if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket) || bucket.includes("..")) {
+      throw new BadRequestException("Bucket 名称必须为 3–63 位小写字母、数字、点或连字符，且不能包含连续点。");
+    }
     const existing = await prisma.objectStorageConfig.findUnique({ where: { id: CONFIG_ID } });
     if (Boolean(input.accessKey?.trim()) !== Boolean(input.secretKey?.trim())) {
       throw new BadRequestException("Access Key 和 Secret Key 必须同时填写或同时留空。");
@@ -65,7 +72,7 @@ export class StorageConfigService {
     await prisma.objectStorageConfig.upsert({
       where: { id: CONFIG_ID },
       create: {
-        id: CONFIG_ID, endpoint: input.endpoint.trim().replace(/\/+$/, ""), bucket: input.bucket.trim(),
+        id: CONFIG_ID, endpoint: input.endpoint.trim().replace(/\/+$/, ""), bucket,
         region: input.region?.trim() || "auto",
         accessKeyCiphertext: credentials.accessKeyCiphertext ?? null,
         accessKeyIv: credentials.accessKeyIv ?? null,
@@ -76,7 +83,7 @@ export class StorageConfigService {
         enabled: input.enabled ?? false, updatedByAdminId: adminId,
       },
       update: {
-        endpoint: input.endpoint.trim().replace(/\/+$/, ""), bucket: input.bucket.trim(),
+        endpoint: input.endpoint.trim().replace(/\/+$/, ""), bucket,
         region: input.region?.trim() || "auto",
         ...credentials,
         enabled: input.enabled ?? false, updatedByAdminId: adminId,
@@ -85,7 +92,7 @@ export class StorageConfigService {
     await prisma.auditEvent.create({
       data: { actorType: "ADMIN", actorId: adminId, action: "OBJECT_STORAGE_CONFIG_UPDATED",
         targetType: "OBJECT_STORAGE_CONFIG", targetId: CONFIG_ID,
-        metadata: { endpoint: endpoint.origin, bucket: input.bucket.trim(), enabled: input.enabled ?? false } },
+        metadata: { endpoint: endpoint.origin, bucket, enabled: input.enabled ?? false } },
     });
     return this.getPublicConfig();
   }
