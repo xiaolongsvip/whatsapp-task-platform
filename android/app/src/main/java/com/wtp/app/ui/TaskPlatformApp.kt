@@ -236,6 +236,8 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
         }
     }
     val availableBalance = formatAvailableBalances(dashboard?.optJSONArray("balances"))
+    val pendingRewards = formatAvailableBalances(dashboard?.optJSONArray("pendingRewards"))
+    val totalEarnings = formatAvailableBalances(dashboard?.optJSONArray("totalEarnings"))
     val id = user?.optString("id")?.takeIf { it.isNotBlank() && it != "null" } ?: user?.optString("userId")?.takeIf { it.isNotBlank() && it != "null" }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFFB9E8FC), Color(0xFFF2F7FB)))).padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -267,9 +269,9 @@ private fun MyProfileScreen(modifier: Modifier = Modifier, phone: String, langua
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     ProfileAsset(Icons.Default.Wallet, if (en) "Available balance" else "可提现余额", availableBalance, Color(0xFF319CCB), Modifier.weight(1f), onPayoutAccounts)
                     Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFD8E5EC)))
-                    ProfileAsset(Icons.Default.AccountBalanceWallet, if (en) "Pending rewards" else "待审核奖励", "—", Color(0xFFFF8A22), Modifier.weight(1f))
+                    ProfileAsset(Icons.Default.AccountBalanceWallet, if (en) "Pending rewards" else "待审核奖励", if (dashboard == null) "—" else pendingRewards, Color(0xFFFF8A22), Modifier.weight(1f))
                     Box(Modifier.width(1.dp).height(56.dp).background(Color(0xFFD8E5EC)))
-                    ProfileAsset(Icons.Default.Paid, if (en) "Total earnings" else "累计收益", "—", Color(0xFF319CCB), Modifier.weight(1f))
+                    ProfileAsset(Icons.Default.Paid, if (en) "Total earnings" else "累计收益", if (dashboard == null) "—" else totalEarnings, Color(0xFF319CCB), Modifier.weight(1f))
                 }
             }
         }
