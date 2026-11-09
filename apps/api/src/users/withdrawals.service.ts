@@ -244,14 +244,14 @@ export class WithdrawalsService {
           if ((dailyUsed._sum.amountMinor ?? 0n) + amountMinor > currentDailyLimitMinor) {
             throw new BadRequestException("This withdrawal would exceed the configured daily withdrawal limit.");
           }
-          const [entries, withdrawals, holds] = await Promise.all([
-            tx.ledgerEntry.findMany({ where: { walletId: wallet.id }, select: { direction: true, amountMinor: true } }),
-            tx.withdrawalRequest.findMany({ where: { walletId: wallet.id, status: { in: [...RESERVED_STATUSES] } }, select: { amountMinor: true } }),
+          const [ledgerGroups, withdrawals, holds] = await Promise.all([
+            tx.ledgerEntry.groupBy({ by: ["direction"], where: { walletId: wallet.id }, _sum: { amountMinor: true } }),
+            tx.withdrawalRequest.aggregate({ where: { walletId: wallet.id, status: { in: [...RESERVED_STATUSES] } }, _sum: { amountMinor: true } }),
             tx.walletHold.aggregate({ where: { walletId: wallet.id, status: "ACTIVE" }, _sum: { amountMinor: true } }),
           ]);
-          const credited = entries.filter(entry => entry.direction === "CREDIT").reduce((sum, entry) => sum + entry.amountMinor, 0n);
-          const debited = entries.filter(entry => entry.direction === "DEBIT").reduce((sum, entry) => sum + entry.amountMinor, 0n);
-          const reserved = withdrawals.reduce((sum, item) => sum + item.amountMinor, 0n);
+          const credited = ledgerGroups.find(entry => entry.direction === "CREDIT")?._sum.amountMinor ?? 0n;
+          const debited = ledgerGroups.find(entry => entry.direction === "DEBIT")?._sum.amountMinor ?? 0n;
+          const reserved = withdrawals._sum.amountMinor ?? 0n;
           const frozen = holds._sum.amountMinor ?? 0n;
           const available = credited - debited - reserved - frozen;
           if (amountMinor > available) throw new BadRequestException("Insufficient available balance.");
