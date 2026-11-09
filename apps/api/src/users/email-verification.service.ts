@@ -72,11 +72,9 @@ export class EmailVerificationService {
     return { success: true, email, verifiedAt: verifiedAt.toISOString() };
   }
 
-  async requireVerified(userId: string) {
-    const settings = await prisma.taskConfiguration.findUnique({ where: { key: "system.accountSecurity" }, select: { value: true } });
-    const value = settings?.value && typeof settings.value === "object" && !Array.isArray(settings.value) ? settings.value as Record<string, unknown> : {};
-    if (value.businessEmailVerification !== true) return;
-    const profile = await prisma.userProfile.findUnique({ where: { userId }, select: { email: true, emailVerifiedAt: true } });
-    if (!profile?.email || !profile.emailVerifiedAt) throw new BadRequestException("当前平台已启用业务邮箱验证，请先绑定并验证邮箱后再继续。");
+  // Email verification is intentionally not a requirement for this platform.
+  // Keep this method as a compatibility no-op while legacy callers are removed.
+  async requireVerified(_userId: string) {
+    return;
   }
 }
