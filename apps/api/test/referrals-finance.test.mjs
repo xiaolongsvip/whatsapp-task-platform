@@ -6,12 +6,11 @@ const service = readFileSync(new URL("../src/admin-referrals/admin-referrals.ser
 
 test("referral commission listing filters status and paginates in SQL instead of loading all rows", () => {
   const method = service.slice(service.indexOf("async listCommissions("), service.indexOf("async getSettings()"));
-  assert.match(method, /prisma\.\$queryRaw[\s\S]*?COUNT\(\*\)::bigint AS total/);
+  assert.match(method, /\$queryRawUnsafe[\s\S]*?COUNT\(\*\)::bigint AS total/);
   assert.match(method, /credit\.id IS NOT NULL/);
   assert.match(method, /credit\.id IS NULL/);
-  assert.match(method, /LIMIT \\$\\{limit\\} OFFSET \\$\\{offset\\}/);
-  assert.match(method, /rowParams = \\[\\.\\.\\.params\\]/);
-  assert.match(method, /\$queryRawUnsafe/);
+  assert.match(method, /LIMIT \$\{limit\} OFFSET \$\{offset\}/);
+  assert.match(method, /rowParams = \[\.\.\.params\]/);
   assert.doesNotMatch(method, /referralReward\.findMany/);
   assert.doesNotMatch(method, /matching\.slice/);
 });
