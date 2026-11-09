@@ -587,6 +587,15 @@ model WithdrawalRequest {
   reviewedById  String?          @map("reviewed_by_id") @db.Uuid
   payoutReference String?         @map("payout_reference")
   payoutAccountId String?          @map("payout_account_id") @db.Uuid
+  payoutCurrency String?           @map("payout_currency") @db.Char(3)
+  payoutAmountMinor BigInt?        @map("payout_amount_minor")
+  exchangeRate Decimal?            @map("exchange_rate") @db.Decimal(30, 12)
+  exchangeRateSource String?       @map("exchange_rate_source") @db.VarChar(80)
+  feeAmountMinor BigInt?           @map("fee_amount_minor")
+  feeCurrency String?              @map("fee_currency") @db.Char(3)
+  payoutMethod String?             @map("payout_method") @db.VarChar(40)
+  payoutProviderCode String?       @map("payout_provider_code") @db.VarChar(80)
+  payoutNetwork String?            @map("payout_network") @db.VarChar(20)
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
   wallet        Wallet           @relation(fields: [walletId], references: [id], onDelete: Restrict)
@@ -603,6 +612,8 @@ model PayoutAccount {
   userId                   String             @map("user_id") @db.Uuid
   countryCode              String             @map("country_code") @db.Char(2)
   currency                 String             @db.Char(3)
+  bankCode                 String?            @map("bank_code") @db.VarChar(80)
+  network                  String?            @db.VarChar(20)
   providerCode             String             @map("provider_code")
   methodCode               String             @map("method_code")
   accountHolder            String             @map("account_holder")
