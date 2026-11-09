@@ -179,6 +179,11 @@ export class SystemSettingsController {
     return this.exchangeRates.disableManualRate(body.from, body.to, admin.id);
   }
 
+  @Get("payout-catalogs")
+  async payoutCatalogs(@Req() req: Request) { await this.admin(req); return this.settings.getPayoutCatalogs(); }
+  @Put("payout-catalogs")
+  async savePayoutCatalogs(@Req() req: Request, @Body() body: Record<string, unknown>) { const a = await this.admin(req); return this.settings.savePayoutCatalogs(body, a.id); }
+
   @Get("withdrawal-rules")
   async withdrawalRules(@Req() req: Request, @Query() q: Record<string,string>) { await this.admin(req); return this.settings.listWithdrawalRules(q); }
   @Post("withdrawal-rules")
