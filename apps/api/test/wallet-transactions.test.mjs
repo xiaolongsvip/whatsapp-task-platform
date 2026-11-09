@@ -91,3 +91,18 @@ test("admin wallet hold records support server-backed pagination", () => {
   assert.match(page, /上一页/);
   assert.match(page, /下一页/);
 });
+
+
+test("freezing funds calculates available balance with database aggregates instead of loading all ledger rows", () => {
+  const holds = readFileSync(new URL("../src/wallet-holds-admin/wallet-holds-admin.service.ts", import.meta.url), "utf8");
+  assert.match(holds, /ledgerEntry\.groupBy\(\{ by: \["direction"\]/);
+  assert.match(holds, /withdrawalRequest\.aggregate\([\s\S]*?_sum: \{ amountMinor: true \}/);
+  assert.doesNotMatch(holds, /ledgerEntry\.findMany\(\{ where: \{ walletId: wallet\.id \}/);
+});
+
+test("withdrawal creation calculates available balance with database aggregates", () => {
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  assert.match(withdrawals, /ledgerEntry\.groupBy\(\{ by: \["direction"\]/);
+  assert.match(withdrawals, /withdrawalRequest\.aggregate\([\s\S]*?_sum: \{ amountMinor: true \}/);
+  assert.doesNotMatch(withdrawals, /ledgerEntry\.findMany\(\{ where: \{ walletId: wallet\.id \}/);
+});
