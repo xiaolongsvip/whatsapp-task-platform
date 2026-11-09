@@ -244,7 +244,11 @@ object AuthRepository {
             .put("amountMinor", amountMinor)
             .put("expectedRate", quote.optString("rate"))
             .put("expectedRateSource", quote.optString("rateSource"))
-            .put("expectedRateFetchedAt", quote.optString("rateFetchedAt")))
+            .put("expectedRateFetchedAt", quote.optString("rateFetchedAt"))
+            .put("expectedQuoteAmountMinor", quote.optString("amountMinor"))
+            .put("expectedWalletCurrency", quote.optString("walletCurrency"))
+            .put("expectedPayoutCurrency", quote.optString("payoutCurrency"))
+            .put("expectedPayoutAmountMinor", quote.optString("payoutAmountMinor")))
 
     fun payoutOptions(): JSONObject = request("GET", "users/payout-options")
 
