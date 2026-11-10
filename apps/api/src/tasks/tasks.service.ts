@@ -683,6 +683,26 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         `;
       }
 
+      const overdueCandidate = userId
+        ? await tx.taskClaim.findFirst({
+            where: {
+              userId,
+              expiresAt: { lte: now },
+              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+            },
+            select: { id: true },
+          })
+        : await tx.taskClaim.findFirst({
+            where: {
+              expiresAt: { lte: now },
+              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+            },
+            select: { id: true },
+          });
+      if (!overdueCandidate) return;
+
+      // Acquire the global inventory lock before locking expired claim rows.
+      await lockTaskSlotAllocation(tx);
       const expiredRows = userId
         ? await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id
