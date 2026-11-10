@@ -277,7 +277,7 @@ fun TaskHallScreen(
     // API supplies one independent card for every available authorized number slot.
     val availableTasks = tasks
 
-    val selectedClaim = claims.firstOrNull { it.optString("id") == selectedClaimId && it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW") }
+    val selectedClaim = claims.firstOrNull { it.optString("id") == selectedClaimId }
 
     val claimedLastSevenDays = claims.count { it.isWithinLastSevenDays() }
     val approvedLastSevenDays = claims.count {
