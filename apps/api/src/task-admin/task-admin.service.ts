@@ -8,7 +8,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import type { Prisma } from "@wtp/database";
 import type { CreateAdminTaskDto, UpdateAdminTaskDto } from "./task-admin.dto";
-import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "../tasks/task-slot-allocation";
 
 const DEV_EXECUTION_TEST_SCREENSHOT = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280">
 <defs><pattern id="chatbg" width="72" height="72" patternUnits="userSpaceOnUse"><rect width="72" height="72" fill="#efe9df"/><g fill="none" stroke="#d8d0c4" stroke-width="2" opacity=".55"><circle cx="16" cy="18" r="8"/><path d="M45 12l12 12m-12 0l12-12M8 55q12-15 24 0M48 52h16v12H48z"/></g></pattern></defs>
@@ -571,6 +571,7 @@ export class TaskAdminService {
       if (identity.claimId) {
         await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_claims WHERE id = ${identity.claimId}::uuid FOR UPDATE`;
       }
+      await lockTaskSlotAllocation(tx);
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM contact_numbers WHERE id = ${identity.contactNumberId}::uuid FOR UPDATE`;
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
       const slot = await tx.taskSlot.findUnique({
