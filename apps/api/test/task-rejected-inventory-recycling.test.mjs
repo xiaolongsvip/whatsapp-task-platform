@@ -71,7 +71,7 @@ test("admin recycling a previously AI-rejected claim does not decrement claimedC
   const admin = await read("../src/task-admin/task-admin.service.ts");
   const body = admin.slice(admin.indexOf("async voidTaskRecord("), admin.indexOf("async deleteTaskRecord("));
   assert.match(body, /const assignmentWasActive = claim\.contactAssignment\?\.status === "ASSIGNED"/);
-  assert.match(body, /const slotWasActive = slot\.status === "ASSIGNED" && slot\.claimId === claim\.id/);
+  assert.match(body, /const slotWasActive = \["ASSIGNED", "AVAILABLE"\]\.includes\(slot\.status\) && slot\.claimId === claim\.id/);
   assert.match(body, /if \(\["CLAIMED", "IN_PROGRESS"\]\.includes\(claim\.status\)\)/);
   assert.match(body, /claim\.status === "REJECTED" && \(assignmentWasActive \|\| slotWasActive\)/);
   assert.doesNotMatch(body, /if \(\["CLAIMED", "IN_PROGRESS", "REJECTED"\]\.includes\(claim\.status\)\)\s*\{[\s\S]{0,160}status: "CANCELLED"/);
