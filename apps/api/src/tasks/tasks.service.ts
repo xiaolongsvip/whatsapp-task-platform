@@ -246,13 +246,40 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async myClaims(userId: string) {
+  async myClaims(
+    userId: string,
+    limitInput?: string,
+    beforeClaimedAtInput?: string,
+    beforeIdInput?: string,
+  ) {
     // Expiry recovery applies the current global deadline to legacy claims.
     await this.expireOverdueClaims(userId);
+    const parsedLimit = Number.parseInt(limitInput ?? "100", 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : 100;
+    let cursorClaimedAt: Date | null = null;
+    let cursorId: string | null = null;
+    if (beforeClaimedAtInput || beforeIdInput) {
+      if (!beforeClaimedAtInput || !beforeIdInput || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(beforeIdInput)) {
+        throw new BadRequestException("任务记录分页游标无效，请刷新后重试。");
+      }
+      cursorClaimedAt = new Date(beforeClaimedAtInput);
+      if (Number.isNaN(cursorClaimedAt.getTime())) {
+        throw new BadRequestException("任务记录分页时间无效，请刷新后重试。");
+      }
+      cursorId = beforeIdInput;
+    }
     const claims = await prisma.taskClaim.findMany({
-      where: { userId },
-      orderBy: { claimedAt: "desc" },
-      take: 100,
+      where: {
+        userId,
+        ...(cursorClaimedAt && cursorId ? {
+          OR: [
+            { claimedAt: { lt: cursorClaimedAt } },
+            { claimedAt: cursorClaimedAt, id: { lt: cursorId } },
+          ],
+        } : {}),
+      },
+      orderBy: [{ claimedAt: "desc" }, { id: "desc" }],
+      take: take + 1,
       include: {
         task: {
           select: {
@@ -296,8 +323,11 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
+    const hasMore = claims.length > take;
+    const pageClaims = claims.slice(0, take);
+    const last = pageClaims[pageClaims.length - 1];
     return {
-      claims: claims.map((claim) => ({
+      claims: pageClaims.map((claim) => ({
         id: claim.id,
         taskId: claim.taskId,
         status: claim.status,
@@ -312,6 +342,10 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           ? publicSubmission({ ...claim.submissions[0], claimId: claim.id })
           : null,
       })),
+      hasMore,
+      nextCursor: hasMore && last
+        ? { claimedAt: last.claimedAt.toISOString(), id: last.id }
+        : null,
     };
   }
 
