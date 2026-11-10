@@ -10,6 +10,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "../users/dashboard.service";
 import { S3ObjectStorageService } from "./s3-object-storage.service";
+import { allocateAvailableNumbersToOldestPublishedTask } from "./task-slot-allocation";
+import { recycleUnsuccessfulTaskClaimInventory } from "./task-claim-inventory";
 
 const DAILY_TASK_LIMIT = 20;
 const DEFAULT_MIN_CLAIM_INTERVAL_SECONDS = 60;
