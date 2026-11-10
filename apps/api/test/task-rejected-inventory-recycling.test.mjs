@@ -63,6 +63,7 @@ test("Android app treats rejected claims as history, not active work, and clears
   assert.match(screen, /CaptureSessionState\.clearActiveClaim\(\)/);
   assert.match(screen, /该号码已回收到可分配号码池/);
   assert.match(screen, /号码已回收/);
+  assert.match(screen, /该号码已回收到任务号码池，可能已重新分配给其他任务/);
   assert.doesNotMatch(screen, /Rejected — you can try again before the deadline/);
 });
 
