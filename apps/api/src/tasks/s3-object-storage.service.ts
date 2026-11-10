@@ -197,11 +197,33 @@ export class S3ObjectStorageService {
       );
     }
     if (method === "GET") {
-      const bytes = Buffer.from(await response.arrayBuffer());
-      if (bytes.length > 8 * 1024 * 1024) {
+      const maxBytes = 8 * 1024 * 1024;
+      const declaredLength = Number(response.headers.get("content-length") || 0);
+      if (declaredLength > maxBytes) {
+        await response.body?.cancel().catch(() => undefined);
         throw new ServiceUnavailableException("证据图片超过审核读取大小限制。");
       }
-      return bytes;
+      if (!response.body) {
+        throw new ServiceUnavailableException("证据存储未返回文件内容。");
+      }
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          totalBytes += chunk.value.byteLength;
+          if (totalBytes > maxBytes) {
+            await reader.cancel().catch(() => undefined);
+            throw new ServiceUnavailableException("证据图片超过审核读取大小限制。");
+          }
+          chunks.push(chunk.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
     }
   }
 }
