@@ -909,6 +909,7 @@ export class TaskAdminService {
     }
 
     return prisma.$transaction(async (tx) => {
+      await lockTaskSlotAllocation(tx);
       await tx.task.update({
         where: { id: taskId },
         data: { status: "PUBLISHED" },
@@ -941,6 +942,7 @@ export class TaskAdminService {
       throw new ConflictException("只有已发布任务才能暂停。");
     }
     return prisma.$transaction(async (tx) => {
+      await lockTaskSlotAllocation(tx);
       await tx.task.update({
         where: { id: taskId },
         data: { status: "PAUSED" },
@@ -1240,6 +1242,7 @@ export class TaskAdminService {
     if (!task) throw new NotFoundException("任务不存在。");
     if (task.status === "CLOSED") return publicTask({ ...task, _count: { claims: task.claimedCount } });
     return prisma.$transaction(async (tx) => {
+      await lockTaskSlotAllocation(tx);
       await tx.task.update({
         where: { id: taskId },
         data: { status: "CLOSED" },
