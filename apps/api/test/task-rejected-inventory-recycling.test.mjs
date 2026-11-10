@@ -26,7 +26,8 @@ test("automatic AI rejection immediately recycles unsuccessful task inventory an
   assert.match(reject, /recycleUnsuccessfulTaskClaimInventory/);
   assert.match(reject, /allocateAvailableNumbersToOldestPublishedTask/);
   assert.match(reject, /current\.submission\.claim\.status/);
-  assert.doesNotMatch(reject, /NEEDS_REVIEW.*自动拒绝/);
+  assert.match(reject, /提交或领取状态已变化，停止自动拒绝/);
+  assert.match(reject, /status: "COMPLETED"/);
 });
 
 test("manual rejection recycles inventory while retaining the rejected submission and claim history", async () => {
@@ -61,7 +62,6 @@ test("Android app treats rejected claims as history, not active work, and clears
   assert.match(screen, /val expirableStatuses = setOf\("CLAIMED", "IN_PROGRESS"\)/);
   assert.match(screen, /setOf\("CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW"\)/);
   assert.match(screen, /CaptureSessionState\.clearActiveClaim\(\)/);
-  assert.match(screen, /该号码已回收到可分配号码池/);
   assert.match(screen, /号码已回收/);
   assert.match(screen, /该号码已回收到任务号码池，可能已重新分配给其他任务/);
   assert.doesNotMatch(screen, /Rejected — you can try again before the deadline/);
