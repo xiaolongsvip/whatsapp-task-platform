@@ -349,16 +349,16 @@ export default function AdminTasksPage() {
             const eligible=chosen.filter((item)=>!["COMPLETED","REVIEW","FROZEN","VOIDED"].includes(item.status));
             const skipped=chosen.length-eligible.length;
             if(!eligible.length){window.alert("选中的记录没有符合作废条件的项目。");return;}
-            if(!window.confirm("确定批量作废 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中、冻结或已作废的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
+            if(!window.confirm("确定回收并重新分配 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中、冻结或已作废的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
             setBusy(true);setError("");setMessage("");
             try{
               const result=await api<{total:number;succeeded:number;failed:number;results:Array<{id:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-void",{method:"POST",body:JSON.stringify({ids:eligible.map((item)=>item.id)})});
-              setMessage("批量作废完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
+              setMessage("批量回收完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
               if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.id+": "+item.message).join("；"));}
               await refresh();await loadRecords();
             }catch(err){setError(err instanceof Error?err.message:"批量作废失败。");}
             finally{setBusy(false);}
-          }}>批量作废（{selectedIds.length}）</button>
+          }}>回收并重新分配（{selectedIds.length}）</button>
 
           <button className="tasks-outline-btn" type="button" disabled={busy} onClick={async()=>{
             try{
@@ -511,14 +511,14 @@ export default function AdminTasksPage() {
                 }catch(err){setError(err instanceof Error?err.message:"删除任务号码记录失败。");}
               }}><Trash2 size={13}/> 删除</button>
               <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="VOIDED" || selectedRecord.status==="COMPLETED" || selectedRecord.status==="REVIEW" || selectedRecord.status==="FROZEN"} onClick={async()=>{
-                if(!window.confirm("确定作废当前这条任务号码记录吗？不会关闭整批任务。"))return;
+                if(!window.confirm("确定回收当前号码并重新分配吗？不会关闭整批任务；未完成号码将返回可分配库存。"))return;
                 try{
                   await api("/api/v1/admin/tasks/records/"+selectedRecord.id+"/void",{method:"POST"});
                   setSelectedRecord(null);
-                  setMessage("当前任务号码记录已作废，其他号码任务不受影响。");
+                  setMessage("号码已回收到可分配库存，后续按 FIFO 规则重新分配。");
                   await refresh();await loadRecords();
                 }catch(err){setError(err instanceof Error?err.message:"作废任务号码记录失败。");}
-              }}>⊗ 作废任务</button>
+              }}>↻ 回收并重新分配</button>
             </footer>
           </aside>
         </div>
