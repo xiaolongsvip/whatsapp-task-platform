@@ -108,7 +108,13 @@ fun TaskHallScreen(
     val lastCaptureClaimId by CaptureSessionState.lastCaptureClaimId.collectAsState()
 
     var tasks by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var taskCursor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var taskHasMore by remember { mutableStateOf(false) }
+    var loadingMoreTasks by remember { mutableStateOf(false) }
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var claimsCursor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var claimsHasMore by remember { mutableStateOf(false) }
+    var loadingMoreClaims by remember { mutableStateOf(false) }
     var locallyExpiredClaimIds by remember { mutableStateOf(emptySet<String>()) }
     var dashboard by remember { mutableStateOf(JSONObject()) }
     var clockMillis by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -144,7 +150,21 @@ fun TaskHallScreen(
                     )
                 }
                 tasks = result.first.optJSONArray("tasks").asObjectList()
+                val taskNext = result.first.optJSONObject("nextCursor")
+                taskCursor = if (taskNext != null) {
+                    val createdAt = taskNext.optString("createdAt")
+                    val id = taskNext.optString("id")
+                    if (createdAt.isNotBlank() && id.isNotBlank()) createdAt to id else null
+                } else null
+                taskHasMore = result.first.optBoolean("hasMore", false)
                 claims = result.second.optJSONArray("claims").asObjectList()
+                val claimsNext = result.second.optJSONObject("nextCursor")
+                claimsCursor = if (claimsNext != null) {
+                    val claimedAt = claimsNext.optString("claimedAt")
+                    val id = claimsNext.optString("id")
+                    if (claimedAt.isNotBlank() && id.isNotBlank()) claimedAt to id else null
+                } else null
+                claimsHasMore = result.second.optBoolean("hasMore", false)
                 val activeId = CaptureSessionState.activeClaimId.value
                 if (!activeId.isNullOrBlank()) {
                     val activeClaim = claims.firstOrNull { it.optString("id") == activeId }
@@ -162,6 +182,52 @@ fun TaskHallScreen(
             } finally {
                 loading = false
             }
+        }
+    }
+
+    fun loadMoreTasks() {
+        val cursor = taskCursor ?: return
+        if (loadingMoreTasks || !taskHasMore) return
+        scope.launch {
+            loadingMoreTasks = true
+            try {
+                val result = withContext(Dispatchers.IO) { AuthRepository.publishedTasks(100, cursor.first, cursor.second) }
+                val incoming = result.optJSONArray("tasks").asObjectList()
+                val knownIds = tasks.map { it.optString("slotId", it.optString("id")) }.toMutableSet()
+                tasks = tasks + incoming.filter { knownIds.add(it.optString("slotId", it.optString("id"))) }
+                val next = result.optJSONObject("nextCursor")
+                taskCursor = if (next != null) {
+                    val createdAt = next.optString("createdAt")
+                    val id = next.optString("id")
+                    if (createdAt.isNotBlank() && id.isNotBlank()) createdAt to id else null
+                } else null
+                taskHasMore = result.optBoolean("hasMore", false)
+            } catch (e: Exception) {
+                error = e.message ?: if (isEnglish) "Could not load more tasks." else "加载更多任务失败，请重试。"
+            } finally { loadingMoreTasks = false }
+        }
+    }
+
+    fun loadMoreClaims() {
+        val cursor = claimsCursor ?: return
+        if (loadingMoreClaims || !claimsHasMore) return
+        scope.launch {
+            loadingMoreClaims = true
+            try {
+                val result = withContext(Dispatchers.IO) { AuthRepository.myTaskClaims(100, cursor.first, cursor.second) }
+                val incoming = result.optJSONArray("claims").asObjectList()
+                val knownIds = claims.map { it.optString("id") }.toMutableSet()
+                claims = claims + incoming.filter { knownIds.add(it.optString("id")) }
+                val next = result.optJSONObject("nextCursor")
+                claimsCursor = if (next != null) {
+                    val claimedAt = next.optString("claimedAt")
+                    val id = next.optString("id")
+                    if (claimedAt.isNotBlank() && id.isNotBlank()) claimedAt to id else null
+                } else null
+                claimsHasMore = result.optBoolean("hasMore", false)
+            } catch (e: Exception) {
+                error = e.message ?: if (isEnglish) "Could not load more task records." else "加载更多任务记录失败，请重试。"
+            } finally { loadingMoreClaims = false }
         }
     }
 
@@ -674,6 +740,20 @@ fun TaskHallScreen(
                                 )
                             }
                         }
+                        if (taskHasMore) {
+                            OutlinedButton(
+                                onClick = { loadMoreTasks() },
+                                enabled = !loadingMoreTasks,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                shape = RoundedCornerShape(9.dp)
+                            ) {
+                                Text(if (loadingMoreTasks) {
+                                    if (isEnglish) "Loading…" else "正在加载…"
+                                } else {
+                                    if (isEnglish) "Load more tasks" else "加载更多任务"
+                                }, color = WtpDarkGreen)
+                            }
+                        }
                     }
                     HallFilter.IN_PROGRESS -> {
                         SummaryCard(
@@ -796,6 +876,20 @@ fun TaskHallScreen(
                 )
                 else displayedRecords.sortedByDescending { it.optString("claimedAt") }.forEach { claim ->
                     ClaimRecordCard(claim, isEnglish)
+                }
+                if (claimsHasMore) {
+                    OutlinedButton(
+                        onClick = { loadMoreClaims() },
+                        enabled = !loadingMoreClaims,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        shape = RoundedCornerShape(9.dp)
+                    ) {
+                        Text(if (loadingMoreClaims) {
+                            if (isEnglish) "Loading…" else "正在加载…"
+                        } else {
+                            if (isEnglish) "Load more records" else "加载更多记录"
+                        }, color = WtpDarkGreen)
+                    }
                 }
             }
         }
