@@ -147,9 +147,10 @@ export class TaskAdminService {
     const filters: Prisma.TaskSlotWhereInput[] = [];
     if (input.taskId?.trim()) {
       const taskId = input.taskId.trim();
-      filters.push({ taskId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)
-        ? taskId
-        : { contains: taskId, mode: "insensitive" } });
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)) {
+        throw new BadRequestException("任务编号必须填写完整编号。");
+      }
+      filters.push({ taskId });
     }
     if (input.useStage === "USED") filters.push({ status: "USED" });
     if (input.useStage === "UNUSED") filters.push({ status: { not: "USED" } });
