@@ -30,8 +30,8 @@ test("admin storage UI saves before testing the persisted connection", async () 
   assert.match(source, /method: "POST"/);
   assert.ok(source.includes("!currentConfig.configured || !currentConfig.enabled"));
   assert.ok(source.includes("hasUnsavedChanges || !currentConfig.configured"));
-  assert.match(source, /setAccessKey\\("\\")/);
-  assert.match(source, /setSecretKey\\("\\")/);
+  assert.ok(source.includes('setAccessKey("")'));
+  assert.ok(source.includes('setSecretKey("")'));
 });
 
 test("storage config rejects endpoint query credentials and invalid bucket names", async () => {
