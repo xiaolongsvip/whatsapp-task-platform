@@ -210,11 +210,13 @@ test("expiry scanning ignores recycled rejected history and selects rejected row
   assert.doesNotMatch(legacyBackfill, /REJECTED/);
   const candidate = expiry.slice(expiry.indexOf("// Rejected claims are history"), expiry.indexOf("// Acquire the global inventory lock"));
   assert.match(candidate, /claim\.status = 'REJECTED'/);
+  assert.match(candidate, /claim\.expires_at IS NULL OR claim\.expires_at <=/);
   assert.match(candidate, /assignment\.status = 'ASSIGNED'/);
   assert.match(candidate, /slot\.status IN \('ASSIGNED', 'AVAILABLE'\)/);
   assert.match(candidate, /overdueCandidate\.length === 0/);
   const expiredRows = expiry.slice(expiry.indexOf("const expiredRows"), expiry.indexOf("for (const row of expiredRows)"));
   assert.match(expiredRows, /status = 'REJECTED'/);
+  assert.match(expiredRows, /expires_at IS NULL OR expires_at <=/);
   assert.match(expiredRows, /assignment\.status = 'ASSIGNED'/);
   assert.match(expiredRows, /slot\.status IN \('ASSIGNED', 'AVAILABLE'\)/);
 });
