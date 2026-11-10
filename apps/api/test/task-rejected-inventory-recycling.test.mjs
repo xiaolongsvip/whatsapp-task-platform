@@ -174,3 +174,18 @@ test("number blocking acquires the shared allocator lock before claim and number
   assert.ok(block.indexOf("lockTaskSlotAllocation(tx)") < block.indexOf("FROM task_claims"));
   assert.ok(block.indexOf("FROM task_claims") < block.indexOf("FROM contact_numbers"));
 });
+
+
+test("AI/manual rejection and expiry acquire the allocator lock before changing claim rows", async () => {
+  const worker = await read("../src/ai-config/ai-review.worker.ts");
+  const reject = worker.slice(worker.indexOf("private async reject("), worker.indexOf("private async retryOrEscalate("));
+  assert.ok(reject.indexOf("lockTaskSlotAllocation(tx)") < reject.indexOf('data: { status: "REJECTED" }'));
+  const adminReview = await read("../src/ai-config/ai-review-admin.service.ts");
+  const manual = adminReview.slice(adminReview.indexOf("async reviewSubmission("), adminReview.indexOf("async listSubmissions("));
+  assert.ok(manual.indexOf('if (decision === "REJECT")') < manual.indexOf("lockTaskSlotAllocation(tx)"));
+  assert.ok(manual.indexOf("lockTaskSlotAllocation(tx)") < manual.indexOf('data: { status: "REJECTED" }'));
+  const service = await read("../src/tasks/tasks.service.ts");
+  const expiry = service.slice(service.indexOf("private async expireOverdueClaims("), service.indexOf("async submitEvidence("));
+  assert.ok(expiry.indexOf("lockTaskSlotAllocation(tx)") < expiry.indexOf("UPDATE task_claims"));
+  assert.ok(expiry.indexOf("lockTaskSlotAllocation(tx)") < expiry.indexOf("FOR UPDATE SKIP LOCKED"));
+});
