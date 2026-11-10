@@ -6,6 +6,11 @@ const service = readFileSync(new URL("../src/finance-admin/finance-admin.service
 const controller = readFileSync(new URL("../src/finance-admin/finance-admin.controller.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../../../packages/database/prisma/migrations/20261108193000_unique_manual_payout_reference/migration.sql", import.meta.url), "utf8");
 const adminPage = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
+const dashboardService = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
+const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
+const androidAuthRepository = readFileSync(new URL("../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
+const androidApp = readFileSync(new URL("../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+
 
 test("manual payout rejects a provider payout reference already used by another payout", () => {
   assert.match(service, /where: \{ providerCode, providerReference: reference, flow: "PAYOUT" \}/);
@@ -669,4 +674,18 @@ test("approved withdrawals can enter processing exactly once with an audited tra
   assert.match(guard, /path\.endsWith\("\/processing"\)\) return "finance\.withdrawals\.pay"/);
   assert.match(adminPage, /startPayoutProcessing/);
   assert.match(adminPage, /开始付款处理/);
+});
+
+
+test("wallet transaction history supports stable cursor pagination end to end", () => {
+  assert.match(dashboardService, /getWalletTransactions\(userId: string, limit = 100, beforeCreatedAt\?: string, beforeId\?: string\)/);
+  assert.match(dashboardService, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+  assert.match(dashboardService, /nextCursor: hasMore && last \? \{ createdAt: last.createdAt, id: last.id \} : null/);
+  assert.match(usersController, /@Query\("beforeCreatedAt"\)/);
+  assert.match(usersController, /@Query\("beforeId"\)/);
+  assert.match(androidAuthRepository, /walletTransactions\(limit: Int = 100, beforeCreatedAt: String\? = null, beforeId: String\? = null\)/);
+  assert.match(androidApp, /fun loadMore\(\)/);
+  assert.match(androidApp, /AuthRepository\.walletTransactions\(100, beforeCreatedAt, beforeId\)/);
+  assert.match(androidApp, /"Load more"/);
+  assert.doesNotMatch(androidApp, /Showing the latest records/);
 });
