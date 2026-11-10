@@ -7,7 +7,7 @@ function isStaleAiReviewJob(job: { status: string; updatedAt: Date; lockedAt: Da
   if (!job) return false;
   const cutoff = now - AI_REVIEW_STALE_AFTER_MS;
   if (job.status === "PENDING" || job.status === "RETRY") return job.updatedAt.getTime() <= cutoff;
-  if (job.status === "PROCESSING") return !!job.lockedAt && job.lockedAt.getTime() <= cutoff;
+  if (job.status === "PROCESSING") return !job.lockedAt || job.lockedAt.getTime() <= cutoff;
   return false;
 }
 
@@ -15,7 +15,7 @@ function staleAiReviewJobWhere(cutoff: Date) {
   return {
     OR: [
       { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { lte: cutoff } },
-      { status: "PROCESSING" as never, lockedAt: { lte: cutoff } },
+      { status: "PROCESSING" as never, OR: [{ lockedAt: null }, { lockedAt: { lte: cutoff } }] },
     ],
   };
 }
@@ -364,7 +364,7 @@ export class AiReviewAdminService {
     const where = normalized === "MANUAL_REVIEW"
       ? manualReviewWhere
       : normalized === "SMART_REVIEW"
-        ? { aiReviewJob: { is: { status: { in: ["PENDING", "PROCESSING", "RETRY"] as never[] } } } }
+        ? { aiReviewJob: { is: { OR: [\n            { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { gt: staleCutoff } },\n            { status: "PROCESSING" as never, lockedAt: { gt: staleCutoff } },\n          ] } } }
         : normalized === "APPROVED" ? { status: "APPROVED" as never }
         : normalized === "REJECTED" ? { status: "REJECTED" as never } : {};
     const [total, submissions, manualReview, smartReview, approved, rejected] = await prisma.$transaction([
