@@ -1108,7 +1108,7 @@ private fun WalletScreen(
     val recentItems = recent?.optJSONArray("items")
     fun transactionTitle(item: JSONObject): String = when (item.optString("sourceType")) {
         "TASK_REWARD" -> if (en) "Task reward" else "任务奖励"
-        "REFERRAL_COMMISSION", "REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
+        "REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
         "WITHDRAWAL", "WITHDRAWAL_PAYOUT" -> if (en) "Withdrawal" else "提现"
         else -> if (item.optString("direction") == "CREDIT") { if (en) "Income" else "收入" } else { if (en) "Expense" else "支出" }
     }
@@ -1274,7 +1274,7 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
     fun label(item: JSONObject): String {
         return when (item.optString("sourceType")) {
             "TASK_REWARD" -> if (en) "Task reward" else "任务奖励"
-            "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
+            "REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
             "WITHDRAWAL", "WITHDRAWAL_PAYOUT" -> if (en) "Withdrawal" else "提现"
             else -> if (item.optString("direction") == "CREDIT") { if (en) "Income" else "收入" } else { if (en) "Expense" else "支出" }
         }
