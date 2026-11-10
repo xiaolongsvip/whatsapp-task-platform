@@ -597,7 +597,7 @@ export class TaskAdminService {
         });
         if (pending) throw new ConflictException("该任务正在审核中，不能回收号码。");
         const assignmentWasActive = claim.contactAssignment?.status === "ASSIGNED";
-        const slotWasActive = slot.status === "ASSIGNED" && slot.claimId === claim.id;
+        const slotWasActive = ["ASSIGNED", "AVAILABLE"].includes(slot.status) && slot.claimId === claim.id;
 
         if (["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
           await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "CANCELLED" } });
