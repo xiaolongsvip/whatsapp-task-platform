@@ -6,6 +6,9 @@ type TransactionClient = Prisma.TransactionClient;
  * Releases the number reserved by an unsuccessful claim while retaining the
  * claim, submission, and review rows as history. Only currently consented
  * numbers return to AVAILABLE inventory.
+ *
+ * Lock order is contact number -> task slot -> assignment. This matches the
+ * admin recycle and user cancellation paths to avoid inventory deadlocks.
  */
 export async function recycleUnsuccessfulTaskClaimInventory(
   tx: TransactionClient,
@@ -13,6 +16,42 @@ export async function recycleUnsuccessfulTaskClaimInventory(
   taskId: string,
   now = new Date(),
 ): Promise<{ recycled: boolean }> {
+  const [initialAssignment, initialSlot] = await Promise.all([
+    tx.contactAssignment.findUnique({
+      where: { claimId },
+      select: { id: true, contactNumberId: true },
+    }),
+    tx.taskSlot.findUnique({
+      where: { claimId },
+      select: { id: true, contactNumberId: true },
+    }),
+  ]);
+
+  if (
+    initialAssignment &&
+    initialSlot &&
+    initialAssignment.contactNumberId !== initialSlot.contactNumberId
+  ) {
+    throw new Error("领取记录与任务号码关联不一致，已停止自动回收。");
+  }
+
+  const initialNumberId = initialAssignment?.contactNumberId ?? initialSlot?.contactNumberId;
+  if (initialNumberId) {
+    await tx.$queryRaw<Array<{ id: string }>>\`
+      SELECT id FROM contact_numbers WHERE id = \${initialNumberId}::uuid FOR UPDATE
+    \`;
+  }
+  if (initialSlot) {
+    await tx.$queryRaw<Array<{ id: string }>>\`
+      SELECT id FROM task_slots WHERE id = \${initialSlot.id}::uuid FOR UPDATE
+    \`;
+  }
+  if (initialAssignment) {
+    await tx.$queryRaw<Array<{ id: string }>>\`
+      SELECT id FROM contact_assignments WHERE id = \${initialAssignment.id}::uuid FOR UPDATE
+    \`;
+  }
+
   const [assignment, slot] = await Promise.all([
     tx.contactAssignment.findUnique({
       where: { claimId },
@@ -24,6 +63,11 @@ export async function recycleUnsuccessfulTaskClaimInventory(
     }),
   ]);
 
+  const contactNumberId = assignment?.contactNumberId ?? slot?.contactNumberId;
+  if (assignment && slot && assignment.contactNumberId !== slot.contactNumberId) {
+    throw new Error("领取记录与任务号码关联在锁定期间发生变化，已停止自动回收。");
+  }
+
   let reservationWasActive = false;
   if (assignment?.status === "ASSIGNED") {
     reservationWasActive = true;
@@ -33,14 +77,9 @@ export async function recycleUnsuccessfulTaskClaimInventory(
     });
   }
 
-  const contactNumberId = assignment?.contactNumberId ?? slot?.contactNumberId;
   if (contactNumberId) {
     await tx.contactNumber.updateMany({
-      where: {
-        id: contactNumberId,
-        status: "ASSIGNED",
-        consentStatus: "GRANTED",
-      },
+      where: { id: contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
       data: { status: "AVAILABLE" },
     });
   }
