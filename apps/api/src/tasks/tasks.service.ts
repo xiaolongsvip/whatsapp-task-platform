@@ -886,7 +886,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
                   )
                 )
               )
-            ORDER BY expires_at ASC
+            ORDER BY expires_at ASC NULLS FIRST, claimed_at ASC, id ASC
             LIMIT 200
             FOR UPDATE SKIP LOCKED
           `;
