@@ -596,6 +596,6 @@ test("withdrawal options, quotes and submissions never fall back to an implicit 
   const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
   assert.match(accounts, /const rules = Array\.isArray\(rulesRow\?\.value\) \? rulesRow\.value as Array<Record<string, unknown>> : \[\];/);
   assert.equal((withdrawals.match(/const rules = Array\.isArray\(rulesRow\?\.value\) \? rulesRow\.value as Array<Record<string, unknown>> : \[\];/g) || []).length, 2);
-  assert.doesNotMatch(accounts + withdrawals, /default-pk-usd-local|countryCode: "PK".*payoutCurrency: "PKR"/);
+  assert.doesNotMatch(accounts + withdrawals, /default-pk-usd-local|channels: \["jazzcash", "easypaisa"\]/);
   assert.match(withdrawals, /No active withdrawal rule is configured for this payout account/);
 });
