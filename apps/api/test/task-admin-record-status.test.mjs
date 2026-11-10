@@ -52,3 +52,13 @@ test("admin task records UI describes the action as recycling and reassigning th
   assert.match(source, /未完成号码将返回可分配库存/);
   assert.match(source, /号码已回收到可分配库存/);
 });
+
+
+test("admin record deletion eligibility uses the underlying inventory status", async () => {
+  const service = await readSource("../src/task-admin/task-admin.service.ts");
+  const admin = await readSource("../../admin/src/app/tasks/page.tsx");
+  assert.match(service, /inventoryStatus: slot\.status/);
+  assert.match(admin, /inventoryStatus: "AVAILABLE" \| "ASSIGNED" \| "USED" \| "VOIDED"/);
+  assert.match(admin, /item\.taskStatus !== "PUBLISHED" && item\.inventoryStatus === "AVAILABLE" && !item\.claimId/);
+  assert.match(service, /slot\.status !== "AVAILABLE" \|\| slot\.claimId/);
+});
