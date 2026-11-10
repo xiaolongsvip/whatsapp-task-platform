@@ -366,6 +366,8 @@ export class ContactNumbersService {
 
   async block(numberId: string, adminId: string) {
     return prisma.$transaction(async (tx) => {
+      // Acquire the shared allocation lock before claim/number/slot row locks.
+      await lockTaskSlotAllocation(tx);
       // Match claim cancellation/expiry lock order: claim first, then number,
       // then slot. This avoids a number/claim lock inversion during cleanup.
       await tx.$queryRaw<Array<{ id: string }>>`
@@ -380,8 +382,6 @@ export class ContactNumbersService {
         ORDER BY id
         FOR UPDATE
       `;
-      // Match FIFO allocation lock order before touching number/slot rows.
-      await lockTaskSlotAllocation(tx);
       // Serialize against new claims after locking any existing active claims.
       await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM contact_numbers WHERE id = ${numberId}::uuid FOR UPDATE
