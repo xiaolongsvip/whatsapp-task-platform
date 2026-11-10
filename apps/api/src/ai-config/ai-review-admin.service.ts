@@ -153,6 +153,9 @@ export class AiReviewAdminService {
         throw new ConflictException("该提交已处理或状态已变化，不能重复审核。");
       }
 
+      if (decision === "REJECT") {
+        await lockTaskSlotAllocation(tx);
+      }
       await tx.taskReview.create({
         data: {
           submissionId: submission.id,
