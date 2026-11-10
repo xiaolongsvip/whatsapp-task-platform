@@ -105,3 +105,18 @@ test("FIFO allocator repairs legacy VOIDED slots only when the underlying number
   assert.match(recovery, /status: "AVAILABLE",\s*claimId: null/);
   assert.match(recovery, /assignedAt: null/);
 });
+
+
+test("shared inventory release locks number, slot, and assignment in a deterministic order", async () => {
+  const helper = await read("../src/tasks/task-claim-inventory.ts");
+  const numberLock = helper.indexOf("FROM contact_numbers");
+  const slotLock = helper.indexOf("FROM task_slots");
+  const assignmentLock = helper.indexOf("FROM contact_assignments");
+  assert.ok(numberLock >= 0 && slotLock > numberLock && assignmentLock > slotLock);
+  const service = await read("../src/tasks/tasks.service.ts");
+  const cancel = service.slice(service.indexOf("async cancelClaim("), service.indexOf("private async expireOverdueClaims("));
+  const cancelNumberLock = cancel.indexOf("FROM contact_numbers");
+  const cancelSlotLock = cancel.indexOf("FROM task_slots");
+  const cancelAssignmentLock = cancel.indexOf("FROM contact_assignments");
+  assert.ok(cancelNumberLock >= 0 && cancelSlotLock > cancelNumberLock && cancelAssignmentLock > cancelSlotLock);
+});
