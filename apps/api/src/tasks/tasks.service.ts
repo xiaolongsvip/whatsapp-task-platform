@@ -378,7 +378,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             userId,
             OR: [
               {
-                status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+                status: { in: ["CLAIMED", "IN_PROGRESS"] },
                 expiresAt: { gt: now },
               },
               {
@@ -473,7 +473,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       if (!claim || claim.userId !== userId) {
         throw new NotFoundException("任务领取记录不存在。");
       }
-      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能开始或继续。");
       }
       const now = new Date();
@@ -537,7 +537,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           alreadyClosed: true,
         };
       }
-      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能取消。");
       }
 
@@ -659,7 +659,9 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           data: { status: "EXPIRED" },
         });
 
+        let reservationWasActive = false;
         if (claim.contactAssignment?.status === "ASSIGNED") {
+          reservationWasActive = true;
           await tx.contactAssignment.update({
             where: { id: claim.contactAssignment.id },
             data: { status: "RELEASED", releasedAt: now },
@@ -672,16 +674,29 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             },
             data: { status: "AVAILABLE" },
           });
-          await tx.taskSlot.updateMany({
-            where: { claimId: claim.id, status: "ASSIGNED" },
+        }
+
+        const assignedSlot = await tx.taskSlot.findUnique({
+          where: { claimId: claim.id },
+          select: { id: true, status: true },
+        });
+        if (assignedSlot?.status === "ASSIGNED") {
+          reservationWasActive = true;
+          await tx.taskSlot.update({
+            where: { id: assignedSlot.id },
             data: { status: "AVAILABLE", claimId: null, assignedAt: null, releasedAt: now },
           });
         }
 
-        await tx.task.updateMany({
-          where: { id: claim.taskId, claimedCount: { gt: 0 } },
-          data: { claimedCount: { decrement: 1 } },
-        });
+        // New rejected claims release their inventory immediately. Legacy
+        // rejected claims are still recovered here, but must not decrement
+        // claimedCount a second time after their reservation was released.
+        if (reservationWasActive) {
+          await tx.task.updateMany({
+            where: { id: claim.taskId, claimedCount: { gt: 0 } },
+            data: { claimedCount: { decrement: 1 } },
+          });
+        }
       }
     });
   }
