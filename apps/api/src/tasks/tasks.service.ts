@@ -665,33 +665,67 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             where: {
               userId,
               expiresAt: null,
-              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+              status: { in: ["CLAIMED", "IN_PROGRESS"] },
             },
             select: { id: true },
           })
         : await tx.taskClaim.findFirst({
             where: {
               expiresAt: null,
-              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+              status: { in: ["CLAIMED", "IN_PROGRESS"] },
             },
             select: { id: true },
           });
+      // Rejected claims are history, not active expiry work. Include a legacy
+      // rejected claim only while it still owns an active inventory link.
       const overdueCandidate = userId
-        ? await tx.taskClaim.findFirst({
-            where: {
-              userId,
-              expiresAt: { lte: now },
-              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
-            },
-            select: { id: true },
-          })
-        : await tx.taskClaim.findFirst({
-            where: {
-              expiresAt: { lte: now },
-              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
-            },
-            select: { id: true },
-          });
+        ? await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT claim.id
+            FROM task_claims AS claim
+            WHERE claim.user_id = ${userId}::uuid
+              AND claim.expires_at IS NOT NULL
+              AND claim.expires_at <= ${now}
+              AND (
+                claim.status IN ('CLAIMED', 'IN_PROGRESS')
+                OR (
+                  claim.status = 'REJECTED'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = claim.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = claim.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
+            LIMIT 1
+          `
+        : await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT claim.id
+            FROM task_claims AS claim
+            WHERE claim.expires_at IS NOT NULL
+              AND claim.expires_at <= ${now}
+              AND (
+                claim.status IN ('CLAIMED', 'IN_PROGRESS')
+                OR (
+                  claim.status = 'REJECTED'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = claim.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = claim.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
+            LIMIT 1
+          `;
       if (!legacyNullExpiry && !overdueCandidate) return;
 
       // Acquire the global inventory lock before any claim/number/slot row
@@ -710,7 +744,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           WHERE claim.task_id = task.id
             AND claim.user_id = ${userId}::uuid
             AND claim.expires_at IS NULL
-            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS')
         `;
       } else if (legacyNullExpiry) {
         await tx.$executeRaw`
@@ -722,7 +756,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           FROM tasks AS task
           WHERE claim.task_id = task.id
             AND claim.expires_at IS NULL
-            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS')
         `;
       }
 
@@ -733,7 +767,22 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             WHERE user_id = ${userId}::uuid
               AND expires_at IS NOT NULL
               AND expires_at <= ${now}
-              AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+              AND (
+                status IN ('CLAIMED', 'IN_PROGRESS')
+                OR (
+                  status = 'REJECTED'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = task_claims.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = task_claims.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
             ORDER BY expires_at ASC
             LIMIT 200
             FOR UPDATE SKIP LOCKED
@@ -743,7 +792,22 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             FROM task_claims
             WHERE expires_at IS NOT NULL
               AND expires_at <= ${now}
-              AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+              AND (
+                status IN ('CLAIMED', 'IN_PROGRESS')
+                OR (
+                  status = 'REJECTED'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = task_claims.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = task_claims.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
             ORDER BY expires_at ASC
             LIMIT 200
             FOR UPDATE SKIP LOCKED
