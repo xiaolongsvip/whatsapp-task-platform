@@ -60,5 +60,6 @@ test("admin record deletion eligibility uses the underlying inventory status", a
   assert.match(service, /inventoryStatus: slot\.status/);
   assert.match(admin, /inventoryStatus: "AVAILABLE" \| "ASSIGNED" \| "USED" \| "VOIDED"/);
   assert.match(admin, /item\.taskStatus !== "PUBLISHED" && item\.inventoryStatus === "AVAILABLE" && !item\.claimId/);
+  assert.match(admin, /record\.taskStatus === "PUBLISHED" \|\| record\.inventoryStatus !== "AVAILABLE" \|\| Boolean\(record\.claimId\)/);
   assert.match(service, /slot\.status !== "AVAILABLE" \|\| slot\.claimId/);
 });
