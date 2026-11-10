@@ -646,43 +646,36 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
   private async expireOverdueClaims(userId?: string) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
-      const limitsRow = await tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } });
+      const limitsRow = await tx.taskConfiguration.findUnique({
+        where: { key: "claim-limits" },
+        select: { value: true },
+      });
       const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
         ? limitsRow.value as Record<string, unknown>
         : {};
       const configuredMinutes = Number(globalLimits.taskTimeLimitMinutes);
-      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000 ? configuredMinutes : 3;
-      // Backfill deadlines for legacy active claims before checking expiry.
-      // Without this, expires_at IS NULL rows are invisible to the expiry
-      // query but still count as active in claimTask(), permanently blocking
-      // the member from claiming another task.
-      if (userId) {
-        await tx.$executeRaw`
-          UPDATE task_claims AS claim
-          SET expires_at = LEAST(
-            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
-            COALESCE(task.ends_at, 'infinity'::timestamptz)
-          )
-          FROM tasks AS task
-          WHERE claim.task_id = task.id
-            AND claim.user_id = ${userId}::uuid
-            AND claim.expires_at IS NULL
-            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
-        `;
-      } else {
-        await tx.$executeRaw`
-          UPDATE task_claims AS claim
-          SET expires_at = LEAST(
-            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
-            COALESCE(task.ends_at, 'infinity'::timestamptz)
-          )
-          FROM tasks AS task
-          WHERE claim.task_id = task.id
-            AND claim.expires_at IS NULL
-            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
-        `;
-      }
+      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000
+        ? configuredMinutes
+        : 3;
 
+      // Preflight without row locks so we only take the global inventory lock
+      // when there are legacy deadlines to backfill or claims to expire.
+      const legacyNullExpiry = userId
+        ? await tx.taskClaim.findFirst({
+            where: {
+              userId,
+              expiresAt: null,
+              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+            },
+            select: { id: true },
+          })
+        : await tx.taskClaim.findFirst({
+            where: {
+              expiresAt: null,
+              status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+            },
+            select: { id: true },
+          });
       const overdueCandidate = userId
         ? await tx.taskClaim.findFirst({
             where: {
@@ -699,32 +692,62 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             },
             select: { id: true },
           });
-      if (!overdueCandidate) return;
+      if (!legacyNullExpiry && !overdueCandidate) return;
 
-      // Acquire the global inventory lock before locking expired claim rows.
+      // Acquire the global inventory lock before any claim/number/slot row
+      // locks. This prevents deadlocks with admin blocking and task allocation.
       await lockTaskSlotAllocation(tx);
+
+      // Backfill deadlines for legacy active claims before checking expiry.
+      if (legacyNullExpiry && userId) {
+        await tx.$executeRaw`
+          UPDATE task_claims AS claim
+          SET expires_at = LEAST(
+            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
+            COALESCE(task.ends_at, 'infinity'::timestamptz)
+          )
+          FROM tasks AS task
+          WHERE claim.task_id = task.id
+            AND claim.user_id = ${userId}::uuid
+            AND claim.expires_at IS NULL
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        `;
+      } else if (legacyNullExpiry) {
+        await tx.$executeRaw`
+          UPDATE task_claims AS claim
+          SET expires_at = LEAST(
+            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
+            COALESCE(task.ends_at, 'infinity'::timestamptz)
+          )
+          FROM tasks AS task
+          WHERE claim.task_id = task.id
+            AND claim.expires_at IS NULL
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        `;
+      }
+
       const expiredRows = userId
         ? await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT id
-        FROM task_claims
-        WHERE user_id = ${userId}::uuid
-          AND expires_at IS NOT NULL
-          AND expires_at <= ${now}
-          AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
-        ORDER BY expires_at ASC
-        LIMIT 200
-        FOR UPDATE SKIP LOCKED
-      `
+            SELECT id
+            FROM task_claims
+            WHERE user_id = ${userId}::uuid
+              AND expires_at IS NOT NULL
+              AND expires_at <= ${now}
+              AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+            ORDER BY expires_at ASC
+            LIMIT 200
+            FOR UPDATE SKIP LOCKED
+          `
         : await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT id
-        FROM task_claims
-        WHERE expires_at IS NOT NULL
-          AND expires_at <= ${now}
-          AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
-        ORDER BY expires_at ASC
-        LIMIT 200
-        FOR UPDATE SKIP LOCKED
-      `;
+            SELECT id
+            FROM task_claims
+            WHERE expires_at IS NOT NULL
+              AND expires_at <= ${now}
+              AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+            ORDER BY expires_at ASC
+            LIMIT 200
+            FOR UPDATE SKIP LOCKED
+          `;
 
       for (const row of expiredRows) {
         const claim = await tx.taskClaim.findUnique({
