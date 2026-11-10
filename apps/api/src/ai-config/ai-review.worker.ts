@@ -3,6 +3,8 @@ import OpenAI from "openai";
 import { prisma } from "@wtp/database";
 import { AiConfigService } from "../ai-config/ai-config.service";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
+import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
+import { recycleUnsuccessfulTaskClaimInventory } from "../tasks/task-claim-inventory";
 
 type AiDecision = {
   decision: "APPROVE" | "REJECT" | "UNCERTAIN";
@@ -423,10 +425,11 @@ ${taskRequirements}
         include: { submission: { include: { claim: true } } },
       });
       if (!current || current.status !== "PROCESSING") return;
-      if (!["SUBMITTED", "UNDER_REVIEW"].includes(current.submission.status)) {
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(current.submission.status)
+          || !["SUBMITTED", "UNDER_REVIEW"].includes(current.submission.claim.status)) {
         await tx.aiReviewJob.update({
           where: { id: jobId },
-          data: { status: "NEEDS_REVIEW", reason: "提交状态已变化，停止自动拒绝。", lockedAt: null },
+          data: { status: "NEEDS_REVIEW", reason: "提交或领取状态已变化，停止自动拒绝。", lockedAt: null },
         });
         return;
       }
@@ -446,6 +449,12 @@ ${taskRequirements}
         where: { id: current.submission.claimId },
         data: { status: "REJECTED" },
       });
+      await recycleUnsuccessfulTaskClaimInventory(
+        tx,
+        current.submission.claimId,
+        current.submission.claim.taskId,
+      );
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
       await tx.aiReviewJob.update({
         where: { id: jobId },
         data: {
