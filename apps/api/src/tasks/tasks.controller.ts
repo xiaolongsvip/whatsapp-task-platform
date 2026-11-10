@@ -6,6 +6,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -45,9 +46,14 @@ export class TasksController {
   }
 
   @Get("my/claims")
-  async myClaims(@Req() request: Request) {
+  async myClaims(
+    @Req() request: Request,
+    @Query("limit") limit?: string,
+    @Query("beforeClaimedAt") beforeClaimedAt?: string,
+    @Query("beforeId") beforeId?: string,
+  ) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.tasks.myClaims(user.id);
+    return this.tasks.myClaims(user.id, limit, beforeClaimedAt, beforeId);
   }
 
   @Post(":taskId/claims")
