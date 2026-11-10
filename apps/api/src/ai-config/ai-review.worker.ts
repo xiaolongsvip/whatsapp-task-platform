@@ -433,6 +433,7 @@ ${taskRequirements}
         });
         return;
       }
+      await lockTaskSlotAllocation(tx);
       await tx.taskReview.create({
         data: {
           submissionId: current.submissionId,
