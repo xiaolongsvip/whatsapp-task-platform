@@ -282,10 +282,17 @@ ${taskRequirements}
         await tx.aiReviewJob.update({ where: { id: jobId }, data: { status: "COMPLETED", lockedAt: null } });
         return;
       }
-      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status)) {
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
+          !["SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
         await tx.aiReviewJob.update({
           where: { id: jobId },
-          data: { status: "NEEDS_REVIEW", decision: result.decision, confidence: result.confidence, reason: "提交状态已变化，停止自动结算。", lockedAt: null },
+          data: {
+            status: "NEEDS_REVIEW",
+            decision: result.decision,
+            confidence: result.confidence,
+            reason: "提交或领取状态已变化，停止自动结算。",
+            lockedAt: null,
+          },
         });
         return;
       }
