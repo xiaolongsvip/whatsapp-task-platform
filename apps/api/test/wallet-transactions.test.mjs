@@ -123,4 +123,5 @@ test("posted withdrawal ledger debits remain in the withdrawals category while r
   const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
   assert.match(app, /"WITHDRAWAL", "WITHDRAWAL_PAYOUT" -> if \(en\) "Withdrawal" else "提现"/);
   assert.match(app, /if \(item\.optString\("direction"\) == "CREDIT"\) "\+" else if \(item\.optString\("direction"\) == "DEBIT"\) "−" else ""/);
+  assert.ok((app.match(/item\.optString\("direction"\) == "DEBIT"\) "−" else ""/g) || []).length >= 2);
 });
