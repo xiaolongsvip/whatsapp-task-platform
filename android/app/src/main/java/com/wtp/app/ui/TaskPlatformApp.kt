@@ -1253,15 +1253,55 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
     var data by remember { mutableStateOf<JSONObject?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var loadMoreError by remember { mutableStateOf<String?>(null) }
+    var loadingMore by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(refresh) {
         loading = true
         error = null
+        loadMoreError = null
         runCatching { withContext(Dispatchers.IO) { AuthRepository.walletTransactions() } }
             .onSuccess { data = it }
             .onFailure { error = it.message ?: if (en) "Unable to load wallet transactions" else "钱包流水加载失败" }
         loading = false
     }
+    fun loadMore() {
+        val current = data ?: return
+        val cursor = current.optJSONObject("nextCursor") ?: return
+        val beforeCreatedAt = cursor.optString("createdAt")
+        val beforeId = cursor.optString("id")
+        if (beforeCreatedAt.isBlank() || beforeId.isBlank() || loadingMore) return
+        scope.launch {
+            loadingMore = true
+            loadMoreError = null
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    AuthRepository.walletTransactions(100, beforeCreatedAt, beforeId)
+                }
+            }.onSuccess { page ->
+                val combined = JSONArray()
+                val seen = HashSet<String>()
+                val previous = current.optJSONArray("items") ?: JSONArray()
+                val next = page.optJSONArray("items") ?: JSONArray()
+                for (source in listOf(previous, next)) {
+                    for (index in 0 until source.length()) {
+                        val item = source.optJSONObject(index) ?: continue
+                        val id = item.optString("id")
+                        if (id.isNotBlank() && seen.add(id)) combined.put(item)
+                    }
+                }
+                data = JSONObject(current.toString())
+                    .put("items", combined)
+                    .put("hasMore", page.optBoolean("hasMore"))
+                    .put("nextCursor", page.optJSONObject("nextCursor"))
+            }.onFailure {
+                loadMoreError = it.message ?: if (en) "Unable to load more transactions" else "加载更多流水失败"
+            }
+            loadingMore = false
+        }
+    }
+
     val items = data?.optJSONArray("items")
     val filtered = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter { item ->
         when (selected) {
@@ -1318,11 +1358,19 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
                 Text((if (en) "Load failed, tap to retry: " else "加载失败，点击重试：") + error.orEmpty(), color = Color(0xFF258BB8))
             }
         } else if (filtered.isEmpty()) {
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
-                    Text(if (en) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(if (en) "Task rewards, commissions and wallet changes will appear here." else "任务奖励、邀请佣金及钱包资金变动会显示在这里。", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
+                        Text(if (en) "No matching transactions on this page" else "当前页没有符合条件的流水", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text(if (en) "Load more records to continue searching this category." else "可以继续加载后续流水，查找此分类的记录。", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (data?.optBoolean("hasMore") == true) {
+                    Button(onClick = { loadMore() }, enabled = !loadingMore, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (en) "Load more" else "加载更多")
+                    }
                 }
             }
         } else {
@@ -1344,7 +1392,20 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
                         }
                     }
                 }
-                if (data?.optBoolean("hasMore") == true) Text(if (en) "Showing the latest records" else "当前展示最近流水记录", color = Color(0xFF667085), modifier = Modifier.padding(8.dp))
+                if (loadMoreError != null) {
+                    Text(loadMoreError.orEmpty(), color = Color(0xFFB42318), modifier = Modifier.padding(horizontal = 8.dp))
+                }
+                if (data?.optBoolean("hasMore") == true) {
+                    Button(
+                        onClick = { loadMore() },
+                        enabled = !loadingMore,
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))
+                    ) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (en) "Load more" else "加载更多")
+                    }
+                }
             }
         }
     }

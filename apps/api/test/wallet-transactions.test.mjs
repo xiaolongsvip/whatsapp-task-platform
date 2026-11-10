@@ -26,7 +26,7 @@ test("wallet transaction history includes withdrawal request status without doub
 });
 
 test("paid withdrawals are represented by their posted ledger debit only once", () => {
-  assert.match(service, /where: \{ status: \{ not: "PAID" \} \}/);
+  assert.match(service, /where: \{ status: \{ not: "PAID" \}, \.\.\.\(cursorFilter \?\? \{\}\) \}/);
   assert.match(service, /PAID withdrawals already have a corresponding WITHDRAWAL_PAYOUT ledger debit/);
 });
 
