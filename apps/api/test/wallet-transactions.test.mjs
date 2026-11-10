@@ -112,4 +112,5 @@ test("Android wallet recognizes the backend referral commission ledger source ty
   const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
   assert.match(app, /"REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if \(en\) "Referral commission" else "邀请佣金"/);
   assert.match(app, /"REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if \(en\) "Referral commissions" else "邀请佣金"/);
+  assert.ok((app.match(/"REFERRAL_COMMISSION", "REFERRAL_REWARD" ->/g) || []).length >= 3);
 });
