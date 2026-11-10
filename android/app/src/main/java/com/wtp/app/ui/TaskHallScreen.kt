@@ -89,7 +89,7 @@ private val WtpMuted = Color(0xFF647987)
 
 private enum class TaskMainTab { HALL, RECORDS }
 private enum class HallFilter { AVAILABLE, IN_PROGRESS, EXPIRED, REJECTED, SETTLED }
-private enum class RecordFilter { ALL, IN_PROGRESS, COMPLETED, NEED_ACTION, INCOMPLETE }
+private enum class RecordFilter { ALL, IN_PROGRESS, COMPLETED, REJECTED, INCOMPLETE }
 
 @Composable
 fun TaskHallScreen(
@@ -372,7 +372,7 @@ fun TaskHallScreen(
         RecordFilter.ALL -> claims
         RecordFilter.IN_PROGRESS -> inProgressClaims
         RecordFilter.COMPLETED -> settledClaims
-        RecordFilter.NEED_ACTION -> rejectedClaims
+        RecordFilter.REJECTED -> rejectedClaims
         RecordFilter.INCOMPLETE -> expiredClaims
     }
     val evidenceClaim = claims.firstOrNull { it.optString("id") == lastCaptureClaimId }
@@ -1467,7 +1467,7 @@ private fun RecordFilterTabs(
         RecordFilter.ALL to (if (isEnglish) "All" else "全部"),
         RecordFilter.IN_PROGRESS to (if (isEnglish) "In progress" else "进行中"),
         RecordFilter.COMPLETED to (if (isEnglish) "Completed" else "已完成"),
-        RecordFilter.NEED_ACTION to (if (isEnglish) "Action" else "需处理"),
+        RecordFilter.REJECTED to (if (isEnglish) "Rejected" else "已拒绝"),
         RecordFilter.INCOMPLETE to (if (isEnglish) "Unfinished" else "未完成")
     )
     Row(
