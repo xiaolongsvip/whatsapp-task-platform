@@ -142,3 +142,27 @@ test("all recycling entry points acquire the shared allocator advisory lock befo
   assert.ok(cancel.indexOf("FOR UPDATE") < cancel.indexOf("lockTaskSlotAllocation(tx)"));
   assert.ok(cancel.indexOf("lockTaskSlotAllocation(tx)") < cancel.indexOf("FROM contact_numbers"));
 });
+
+
+test("task publish, pause, and close acquire the allocator lock before changing task rows", async () => {
+  const admin = await read("../src/task-admin/task-admin.service.ts");
+  for (const [method, nextMethod, status] of [
+    ["async publish(", "async pause(", "PUBLISHED"],
+    ["async pause(", "async bulkUpdateMessageTemplate(", "PAUSED"],
+    ["async close(", "}", "CLOSED"],
+  ]) {
+    const start = admin.indexOf(method);
+    const end = nextMethod === "}" ? admin.indexOf("\\n}", start + method.length) : admin.indexOf(nextMethod, start + method.length);
+    const body = admin.slice(start, end < 0 ? undefined : end);
+    const lock = body.indexOf("lockTaskSlotAllocation(tx)");
+    const update = body.indexOf(\`data: { status: "\${status}" }\`);
+    assert.ok(lock >= 0 && update > lock, \`\${status} must lock inventory before task status update\`);
+  }
+});
+
+test("admin task deletion acquires allocator lock before locking the slot", async () => {
+  const admin = await read("../src/task-admin/task-admin.service.ts");
+  const body = admin.slice(admin.indexOf("async deleteTaskRecord("), admin.indexOf("private normalizeBulkRecordIds("));
+  assert.ok(body.indexOf("lockTaskSlotAllocation(tx)") >= 0);
+  assert.ok(body.indexOf("lockTaskSlotAllocation(tx)") < body.indexOf("FROM task_slots"));
+});
