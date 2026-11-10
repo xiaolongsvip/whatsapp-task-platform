@@ -726,7 +726,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
               )
             LIMIT 1
           `;
-      if (!legacyNullExpiry && !overdueCandidate) return;
+      if (!legacyNullExpiry && overdueCandidate.length === 0) return;
 
       // Acquire the global inventory lock before any claim/number/slot row
       // locks. This prevents deadlocks with admin blocking and task allocation.
