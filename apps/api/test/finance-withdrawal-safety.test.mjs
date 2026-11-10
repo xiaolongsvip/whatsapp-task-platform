@@ -589,3 +589,13 @@ test("risk records admin UI paginates event and user lists and opens event detai
   assert.match(page, /上一页/);
   assert.match(page, /下一页/);
 });
+
+
+test("withdrawal options, quotes and submissions never fall back to an implicit Pakistan payout rule", () => {
+  const accounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  assert.match(accounts, /const rules = Array\.isArray\(rulesRow\?\.value\) \? rulesRow\.value as Array<Record<string, unknown>> : \[\];/);
+  assert.equal((withdrawals.match(/const rules = Array\.isArray\(rulesRow\?\.value\) \? rulesRow\.value as Array<Record<string, unknown>> : \[\];/g) || []).length, 2);
+  assert.doesNotMatch(accounts + withdrawals, /default-pk-usd-local|countryCode: "PK".*payoutCurrency: "PKR"/);
+  assert.match(withdrawals, /No active withdrawal rule is configured for this payout account/);
+});
