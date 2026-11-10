@@ -127,7 +127,7 @@ test("shared inventory release locks number, slot, and assignment in a determini
 test("Android keeps rejected claims selectable as history while disabling restart actions", async () => {
   const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt");
   assert.match(screen, /val selectedClaim = claims\.firstOrNull \{ it\.optString\("id"\) == selectedClaimId \}/);
-  assert.match(screen, /val canOpen = !countdownExpired &&\s*status in setOf\("CLAIMED", "IN_PROGRESS"\)/);
+  assert.match(screen, /val canViewDetails = !countdownExpired &&\s*status in setOf\("CLAIMED", "IN_PROGRESS", "REJECTED"\)/);
   assert.match(screen, /status == "REJECTED" -> if \(isEnglish\) "Number recycled" else "号码已回收"/);
 });
 
@@ -190,4 +190,14 @@ test("AI/manual rejection and expiry acquire the allocator lock before changing 
   const expiry = service.slice(service.indexOf("private async expireOverdueClaims("), service.indexOf("async submitEvidence("));
   assert.ok(expiry.indexOf("lockTaskSlotAllocation(tx)") < expiry.indexOf("UPDATE task_claims"));
   assert.ok(expiry.indexOf("lockTaskSlotAllocation(tx)") < expiry.indexOf("FOR UPDATE SKIP LOCKED"));
+});
+
+
+test("rejected task cards allow details viewing but never show a WhatsApp action", async () => {
+  const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt");
+  const card = screen.slice(screen.indexOf("private fun TaskClaimCard("), screen.indexOf("private fun openWhatsApp("));
+  assert.match(card, /if \(canViewDetails\)/);
+  assert.match(card, /if \(status == "REJECTED"\)[\s\S]*?Number recycled/);
+  assert.match(card, /else \{\s*Button\(/);
+  assert.match(card, /status != "REJECTED" && \(phone\.isBlank\(\) \|\| phone == "null"\)/);
 });
