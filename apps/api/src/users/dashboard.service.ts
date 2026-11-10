@@ -55,7 +55,7 @@ export class DashboardService {
     const today = startOfDay(timezone);
     const now = new Date();
 
-    const [wallets, settledToday, pendingReview, claimedToday, tasks, profile, latestClaim, pendingSubmissions] = await Promise.all([
+    const [wallets, settledToday, pendingReview, claimedToday, tasks, profile, claimLimitsRow, latestClaim, pendingSubmissions] = await Promise.all([
       prisma.wallet.findMany({
         where: { userId },
         include: {
@@ -103,6 +103,7 @@ export class DashboardService {
         },
       }),
       prisma.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } }),
+      prisma.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } }),
       prisma.taskClaim.findFirst({ where: { userId }, orderBy: { claimedAt: "desc" }, select: { claimedAt: true } }),
       prisma.taskSubmission.findMany({
         where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] }, claim: { userId } },
@@ -141,10 +142,17 @@ export class DashboardService {
     const pendingRewards = [...pendingRewardTotals.entries()].map(([currency, amount]) => ({ currency, amountMinor: amount.toString() }));
     const totalEarnings = [...totalEarningTotals.entries()].map(([currency, amount]) => ({ currency, amountMinor: amount.toString() }));
 
-    // Stable dashboard contract. The admin-managed persistent setting will
-    // replace this provisional display default when the admin settings module is implemented.
-    const dailyTaskLimit = profile?.dailyTaskLimit ?? 20;
-    const minClaimIntervalSeconds = profile?.minClaimIntervalSeconds ?? 60;
+    // Match claimTask(): per-user overrides take precedence over the shared
+    // admin-managed limits. Keep the dashboard display and server enforcement aligned.
+    const globalLimits = claimLimitsRow?.value && typeof claimLimitsRow.value === "object" && !Array.isArray(claimLimitsRow.value)
+      ? claimLimitsRow.value as Record<string, unknown>
+      : {};
+    const positiveInteger = (value: unknown, fallback: number) => {
+      const parsed = Number(value);
+      return Number.isInteger(parsed) && parsed >= 1 && parsed <= 1000000 ? parsed : fallback;
+    };
+    const dailyTaskLimit = profile?.dailyTaskLimit ?? positiveInteger(globalLimits.dailyLimit, 20);
+    const minClaimIntervalSeconds = profile?.minClaimIntervalSeconds ?? positiveInteger(globalLimits.minimumIntervalSeconds, 60);
     const nextClaimAt = latestClaim && minClaimIntervalSeconds > 0
       ? new Date(latestClaim.claimedAt.getTime() + minClaimIntervalSeconds * 1000).toISOString()
       : null;
