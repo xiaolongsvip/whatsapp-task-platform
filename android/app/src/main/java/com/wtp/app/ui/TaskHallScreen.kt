@@ -824,24 +824,9 @@ fun TaskHallScreen(
                         )
                         if (rejectedClaims.isEmpty()) EmptyState(
                             if (isEnglish) "No rejected tasks" else "暂无已拒绝任务",
-                            if (isEnglish) "Tasks requiring resubmission will appear here." else "审核未通过的任务会显示在这里。"
+                            if (isEnglish) "Rejected tasks remain in history; their numbers have been recycled." else "审核未通过的任务仅保留历史记录，号码已回收到可分配库存。"
                         ) else rejectedClaims.forEach { claim ->
-                            ClaimedTaskCard(
-                                claim = claim,
-                                isEnglish = isEnglish,
-                                activeClaimId = activeClaimId,
-                                busy = busyId != null,
-                                onViewDetails = { selectedClaimId = claim.optString("id") },
-                                onGoWhatsApp = { startAndOpenWhatsApp(claim) },
-                                onSelect = {
-                                    CaptureSessionState.setActiveClaim(claim.optString("id"))
-                                    notice = if (isEnglish) "This task is selected for resubmission." else "已选择此任务，可返回 WhatsApp 重新处理。"
-                                },
-                                onCountdownExpired = {
-                                    locallyExpiredClaimIds = locallyExpiredClaimIds + claim.optString("id")
-                                    refresh()
-                                }
-                            )
+                            ClaimRecordCard(claim, isEnglish)
                         }
                     }
                     HallFilter.SETTLED -> {
