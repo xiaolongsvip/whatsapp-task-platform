@@ -195,7 +195,7 @@ test("AI/manual rejection and expiry acquire the allocator lock before changing 
 
 test("rejected task cards allow details viewing but never show a WhatsApp action", async () => {
   const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt");
-  const card = screen.slice(screen.indexOf("private fun TaskClaimCard("), screen.indexOf("private fun openWhatsApp("));
+  const card = screen.slice(screen.indexOf("private fun ClaimedTaskCard("), screen.indexOf("private fun openWhatsApp("));
   assert.match(card, /if \(canViewDetails\)/);
   assert.match(card, /if \(status == "REJECTED"\)[\s\S]*?Number recycled/);
   assert.match(card, /else \{\s*Button\(/);
