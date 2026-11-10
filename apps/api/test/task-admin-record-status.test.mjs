@@ -37,7 +37,8 @@ test("voiding an unfinished task number recycles its slot instead of stranding i
   const body = source.slice(source.indexOf("async voidTaskRecord("), source.indexOf("async deleteTaskRecord("));
   assert.match(body, /status: "AVAILABLE",\s*claimId: null,\s*assignedAt: null/);
   assert.match(body, /usedAt: null/);
-  assert.match(body, /recycleUnsuccessfulTaskClaimInventory/);
+  assert.match(body, /currentNumber\.status === "AVAILABLE"/);
+  assert.match(body, /currentNumber\.consentStatus === "GRANTED"/);
   assert.match(body, /allocateAvailableNumbersToOldestPublishedTask\(tx\)/);
   assert.match(body, /status: "USED" \|\| slot\.claim\?\.status === "APPROVED"/);
   assert.match(body, /status: \{ in: \["SUBMITTED", "UNDER_REVIEW"\] \}/);
