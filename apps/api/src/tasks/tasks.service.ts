@@ -771,12 +771,15 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             SELECT id
             FROM task_claims
             WHERE user_id = ${userId}::uuid
-              AND expires_at IS NOT NULL
-              AND expires_at <= ${now}
               AND (
-                status IN ('CLAIMED', 'IN_PROGRESS')
+                (
+                  status IN ('CLAIMED', 'IN_PROGRESS')
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ${now}
+                )
                 OR (
                   status = 'REJECTED'
+                  AND (expires_at IS NULL OR expires_at <= ${now})
                   AND (
                     EXISTS (
                       SELECT 1 FROM contact_assignments AS assignment
@@ -796,12 +799,15 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         : await tx.$queryRaw<Array<{ id: string }>>`
             SELECT id
             FROM task_claims
-            WHERE expires_at IS NOT NULL
-              AND expires_at <= ${now}
-              AND (
-                status IN ('CLAIMED', 'IN_PROGRESS')
+            WHERE (
+                (
+                  status IN ('CLAIMED', 'IN_PROGRESS')
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ${now}
+                )
                 OR (
                   status = 'REJECTED'
+                  AND (expires_at IS NULL OR expires_at <= ${now})
                   AND (
                     EXISTS (
                       SELECT 1 FROM contact_assignments AS assignment
