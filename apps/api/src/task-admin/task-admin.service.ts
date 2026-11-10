@@ -625,10 +625,7 @@ export class TaskAdminService {
       const recyclable = currentNumber?.status === "AVAILABLE"
         && currentNumber.consentStatus === "GRANTED";
       if (!recyclable) {
-        if (slot.status === "VOIDED") {
-          return { id: slot.id, status: "VOIDED", alreadyVoided: true, numberRecycled: false };
-        }
-        throw new ConflictException("该号码当前不可重新分配，请先检查号码状态和授权状态。");
+        throw new ConflictException("该号码当前不可重新分配：号码必须处于可用状态且授权有效。");
       }
 
       const now = new Date();
