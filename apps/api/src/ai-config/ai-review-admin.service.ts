@@ -364,7 +364,10 @@ export class AiReviewAdminService {
     const where = normalized === "MANUAL_REVIEW"
       ? manualReviewWhere
       : normalized === "SMART_REVIEW"
-        ? { aiReviewJob: { is: { OR: [\n            { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { gt: staleCutoff } },\n            { status: "PROCESSING" as never, lockedAt: { gt: staleCutoff } },\n          ] } } }
+        ? { aiReviewJob: { is: { OR: [
+            { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { gt: staleCutoff } },
+            { status: "PROCESSING" as never, lockedAt: { gt: staleCutoff } },
+          ] } } }
         : normalized === "APPROVED" ? { status: "APPROVED" as never }
         : normalized === "REJECTED" ? { status: "REJECTED" as never } : {};
     const [total, submissions, manualReview, smartReview, approved, rejected] = await prisma.$transaction([
