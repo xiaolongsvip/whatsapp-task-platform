@@ -28,3 +28,11 @@ test("admin can take over only NEEDS_REVIEW or stale AI jobs, preserving lock-ba
   assert.match(adminPage, /decide\("APPROVE"\)/);
   assert.match(adminPage, /decide\("REJECT"\)/);
 });
+
+
+test("AI worker recovers PROCESSING jobs whose lease timestamp is NULL as well as expired leases", () => {
+  const worker = readFileSync(new URL("../src/ai-config/ai-review.worker.ts", import.meta.url), "utf8");
+  assert.match(worker, /status = 'PROCESSING'[\s\S]*?locked_at IS NULL[\s\S]*?locked_at < NOW\(\) - INTERVAL '10 minutes'/);
+  assert.match(worker, /FOR UPDATE SKIP LOCKED/);
+  assert.match(worker, /attempt_count = attempt_count \+ 1/);
+});
