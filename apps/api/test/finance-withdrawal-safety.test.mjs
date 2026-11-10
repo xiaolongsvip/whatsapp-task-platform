@@ -134,9 +134,13 @@ test("Android member API paths have matching authenticated API controllers", () 
   for (const route of ['"auth/login"', '"auth/register"', '"auth/refresh"', '"auth/logout"']) {
     assert.ok(repository.includes(route), "missing Android route: " + route);
   }
-  for (const route of ['"users/dashboard"', '"users/promotion"', '"users/commission-records"', '"users/wallet-overview"', '"users/wallet-transactions?limit=$limit"', '"users/withdrawals"', '"users/payout-accounts"', '"users/team"', '"users/me/password"']) {
+  for (const route of ['"users/dashboard"', '"users/promotion"', '"users/wallet-overview"', '"users/wallet-transactions?limit=$limit"', '"users/withdrawals"', '"users/payout-accounts"', '"users/me/password"']) {
     assert.ok(repository.includes(route), "missing Android route: " + route);
   }
+  assert.match(repository, /append\("users\/commission-records\?limit=\$limit"\)/);
+  assert.match(repository, /fun commissionRecords\(limit: Int = 100/);
+  assert.match(repository, /append\("users\/team\?limit=\$limit"\)/);
+  assert.match(repository, /fun teamMembers\(limit: Int = 300/);
   assert.match(auth, /@Post\("login"\)/);
   assert.match(users, /@Get\("dashboard"\)/);
   assert.match(users, /@Get\("wallet-overview"\)/);

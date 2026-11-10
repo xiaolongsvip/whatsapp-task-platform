@@ -2103,11 +2103,15 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
     var summaryError by remember { mutableStateOf(false) }
     var recordsError by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var loadMoreError by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(refresh) {
         loading = true
         summaryError = false
         recordsError = false
+        loadMoreError = null
         val result = withContext(Dispatchers.IO) {
             val summaryResult = runCatching { AuthRepository.promotionSummary() }
             val recordsResult = runCatching { AuthRepository.commissionRecords() }
@@ -2116,6 +2120,48 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
         result.first.onSuccess { summary = it }.onFailure { summaryError = true }
         result.second.onSuccess { records = it }.onFailure { recordsError = true }
         loading = false
+    }
+    fun loadMore() {
+        val current = records ?: return
+        val cursor = current.optJSONObject("nextCursor") ?: return
+        val beforeCreatedAt = cursor.optString("createdAt")
+        val beforeId = cursor.optString("id")
+        if (beforeCreatedAt.isBlank() || beforeId.isBlank() || loadingMore) return
+        scope.launch {
+            loadingMore = true
+            loadMoreError = null
+            runCatching {
+                withContext(Dispatchers.IO) { AuthRepository.commissionRecords(100, beforeCreatedAt, beforeId) }
+            }.onSuccess { page ->
+                val combined = JSONArray()
+                val seen = HashSet<String>()
+                for (source in listOf(current.optJSONArray("items") ?: JSONArray(), page.optJSONArray("items") ?: JSONArray())) {
+                    for (index in 0 until source.length()) {
+                        val item = source.optJSONObject(index) ?: continue
+                        val id = item.optString("id")
+                        if (id.isNotBlank() && seen.add(id)) combined.put(item)
+                    }
+                }
+                val pending = JSONObject()
+                for (source in listOf(current.optJSONObject("pendingCommissions") ?: JSONObject(), page.optJSONObject("pendingCommissions") ?: JSONObject())) {
+                    val keys = source.keys()
+                    while (keys.hasNext()) {
+                        val currency = keys.next()
+                        val sum = (pending.optString(currency, "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO) +
+                            (source.optString(currency, "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO)
+                        pending.put(currency, sum.toString())
+                    }
+                }
+                records = JSONObject(current.toString())
+                    .put("items", combined)
+                    .put("pendingCommissions", pending)
+                    .put("hasMore", page.optBoolean("hasMore"))
+                    .put("nextCursor", page.optJSONObject("nextCursor"))
+            }.onFailure {
+                loadMoreError = it.message ?: if (en) "Unable to load more commissions" else "加载更多佣金失败"
+            }
+            loadingMore = false
+        }
     }
     fun amount(key: String): String = formatCurrencyTotals(summary?.optJSONObject(key))
     val items = records?.optJSONArray("items")
@@ -2145,7 +2191,7 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CommissionSummaryCard(Modifier.weight(1f), if (en) "Total commission" else "累计佣金", if (summaryError || summary == null) "—" else amount("totalCommissions"), Icons.Default.AccountBalanceWallet)
             CommissionSummaryCard(Modifier.weight(1f), if (en) "This month" else "本月佣金", if (summaryError || summary == null) "—" else amount("monthCommissions"), Icons.Default.CalendarMonth)
-            CommissionSummaryCard(Modifier.weight(1f), if (en) "Pending commission" else "历史待处理佣金", if (recordsError || records == null) "—" else formatCurrencyTotals(records?.optJSONObject("pendingCommissions")), Icons.Default.Schedule)
+            CommissionSummaryCard(Modifier.weight(1f), if (en) "Pending on loaded pages" else "已加载页待处理佣金", if (recordsError || records == null) "—" else formatCurrencyTotals(records?.optJSONObject("pendingCommissions")), Icons.Default.Schedule)
         }
         if (loading) {
             Box(Modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF319CCB)) }
@@ -2155,12 +2201,20 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
             }
         }
         if (!loading && filtered.isEmpty()) {
+            Column(Modifier.fillMaxWidth()) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 42.dp, horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
                     Text(if (en) "No commission records" else "暂无佣金记录", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(if (en) "Eligible invited-user tasks appear here after review and settlement." else "符合条件的受邀任务审核并结算后，佣金会显示在这里。", color = Color(0xFF667085), textAlign = androidx.compose.ui.text.style.TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
                 }
+            }
+            if (records?.optBoolean("hasMore") == true) {
+                Button(onClick = { loadMore() }, enabled = !loadingMore, modifier = Modifier.fillMaxWidth().padding(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
+                    if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    else Text(if (en) "Load more" else "加载更多")
+                }
+            }
             }
         } else if (!loading) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2178,7 +2232,13 @@ private fun CommissionHistoryScreen(modifier: Modifier = Modifier, language: Str
                         }
                     }
                 }
-                if (records?.optBoolean("hasMore") == true) Text(if (en) "Showing the latest 100 records" else "仅展示最近100条记录", color = Color(0xFF667085), modifier = Modifier.padding(8.dp))
+                if (loadMoreError != null) Text(loadMoreError.orEmpty(), color = Color(0xFFB42318), modifier = Modifier.padding(8.dp))
+                if (records?.optBoolean("hasMore") == true) {
+                    Button(onClick = { loadMore() }, enabled = !loadingMore, modifier = Modifier.fillMaxWidth().padding(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (en) "Load more" else "加载更多")
+                    }
+                }
             }
         }
     }
@@ -2191,13 +2251,49 @@ private fun TeamDataScreen(modifier: Modifier = Modifier, language: String, onBa
     var data by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var loadMoreError by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(refresh) {
         loading = true
         error = null
+        loadMoreError = null
         try { data = withContext(Dispatchers.IO) { AuthRepository.teamMembers() } }
         catch (e: Exception) { error = e.message ?: if (en) "Failed to load team" else "团队数据加载失败" }
         finally { loading = false }
+    }
+    fun loadMore() {
+        val current = data ?: return
+        val cursor = current.optJSONObject("nextCursor") ?: return
+        val beforeCreatedAt = cursor.optString("createdAt")
+        val beforeUserId = cursor.optString("userId")
+        val beforeDepth = cursor.optInt("depth", 0)
+        if (beforeCreatedAt.isBlank() || beforeUserId.isBlank() || beforeDepth !in 1..3 || loadingMore) return
+        scope.launch {
+            loadingMore = true
+            loadMoreError = null
+            runCatching {
+                withContext(Dispatchers.IO) { AuthRepository.teamMembers(300, beforeCreatedAt, beforeUserId, beforeDepth) }
+            }.onSuccess { page ->
+                val combined = JSONArray()
+                val seen = HashSet<String>()
+                for (source in listOf(current.optJSONArray("items") ?: JSONArray(), page.optJSONArray("items") ?: JSONArray())) {
+                    for (index in 0 until source.length()) {
+                        val item = source.optJSONObject(index) ?: continue
+                        val key = item.optString("userId") + ":" + item.optInt("depth")
+                        if (seen.add(key)) combined.put(item)
+                    }
+                }
+                data = JSONObject(current.toString())
+                    .put("items", combined)
+                    .put("hasMore", page.optBoolean("hasMore"))
+                    .put("nextCursor", page.optJSONObject("nextCursor"))
+            }.onFailure {
+                loadMoreError = it.message ?: if (en) "Unable to load more team members" else "加载更多团队成员失败"
+            }
+            loadingMore = false
+        }
     }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB))) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2223,10 +2319,19 @@ private fun TeamDataScreen(modifier: Modifier = Modifier, language: String, onBa
         val items = data?.optJSONArray("items")
         val members = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter { it.optInt("depth") == selected }
         if (!loading && error == null && members.isEmpty()) {
-            Card(Modifier.fillMaxWidth().padding(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.Groups, null, tint = Color(0xFF667085), modifier = Modifier.size(30.dp))
-                    Text(if (en) "No invited users" else "暂无邀请用户", color = Color(0xFF667085))
+            Column(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().padding(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.Groups, null, tint = Color(0xFF667085), modifier = Modifier.size(30.dp))
+                        Text(if (en) "No users in this level on the loaded pages" else "已加载记录中暂无该层级用户", color = Color(0xFF667085))
+                    }
+                }
+                if (loadMoreError != null) Text(loadMoreError.orEmpty(), color = Color(0xFFB42318), modifier = Modifier.padding(8.dp))
+                if (data?.optBoolean("hasMore") == true) {
+                    Button(onClick = { loadMore() }, enabled = !loadingMore, modifier = Modifier.fillMaxWidth().padding(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (en) "Load more" else "加载更多")
+                    }
                 }
             }
         } else {
@@ -2243,7 +2348,13 @@ private fun TeamDataScreen(modifier: Modifier = Modifier, language: String, onBa
                         }
                     }
                 }
-                if (data?.optBoolean("hasMore") == true) Text(if (en) "Showing the latest 300 users" else "仅展示最近300位用户", color = Color(0xFF667085), modifier = Modifier.padding(8.dp))
+                if (loadMoreError != null) Text(loadMoreError.orEmpty(), color = Color(0xFFB42318), modifier = Modifier.padding(8.dp))
+                if (data?.optBoolean("hasMore") == true) {
+                    Button(onClick = { loadMore() }, enabled = !loadingMore, modifier = Modifier.fillMaxWidth().padding(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (en) "Load more" else "加载更多")
+                    }
+                }
             }
         }
     }

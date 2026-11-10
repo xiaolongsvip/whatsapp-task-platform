@@ -392,16 +392,27 @@ export class DashboardService {
     };
   }
 
-  async getCommissionRecords(userId: string) {
+  async getCommissionRecords(userId: string, limit = 100, beforeCreatedAt?: string, beforeId?: string) {
+    const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 100, 1), 100);
+    const cursorDate = beforeCreatedAt ? new Date(beforeCreatedAt) : null;
+    const hasCursor = Boolean(cursorDate && Number.isFinite(cursorDate.getTime()) && beforeId?.trim());
+    const cursorFilter = hasCursor ? {
+      OR: [
+        { createdAt: { lt: cursorDate! } },
+        { createdAt: cursorDate!, id: { lt: beforeId!.trim() } },
+      ],
+    } : undefined;
     const rows = await prisma.referralReward.findMany({
-      where: { beneficiaryId: userId },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      where: { beneficiaryId: userId, ...(cursorFilter ?? {}) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: take + 1,
       select: { id: true, sourceUserId: true, depth: true, amountMinor: true, currency: true, createdAt: true, idempotencyKey: true },
     });
+    const hasMore = rows.length > take;
+    const pageRows = rows.slice(0, take);
     // The reward table has no settlement status. Confirm credit from the actual ledger,
     // rather than treating every created reward as paid.
-    const keys = rows.map((row) => row.idempotencyKey);
+    const keys = pageRows.map((row) => row.idempotencyKey);
     const credits = keys.length ? await prisma.ledgerEntry.findMany({
       where: { idempotencyKey: { in: keys }, direction: "CREDIT", wallet: { userId } },
       select: { idempotencyKey: true },
@@ -415,9 +426,9 @@ export class DashboardService {
       }
       return result;
     };
-    const pending = rows.filter((row) => !credited.has(row.idempotencyKey));
+    const pending = pageRows.filter((row) => !credited.has(row.idempotencyKey));
     return {
-      items: rows.map((row) => ({
+      items: pageRows.map((row) => ({
         id: row.id,
         sourceUserId: row.sourceUserId,
         depth: row.depth,
@@ -427,29 +438,56 @@ export class DashboardService {
         createdAt: row.createdAt.toISOString(),
       })),
       pendingCommissions: totals(pending),
-      // Totals above cover only the 100 returned records; never label them as lifetime totals.
-      hasMore: rows.length === 100,
+      // Pending totals describe this page only; they are not lifetime totals.
+      hasMore,
+      nextCursor: hasMore && pageRows.length ? {
+        createdAt: pageRows[pageRows.length - 1].createdAt.toISOString(),
+        id: pageRows[pageRows.length - 1].id,
+      } : null,
     };
   }
 
-  async getTeamMembers(userId: string) {
+  async getTeamMembers(userId: string, limit = 300, beforeCreatedAt?: string, beforeUserId?: string, beforeDepth?: number) {
+    const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 300, 1), 300);
+    const cursorDate = beforeCreatedAt ? new Date(beforeCreatedAt) : null;
+    const depthCursor = Number(beforeDepth);
+    const hasCursor = Boolean(cursorDate && Number.isFinite(cursorDate.getTime()) && beforeUserId?.trim() && Number.isInteger(depthCursor) && depthCursor >= 1 && depthCursor <= 3);
+    const cursorFilter = hasCursor ? {
+      OR: [
+        { createdAt: { lt: cursorDate! } },
+        {
+          createdAt: cursorDate!,
+          OR: [
+            { descendantUserId: { lt: beforeUserId!.trim() } },
+            { descendantUserId: beforeUserId!.trim(), depth: { lt: depthCursor } },
+          ],
+        },
+      ],
+    } : undefined;
     const rows = await prisma.referralAncestor.findMany({
-      where: { ancestorUserId: userId, depth: { in: [1, 2, 3] } },
-      orderBy: { createdAt: "desc" },
-      take: 300,
+      where: { ancestorUserId: userId, depth: { in: [1, 2, 3] }, ...(cursorFilter ?? {}) },
+      orderBy: [{ createdAt: "desc" }, { descendantUserId: "desc" }, { depth: "desc" }],
+      take: take + 1,
       select: { descendantUserId: true, depth: true, createdAt: true },
     });
+    const hasMore = rows.length > take;
+    const pageRows = rows.slice(0, take);
     const counts = await Promise.all([1, 2, 3].map((depth) =>
       prisma.referralAncestor.count({ where: { ancestorUserId: userId, depth } })
     ));
     return {
       counts: { level1: counts[0], level2: counts[1], level3: counts[2] },
-      items: rows.map((row) => ({
+      items: pageRows.map((row) => ({
         userId: row.descendantUserId,
         depth: row.depth,
         invitedAt: row.createdAt.toISOString(),
       })),
-      hasMore: rows.length === 300,
+      hasMore,
+      nextCursor: hasMore && pageRows.length ? {
+        createdAt: pageRows[pageRows.length - 1].createdAt.toISOString(),
+        userId: pageRows[pageRows.length - 1].descendantUserId,
+        depth: pageRows[pageRows.length - 1].depth,
+      } : null,
     };
   }
 

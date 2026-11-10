@@ -109,15 +109,26 @@ export class UsersController {
   }
 
   @Get("commission-records")
-  async getCommissionRecords(@Req() request: Request) {
+  async getCommissionRecords(
+    @Req() request: Request,
+    @Query("limit") limit?: string,
+    @Query("beforeCreatedAt") beforeCreatedAt?: string,
+    @Query("beforeId") beforeId?: string,
+  ) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.dashboard.getCommissionRecords(user.id);
+    return this.dashboard.getCommissionRecords(user.id, limit ? Number(limit) : 100, beforeCreatedAt, beforeId);
   }
 
   @Get("team")
-  async getTeam(@Req() request: Request) {
+  async getTeam(
+    @Req() request: Request,
+    @Query("limit") limit?: string,
+    @Query("beforeCreatedAt") beforeCreatedAt?: string,
+    @Query("beforeUserId") beforeUserId?: string,
+    @Query("beforeDepth") beforeDepth?: string,
+  ) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.dashboard.getTeamMembers(user.id);
+    return this.dashboard.getTeamMembers(user.id, limit ? Number(limit) : 300, beforeCreatedAt, beforeUserId, beforeDepth ? Number(beforeDepth) : undefined);
   }
 
   @Get("me")
