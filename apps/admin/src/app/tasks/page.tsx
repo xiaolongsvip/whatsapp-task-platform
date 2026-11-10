@@ -420,7 +420,7 @@ export default function AdminTasksPage() {
                 <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
                 <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[record.status]}</span></td>
                 <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
-                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(record.status) || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":!["AVAILABLE","CLOSED"].includes(record.status)?"仅未领取的可用记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
+                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || record.inventoryStatus!=="AVAILABLE" || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":record.inventoryStatus!=="AVAILABLE"?"仅底层库存状态为可用且未领取的记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
                   if(!window.confirm("确定删除这条未领取的任务号码记录吗？"))return;
                   try{
                     await api("/api/v1/admin/tasks/records/"+record.id,{method:"DELETE"});
