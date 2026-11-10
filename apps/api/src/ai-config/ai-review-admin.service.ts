@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
-import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "../tasks/task-slot-allocation";
 import { recycleUnsuccessfulTaskClaimInventory } from "../tasks/task-claim-inventory";
 
 const AI_REVIEW_STALE_AFTER_MS = 10 * 60 * 1000;
