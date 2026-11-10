@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import type { ImportContactNumbersDto } from "./contact-numbers.dto";
-import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "../tasks/task-slot-allocation";
 
 function normalizePhone(input: string): string | null {
   const value = input.trim();
@@ -380,6 +380,8 @@ export class ContactNumbersService {
         ORDER BY id
         FOR UPDATE
       `;
+      // Match FIFO allocation lock order before touching number/slot rows.
+      await lockTaskSlotAllocation(tx);
       // Serialize against new claims after locking any existing active claims.
       await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM contact_numbers WHERE id = ${numberId}::uuid FOR UPDATE
