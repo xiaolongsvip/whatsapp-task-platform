@@ -10,7 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "../users/dashboard.service";
 import { S3ObjectStorageService } from "./s3-object-storage.service";
-import { allocateAvailableNumbersToOldestPublishedTask } from "./task-slot-allocation";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "./task-slot-allocation";
 import { recycleUnsuccessfulTaskClaimInventory } from "./task-claim-inventory";
 
 const DAILY_TASK_LIMIT = 20;
@@ -549,6 +549,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         throw new ConflictException("任务正在审核中，不能取消。");
       }
 
+      await lockTaskSlotAllocation(tx);
       const initialAssignment = await tx.contactAssignment.findUnique({
         where: { claimId },
         select: { id: true, contactNumberId: true },
