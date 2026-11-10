@@ -98,9 +98,14 @@ export class UsersController {
   }
 
   @Get("wallet-transactions")
-  async getWalletTransactions(@Req() request: Request, @Query("limit") limit?: string) {
+  async getWalletTransactions(
+    @Req() request: Request,
+    @Query("limit") limit?: string,
+    @Query("beforeCreatedAt") beforeCreatedAt?: string,
+    @Query("beforeId") beforeId?: string,
+  ) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.dashboard.getWalletTransactions(user.id, limit ? Number(limit) : 100);
+    return this.dashboard.getWalletTransactions(user.id, limit ? Number(limit) : 100, beforeCreatedAt, beforeId);
   }
 
   @Get("commission-records")
