@@ -155,8 +155,8 @@ test("task publish, pause, and close acquire the allocator lock before changing 
     const end = nextMethod === "}" ? admin.indexOf("\\n}", start + method.length) : admin.indexOf(nextMethod, start + method.length);
     const body = admin.slice(start, end < 0 ? undefined : end);
     const lock = body.indexOf("lockTaskSlotAllocation(tx)");
-    const update = body.indexOf(\`data: { status: "\${status}" }\`);
-    assert.ok(lock >= 0 && update > lock, \`\${status} must lock inventory before task status update\`);
+    const update = body.indexOf(`data: { status: "${status}" }`);
+    assert.ok(lock >= 0 && update > lock, `${status} must lock inventory before task status update`);
   }
 });
 
