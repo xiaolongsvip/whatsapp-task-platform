@@ -120,3 +120,11 @@ test("shared inventory release locks number, slot, and assignment in a determini
   const cancelAssignmentLock = cancel.indexOf("FROM contact_assignments");
   assert.ok(cancelNumberLock >= 0 && cancelSlotLock > cancelNumberLock && cancelAssignmentLock > cancelSlotLock);
 });
+
+
+test("Android keeps rejected claims selectable as history while disabling restart actions", async () => {
+  const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt");
+  assert.match(screen, /val selectedClaim = claims\.firstOrNull \{ it\.optString\("id"\) == selectedClaimId \}/);
+  assert.match(screen, /val canOpen = !countdownExpired &&\s*status in setOf\("CLAIMED", "IN_PROGRESS"\)/);
+  assert.match(screen, /status == "REJECTED" -> if \(isEnglish\) "Number recycled" else "号码已回收"/);
+});
