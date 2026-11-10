@@ -564,21 +564,29 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         select: { id: true, contactNumberId: true, status: true },
       });
       const contactNumberId = claim.contactAssignment?.contactNumberId ?? assignedSlot?.contactNumberId;
-      const releasedNumber = contactNumberId
-        ? await tx.contactNumber.updateMany({
-            where: {
-              id: contactNumberId,
-              status: "ASSIGNED",
-              consentStatus: "GRANTED",
-            },
-            data: { status: "AVAILABLE" },
+      if (contactNumberId) {
+        await tx.contactNumber.updateMany({
+          where: {
+            id: contactNumberId,
+            status: "ASSIGNED",
+            consentStatus: "GRANTED",
+          },
+          data: { status: "AVAILABLE" },
+        });
+      }
+      const currentNumber = contactNumberId
+        ? await tx.contactNumber.findUnique({
+            where: { id: contactNumberId },
+            select: { status: true, consentStatus: true },
           })
-        : { count: 0 };
+        : null;
+      const numberReturnedToPool = currentNumber?.status === "AVAILABLE"
+        && currentNumber.consentStatus === "GRANTED";
       if (assignedSlot && ["ASSIGNED", "AVAILABLE"].includes(assignedSlot.status)) {
         await tx.taskSlot.update({
           where: { id: assignedSlot.id },
           data: {
-            status: "AVAILABLE",
+            status: numberReturnedToPool ? "AVAILABLE" : "VOIDED",
             claimId: null,
             assignedAt: null,
             releasedAt: now,
@@ -596,7 +604,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       return {
         claimId,
         status: "CANCELLED",
-        numberReturnedToPool: releasedNumber.count === 1,
+        numberReturnedToPool,
       };
     });
   }
