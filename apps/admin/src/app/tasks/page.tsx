@@ -37,7 +37,7 @@ type TaskList = { tasks: AdminTask[] };
 type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
 type TaskGroupOption = { id: string; name: string; description: string | null; taskCount: number };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
-type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
+type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; inventoryStatus: "AVAILABLE" | "ASSIGNED" | "USED" | "VOIDED"; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
 
 type TaskForm = {
@@ -330,7 +330,7 @@ export default function AdminTasksPage() {
           <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
             if(!selectedIds.length)return;
             const chosen=records.filter((item)=>selectedIds.includes(item.id));
-            const eligible=chosen.filter((item)=>item.taskStatus!=="PUBLISHED"&&["AVAILABLE","CLOSED"].includes(item.status)&&!item.claimId);
+            const eligible=chosen.filter((item)=>item.taskStatus!=="PUBLISHED"&&item.inventoryStatus==="AVAILABLE"&&!item.claimId);
             const skipped=chosen.length-eligible.length;
             if(!eligible.length){window.alert("选中的记录没有符合删除条件的项目。只能删除已暂停/草稿任务下未领取的可用记录。");return;}
             if(!window.confirm("确定批量删除 "+eligible.length+" 条未领取记录吗？"+(skipped?"\n另有 "+skipped+" 条不符合条件，将保留不动。":"")+"\n删除后号码回到可分配号码池。"))return;
