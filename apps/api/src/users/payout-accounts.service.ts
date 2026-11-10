@@ -35,7 +35,7 @@ function encrypt(value: string) {
 export class PayoutAccountsService {
   async options() {
     const rulesRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
-    const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ id: "default-pk-usd-local", countryCode: "PK", countryName: "Pakistan", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", channels: ["jazzcash", "easypaisa"], minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, status: "ENABLED" }];
+    const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [];
     const providers = await prisma.paymentProviderConfig.findMany({
       where: { enabled: true },
       select: { providerCode: true, displayName: true, countryCode: true, methodCode: true, supportedChannels: true, supportedCurrencies: true },
