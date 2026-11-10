@@ -51,6 +51,12 @@ export default function TaskSettingsListPage() {
   const [keyword, setKeyword] = useState("");
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [status, setStatus] = useState<"ALL" | Status>("ALL");
+  const [useStage, setUseStage] = useState("ALL");
+  const [taskId, setTaskId] = useState("");
+  const [countryRegion, setCountryRegion] = useState("");
+  const [reviewResult, setReviewResult] = useState("ALL");
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<number[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
@@ -59,13 +65,13 @@ export default function TaskSettingsListPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword: appliedKeyword, status });
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword: appliedKeyword, status, useStage, taskId: taskId.trim(), countryRegion: countryRegion.trim(), reviewResult });
     const result = await api<Data>("/api/v1/admin/tasks/records?" + params.toString());
     setItems(result.items);
     setStats(result.stats);
     setTotal(result.pagination.total);
     setTotalPages(Math.max(1, result.pagination.totalPages));
-  }, [page, pageSize, appliedKeyword, status]);
+  }, [page, pageSize, appliedKeyword, status, useStage, taskId, countryRegion, reviewResult]);
 
   useEffect(() => {
     api<{ id: string }>("/api/v1/admin-auth/me").then(() => setAuthenticated(true))
@@ -85,7 +91,7 @@ export default function TaskSettingsListPage() {
 
   const openDetail = async (item: RecordItem) => { setDetail(null); setDetailLoading(true); try { setDetail(await api<FullDetail>("/api/v1/admin/tasks/records/" + item.id + "/detail")); } catch(e) { setError(e instanceof Error ? e.message : "任务详情加载失败"); } finally { setDetailLoading(false); } };
   const runSearch = () => { setPage(1); setAppliedKeyword(keyword.trim()); };
-  const reset = () => { setKeyword(""); setAppliedKeyword(""); setStatus("ALL"); setPage(1); };
+  const reset = () => { setKeyword(""); setAppliedKeyword(""); setStatus("ALL"); setUseStage("ALL"); setTaskId(""); setCountryRegion(""); setReviewResult("ALL"); setPage(1); };
 
   if (loading) return <main style={{ padding: 32 }}>正在加载任务列表…</main>;
   if (!authenticated) return <main style={{ padding: 32, color: "#dc2626" }}>{error || "请先登录"}</main>;
@@ -106,15 +112,15 @@ export default function TaskSettingsListPage() {
               <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "#94a3b8" }}/>
               <input value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") runSearch(); }} placeholder="搜索任务、号码、用户或编号" style={inputStyle}/>
             </div>
-            <select style={selectStyle}><option>全部使用阶段</option><option>未使用</option><option>已使用</option></select>
-            <select style={selectStyle}><option>全部执行状态</option>{filters.slice(1).map(f => <option key={f.key}>{f.label}</option>)}</select>
-            <input placeholder="任务编号" style={{ ...inputStyle, width: 112, flex: "0 1 112px" }}/>
-            <input placeholder="国家" style={{ ...inputStyle, width: 90, flex: "0 1 90px" }}/>
-            <select style={selectStyle}><option>全部审核结果</option><option>已通过</option><option>待审核</option><option>已拒绝</option></select>
+            <select value={useStage} onChange={e => setUseStage(e.target.value)} style={selectStyle}><option value="ALL">全部使用阶段</option><option value="UNUSED">未使用</option><option value="USED">已使用</option></select>
+            <select value={status} onChange={e => { setStatus(e.target.value as "ALL" | Status); setPage(1); }} style={selectStyle}><option value="ALL">全部执行状态</option>{filters.slice(1).map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</select>
+            <input value={taskId} onChange={e => setTaskId(e.target.value)} placeholder="任务编号" style={{ ...inputStyle, paddingLeft: 10, width: 112, flex: "0 1 112px" }}/>
+            <input value={countryRegion} onChange={e => setCountryRegion(e.target.value)} placeholder="国家" style={{ ...inputStyle, paddingLeft: 10, width: 90, flex: "0 1 90px" }}/>
+            <select value={reviewResult} onChange={e => setReviewResult(e.target.value)} style={selectStyle}><option value="ALL">全部审核结果</option><option value="APPROVED">已通过</option><option value="PENDING">待审核</option><option value="REJECTED">已拒绝</option></select>
             <button onClick={runSearch} style={primaryButton}>搜索</button>
             <button onClick={reset} style={buttonStyle}>重置</button>
             <button onClick={() => load().catch(e => setError(e.message))} style={buttonStyle} title="刷新"><RefreshCw size={14}/></button>
-            <button style={buttonStyle}>▥ 显示列</button>
+            <div style={{position:"relative"}}><button onClick={() => setColumnsOpen(v => !v)} style={buttonStyle}>▥ 显示列</button>{columnsOpen&&<div style={{position:"absolute",right:0,top:36,zIndex:30,width:170,padding:10,background:"#fff",border:"1px solid #dbe3ed",borderRadius:7,boxShadow:"0 8px 24px #0f172a18"}}>{["任务","平台 / 动作","国家 / 地区","目标号码","使用阶段","执行状态","领取用户","领取时间","审核结果","更新时间","话术","奖励金额","操作"].map((label,index)=><label key={label} style={{display:"flex",gap:7,alignItems:"center",padding:"4px 0",fontSize:11,color:"#344054"}}><input type="checkbox" checked={!hiddenColumns.includes(index)} onChange={e=>setHiddenColumns(old=>e.target.checked?old.filter(x=>x!==index):[...old,index])}/>{label}</label>)}</div>}</div>
           </div>
         </section>
 
@@ -138,22 +144,22 @@ export default function TaskSettingsListPage() {
           <div style={{ overflow: "auto", flex: 1 }}>
             <table style={{ width: "100%", minWidth: 1160, borderCollapse: "collapse", fontSize: 11 }}>
               <thead><tr style={{ background: "#f8fafc", color: "#64748b", textAlign: "left" }}>
-                {["任务","平台 / 动作","国家 / 地区","目标号码","使用阶段","执行状态","领取用户","领取时间","审核结果","更新时间","话术","奖励金额","操作"].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                {["任务","平台 / 动作","国家 / 地区","目标号码","使用阶段","执行状态","领取用户","领取时间","审核结果","更新时间","话术","奖励金额","操作"].map((h,index) => <th key={h} style={{...thStyle,display:hiddenColumns.includes(index)?"none":undefined}}>{h}</th>)}
               </tr></thead>
               <tbody>{items.map(item => <tr key={item.id} style={{ borderBottom: "1px solid #edf1f6" }}>
                 <td style={tdStyle} title={item.taskName}>{item.taskName}</td>
-                <td style={tdStyle}>{item.category || "WhatsApp 私信"}</td>
-                <td style={tdStyle}>{item.countryRegion || "—"}</td>
-                <td style={tdStyle}>{item.phoneNumber || "—"}</td>
-                <td style={tdStyle}><span style={pill("#ecfdf5", "#059669", "#a7f3d0")}>{item.status === "COMPLETED" ? "已使用" : item.status === "AVAILABLE" ? "待使用" : "已分配"}</span></td>
-                <td style={tdStyle}><span style={pill(statusColors[item.status].bg, statusColors[item.status].color, statusColors[item.status].border)}>{statusLabel[item.status]}</span></td>
-                <td style={tdStyle}>{item.claimedUserId || "—"}</td>
-                <td style={tdStyle}>{item.claimedAt ? fmt(item.claimedAt) : "—"}</td>
-                <td style={tdStyle}>{item.status === "COMPLETED" ? "已通过" : item.status === "REVIEW" ? "待审核" : item.status === "VOIDED" ? "已拒绝" : "—"}</td>
-                <td style={tdStyle}>{fmt(item.createdAt)}</td>
-                <td style={{ ...tdStyle, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={item.messageTemplate}>{item.messageTemplate || "—"}</td>
-                <td style={tdStyle}>{item.rewardAmount} {item.currency}</td>
-                <td style={tdStyle}><button onClick={() => void openDetail(item)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}><Eye size={13} style={{ verticalAlign: "middle", marginRight: 3 }}/>查看</button></td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(1)?"none":undefined}}>{item.category || "WhatsApp 私信"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(2)?"none":undefined}}>{item.countryRegion || "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(3)?"none":undefined}}>{item.phoneNumber || "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(4)?"none":undefined}}><span style={pill("#ecfdf5", "#059669", "#a7f3d0")}>{item.status === "COMPLETED" ? "已使用" : item.status === "AVAILABLE" ? "待使用" : "已分配"}</span></td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(5)?"none":undefined}}><span style={pill(statusColors[item.status].bg, statusColors[item.status].color, statusColors[item.status].border)}>{statusLabel[item.status]}</span></td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(6)?"none":undefined}}>{item.claimedUserId || "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(7)?"none":undefined}}>{item.claimedAt ? fmt(item.claimedAt) : "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(8)?"none":undefined}}>{item.status === "COMPLETED" ? "已通过" : item.status === "REVIEW" ? "待审核" : item.status === "VOIDED" ? "已拒绝" : "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(9)?"none":undefined}}>{fmt(item.createdAt)}</td>
+                <td style={{ ...tdStyle, display:hiddenColumns.includes(10)?"none":undefined, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={item.messageTemplate}>{item.messageTemplate || "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(11)?"none":undefined}}>{item.rewardAmount} {item.currency}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(12)?"none":undefined}}><button onClick={() => void openDetail(item)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}><Eye size={13} style={{ verticalAlign: "middle", marginRight: 3 }}/>查看</button></td>
               </tr>)}</tbody>
             </table>
             {!items.length && <div style={{ textAlign: "center", padding: 65, color: "#94a3b8" }}>暂无任务记录</div>}

@@ -57,9 +57,12 @@ export class TaskAdminController {
     @Query("createdFrom") createdFrom?: string,
     @Query("createdTo") createdTo?: string,
     @Query("countryRegion") countryRegion?: string,
+    @Query("useStage") useStage?: string,
+    @Query("taskId") taskId?: string,
+    @Query("reviewResult") reviewResult?: string,
   ) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
-    return this.tasks.listRecords({ page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20, keyword, status, groupName, createdFrom, createdTo, countryRegion });
+    return this.tasks.listRecords({ page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20, keyword, status, groupName, createdFrom, createdTo, countryRegion, useStage, taskId, reviewResult });
   }
 
   @Post("records/bulk-message")
