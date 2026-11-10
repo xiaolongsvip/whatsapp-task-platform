@@ -201,3 +201,20 @@ test("rejected task cards allow details viewing but never show a WhatsApp action
   assert.match(card, /else \{\s*Button\(/);
   assert.match(card, /status != "REJECTED" && \(phone\.isBlank\(\) \|\| phone == "null"\)/);
 });
+
+
+test("expiry scanning ignores recycled rejected history and selects rejected rows only while a legacy reservation remains linked", async () => {
+  const service = await read("../src/tasks/tasks.service.ts");
+  const expiry = service.slice(service.indexOf("private async expireOverdueClaims("), service.indexOf("async submitEvidence("));
+  const legacyBackfill = expiry.slice(expiry.indexOf("const legacyNullExpiry"), expiry.indexOf("// Rejected claims are history"));
+  assert.doesNotMatch(legacyBackfill, /REJECTED/);
+  const candidate = expiry.slice(expiry.indexOf("// Rejected claims are history"), expiry.indexOf("// Acquire the global inventory lock"));
+  assert.match(candidate, /claim\.status = 'REJECTED'/);
+  assert.match(candidate, /assignment\.status = 'ASSIGNED'/);
+  assert.match(candidate, /slot\.status IN \('ASSIGNED', 'AVAILABLE'\)/);
+  assert.match(candidate, /overdueCandidate\.length === 0/);
+  const expiredRows = expiry.slice(expiry.indexOf("const expiredRows"), expiry.indexOf("for (const row of expiredRows)"));
+  assert.match(expiredRows, /status = 'REJECTED'/);
+  assert.match(expiredRows, /assignment\.status = 'ASSIGNED'/);
+  assert.match(expiredRows, /slot\.status IN \('ASSIGNED', 'AVAILABLE'\)/);
+});
