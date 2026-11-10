@@ -648,55 +648,23 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       for (const row of expiredRows) {
         const claim = await tx.taskClaim.findUnique({
           where: { id: row.id },
-          include: { contactAssignment: true },
+          select: { id: true, taskId: true, status: true },
         });
         if (!claim || !["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) continue;
 
-        let reservationWasActive = false;
-        if (claim.contactAssignment?.status === "ASSIGNED") {
-          reservationWasActive = true;
-          await tx.contactAssignment.update({
-            where: { id: claim.contactAssignment.id },
-            data: { status: "RELEASED", releasedAt: now },
-          });
-          await tx.contactNumber.updateMany({
-            where: {
-              id: claim.contactAssignment.contactNumberId,
-              status: "ASSIGNED",
-              consentStatus: "GRANTED",
-            },
-            data: { status: "AVAILABLE" },
+        // Rejected claims are retained as rejected history; only unfinished
+        // execution claims transition to EXPIRED here.
+        if (claim.status !== "REJECTED") {
+          await tx.taskClaim.update({
+            where: { id: claim.id },
+            data: { status: "EXPIRED" },
           });
         }
+        await recycleUnsuccessfulTaskClaimInventory(tx, claim.id, claim.taskId, now);
+      }
 
-        const assignedSlot = await tx.taskSlot.findUnique({
-          where: { claimId: claim.id },
-          select: { id: true, status: true },
-        });
-        if (assignedSlot?.status === "ASSIGNED") {
-          reservationWasActive = true;
-          await tx.taskSlot.update({
-            where: { id: assignedSlot.id },
-            data: { status: "AVAILABLE", claimId: null, assignedAt: null, releasedAt: now },
-          });
-        }
-
-        // New rejected claims have already released their inventory and
-        // must remain REJECTED in history. Legacy rejected claims with a live
-        // reservation are recovered here exactly once.
-        if (claim.status === "REJECTED" && !reservationWasActive) continue;
-
-        await tx.taskClaim.update({
-          where: { id: claim.id },
-          data: { status: "EXPIRED" },
-        });
-
-        if (reservationWasActive) {
-          await tx.task.updateMany({
-            where: { id: claim.taskId, claimedCount: { gt: 0 } },
-            data: { claimedCount: { decrement: 1 } },
-          });
-        }
+      if (expiredRows.length) {
+        await allocateAvailableNumbersToOldestPublishedTask(tx);
       }
     });
   }
