@@ -8,8 +8,8 @@ const migration = readFileSync(new URL("../../../packages/database/prisma/migrat
 const adminPage = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
 const dashboardService = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
 const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
-const androidAuthRepository = readFileSync(new URL("../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
-const androidApp = readFileSync(new URL("../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+const androidAuthRepository = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
+const androidApp = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
 
 
 test("manual payout rejects a provider payout reference already used by another payout", () => {
