@@ -720,13 +720,13 @@ export class TaskAdminService {
     for (const id of recordIds) {
       try {
         const result = await this.voidTaskRecord(id, actorId);
-        results.push({ id, success: true, message: result.alreadyVoided ? "已经作废" : "作废成功" });
+        results.push({ id, success: true, message: result.numberRecycled ? "号码已回收并重新分配" : "号码回收完成" });
       } catch (error) {
-        results.push({ id, success: false, message: error instanceof Error ? error.message : "作废失败" });
+        results.push({ id, success: false, message: error instanceof Error ? error.message : "号码回收失败" });
       }
     }
     return {
-      action: "VOID",
+      action: "RECYCLE",
       total: recordIds.length,
       succeeded: results.filter((item) => item.success).length,
       failed: results.filter((item) => !item.success).length,
