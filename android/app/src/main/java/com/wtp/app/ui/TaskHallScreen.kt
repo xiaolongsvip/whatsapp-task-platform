@@ -811,7 +811,7 @@ fun TaskHallScreen(
                     onSelect = { recordFilter = it }
                 )
                 SummaryCard(
-                    title = if (isEnglish) "Last 7 days" else "近 7 天领取的任务",
+                    title = if (isEnglish) "Last 7 days · loaded records" else "近 7 天（已加载记录）",
                     columns = listOf(
                         (if (isEnglish) "Claimed" else "已领取") to claimedLastSevenDays.toString(),
                         (if (isEnglish) "Approved" else "已通过") to approvedLastSevenDays.toString(),
