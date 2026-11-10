@@ -1108,8 +1108,8 @@ private fun WalletScreen(
     val recentItems = recent?.optJSONArray("items")
     fun transactionTitle(item: JSONObject): String = when (item.optString("sourceType")) {
         "TASK_REWARD" -> if (en) "Task reward" else "任务奖励"
-        "REFERRAL_COMMISSION", "REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
-        "WITHDRAWAL" -> if (en) "Withdrawal" else "提现"
+        "REFERRAL_COMMISSION", "REFERRAL_COMMISSION", "REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if (en) "Referral commission" else "邀请佣金"
+        "WITHDRAWAL", "WITHDRAWAL_PAYOUT" -> if (en) "Withdrawal" else "提现"
         else -> if (item.optString("direction") == "CREDIT") { if (en) "Income" else "收入" } else { if (en) "Expense" else "支出" }
     }
     Column(modifier.fillMaxSize().background(Color(0xFFF2F7FB)).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1340,7 +1340,7 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
                                 Text(item.optString("createdAt").replace("T", " ").take(16), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
                                 Text(status(item.optString("status")), color = Color(0xFF319CCB), style = MaterialTheme.typography.labelSmall)
                             }
-                            Text((if (income) "+" else "−") + formatCurrencyTotals(JSONObject().put(item.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF258BB8), fontWeight = FontWeight.Bold)
+                            Text((if (item.optString("direction") == "CREDIT") "+" else if (item.optString("direction") == "DEBIT") "−" else "") + formatCurrencyTotals(JSONObject().put(item.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF258BB8), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
