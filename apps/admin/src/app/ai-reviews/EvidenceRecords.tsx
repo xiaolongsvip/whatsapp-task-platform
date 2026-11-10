@@ -25,14 +25,12 @@ type EvidenceResponse = {
   records: EvidenceRecord[];
 };
 const empty: EvidenceResponse = { page: 1, pageSize: 20, total: 0, stats: { total: 0, filtered: 0, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 }, records: [] };
-const tabs = [{ key: "ALL", label: "全部" }, { key: "SUBMITTED", label: "已提交" }];
 const fmt = (v: string | null | undefined) => v ? new Date(v).toLocaleString("zh-CN", { hour12: false }) : "—";
 const retentionLabel = (v: string) => ({ NORMAL: "保留中", PENDING_DELETION: "待清理", DELETE_FAILED: "删除失败，等待重试", DELETED: "对象已删除" }[v] || v || "未知");
 const bytes = (n: number | null) => n == null ? "—" : n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB";
 const field = (label: string, value: React.ReactNode) => <div className="evidence-detail-field"><span>{label}</span><strong>{value ?? "未记录"}</strong></div>;
 
 export default function EvidenceRecords() {
-  const [tab, setTab] = useState("ALL");
   const [taskType, setTaskType] = useState("TASK");
   const [keyword, setKeyword] = useState("");
   const [query, setQuery] = useState("");
@@ -51,7 +49,7 @@ export default function EvidenceRecords() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), status: tab, taskType });
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), status: "ALL", taskType });
       if (query) params.set("keyword", query);
       const response = await fetch("/api/v1/admin/ai-reviews/evidence?" + params.toString(), { credentials: "include" });
       const body = await response.json().catch(() => ({}));
@@ -59,7 +57,7 @@ export default function EvidenceRecords() {
       setData(body as EvidenceResponse);
     } catch (e) { setError(e instanceof Error ? e.message : "读取截图证据失败"); }
     finally { setLoading(false); }
-  }, [page, pageSize, query, tab, taskType]);
+  }, [page, pageSize, query, taskType]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -94,9 +92,9 @@ export default function EvidenceRecords() {
         <section className="evidence-toolbar">
           <select value={taskType} onChange={e => { setTaskType(e.target.value); setPage(1); }}><option value="TASK">任务</option><option value="ALL">全部类型</option></select>
           <input value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { setQuery(keyword.trim()); setPage(1); } }} placeholder="输入完整标识或手机号"/>
-          <div className="evidence-tabs">{tabs.map(t => <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => { setTab(t.key); setPage(1); }}>{t.label}</button>)}</div>
+          
           <button className="evidence-primary" onClick={() => { setQuery(keyword.trim()); setPage(1); }}><Search size={14}/> 搜索</button>
-          <button onClick={() => { setKeyword(""); setQuery(""); setTab("ALL"); setTaskType("TASK"); setPage(1); }}>重置</button>
+          <button onClick={() => { setKeyword(""); setQuery(""); setTaskType("TASK"); setPage(1); }}>重置</button>
           <button onClick={() => void load()} title="刷新"><RefreshCw size={14}/></button>
         </section>
         <section className="evidence-stats">{statCards.map(([label,value,desc,color]) => <article key={String(label)}><span className="evidence-stat-icon" style={{background:String(color)}}>{label === "证据总数" ? "▧" : label === "当前筛选" ? "⌕" : label === "对象已删除" ? "♲" : "▣"}</span><div><small>{label}</small><strong>{Number(value).toLocaleString()}</strong><p>{desc}</p></div></article>)}</section>
@@ -149,10 +147,12 @@ export default function EvidenceRecords() {
               <button title="缩小" onClick={() => setZoom(v => Math.max(.25, +(v - .25).toFixed(2)))}><ZoomOut size={17}/></button>
               <button title="放大" onClick={() => setZoom(v => Math.min(3, +(v + .25).toFixed(2)))}><ZoomIn size={17}/></button>
               <button title="旋转" onClick={() => setRotation(v => (v + 90) % 360)}><RotateCw size={17}/></button>
-              <button title="全屏" onClick={() => document.querySelector(".evidence-viewer-image")?.requestFullscreen?.()}><Maximize2 size={17}/></button>
-              <button title="新窗口打开" onClick={() => window.open(imageUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={17}/></button>
+              <button title="全屏" disabled={detail.retentionStatus === "DELETED"} onClick={() => document.querySelector(".evidence-viewer-image")?.requestFullscreen?.()}><Maximize2 size={17}/></button>
+              <button title="新窗口打开" disabled={detail.retentionStatus === "DELETED"} onClick={() => window.open(imageUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={17}/></button>
             </div></div>
-            <div className="evidence-viewer-image"><img src={imageUrl} alt="任务提交证据截图" style={{transform:`scale(${zoom}) rotate(${rotation}deg)`}}/></div>
+            <div className="evidence-viewer-image">{detail.retentionStatus === "DELETED"
+              ? <div className="evidence-empty">截图已按保留策略清理，原始证据记录仍保留。</div>
+              : <img src={imageUrl} alt="任务提交证据截图" style={{transform:`scale(${zoom}) rotate(${rotation}deg)`}}/>}</div>
             <div className="evidence-viewer-meta"><div><span>截图 hash</span><strong>{detail.contentHash || "未记录"}</strong></div><div><span>上传时间</span><strong>{fmt(detail.submittedAt)}</strong></div></div>
           </div></div>
         </div>}
