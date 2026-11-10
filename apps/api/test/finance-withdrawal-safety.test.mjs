@@ -31,6 +31,19 @@ test("finance withdrawal status filters include approved, processing and termina
   }
 });
 
+test("approved withdrawals can enter processing exactly once with an audited transition and pay permission", () => {
+  assert.match(service, /async startWithdrawalProcessing\\(id: string, adminId: string\\)/);
+  assert.match(service, /where: \\{ id, status: "APPROVED" \\}[\\s\\S]*?status: "PROCESSING"/);
+  assert.match(service, /WITHDRAWAL_PAYOUT_PROCESSING_STARTED/);
+  assert.match(service, /balanceReservationRetained: true/);
+  assert.match(controller, /@Post\\("withdrawals\\/:id\\/processing"\\)/);
+  assert.match(controller, /startWithdrawalProcessing\\(id, admin\\.id\\)/);
+  const guard = readFileSync(new URL("../src/permissions-admin/admin-permission.guard.ts", import.meta.url), "utf8");
+  assert.match(guard, /path\\.endsWith\\("\\/processing"\\)\\) return "finance\\.withdrawals\\.pay"/);
+  assert.match(adminPage, /startPayoutProcessing/);
+  assert.match(adminPage, /开始付款处理/);
+});
+
 test("manual payout endpoint remains protected by admin authentication", () => {
   assert.match(controller, /const admin = await this\.authorize\(req\)/);
   assert.match(controller, /recordManualPayout\(id, body\.outcome, admin\.id, body\)/);
