@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell, CircleHelp, Search, UserRound, RefreshCw, Columns3, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw, Maximize2, ExternalLink } from "lucide-react";
+import { Bell, CircleHelp, Search, UserRound, RefreshCw, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw, Maximize2, ExternalLink } from "lucide-react";
 import AdminSidebar from "../../components/AdminSidebar";
 
 type EvidenceRecord = {
@@ -25,7 +25,7 @@ type EvidenceResponse = {
   records: EvidenceRecord[];
 };
 const empty: EvidenceResponse = { page: 1, pageSize: 20, total: 0, stats: { total: 0, filtered: 0, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 }, records: [] };
-const tabs = [{ key: "ALL", label: "全部" }, { key: "URL_ISSUED", label: "已签发上传地址" }, { key: "SUBMITTED", label: "已提交" }];
+const tabs = [{ key: "ALL", label: "全部" }, { key: "SUBMITTED", label: "已提交" }];
 const fmt = (v: string | null | undefined) => v ? new Date(v).toLocaleString("zh-CN", { hour12: false }) : "—";
 const retentionLabel = (v: string) => ({ NORMAL: "保留中", PENDING_DELETION: "待清理", DELETE_FAILED: "删除失败，等待重试", DELETED: "对象已删除" }[v] || v || "未知");
 const bytes = (n: number | null) => n == null ? "—" : n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB";
@@ -137,13 +137,13 @@ export default function EvidenceRecords() {
             <section className="evidence-detail-card"><h3>文件规格与时间</h3><div className="evidence-detail-grid">
               {field("图片尺寸",detail.imageDimensions || "未记录")}{field("重试/补图", "0 / 0")}
               {field("文件类型",detail.mimeType || "未知")}{field("文件大小",bytes(detail.sizeBytes))}
-              {field("提交时间",fmt(detail.submittedAt))}{field("证据记录时间",fmt(detail.submittedAt))}
-              {field("读取 URL 过期","由授权接口实时读取")}
+              {field("提交时间",fmt(detail.submittedAt))}
+              {field("图片访问方式","后台授权接口实时读取")}
             </div></section>
             <section className="evidence-detail-card"><h3>存储与生命周期</h3><div className="evidence-detail-grid">
               {field("存储生命周期",<span className={"evidence-pill " + (detail.retentionStatus === "DELETE_FAILED" ? "warning" : detail.retentionStatus === "DELETED" ? "info" : "normal")}>{retentionLabel(detail.retentionStatus)}</span>)}{field("删除尝试次数",detail.deletionAttempts)}
               {field("对象清理完成时间",fmt(detail.archivedAt))}{field("下次重试时间",fmt(detail.nextRetryAt))}
-              {field("对象删除时间",fmt(detail.archivedAt))}{field("最近错误",detail.lastStorageError || "—")}
+              {field("最近错误",detail.lastStorageError || "—")}
               {field("保留截止时间",fmt(detail.retentionUntil))}
             </div></section>
           </div>
