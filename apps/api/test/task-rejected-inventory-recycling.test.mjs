@@ -95,3 +95,13 @@ test("bulk recycle endpoint reports recycling instead of terminal voiding", asyn
   assert.match(bulk, /action: "RECYCLE"/);
   assert.match(bulk, /号码已回收并重新分配/);
 });
+
+
+test("FIFO allocator repairs legacy VOIDED slots only when the underlying number is available and consented", async () => {
+  const allocator = await read("../src/tasks/task-slot-allocation.ts");
+  const recovery = allocator.slice(allocator.indexOf("Recover legacy voided rows"), allocator.indexOf("const targetTask"));
+  assert.match(recovery, /status: "VOIDED"/);
+  assert.match(recovery, /status: "AVAILABLE", consentStatus: "GRANTED"/);
+  assert.match(recovery, /status: "AVAILABLE",\s*claimId: null/);
+  assert.match(recovery, /assignedAt: null/);
+});
