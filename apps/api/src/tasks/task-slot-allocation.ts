@@ -14,6 +14,25 @@ export async function allocateAvailableNumbersToOldestPublishedTask(
   await tx.$queryRaw`SELECT pg_advisory_xact_lock(1732050807) IS NULL AS locked`;
 
   const now = new Date();
+
+  // Recover legacy voided rows created before unsuccessful numbers were
+  // recycled. Only numbers that are still AVAILABLE with GRANTED consent
+  // qualify; blocked/revoked/completed numbers remain unavailable.
+  await tx.taskSlot.updateMany({
+    where: {
+      status: "VOIDED",
+      contactNumber: {
+        is: { status: "AVAILABLE", consentStatus: "GRANTED" },
+      },
+    },
+    data: {
+      status: "AVAILABLE",
+      claimId: null,
+      assignedAt: null,
+      usedAt: null,
+    },
+  });
+
   const targetTask = await tx.task.findFirst({
     where: {
       status: "PUBLISHED",
