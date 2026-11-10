@@ -1358,11 +1358,19 @@ private fun WalletDetailsScreen(modifier: Modifier = Modifier, language: String,
                 Text((if (en) "Load failed, tap to retry: " else "加载失败，点击重试：") + error.orEmpty(), color = Color(0xFF258BB8))
             }
         } else if (filtered.isEmpty()) {
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
-                    Text(if (en) "No wallet transactions" else "暂无钱包流水", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(if (en) "Task rewards, commissions and wallet changes will appear here." else "任务奖励、邀请佣金及钱包资金变动会显示在这里。", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.AccountBalanceWallet, null, tint = Color(0xFF667085), modifier = Modifier.size(36.dp))
+                        Text(if (en) "No matching transactions on this page" else "当前页没有符合条件的流水", color = Color(0xFF17243A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text(if (en) "Load more records to continue searching this category." else "可以继续加载后续流水，查找此分类的记录。", color = Color(0xFF667085), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (data?.optBoolean("hasMore") == true) {
+                    Button(onClick = { loadMore() }, enabled = !loadingMore, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (en) "Load more" else "加载更多")
+                    }
                 }
             }
         } else {
