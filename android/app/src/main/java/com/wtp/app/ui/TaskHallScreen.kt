@@ -107,6 +107,9 @@ fun TaskHallScreen(
     val lastCaptureClaimId by CaptureSessionState.lastCaptureClaimId.collectAsState()
 
     var tasks by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var taskCursor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var taskHasMore by remember { mutableStateOf(false) }
+    var loadingMoreTasks by remember { mutableStateOf(false) }
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
     var locallyExpiredClaimIds by remember { mutableStateOf(emptySet<String>()) }
     var dashboard by remember { mutableStateOf(JSONObject()) }
@@ -143,6 +146,13 @@ fun TaskHallScreen(
                     )
                 }
                 tasks = result.first.optJSONArray("tasks").asObjectList()
+                val cursor = result.first.optJSONObject("nextCursor")
+                taskCursor = if (cursor != null) {
+                    val createdAt = cursor.optString("createdAt")
+                    val id = cursor.optString("id")
+                    if (createdAt.isNotBlank() && id.isNotBlank()) createdAt to id else null
+                } else null
+                taskHasMore = result.first.optBoolean("hasMore", false)
                 claims = result.second.optJSONArray("claims").asObjectList()
                 dashboard = result.third
                 val serverTime = result.third.optString("serverTime")
@@ -153,6 +163,33 @@ fun TaskHallScreen(
                 error = e.message ?: if (isEnglish) "Could not load tasks." else "任务加载失败。"
             } finally {
                 loading = false
+            }
+        }
+    }
+
+    fun loadMoreTasks() {
+        val cursor = taskCursor ?: return
+        if (loadingMoreTasks || !taskHasMore) return
+        scope.launch {
+            loadingMoreTasks = true
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    AuthRepository.publishedTasks(100, cursor.first, cursor.second)
+                }
+                val incoming = result.optJSONArray("tasks").asObjectList()
+                val knownIds = tasks.map { it.optString("slotId", it.optString("id")) }.toMutableSet()
+                tasks = tasks + incoming.filter { knownIds.add(it.optString("slotId", it.optString("id"))) }
+                val next = result.optJSONObject("nextCursor")
+                taskCursor = if (next != null) {
+                    val createdAt = next.optString("createdAt")
+                    val id = next.optString("id")
+                    if (createdAt.isNotBlank() && id.isNotBlank()) createdAt to id else null
+                } else null
+                taskHasMore = result.optBoolean("hasMore", false)
+            } catch (e: Exception) {
+                error = e.message ?: if (isEnglish) "Could not load more tasks." else "加载更多任务失败，请重试。"
+            } finally {
+                loadingMoreTasks = false
             }
         }
     }
@@ -664,6 +701,23 @@ fun TaskHallScreen(
                                         }
                                     }
                                 )
+                            }
+                            if (taskHasMore) {
+                                OutlinedButton(
+                                    onClick = { loadMoreTasks() },
+                                    enabled = !loadingMoreTasks,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                    shape = RoundedCornerShape(9.dp)
+                                ) {
+                                    Text(
+                                        if (loadingMoreTasks) {
+                                            if (isEnglish) "Loading…" else "正在加载…"
+                                        } else {
+                                            if (isEnglish) "Load more tasks" else "加载更多任务"
+                                        },
+                                        color = WtpDarkGreen
+                                    )
+                                }
                             }
                         }
                     }
