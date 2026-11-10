@@ -30,3 +30,11 @@ test("evidence administration reports persisted retention status instead of plac
   assert.ok(!listing.includes("deletedObjects: 0"));
   assert.ok(source.includes("if (submission.evidenceDeletedAt) throw new NotFoundException"));
 });
+
+
+test("evidence task-type filter composes with keyword search instead of replacing it", async () => {
+  const source = await readSource("../src/ai-config/ai-review-admin.service.ts");
+  const listing = source.slice(source.indexOf("async listEvidenceRecords"), source.indexOf("async rerunAiReview"));
+  assert.ok(listing.includes('if (input.taskType === "TASK") where.AND = [...(where.AND ?? []),'));
+  assert.ok(listing.includes('if (keyword) where.OR = ['));
+});
