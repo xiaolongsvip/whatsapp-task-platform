@@ -595,25 +595,35 @@ export class TaskAdminService {
           select: { id: true },
         });
         if (pending) throw new ConflictException("该任务正在审核中，不能回收号码。");
-        if (["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+        const assignmentWasActive = claim.contactAssignment?.status === "ASSIGNED";
+        const slotWasActive = slot.status === "ASSIGNED" && slot.claimId === claim.id;
+
+        if (["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
           await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "CANCELLED" } });
+        }
+        // New rejected claims have already released their reservation and
+        // decremented claimedCount. Only legacy REJECTED rows that still own
+        // an active assignment/slot need that one-time counter correction.
+        if (["CLAIMED", "IN_PROGRESS"].includes(claim.status) ||
+            (claim.status === "REJECTED" && (assignmentWasActive || slotWasActive))) {
           await tx.task.updateMany({
             where: { id: claim.taskId, claimedCount: { gt: 0 } },
             data: { claimedCount: { decrement: 1 } },
           });
         }
-        // Also repair legacy VOIDED rows whose claim was already closed but
-        // whose assignment was not released by the older implementation.
-        if (claim.contactAssignment?.status === "ASSIGNED") {
+
+        // Release legacy active assignments, but keep a rejected claim as
+        // REJECTED in history instead of rewriting it to CANCELLED.
+        if (assignmentWasActive) {
           await tx.contactAssignment.update({
-            where: { id: claim.contactAssignment.id },
+            where: { id: claim.contactAssignment!.id },
             data: { status: "RELEASED", releasedAt: new Date() },
           });
-          await tx.contactNumber.updateMany({
-            where: { id: claim.contactAssignment.contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
-            data: { status: "AVAILABLE" },
-          });
         }
+        await tx.contactNumber.updateMany({
+          where: { id: slot.contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
+          data: { status: "AVAILABLE" },
+        });
       }
 
       // Only consented, currently available numbers can re-enter the pool.
