@@ -50,8 +50,9 @@ test("rejected claims cannot be restarted or continue reserving a user's active-
 test("expiry recovery does not overwrite newly rejected claims after their inventory was already released", async () => {
   const service = await read("../src/tasks/tasks.service.ts");
   const expiry = service.slice(service.indexOf("private async expireOverdueClaims("), service.indexOf("async submitEvidence("));
-  assert.match(expiry, /if \(claim\.status === "REJECTED" && !reservationWasActive\) continue/);
-  assert.match(expiry, /if \(reservationWasActive\)[\s\S]*claimedCount: \{ gt: 0 \}/);
+  assert.match(expiry, /if \(claim\.status !== "REJECTED"\)/);
+  assert.match(expiry, /recycleUnsuccessfulTaskClaimInventory\(tx, claim\.id, claim\.taskId, now\)/);
+  assert.doesNotMatch(expiry, /claim\.status === "REJECTED"[\s\S]{0,120}status: "EXPIRED"/);
 });
 
 
@@ -152,7 +153,7 @@ test("task publish, pause, and close acquire the allocator lock before changing 
     ["async close(", "}", "CLOSED"],
   ]) {
     const start = admin.indexOf(method);
-    const end = nextMethod === "}" ? admin.indexOf("\\n}", start + method.length) : admin.indexOf(nextMethod, start + method.length);
+    const end = nextMethod === "}" ? admin.indexOf("\n}", start + method.length) : admin.indexOf(nextMethod, start + method.length);
     const body = admin.slice(start, end < 0 ? undefined : end);
     const lock = body.indexOf("lockTaskSlotAllocation(tx)");
     const update = body.indexOf(`data: { status: "${status}" }`);
