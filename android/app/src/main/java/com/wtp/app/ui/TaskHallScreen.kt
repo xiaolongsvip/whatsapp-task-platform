@@ -1589,7 +1589,17 @@ private fun ClaimedTaskCard(
                 Text(if (isEnglish) "Status: " else "状态：", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                 Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold)
             }
-            if (phone.isNotBlank() && phone != "null") {
+            if (status == "REJECTED") {
+                Surface(color = Color(0xFFFFF4E8), shape = RoundedCornerShape(9.dp)) {
+                    Text(
+                        if (isEnglish) "This number has been returned to the task pool and may be assigned to another task."
+                        else "该号码已回收到任务号码池，可能已重新分配给其他任务。",
+                        modifier = Modifier.fillMaxWidth().padding(11.dp),
+                        color = Color(0xFF9A3412),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            } else if (phone.isNotBlank() && phone != "null") {
                 Surface(color = WtpPaleGreen, shape = RoundedCornerShape(9.dp)) {
                     Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(if (isEnglish) "Assigned WhatsApp number" else "本任务专属号码", color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
