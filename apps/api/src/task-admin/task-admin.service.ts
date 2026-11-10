@@ -568,10 +568,10 @@ export class TaskAdminService {
         select: { id: true, claimId: true, contactNumberId: true },
       });
       if (!identity) throw new NotFoundException("任务号码记录不存在。");
+      await lockTaskSlotAllocation(tx);
       if (identity.claimId) {
         await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_claims WHERE id = ${identity.claimId}::uuid FOR UPDATE`;
       }
-      await lockTaskSlotAllocation(tx);
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM contact_numbers WHERE id = ${identity.contactNumberId}::uuid FOR UPDATE`;
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
       const slot = await tx.taskSlot.findUnique({
