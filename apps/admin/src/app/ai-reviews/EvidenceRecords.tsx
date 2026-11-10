@@ -47,7 +47,6 @@ export default function EvidenceRecords() {
   const [detailError, setDetailError] = useState("");
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
-  const [showColumns, setShowColumns] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -98,10 +97,8 @@ export default function EvidenceRecords() {
           <div className="evidence-tabs">{tabs.map(t => <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => { setTab(t.key); setPage(1); }}>{t.label}</button>)}</div>
           <button className="evidence-primary" onClick={() => { setQuery(keyword.trim()); setPage(1); }}><Search size={14}/> 搜索</button>
           <button onClick={() => { setKeyword(""); setQuery(""); setTab("ALL"); setTaskType("TASK"); setPage(1); }}>重置</button>
-          <button onClick={() => setShowColumns(v => !v)}><Columns3 size={14}/> 显示列</button>
           <button onClick={() => void load()} title="刷新"><RefreshCw size={14}/></button>
         </section>
-        {showColumns && <div className="evidence-column-note">用户 · 目标手机号 · 状态 · 存储生命周期 · 证据来源 · 审核状态 · 提交时间 · 操作</div>}
         <section className="evidence-stats">{statCards.map(([label,value,desc,color]) => <article key={String(label)}><span className="evidence-stat-icon" style={{background:String(color)}}>{label === "证据总数" ? "▧" : label === "当前筛选" ? "⌕" : label === "对象已删除" ? "♲" : "▣"}</span><div><small>{label}</small><strong>{Number(value).toLocaleString()}</strong><p>{desc}</p></div></article>)}</section>
         {error && <div className="notice error">{error}</div>}
         <section className="evidence-table-card">
@@ -135,7 +132,7 @@ export default function EvidenceRecords() {
             {detail.extractedText && <div className="evidence-detail-message"><strong>OCR 识别文字</strong><p>{detail.extractedText}</p></div>}
             </section>
             <section className="evidence-detail-card"><h3>文件规格与时间</h3><div className="evidence-detail-grid">
-              {field("图片尺寸",detail.imageDimensions || "未记录")}{field("重试/补图", "0 / 0")}
+              {field("图片尺寸",detail.imageDimensions || "未记录")}{field("提交备注", detail.note || "无")}
               {field("文件类型",detail.mimeType || "未知")}{field("文件大小",bytes(detail.sizeBytes))}
               {field("提交时间",fmt(detail.submittedAt))}
               {field("图片访问方式","后台授权接口实时读取")}
