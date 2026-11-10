@@ -722,7 +722,7 @@ export class TaskAdminService {
     for (const id of recordIds) {
       try {
         const result = await this.voidTaskRecord(id, actorId);
-        results.push({ id, success: true, message: result.numberRecycled ? "号码已回收并重新分配" : "号码回收完成" });
+        results.push({ id, success: true, message: result.numberRecycled ? "号码已回收到可分配库存" : "号码回收完成" });
       } catch (error) {
         results.push({ id, success: false, message: error instanceof Error ? error.message : "号码回收失败" });
       }
