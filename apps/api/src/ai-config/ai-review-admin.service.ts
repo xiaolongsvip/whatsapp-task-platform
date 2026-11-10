@@ -1,5 +1,25 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { prisma } from "@wtp/database";
+
+const AI_REVIEW_STALE_AFTER_MS = 10 * 60 * 1000;
+
+function isStaleAiReviewJob(job: { status: string; updatedAt: Date; lockedAt: Date | null } | null | undefined, now = Date.now()) {
+  if (!job) return false;
+  const cutoff = now - AI_REVIEW_STALE_AFTER_MS;
+  if (job.status === "PENDING" || job.status === "RETRY") return job.updatedAt.getTime() <= cutoff;
+  if (job.status === "PROCESSING") return !!job.lockedAt && job.lockedAt.getTime() <= cutoff;
+  return false;
+}
+
+function staleAiReviewJobWhere(cutoff: Date) {
+  return {
+    OR: [
+      { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { lte: cutoff } },
+      { status: "PROCESSING" as never, lockedAt: { lte: cutoff } },
+    ],
+  };
+}
+
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 
 @Injectable()
@@ -121,8 +141,10 @@ export class AiReviewAdminService {
       });
       if (!submission) throw new NotFoundException("任务提交记录不存在。");
       const claim = submission.claim;
-      if (submission.aiReviewJob && submission.aiReviewJob.status !== "NEEDS_REVIEW") {
-        throw new ConflictException("AI 审核任务尚未进入人工处理状态，请稍后刷新。");
+      if (submission.aiReviewJob &&
+          submission.aiReviewJob.status !== "NEEDS_REVIEW" &&
+          !isStaleAiReviewJob(submission.aiReviewJob)) {
+        throw new ConflictException("AI 审核任务仍在自动处理或尚未积压满 10 分钟，暂不能人工接管。");
       }
       if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
           !["SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
@@ -269,11 +291,13 @@ export class AiReviewAdminService {
     const normalized = status && allowed.includes(status) ? status : undefined;
     const take = Math.min(100, Math.max(1, pageSize));
     const skip = (Math.max(1, page) - 1) * take;
+    const staleCutoff = new Date(Date.now() - AI_REVIEW_STALE_AFTER_MS);
     const where = {
       status: normalized ? normalized as never : { in: allowed as never[] },
       OR: [
         { aiReviewJob: { is: null } },
         { aiReviewJob: { is: { status: "NEEDS_REVIEW" as never } } },
+        { aiReviewJob: { is: staleAiReviewJobWhere(staleCutoff) as never } },
       ],
     };
     const [total, submissions] = await prisma.$transaction([
@@ -328,11 +352,17 @@ export class AiReviewAdminService {
     const take = Math.min(100, Math.max(1, pageSize));
     const currentPage = Math.max(1, page);
     const skip = (currentPage - 1) * take;
+    const staleCutoff = new Date(Date.now() - AI_REVIEW_STALE_AFTER_MS);
+    const manualReviewWhere = {
+      status: { in: ["SUBMITTED", "UNDER_REVIEW"] as never[] },
+      OR: [
+        { aiReviewJob: { is: null } },
+        { aiReviewJob: { is: { status: "NEEDS_REVIEW" as never } } },
+        { aiReviewJob: { is: staleAiReviewJobWhere(staleCutoff) as never } },
+      ],
+    };
     const where = normalized === "MANUAL_REVIEW"
-      ? { status: { in: ["SUBMITTED", "UNDER_REVIEW"] as never[] }, OR: [
-          { aiReviewJob: { is: null } },
-          { aiReviewJob: { is: { status: "NEEDS_REVIEW" as never } } },
-        ] }
+      ? manualReviewWhere
       : normalized === "SMART_REVIEW"
         ? { aiReviewJob: { is: { status: { in: ["PENDING", "PROCESSING", "RETRY"] as never[] } } } }
         : normalized === "APPROVED" ? { status: "APPROVED" as never }
@@ -356,9 +386,7 @@ export class AiReviewAdminService {
           },
         },
       }),
-      prisma.taskSubmission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] }, OR: [
-        { aiReviewJob: { is: null } }, { aiReviewJob: { is: { status: "NEEDS_REVIEW" } } },
-      ] } }),
+      prisma.taskSubmission.count({ where: manualReviewWhere }),
       prisma.taskSubmission.count({ where: { aiReviewJob: { is: { status: { in: ["PENDING", "PROCESSING", "RETRY"] } } } } }),
       prisma.taskSubmission.count({ where: { status: "APPROVED" } }),
       prisma.taskSubmission.count({ where: { status: "REJECTED" } }),
@@ -368,7 +396,7 @@ export class AiReviewAdminService {
       const latestReview = submission.reviews[0] ?? null;
       const centerStatus = submission.status === "APPROVED" ? "APPROVED"
         : submission.status === "REJECTED" ? "REJECTED"
-        : job && ["PENDING", "PROCESSING", "RETRY"].includes(job.status) ? "SMART_REVIEW"
+        : job && ["PENDING", "PROCESSING", "RETRY"].includes(job.status) && !isStaleAiReviewJob(job) ? "SMART_REVIEW"
         : "MANUAL_REVIEW";
       return {
         id: submission.id, status: centerStatus, submissionStatus: submission.status,
