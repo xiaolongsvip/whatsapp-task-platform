@@ -563,7 +563,10 @@ export class TaskAdminService {
 
   async voidTaskRecord(slotId: string, actorId?: string) {
     return prisma.$transaction(async (tx) => {
-      const identity = await tx.taskSlot.findUnique({ where: { id: slotId }, select: { id: true, claimId: true, contactNumberId: true } });
+      const identity = await tx.taskSlot.findUnique({
+        where: { id: slotId },
+        select: { id: true, claimId: true, contactNumberId: true },
+      });
       if (!identity) throw new NotFoundException("任务号码记录不存在。");
       if (identity.claimId) {
         await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_claims WHERE id = ${identity.claimId}::uuid FOR UPDATE`;
@@ -572,23 +575,26 @@ export class TaskAdminService {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
       const slot = await tx.taskSlot.findUnique({
         where: { id: slotId },
-        include: { task: true, claim: { include: { contactAssignment: true } } },
+        include: {
+          task: true,
+          contactNumber: true,
+          claim: { include: { contactAssignment: true } },
+        },
       });
       if (!slot) throw new NotFoundException("任务号码记录不存在。");
-      if (slot.status === "VOIDED") return { id: slot.id, status: "VOIDED", alreadyVoided: true };
       if (slot.status === "USED" || slot.claim?.status === "APPROVED") {
-        throw new ConflictException("已完成或已结算的任务不能作废，请保留历史记录。");
+        throw new ConflictException("已完成或已结算的任务不能回收，请保留历史记录。");
       }
       if (slot.claim) {
         const claim = slot.claim;
         if (!["CLAIMED", "IN_PROGRESS", "REJECTED", "EXPIRED", "CANCELLED"].includes(claim.status)) {
-          throw new ConflictException("当前领取状态不能作废。");
+          throw new ConflictException("当前领取状态不能回收号码。");
         }
         const pending = await tx.taskSubmission.findFirst({
           where: { claimId: claim.id, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } },
           select: { id: true },
         });
-        if (pending) throw new ConflictException("该任务正在审核中，不能作废。");
+        if (pending) throw new ConflictException("该任务正在审核中，不能回收号码。");
         if (["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
           await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "CANCELLED" } });
           if (claim.contactAssignment?.status === "ASSIGNED") {
@@ -607,16 +613,53 @@ export class TaskAdminService {
           });
         }
       }
+
+      // Only consented, currently available numbers can re-enter the pool.
+      // Completed, blocked, or consent-revoked numbers are never recycled.
+      const recyclable = slot.contactNumber.status === "AVAILABLE"
+        && slot.contactNumber.consentStatus === "GRANTED";
+      if (!recyclable) {
+        if (slot.status === "VOIDED") {
+          return { id: slot.id, status: "VOIDED", alreadyVoided: true, numberRecycled: false };
+        }
+        throw new ConflictException("该号码当前不可重新分配，请先检查号码状态和授权状态。");
+      }
+
+      const now = new Date();
       await tx.taskSlot.update({
         where: { id: slot.id },
-        data: { status: "VOIDED", releasedAt: new Date() },
+        data: {
+          status: "AVAILABLE",
+          claimId: null,
+          assignedAt: null,
+          releasedAt: now,
+          usedAt: null,
+        },
       });
+
+      // Re-run the shared FIFO allocator. If the old task is paused, closed,
+      // future-dated, or expired, its released slot is moved to the oldest
+      // currently active published task. If the old task is still active,
+      // the available slot remains claimable there.
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
+
       if (actorId) {
         await tx.auditEvent.create({
-          data: { actorType: "ADMIN", actorId, action: "TASK_RECORD_VOID", targetType: "TASK_SLOT", targetId: slot.id },
+          data: {
+            actorType: "ADMIN",
+            actorId,
+            action: "TASK_RECORD_VOID",
+            targetType: "TASK_SLOT",
+            targetId: slot.id,
+            metadata: {
+              previousTaskId: slot.taskId,
+              recycledToPool: true,
+              previousClaimId: slot.claimId,
+            },
+          },
         });
       }
-      return { id: slot.id, status: "VOIDED", alreadyVoided: false };
+      return { id: slot.id, status: "AVAILABLE", alreadyVoided: false, numberRecycled: true };
     });
   }
 
