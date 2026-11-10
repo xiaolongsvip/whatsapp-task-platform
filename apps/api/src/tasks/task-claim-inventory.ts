@@ -52,8 +52,8 @@ export async function recycleUnsuccessfulTaskClaimInventory(
     : null;
   const canRecycle = number?.status === "AVAILABLE" && number.consentStatus === "GRANTED";
 
-  if (slot?.status === "ASSIGNED") {
-    reservationWasActive = true;
+  if (slot && ["ASSIGNED", "AVAILABLE"].includes(slot.status)) {
+    if (slot.status === "ASSIGNED") reservationWasActive = true;
     await tx.taskSlot.update({
       where: { id: slot.id },
       data: canRecycle
