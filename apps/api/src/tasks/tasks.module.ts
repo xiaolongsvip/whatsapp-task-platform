@@ -6,10 +6,11 @@ import { TaskAdminController } from "../task-admin/task-admin.controller";
 import { TaskAdminService } from "../task-admin/task-admin.service";
 import { TasksController } from "./tasks.controller";
 import { TasksService } from "./tasks.service";
+import { TaskSlotAllocationWorker } from "./task-slot-allocation.worker";
 
 @Module({
   imports: [AuthModule, AdminAuthModule, StorageConfigModule],
   controllers: [TasksController, TaskAdminController],
-  providers: [TasksService, TaskAdminService],
+  providers: [TasksService, TaskAdminService, TaskSlotAllocationWorker],
 })
 export class TasksModule {}

@@ -17,7 +17,10 @@ export async function allocateAvailableNumbersToOldestPublishedTask(
   const targetTask = await tx.task.findFirst({
     where: {
       status: "PUBLISHED",
-      OR: [{ endsAt: null }, { endsAt: { gte: now } }],
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+      ],
     },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { id: true },
@@ -28,7 +31,18 @@ export async function allocateAvailableNumbersToOldestPublishedTask(
   }
 
   const inactiveTasks = await tx.task.findMany({
-    where: { status: { in: ["PAUSED", "CLOSED"] } },
+    where: {
+      OR: [
+        { status: { in: ["PAUSED", "CLOSED"] } },
+        {
+          status: "PUBLISHED",
+          OR: [
+            { startsAt: { gt: now } },
+            { endsAt: { lt: now } },
+          ],
+        },
+      ],
+    },
     select: { id: true },
   });
   const inactiveTaskIds = inactiveTasks.map((task) => task.id);
