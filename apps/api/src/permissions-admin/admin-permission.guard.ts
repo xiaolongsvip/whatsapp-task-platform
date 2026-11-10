@@ -70,10 +70,10 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/users\/[^/]+\/reset-password$/)) return "users.manage";
     if (is(/^\/admin\/users(?:\/summary)?$/)) return method === "GET" ? "users.read" : "users.manage";
 
-    if (is(/^\/admin\/finance\/withdrawals(?:\/[^/]+(?:\/(?:review|payout-result))?)?$/)) {
+    if (is(/^\/admin\/finance\/withdrawals(?:\/[^/]+(?:\/(?:review|processing|payout-result))?)?$/)) {
       if (method === "GET") return "finance.withdrawals.read";
       if (path.endsWith("/review")) return "finance.withdrawals.review";
-      if (path.endsWith("/payout-result")) return "finance.withdrawals.pay";
+      if (path.endsWith("/payout-result") || path.endsWith("/processing")) return "finance.withdrawals.pay";
     }
     if (is(/^\/admin\/finance\/wallets(?:\/[^/]+\/ledger)?$/)) return "finance.wallets.read";
     if (is(/^\/admin\/finance\/payout-accounts(?:\/summary|\/[^/]+(?:\/history)?)?$/)) return "finance.payout_accounts.read";
