@@ -8,8 +8,8 @@ type TransactionClient = Prisma.TransactionClient;
  * claim, submission, and review rows as history. Only currently consented
  * numbers return to AVAILABLE inventory.
  *
- * Lock order is contact number -> task slot -> assignment. This matches the
- * admin recycle and user cancellation paths to avoid inventory deadlocks.
+ * Lock order is allocator advisory lock -> contact number -> task slot ->
+ * assignment. This matches the other inventory mutation paths.
  */
 export async function recycleUnsuccessfulTaskClaimInventory(
   tx: TransactionClient,
