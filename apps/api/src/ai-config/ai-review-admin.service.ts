@@ -468,7 +468,7 @@ export class AiReviewAdminService {
       { claim: { is: { user: { is: { phone: { contains: keyword } } } } } },
       { claim: { is: { task: { is: { title: { contains: keyword, mode: "insensitive" } } } } } },
     ];
-    if (input.taskType === "TASK") where.claim = { is: { task: { is: { category: { not: "" } } } } };
+    if (input.taskType === "TASK") where.AND = [...(where.AND ?? []), { claim: { is: { task: { is: { category: { not: "" } } } } } }];
     const [total, submissions, markedForDeletion, deletedObjects, deleteFailures] = await prisma.$transaction([
       prisma.taskSubmission.count({ where }),
       prisma.taskSubmission.findMany({
