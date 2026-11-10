@@ -620,11 +620,14 @@ export class TaskAdminService {
             data: { status: "RELEASED", releasedAt: new Date() },
           });
         }
-        await tx.contactNumber.updateMany({
-          where: { id: slot.contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
-          data: { status: "AVAILABLE" },
-        });
       }
+
+      // Recover a stale number reservation even if the slot's claim relation
+      // was cleared by an older operation. Consent remains mandatory.
+      await tx.contactNumber.updateMany({
+        where: { id: slot.contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
+        data: { status: "AVAILABLE" },
+      });
 
       // Only consented, currently available numbers can re-enter the pool.
       // Completed, blocked, or consent-revoked numbers are never recycled.
