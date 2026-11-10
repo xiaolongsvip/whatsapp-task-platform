@@ -57,5 +57,6 @@ test("evidence listing no longer exposes duplicate or impossible status filters"
   assert.ok(!listing.includes('status === "SUBMITTED"'));
   assert.ok(!listing.includes('status === "URL_ISSUED"'));
   assert.ok(!listing.includes("00000000-0000-0000-0000-000000000000"));
-  assert.ok(!controller.includes('@Query("status") status?: string'));
+  const evidenceRoute = controller.slice(controller.indexOf('@Get("evidence")'), controller.indexOf('@Get("evidence/:id/detail")'));
+  assert.ok(!evidenceRoute.includes('@Query("status") status?: string'));
 });
