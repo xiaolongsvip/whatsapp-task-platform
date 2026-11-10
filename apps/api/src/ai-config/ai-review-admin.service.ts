@@ -422,7 +422,7 @@ export class AiReviewAdminService {
       submissionStatus: item.status,
       source: "实时屏幕截图",
       captureMode: "APP 任务提交",
-      trustLevel: "未评估",
+      trustLevel: "未接入风险评估",
       reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
         ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
         item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
