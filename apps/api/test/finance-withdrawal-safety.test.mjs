@@ -656,3 +656,17 @@ test("member withdrawal history exposes the admin rejection note only for the me
   assert.match(app, /item\.optString\("rejectionReason"\)/);
   assert.match(app, /拒绝原因：/);
 });
+
+
+test("approved withdrawals can enter processing exactly once with an audited transition and pay permission", () => {
+  assert.match(service, /async startWithdrawalProcessing\(id: string, adminId: string\)/);
+  assert.match(service, /where: \{ id, status: "APPROVED" \}[\s\S]*?status: "PROCESSING"/);
+  assert.match(service, /WITHDRAWAL_PAYOUT_PROCESSING_STARTED/);
+  assert.match(service, /balanceReservationRetained: true/);
+  assert.match(controller, /@Post\("withdrawals\/:id\/processing"\)/);
+  assert.match(controller, /startWithdrawalProcessing\(id, admin\.id\)/);
+  const guard = readFileSync(new URL("../src/permissions-admin/admin-permission.guard.ts", import.meta.url), "utf8");
+  assert.match(guard, /path\.endsWith\("\/processing"\)\) return "finance\.withdrawals\.pay"/);
+  assert.match(adminPage, /startPayoutProcessing/);
+  assert.match(adminPage, /开始付款处理/);
+});
