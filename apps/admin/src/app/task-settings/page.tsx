@@ -148,14 +148,14 @@ export default function TaskSettingsListPage() {
               </tr></thead>
               <tbody>{items.map(item => <tr key={item.id} style={{ borderBottom: "1px solid #edf1f6" }}>
                 <td style={tdStyle} title={item.taskName}>{item.taskName}</td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(0)?"none":undefined}}>{item.category || "WhatsApp 私信"}</td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(1)?"none":undefined}}>{item.countryRegion || "—"}</td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(2)?"none":undefined}}>{item.phoneNumber || "—"}</td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(3)?"none":undefined}}><span style={pill("#ecfdf5", "#059669", "#a7f3d0")}>{item.status === "COMPLETED" ? "已使用" : item.status === "AVAILABLE" ? "待使用" : "已分配"}</span></td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(4)?"none":undefined}}><span style={pill(statusColors[item.status].bg, statusColors[item.status].color, statusColors[item.status].border)}>{statusLabel[item.status]}</span></td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(5)?"none":undefined}}>{item.claimedUserId || "—"}</td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(6)?"none":undefined}}>{item.claimedAt ? fmt(item.claimedAt) : "—"}</td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(7)?"none":undefined}}>{item.status === "COMPLETED" ? "已通过" : item.status === "REVIEW" ? "待审核" : item.status === "VOIDED" ? "已拒绝" : "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(1)?"none":undefined}}>{item.category || "WhatsApp 私信"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(2)?"none":undefined}}>{item.countryRegion || "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(3)?"none":undefined}}>{item.phoneNumber || "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(4)?"none":undefined}}><span style={pill("#ecfdf5", "#059669", "#a7f3d0")}>{item.status === "COMPLETED" ? "已使用" : item.status === "AVAILABLE" ? "待使用" : "已分配"}</span></td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(5)?"none":undefined}}><span style={pill(statusColors[item.status].bg, statusColors[item.status].color, statusColors[item.status].border)}>{statusLabel[item.status]}</span></td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(6)?"none":undefined}}>{item.claimedUserId || "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(7)?"none":undefined}}>{item.claimedAt ? fmt(item.claimedAt) : "—"}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(8)?"none":undefined}}>{item.status === "COMPLETED" ? "已通过" : item.status === "REVIEW" ? "待审核" : item.status === "VOIDED" ? "已拒绝" : "—"}</td>
                 <td style={{...tdStyle,display:hiddenColumns.includes(8)?"none":undefined}}>{fmt(item.createdAt)}</td>
                 <td style={{ ...tdStyle, display:hiddenColumns.includes(10)?"none":undefined, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={item.messageTemplate}>{item.messageTemplate || "—"}</td>
                 <td style={{...tdStyle,display:hiddenColumns.includes(11)?"none":undefined}}>{item.rewardAmount} {item.currency}</td>
