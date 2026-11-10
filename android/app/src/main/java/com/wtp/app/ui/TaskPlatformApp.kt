@@ -2319,10 +2319,19 @@ private fun TeamDataScreen(modifier: Modifier = Modifier, language: String, onBa
         val items = data?.optJSONArray("items")
         val members = (0 until (items?.length() ?: 0)).mapNotNull { items?.optJSONObject(it) }.filter { it.optInt("depth") == selected }
         if (!loading && error == null && members.isEmpty()) {
-            Card(Modifier.fillMaxWidth().padding(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.Groups, null, tint = Color(0xFF667085), modifier = Modifier.size(30.dp))
-                    Text(if (en) "No invited users" else "暂无邀请用户", color = Color(0xFF667085))
+            Column(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().padding(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 42.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.Groups, null, tint = Color(0xFF667085), modifier = Modifier.size(30.dp))
+                        Text(if (en) "No users in this level on the loaded pages" else "已加载记录中暂无该层级用户", color = Color(0xFF667085))
+                    }
+                }
+                if (loadMoreError != null) Text(loadMoreError.orEmpty(), color = Color(0xFFB42318), modifier = Modifier.padding(8.dp))
+                if (data?.optBoolean("hasMore") == true) {
+                    Button(onClick = { loadMore() }, enabled = !loadingMore, modifier = Modifier.fillMaxWidth().padding(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF319CCB))) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text(if (en) "Load more" else "加载更多")
+                    }
                 }
             }
         } else {
