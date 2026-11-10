@@ -1548,8 +1548,8 @@ private fun ClaimedTaskCard(
     val submission = claim.optJSONObject("latestSubmission")
     val phone = claim.optString("assignedPhoneNumber")
     var countdownExpired by remember(claim.optString("id")) { mutableStateOf(false) }
-    val canOpen = !countdownExpired &&
-        status in setOf("CLAIMED", "IN_PROGRESS") &&
+    val canViewDetails = !countdownExpired &&
+        status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
         (submission == null || submission.optString("status") == "REJECTED")
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -1666,7 +1666,7 @@ private fun ClaimedTaskCard(
                     WtpDarkGreen
                 )
             }
-            if (canOpen) {
+            if (canViewDetails) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     OutlinedButton(
                         onClick = onViewDetails,
@@ -1676,20 +1676,36 @@ private fun ClaimedTaskCard(
                     ) {
                         Text(if (isEnglish) "View details" else "查看详情", color = WtpDarkGreen)
                     }
-                    Button(
-                        onClick = {
-                            onSelect()
-                            onGoWhatsApp()
-                        },
-                        modifier = Modifier.weight(1.35f),
-                        enabled = !busy && !countdownExpired && phone.isNotBlank() && phone != "null",
-                        colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
-                        shape = RoundedCornerShape(9.dp)
-                    ) {
-                        Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
+                    if (status == "REJECTED") {
+                        Surface(
+                            modifier = Modifier.weight(1.35f),
+                            color = Color(0xFFFFF4E8),
+                            shape = RoundedCornerShape(9.dp)
+                        ) {
+                            Text(
+                                if (isEnglish) "Number recycled" else "号码已回收",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 13.dp),
+                                color = Color(0xFF9A3412),
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                onSelect()
+                                onGoWhatsApp()
+                            },
+                            modifier = Modifier.weight(1.35f),
+                            enabled = !busy && !countdownExpired && phone.isNotBlank() && phone != "null",
+                            colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
+                            shape = RoundedCornerShape(9.dp)
+                        ) {
+                            Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-                if (phone.isBlank() || phone == "null") {
+                if (status != "REJECTED" && (phone.isBlank() || phone == "null")) {
                     Text(
                         if (isEnglish) "No assigned number was returned. Refresh or contact support." else "没有获取到分配号码，请刷新任务或联系管理员。",
                         color = Color(0xFFB45309),
