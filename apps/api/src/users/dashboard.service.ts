@@ -337,7 +337,7 @@ export class DashboardService {
     const items = wallets.flatMap((wallet) => [
       ...wallet.entries.map((entry) => ({
         id: entry.id,
-        type: entry.direction === "CREDIT" ? "INCOME" : "EXPENSE",
+        type: entry.sourceType === "WITHDRAWAL_PAYOUT" ? "WITHDRAWAL" : entry.direction === "CREDIT" ? "INCOME" : "EXPENSE",
         sourceType: entry.sourceType,
         sourceId: entry.sourceId,
         direction: entry.direction,
@@ -351,7 +351,8 @@ export class DashboardService {
         type: "WITHDRAWAL",
         sourceType: "WITHDRAWAL",
         sourceId: withdrawal.id,
-        direction: "DEBIT",
+        // A non-paid request reserves funds but is not yet a posted ledger debit.
+        direction: "PENDING",
         amountMinor: withdrawal.amountMinor.toString(),
         currency: withdrawal.currency.trim(),
         status: withdrawal.status,
