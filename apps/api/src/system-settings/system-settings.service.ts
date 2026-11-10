@@ -15,7 +15,6 @@ const DEFAULT_VERSION = { currentVersion: "1.4.6", latestVersion: "1.4.6", versi
   { version: "1.4.4", versionCode: 144, fileName: "EasyEarn-1.4.4-144-release.apk", size: "20.6 MB", status: "REVOKED", updateType: "MAJOR", uploadedAt: "2026-11-03T06:39:00.000Z", verifiedAt: "2026-11-03T06:40:00.000Z", publishedAt: "2026-11-03T06:40:00.000Z" },
 ] as JsonRecord[] };
 const DEFAULT_RISK = { singleDeviceSingleAccount: false, crossAccountScreenshotSimilarity: false, userRiskManualReview: false, manualReviewThreshold: 70 };
-const DEFAULT_RULES: JsonRecord[] = [{ id: "default-pk-usd-local", countryCode: "PK", countryName: "Pakistan", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", channels: ["jazzcash", "easypaisa"], minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, status: "ENABLED" }];
 const DEFAULT_ARTICLES: JsonRecord[] = [];
 
 @Injectable()
@@ -34,7 +33,7 @@ export class SystemSettingsService {
       this.read("system.appSupport", DEFAULT_APP_SUPPORT),
       this.read("system.appVersion", DEFAULT_VERSION),
       this.read("system.riskSettings", DEFAULT_RISK),
-      this.read("system.withdrawalRules", DEFAULT_RULES),
+      this.read("system.withdrawalRules", []),
       this.read("system.helpArticles", DEFAULT_ARTICLES),
     ]);
     return { accountSecurity, support, version, risk, withdrawalRules, articles };
@@ -273,11 +272,11 @@ export class SystemSettingsService {
   }
 
   async listWithdrawalRules(query: Record<string,string>) {
-    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    const items = await this.read("system.withdrawalRules", []) as JsonRecord[];
     return items.filter((x: any) => (!query.country || query.country === x.countryCode) && (!query.currency || query.currency === x.walletCurrency) && (!query.method || query.method === x.method) && (!query.status || query.status === x.status));
   }
   async saveWithdrawalRule(id: string | null, input: JsonRecord, adminId: string) {
-    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    const items = await this.read("system.withdrawalRules", []) as JsonRecord[];
     const ruleId = id ?? randomUUID();
     const countryCode = String(input.countryCode ?? "").trim().toUpperCase();
     const walletCurrency = String(input.walletCurrency ?? "").trim().toUpperCase();
@@ -329,7 +328,7 @@ export class SystemSettingsService {
     return rule;
   }
   async toggleWithdrawalRule(id: string, adminId: string) {
-    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    const items = await this.read("system.withdrawalRules", []) as JsonRecord[];
     const rule = items.find(x => x.id === id) as any;
     if (!rule) throw new NotFoundException("提现规则不存在");
     if (rule.status === "ARCHIVED") {
@@ -356,7 +355,7 @@ export class SystemSettingsService {
     return rule;
   }
   async duplicateWithdrawalRule(id: string, adminId: string) {
-    const items = await this.read("system.withdrawalRules", DEFAULT_RULES) as JsonRecord[];
+    const items = await this.read("system.withdrawalRules", []) as JsonRecord[];
     const source = items.find(x => x.id === id);
     if (!source) throw new NotFoundException("提现规则不存在");
     const copy = { ...source, id: randomUUID(), status: "DISABLED", countryName: String(source.countryName) + " 副本", updatedAt: new Date().toISOString() };
