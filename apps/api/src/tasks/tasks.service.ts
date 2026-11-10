@@ -370,8 +370,9 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         // A user may hold only one unfinished task at a time. Keep the lock
         // on the user row above so concurrent claim requests cannot bypass this.
         // Count only claims that are genuinely still active.
-        // Expired/stale CLAIMED, IN_PROGRESS or REJECTED rows must never
-        // permanently block a member from taking another task. Pending
+        // Expired/stale CLAIMED and IN_PROGRESS rows must never
+        // permanently block a member from taking another task. Rejected claims
+        // release inventory immediately. Pending
         // submissions remain blocking until review is completed.
         const activeClaims = await tx.taskClaim.count({
           where: {
@@ -479,9 +480,6 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       const now = new Date();
       if (claim.expiresAt && claim.expiresAt <= now) {
         throw new ConflictException("任务领取已过期，请返回任务大厅重新领取。");
-      }
-      if (claim.status === "REJECTED" && !claim.expiresAt) {
-        throw new ConflictException("该驳回任务没有剩余执行时间，不能重新开始。");
       }
       if (claim.status === "IN_PROGRESS" && claim.expiresAt) {
         return this.claimResponse(claim);
@@ -654,11 +652,6 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         });
         if (!claim || !["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) continue;
 
-        await tx.taskClaim.update({
-          where: { id: claim.id },
-          data: { status: "EXPIRED" },
-        });
-
         let reservationWasActive = false;
         if (claim.contactAssignment?.status === "ASSIGNED") {
           reservationWasActive = true;
@@ -688,9 +681,16 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           });
         }
 
-        // New rejected claims release their inventory immediately. Legacy
-        // rejected claims are still recovered here, but must not decrement
-        // claimedCount a second time after their reservation was released.
+        // New rejected claims have already released their inventory and
+        // must remain REJECTED in history. Legacy rejected claims with a live
+        // reservation are recovered here exactly once.
+        if (claim.status === "REJECTED" && !reservationWasActive) continue;
+
+        await tx.taskClaim.update({
+          where: { id: claim.id },
+          data: { status: "EXPIRED" },
+        });
+
         if (reservationWasActive) {
           await tx.task.updateMany({
             where: { id: claim.taskId, claimedCount: { gt: 0 } },
