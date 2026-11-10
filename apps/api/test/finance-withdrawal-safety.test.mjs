@@ -626,3 +626,20 @@ test("manual payout failure uses a stable idempotency key and claims FAILED stat
   assert.match(method.slice(createIndex), /manual-payout-failed:" \+ id/);
   assert.doesNotMatch(method.slice(createIndex), /Date\.now\(\)/);
 });
+
+
+test("payment provider references are protected by a database unique constraint and a fail-safe migration", () => {
+  const schema = readFileSync(new URL("../../../packages/database/prisma/schema.prisma", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../../../packages/database/prisma/migrations/20261110014000_add_unique_payment_provider_reference/migration.sql", import.meta.url), "utf8");
+  assert.match(schema, /@@unique\(\[providerCode, providerReference, flow\]\)/);
+  assert.match(migration, /GROUP BY provider_code, provider_reference, flow/);
+  assert.match(migration, /HAVING COUNT\(\*\) > 1/);
+  assert.match(migration, /RAISE EXCEPTION/);
+  assert.match(migration, /CREATE UNIQUE INDEX/);
+});
+
+test("manual payout maps provider-reference uniqueness conflicts to a clear duplicate-reference response", () => {
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  assert.match(finance, /target\.includes\("provider_reference"\)/);
+  assert.match(finance, /该服务商付款凭证已被使用，不能重复登记/);
+});
