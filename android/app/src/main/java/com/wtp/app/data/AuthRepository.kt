@@ -230,7 +230,16 @@ object AuthRepository {
 
     fun commissionRecords(): JSONObject = request("GET", "users/commission-records")
 
-    fun walletTransactions(limit: Int = 100): JSONObject = request("GET", "users/wallet-transactions?limit=$limit")
+    fun walletTransactions(limit: Int = 100, beforeCreatedAt: String? = null, beforeId: String? = null): JSONObject {
+        val query = buildString {
+            append("users/wallet-transactions?limit=$limit")
+            if (!beforeCreatedAt.isNullOrBlank() && !beforeId.isNullOrBlank()) {
+                append("&beforeCreatedAt=").append(java.net.URLEncoder.encode(beforeCreatedAt, "UTF-8"))
+                append("&beforeId=").append(java.net.URLEncoder.encode(beforeId, "UTF-8"))
+            }
+        }
+        return request("GET", query)
+    }
 
     fun walletOverview(): JSONObject = request("GET", "users/wallet-overview")
 
