@@ -1,4 +1,5 @@
 import type { Prisma } from "@wtp/database";
+import { lockTaskSlotAllocation } from "./task-slot-allocation";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -16,6 +17,7 @@ export async function recycleUnsuccessfulTaskClaimInventory(
   taskId: string,
   now = new Date(),
 ): Promise<{ recycled: boolean }> {
+  await lockTaskSlotAllocation(tx);
   const [initialAssignment, initialSlot] = await Promise.all([
     tx.contactAssignment.findUnique({
       where: { claimId },
