@@ -518,6 +518,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
   async cancelClaim(userId: string, claimId: string) {
     return prisma.$transaction(async (tx) => {
+      await lockTaskSlotAllocation(tx);
       await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM task_claims WHERE id = ${claimId}::uuid FOR UPDATE
       `;
@@ -549,7 +550,6 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         throw new ConflictException("任务正在审核中，不能取消。");
       }
 
-      await lockTaskSlotAllocation(tx);
       const initialAssignment = await tx.contactAssignment.findUnique({
         where: { claimId },
         select: { id: true, contactNumberId: true },
