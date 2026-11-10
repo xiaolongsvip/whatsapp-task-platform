@@ -128,3 +128,17 @@ test("Android keeps rejected claims selectable as history while disabling restar
   assert.match(screen, /val canOpen = !countdownExpired &&\s*status in setOf\("CLAIMED", "IN_PROGRESS"\)/);
   assert.match(screen, /status == "REJECTED" -> if \(isEnglish\) "Number recycled" else "号码已回收"/);
 });
+
+
+test("all recycling entry points acquire the shared allocator advisory lock before inventory row locks", async () => {
+  const helper = await read("../src/tasks/task-claim-inventory.ts");
+  assert.ok(helper.indexOf("lockTaskSlotAllocation(tx)") < helper.indexOf("FROM contact_numbers"));
+  const admin = await read("../src/task-admin/task-admin.service.ts");
+  const recycle = admin.slice(admin.indexOf("async voidTaskRecord("), admin.indexOf("async deleteTaskRecord("));
+  assert.ok(recycle.indexOf("FOR UPDATE") < recycle.indexOf("lockTaskSlotAllocation(tx)"));
+  assert.ok(recycle.indexOf("lockTaskSlotAllocation(tx)") < recycle.indexOf("FROM contact_numbers"));
+  const service = await read("../src/tasks/tasks.service.ts");
+  const cancel = service.slice(service.indexOf("async cancelClaim("), service.indexOf("private async expireOverdueClaims("));
+  assert.ok(cancel.indexOf("FOR UPDATE") < cancel.indexOf("lockTaskSlotAllocation(tx)"));
+  assert.ok(cancel.indexOf("lockTaskSlotAllocation(tx)") < cancel.indexOf("FROM contact_numbers"));
+});
