@@ -24,6 +24,8 @@ export class FinanceAdminController {
   async withdrawalDetail(@Req() req: Request, @Param("id") id: string) { await this.authorize(req); return this.finance.withdrawalDetail(id); }
   @Post("withdrawals/:id/review")
   async reviewWithdrawal(@Req() req: Request, @Param("id") id: string, @Body() body: { action?: string; note?: string }) { const admin = await this.authorize(req); return this.finance.reviewWithdrawal(id, body.action || "", admin.id, body.note); }
+  @Post("withdrawals/:id/processing")
+  async startWithdrawalProcessing(@Req() req: Request, @Param("id") id: string) { const admin = await this.authorize(req); return this.finance.startWithdrawalProcessing(id, admin.id); }
   @Post("withdrawals/:id/payout-result")
   async payoutResult(@Req() req: Request, @Param("id") id: string, @Body() body: { outcome?: "PAID" | "FAILED"; providerCode?: string; reference?: string; note?: string; payoutAmountMinor?: string }) { const admin = await this.authorize(req); if (body.outcome !== "PAID" && body.outcome !== "FAILED") throw new BadRequestException("outcome 必须是 PAID 或 FAILED"); return this.finance.recordManualPayout(id, body.outcome, admin.id, body); }
   @Get("wallets")
