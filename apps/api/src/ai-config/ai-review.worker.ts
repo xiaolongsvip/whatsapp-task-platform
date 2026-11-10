@@ -55,7 +55,10 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
             )
             OR (
               status = 'PROCESSING'
-              AND locked_at < NOW() - INTERVAL '10 minutes'
+              AND (
+                locked_at IS NULL
+                OR locked_at < NOW() - INTERVAL '10 minutes'
+              )
             )
           ORDER BY next_attempt_at ASC, created_at ASC
           FOR UPDATE SKIP LOCKED
