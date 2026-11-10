@@ -599,3 +599,26 @@ test("withdrawal options, quotes and submissions never fall back to an implicit 
   assert.doesNotMatch(accounts + withdrawals, /default-pk-usd-local|channels: \["jazzcash", "easypaisa"\]/);
   assert.match(withdrawals, /No active withdrawal rule is configured for this payout account/);
 });
+
+
+test("manual payout atomically claims the withdrawal state before writing success ledger entries", () => {
+  const start = service.indexOf("async recordManualPayout(");
+  const end = service.indexOf("\\n  async ", start + 10);
+  const method = service.slice(start, end > 0 ? end : undefined);
+  const paid = method.slice(method.indexOf('if (outcome === "PAID")'), method.indexOf('const transaction = await tx.paymentTransaction.create({ data: {', method.indexOf('if (outcome === "PAID")')));
+  assert.match(paid, /const claimed = await tx\\.withdrawalRequest\\.updateMany\\([\\s\\S]*?status: withdrawal\\.status[\\s\\S]*?status: "PAID"/);
+  assert.match(paid, /if \\(claimed\\.count !== 1\\) throw new ConflictException/);
+  assert.ok(paid.indexOf("claimed.count") < paid.indexOf("paymentTransaction.findFirst"));
+  assert.ok(paid.indexOf("claimed.count") < paid.indexOf("ledgerEntry.create"));
+});
+
+test("manual payout failure uses a stable idempotency key and claims FAILED state before inserting the failed transaction", () => {
+  const start = service.indexOf("async recordManualPayout(");
+  const end = service.indexOf("\\n  async ", start + 10);
+  const method = service.slice(start, end > 0 ? end : undefined);
+  const failed = method.slice(method.indexOf('const changed = await tx.withdrawalRequest.updateMany', method.indexOf('if (outcome === "PAID")') + 1));
+  assert.match(failed, /status: "FAILED"/);
+  assert.match(failed, /manual-payout-failed:" \\+ id/);
+  assert.doesNotMatch(failed, /Date\\.now\\(\\)/);
+  assert.ok(failed.indexOf("changed.count") < failed.indexOf("paymentTransaction.create"));
+});
