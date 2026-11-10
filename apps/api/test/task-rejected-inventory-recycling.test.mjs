@@ -246,4 +246,6 @@ test("rejected claims are rendered only as history and cannot be selected for an
   assert.doesNotMatch(rejected, /ClaimedTaskCard|startAndOpenWhatsApp|setActiveClaim/);
   assert.match(rejected, /号码已回收到可分配库存/);
   assert.match(rejected, /numbers have been recycled/);
+  assert.match(screen, /RecordFilter\.REJECTED to \(if \(isEnglish\) "Rejected" else "已拒绝"\)/);
+  assert.doesNotMatch(screen, /RecordFilter\.REJECTED to \(if \(isEnglish\) "Action" else "需处理"\)/);
 });
