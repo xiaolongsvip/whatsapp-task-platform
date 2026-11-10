@@ -181,6 +181,13 @@ export class FinanceAdminService {
         if (!provider.supportedCurrencies.some(currency => currency.trim().toUpperCase() === payoutCurrency.toUpperCase())) {
           throw new BadRequestException("该服务商未配置此提现出款币种，不能登记付款");
         }
+        // Atomically claim the withdrawal before inserting the successful payout and
+        // wallet debit. Concurrent confirmation attempts cannot both pass this gate.
+        const claimed = await tx.withdrawalRequest.updateMany({
+          where: { id, status: withdrawal.status },
+          data: { status: "PAID", payoutReference: reference, reviewedById: adminId },
+        });
+        if (claimed.count !== 1) throw new ConflictException("提现状态已变化，请刷新后重试");
         const existing = await tx.paymentTransaction.findFirst({ where: { withdrawalRequestId: id, status: "SUCCEEDED" }, select: { id: true } });
         if (existing) throw new ConflictException("该提现单已经登记成功付款，不能重复入账");
         const duplicateReference = await tx.paymentTransaction.findFirst({
@@ -206,8 +213,6 @@ export class FinanceAdminService {
           direction: "DEBIT", amountMinor: withdrawal.amountMinor, currency: withdrawal.currency,
           idempotencyKey: "withdrawal-payout:" + id,
         }});
-        const changed = await tx.withdrawalRequest.updateMany({ where: { id, status: withdrawal.status }, data: { status: "PAID", payoutReference: reference, reviewedById: adminId } });
-        if (changed.count !== 1) throw new ConflictException("提现状态已变化，请刷新后重试");
         await tx.auditEvent.create({ data: {
           actorType: "ADMIN", actorId: adminId, action: "WITHDRAWAL_MANUALLY_MARKED_PAID",
           targetType: "WITHDRAWAL_REQUEST", targetId: id,
@@ -218,17 +223,22 @@ export class FinanceAdminService {
         }});
         return { id, status: "PAID", paymentTransactionId: transaction.id, actualPayoutAmountMinor: actualPayoutAmountMinor.toString(), payoutCurrency, manual: true };
       }
+      // Claim the state transition before creating any payout record. The conditional
+      // update is the concurrency gate: only one administrator can finalize this request.
+      const changed = await tx.withdrawalRequest.updateMany({
+        where: { id, status: withdrawal.status },
+        data: { status: "FAILED", reviewedById: adminId },
+      });
+      if (changed.count !== 1) throw new ConflictException("提现状态已变化，请刷新后重试");
       const transaction = await tx.paymentTransaction.create({ data: {
         userId: withdrawal.wallet.userId, walletId: withdrawal.walletId, withdrawalRequestId: id,
         providerCode: withdrawal.payoutProviderCode ?? payoutAccount.providerCode, flow: "PAYOUT", status: "FAILED",
         amountMinor: withdrawal.payoutAmountMinor ?? withdrawal.amountMinor,
         currency: (withdrawal.payoutCurrency ?? withdrawal.currency).trim(),
-        idempotencyKey: "manual-payout-failed:" + id + ":" + Date.now(),
+        idempotencyKey: "manual-payout-failed:" + id,
         failureCode: "MANUAL_PAYOUT_FAILED", failureMessage: note,
         metadata: { mode: "MANUAL_CONFIRMATION", confirmedBy: adminId, providerCode: payoutAccount.providerCode },
       }});
-      const changed = await tx.withdrawalRequest.updateMany({ where: { id, status: withdrawal.status }, data: { status: "FAILED", reviewedById: adminId } });
-      if (changed.count !== 1) throw new ConflictException("提现状态已变化，请刷新后重试");
       await tx.auditEvent.create({ data: {
         actorType: "ADMIN", actorId: adminId, action: "WITHDRAWAL_MANUALLY_MARKED_FAILED",
         targetType: "WITHDRAWAL_REQUEST", targetId: id,

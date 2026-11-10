@@ -694,6 +694,7 @@ model PaymentTransaction {
   provider              PaymentProviderConfig   @relation(fields: [providerCode], references: [providerCode], onDelete: Restrict)
 
   @@unique([providerCode, providerTransactionId])
+  @@unique([providerCode, providerReference, flow])
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([withdrawalRequestId])

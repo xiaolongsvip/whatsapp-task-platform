@@ -599,3 +599,47 @@ test("withdrawal options, quotes and submissions never fall back to an implicit 
   assert.doesNotMatch(accounts + withdrawals, /default-pk-usd-local|channels: \["jazzcash", "easypaisa"\]/);
   assert.match(withdrawals, /No active withdrawal rule is configured for this payout account/);
 });
+
+
+test("manual payout atomically claims the withdrawal state before writing success ledger entries", () => {
+  const start = service.indexOf("async recordManualPayout(");
+  const end = service.indexOf("\n  async ", start + 10);
+  const method = service.slice(start, end > 0 ? end : undefined);
+  const paidStart = method.indexOf('if (outcome === "PAID")');
+  const claimIndex = method.indexOf("const claimed = await tx.withdrawalRequest.updateMany", paidStart);
+  const transactionIndex = method.indexOf("const transaction = await tx.paymentTransaction.create", paidStart);
+  assert.ok(claimIndex >= 0, "successful payout must claim PAID state");
+  assert.ok(transactionIndex > claimIndex, "payout transaction must be created after state claim");
+  assert.match(method.slice(claimIndex, transactionIndex), /status: "PAID"/);
+  assert.match(method.slice(claimIndex, transactionIndex), /claimed.count !== 1/);
+});
+
+test("manual payout failure uses a stable idempotency key and claims FAILED state before inserting the failed transaction", () => {
+  const start = service.indexOf("async recordManualPayout(");
+  const end = service.indexOf("\n  async ", start + 10);
+  const method = service.slice(start, end > 0 ? end : undefined);
+  const failStart = method.indexOf('const changed = await tx.withdrawalRequest.updateMany', method.indexOf('if (outcome === "PAID")') + 1);
+  const createIndex = method.indexOf("const transaction = await tx.paymentTransaction.create", failStart);
+  assert.ok(failStart >= 0, "failure branch must claim FAILED state");
+  assert.ok(createIndex > failStart, "failed transaction must be created after state claim");
+  assert.match(method.slice(failStart, createIndex), /status: "FAILED"/);
+  assert.match(method.slice(createIndex), /manual-payout-failed:" \+ id/);
+  assert.doesNotMatch(method.slice(createIndex), /Date\.now\(\)/);
+});
+
+
+test("payment provider references are protected by a database unique constraint and a fail-safe migration", () => {
+  const schema = readFileSync(new URL("../../../packages/database/prisma/schema.prisma", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../../../packages/database/prisma/migrations/20261110014000_add_unique_payment_provider_reference/migration.sql", import.meta.url), "utf8");
+  assert.match(schema, /@@unique\(\[providerCode, providerReference, flow\]\)/);
+  assert.match(migration, /GROUP BY provider_code, provider_reference, flow/);
+  assert.match(migration, /HAVING COUNT\(\*\) > 1/);
+  assert.match(migration, /RAISE EXCEPTION/);
+  assert.match(migration, /CREATE UNIQUE INDEX/);
+});
+
+test("manual payout maps provider-reference uniqueness conflicts to a clear duplicate-reference response", () => {
+  const finance = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
+  assert.match(finance, /target\.includes\("provider_reference"\)/);
+  assert.match(finance, /该服务商付款凭证已被使用，不能重复登记/);
+});
