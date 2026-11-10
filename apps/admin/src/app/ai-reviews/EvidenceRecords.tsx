@@ -49,7 +49,7 @@ export default function EvidenceRecords() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), status: "ALL", taskType });
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), taskType });
       if (query) params.set("keyword", query);
       const response = await fetch("/api/v1/admin/ai-reviews/evidence?" + params.toString(), { credentials: "include" });
       const body = await response.json().catch(() => ({}));
