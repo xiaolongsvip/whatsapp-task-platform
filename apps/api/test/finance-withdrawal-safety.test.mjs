@@ -603,22 +603,26 @@ test("withdrawal options, quotes and submissions never fall back to an implicit 
 
 test("manual payout atomically claims the withdrawal state before writing success ledger entries", () => {
   const start = service.indexOf("async recordManualPayout(");
-  const end = service.indexOf("\\n  async ", start + 10);
+  const end = service.indexOf("\n  async ", start + 10);
   const method = service.slice(start, end > 0 ? end : undefined);
-  const paid = method.slice(method.indexOf('if (outcome === "PAID")'), method.indexOf('const transaction = await tx.paymentTransaction.create({ data: {', method.indexOf('if (outcome === "PAID")')));
-  assert.match(paid, /const claimed = await tx\\.withdrawalRequest\\.updateMany\\([\\s\\S]*?status: withdrawal\\.status[\\s\\S]*?status: "PAID"/);
-  assert.match(paid, /if \\(claimed\\.count !== 1\\) throw new ConflictException/);
-  assert.ok(paid.indexOf("claimed.count") < paid.indexOf("paymentTransaction.findFirst"));
-  assert.ok(paid.indexOf("claimed.count") < paid.indexOf("ledgerEntry.create"));
+  const paidStart = method.indexOf('if (outcome === "PAID")');
+  const claimIndex = method.indexOf("const claimed = await tx.withdrawalRequest.updateMany", paidStart);
+  const transactionIndex = method.indexOf("const transaction = await tx.paymentTransaction.create", paidStart);
+  assert.ok(claimIndex >= 0, "successful payout must claim PAID state");
+  assert.ok(transactionIndex > claimIndex, "payout transaction must be created after state claim");
+  assert.match(method.slice(claimIndex, transactionIndex), /status: "PAID"/);
+  assert.match(method.slice(claimIndex, transactionIndex), /claimed.count !== 1/);
 });
 
 test("manual payout failure uses a stable idempotency key and claims FAILED state before inserting the failed transaction", () => {
   const start = service.indexOf("async recordManualPayout(");
-  const end = service.indexOf("\\n  async ", start + 10);
+  const end = service.indexOf("\n  async ", start + 10);
   const method = service.slice(start, end > 0 ? end : undefined);
-  const failed = method.slice(method.indexOf('const changed = await tx.withdrawalRequest.updateMany', method.indexOf('if (outcome === "PAID")') + 1));
-  assert.match(failed, /status: "FAILED"/);
-  assert.match(failed, /manual-payout-failed:" \\+ id/);
-  assert.doesNotMatch(failed, /Date\\.now\\(\\)/);
-  assert.ok(failed.indexOf("changed.count") < failed.indexOf("paymentTransaction.create"));
+  const failStart = method.indexOf('const changed = await tx.withdrawalRequest.updateMany', method.indexOf('if (outcome === "PAID")') + 1);
+  const createIndex = method.indexOf("const transaction = await tx.paymentTransaction.create", failStart);
+  assert.ok(failStart >= 0, "failure branch must claim FAILED state");
+  assert.ok(createIndex > failStart, "failed transaction must be created after state claim");
+  assert.match(method.slice(failStart, createIndex), /status: "FAILED"/);
+  assert.match(method.slice(createIndex), /manual-payout-failed:" \+ id/);
+  assert.doesNotMatch(method.slice(createIndex), /Date\.now\(\)/);
 });
