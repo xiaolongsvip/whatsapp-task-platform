@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { prisma } from "@wtp/database";
+import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 
 const AI_REVIEW_STALE_AFTER_MS = 10 * 60 * 1000;
 
@@ -20,7 +21,6 @@ function staleAiReviewJobWhere(cutoff: Date) {
   };
 }
 
-import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 
 @Injectable()
 export class AiReviewAdminService {
@@ -361,15 +361,17 @@ export class AiReviewAdminService {
         { aiReviewJob: { is: staleAiReviewJobWhere(staleCutoff) as never } },
       ],
     };
+    const smartReviewWhere = {
+      aiReviewJob: { is: { OR: [
+        { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { gt: staleCutoff } },
+        { status: "PROCESSING" as never, lockedAt: { gt: staleCutoff } },
+      ] } },
+    };
     const where = normalized === "MANUAL_REVIEW"
       ? manualReviewWhere
-      : normalized === "SMART_REVIEW"
-        ? { aiReviewJob: { is: { OR: [
-            { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { gt: staleCutoff } },
-            { status: "PROCESSING" as never, lockedAt: { gt: staleCutoff } },
-          ] } } }
-        : normalized === "APPROVED" ? { status: "APPROVED" as never }
-        : normalized === "REJECTED" ? { status: "REJECTED" as never } : {};
+      : normalized === "SMART_REVIEW" ? smartReviewWhere
+      : normalized === "APPROVED" ? { status: "APPROVED" as never }
+      : normalized === "REJECTED" ? { status: "REJECTED" as never } : {};
     const [total, submissions, manualReview, smartReview, approved, rejected] = await prisma.$transaction([
       prisma.taskSubmission.count({ where }),
       prisma.taskSubmission.findMany({
@@ -390,7 +392,7 @@ export class AiReviewAdminService {
         },
       }),
       prisma.taskSubmission.count({ where: manualReviewWhere }),
-      prisma.taskSubmission.count({ where: { aiReviewJob: { is: { status: { in: ["PENDING", "PROCESSING", "RETRY"] } } } } }),
+      prisma.taskSubmission.count({ where: smartReviewWhere }),
       prisma.taskSubmission.count({ where: { status: "APPROVED" } }),
       prisma.taskSubmission.count({ where: { status: "REJECTED" } }),
     ]);
