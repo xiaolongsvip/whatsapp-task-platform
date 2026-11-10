@@ -518,9 +518,9 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
   async cancelClaim(userId: string, claimId: string) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw<Array<{ id: string }>>\`
-        SELECT id FROM task_claims WHERE id = \${claimId}::uuid FOR UPDATE
-      \`;
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM task_claims WHERE id = ${claimId}::uuid FOR UPDATE
+      `;
 
       const claim = await tx.taskClaim.findUnique({
         where: { id: claimId },
@@ -560,19 +560,19 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       });
       const initialNumberId = initialAssignment?.contactNumberId ?? initialSlot?.contactNumberId;
       if (initialNumberId) {
-        await tx.$queryRaw<Array<{ id: string }>>\`
-          SELECT id FROM contact_numbers WHERE id = \${initialNumberId}::uuid FOR UPDATE
-        \`;
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM contact_numbers WHERE id = ${initialNumberId}::uuid FOR UPDATE
+        `;
       }
       if (initialSlot) {
-        await tx.$queryRaw<Array<{ id: string }>>\`
-          SELECT id FROM task_slots WHERE id = \${initialSlot.id}::uuid FOR UPDATE
-        \`;
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM task_slots WHERE id = ${initialSlot.id}::uuid FOR UPDATE
+        `;
       }
       if (initialAssignment) {
-        await tx.$queryRaw<Array<{ id: string }>>\`
-          SELECT id FROM contact_assignments WHERE id = \${initialAssignment.id}::uuid FOR UPDATE
-        \`;
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM contact_assignments WHERE id = ${initialAssignment.id}::uuid FOR UPDATE
+        `;
       }
 
       const [assignment, assignedSlot] = await Promise.all([
