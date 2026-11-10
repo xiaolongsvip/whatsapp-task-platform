@@ -1116,8 +1116,8 @@ private fun TaskExecutionScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                if (isEnglish) "Rejected — you can try again before the deadline"
-                                else "审核未通过，可在原截止时间前重新执行",
+                                if (isEnglish) "Rejected — this number has been recycled"
+                                else "审核未通过，号码已回收，不能重新执行",
                                 color = Color(0xFF9A3412),
                                 fontWeight = FontWeight.Bold
                             )
