@@ -2,6 +2,26 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { prisma } from "@wtp/database";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 
+const AI_REVIEW_STALE_AFTER_MS = 10 * 60 * 1000;
+
+function isStaleAiReviewJob(job: { status: string; updatedAt: Date; lockedAt: Date | null } | null | undefined, now = Date.now()) {
+  if (!job) return false;
+  const cutoff = now - AI_REVIEW_STALE_AFTER_MS;
+  if (job.status === "PENDING" || job.status === "RETRY") return job.updatedAt.getTime() <= cutoff;
+  if (job.status === "PROCESSING") return !job.lockedAt || job.lockedAt.getTime() <= cutoff;
+  return false;
+}
+
+function staleAiReviewJobWhere(cutoff: Date) {
+  return {
+    OR: [
+      { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { lte: cutoff } },
+      { status: "PROCESSING" as never, OR: [{ lockedAt: null }, { lockedAt: { lte: cutoff } }] },
+    ],
+  };
+}
+
+
 @Injectable()
 export class AiReviewAdminService {
   constructor(private readonly storage: S3ObjectStorageService) {}
@@ -9,9 +29,10 @@ export class AiReviewAdminService {
   async getEvidence(submissionId: string) {
     const submission = await prisma.taskSubmission.findUnique({
       where: { id: submissionId },
-      select: { objectKey: true, mimeType: true, originalName: true },
+      select: { objectKey: true, mimeType: true, originalName: true, evidenceDeletedAt: true },
     });
     if (!submission) throw new NotFoundException("任务提交记录不存在。");
+    if (submission.evidenceDeletedAt) throw new NotFoundException("该截图已超过保留期限并从对象存储删除。");
     const buffer = await this.storage.getObjectBuffer(submission.objectKey);
     const mimeType = ["image/jpeg", "image/png", "image/webp"].includes(submission.mimeType || "")
       ? submission.mimeType!
@@ -120,8 +141,10 @@ export class AiReviewAdminService {
       });
       if (!submission) throw new NotFoundException("任务提交记录不存在。");
       const claim = submission.claim;
-      if (submission.aiReviewJob && submission.aiReviewJob.status !== "NEEDS_REVIEW") {
-        throw new ConflictException("AI 审核任务尚未进入人工处理状态，请稍后刷新。");
+      if (submission.aiReviewJob &&
+          submission.aiReviewJob.status !== "NEEDS_REVIEW" &&
+          !isStaleAiReviewJob(submission.aiReviewJob)) {
+        throw new ConflictException("AI 审核任务仍在自动处理或尚未积压满 10 分钟，暂不能人工接管。");
       }
       if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
           !["SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
@@ -268,11 +291,13 @@ export class AiReviewAdminService {
     const normalized = status && allowed.includes(status) ? status : undefined;
     const take = Math.min(100, Math.max(1, pageSize));
     const skip = (Math.max(1, page) - 1) * take;
+    const staleCutoff = new Date(Date.now() - AI_REVIEW_STALE_AFTER_MS);
     const where = {
       status: normalized ? normalized as never : { in: allowed as never[] },
       OR: [
         { aiReviewJob: { is: null } },
         { aiReviewJob: { is: { status: "NEEDS_REVIEW" as never } } },
+        { aiReviewJob: { is: staleAiReviewJobWhere(staleCutoff) as never } },
       ],
     };
     const [total, submissions] = await prisma.$transaction([
@@ -327,15 +352,26 @@ export class AiReviewAdminService {
     const take = Math.min(100, Math.max(1, pageSize));
     const currentPage = Math.max(1, page);
     const skip = (currentPage - 1) * take;
+    const staleCutoff = new Date(Date.now() - AI_REVIEW_STALE_AFTER_MS);
+    const manualReviewWhere = {
+      status: { in: ["SUBMITTED", "UNDER_REVIEW"] as never[] },
+      OR: [
+        { aiReviewJob: { is: null } },
+        { aiReviewJob: { is: { status: "NEEDS_REVIEW" as never } } },
+        { aiReviewJob: { is: staleAiReviewJobWhere(staleCutoff) as never } },
+      ],
+    };
+    const smartReviewWhere = {
+      aiReviewJob: { is: { OR: [
+        { status: { in: ["PENDING", "RETRY"] as never[] }, updatedAt: { gt: staleCutoff } },
+        { status: "PROCESSING" as never, lockedAt: { gt: staleCutoff } },
+      ] } },
+    };
     const where = normalized === "MANUAL_REVIEW"
-      ? { status: { in: ["SUBMITTED", "UNDER_REVIEW"] as never[] }, OR: [
-          { aiReviewJob: { is: null } },
-          { aiReviewJob: { is: { status: "NEEDS_REVIEW" as never } } },
-        ] }
-      : normalized === "SMART_REVIEW"
-        ? { aiReviewJob: { is: { status: { in: ["PENDING", "PROCESSING", "RETRY"] as never[] } } } }
-        : normalized === "APPROVED" ? { status: "APPROVED" as never }
-        : normalized === "REJECTED" ? { status: "REJECTED" as never } : {};
+      ? manualReviewWhere
+      : normalized === "SMART_REVIEW" ? smartReviewWhere
+      : normalized === "APPROVED" ? { status: "APPROVED" as never }
+      : normalized === "REJECTED" ? { status: "REJECTED" as never } : {};
     const [total, submissions, manualReview, smartReview, approved, rejected] = await prisma.$transaction([
       prisma.taskSubmission.count({ where }),
       prisma.taskSubmission.findMany({
@@ -355,10 +391,8 @@ export class AiReviewAdminService {
           },
         },
       }),
-      prisma.taskSubmission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] }, OR: [
-        { aiReviewJob: { is: null } }, { aiReviewJob: { is: { status: "NEEDS_REVIEW" } } },
-      ] } }),
-      prisma.taskSubmission.count({ where: { aiReviewJob: { is: { status: { in: ["PENDING", "PROCESSING", "RETRY"] } } } } }),
+      prisma.taskSubmission.count({ where: manualReviewWhere }),
+      prisma.taskSubmission.count({ where: smartReviewWhere }),
       prisma.taskSubmission.count({ where: { status: "APPROVED" } }),
       prisma.taskSubmission.count({ where: { status: "REJECTED" } }),
     ]);
@@ -367,7 +401,7 @@ export class AiReviewAdminService {
       const latestReview = submission.reviews[0] ?? null;
       const centerStatus = submission.status === "APPROVED" ? "APPROVED"
         : submission.status === "REJECTED" ? "REJECTED"
-        : job && ["PENDING", "PROCESSING", "RETRY"].includes(job.status) ? "SMART_REVIEW"
+        : job && ["PENDING", "PROCESSING", "RETRY"].includes(job.status) && !isStaleAiReviewJob(job) ? "SMART_REVIEW"
         : "MANUAL_REVIEW";
       return {
         id: submission.id, status: centerStatus, submissionStatus: submission.status,
@@ -391,6 +425,8 @@ export class AiReviewAdminService {
 
 
   async getEvidenceDetail(submissionId: string) {
+    const configuredDays = Number(process.env.TASK_EVIDENCE_RETENTION_DAYS ?? 30);
+    const retentionDays = Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 3650 ? configuredDays : 30;
     const item = await prisma.taskSubmission.findUnique({
       where: { id: submissionId },
       include: {
@@ -419,7 +455,7 @@ export class AiReviewAdminService {
       submissionStatus: item.status,
       source: "实时屏幕截图",
       captureMode: "APP 任务提交",
-      trustLevel: "未评估",
+      trustLevel: "未接入风险评估",
       reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
         ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
         item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
@@ -436,32 +472,34 @@ export class AiReviewAdminService {
       submittedAt: item.submittedAt.toISOString(),
       objectKey: item.objectKey,
       imageDimensions: null,
-      contentHash: null,
-      retentionStatus: "正常",
-      retentionUntil: null,
-      deletionAttempts: 0,
-      archivedAt: null,
-      nextRetryAt: null,
-      lastStorageError: null,
+      contentHash: item.contentSha256,
+      retentionStatus: item.evidenceDeletedAt ? "DELETED" : item.evidenceDeleteLastError ? "DELETE_FAILED" :
+        ["APPROVED", "REJECTED"].includes(item.status) &&
+        item.submittedAt.getTime() <= Date.now() - retentionDays * 24 * 60 * 60 * 1000 ? "PENDING_DELETION" : "NORMAL",
+      retentionUntil: new Date(item.submittedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString(),
+      deletionAttempts: item.evidenceDeleteAttempts,
+      archivedAt: item.evidenceDeletedAt?.toISOString() ?? null,
+      nextRetryAt: item.evidenceDeleteNextAttemptAt?.toISOString() ?? null,
+      lastStorageError: item.evidenceDeleteLastError,
     };
   }
 
-  async listEvidenceRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; taskType?: string }) {
+  async listEvidenceRecords(input: { page?: number; pageSize?: number; keyword?: string; taskType?: string }) {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
     const keyword = input.keyword?.trim() ?? "";
-    const status = input.status || "ALL";
+    const configuredDays = Number(process.env.TASK_EVIDENCE_RETENTION_DAYS ?? 30);
+    const retentionDays = Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 3650 ? configuredDays : 30;
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
     const where: any = {};
-    if (status === "SUBMITTED") where.status = { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] };
-    if (status === "URL_ISSUED") where.id = "00000000-0000-0000-0000-000000000000";
     if (keyword) where.OR = [
       { id: { contains: keyword, mode: "insensitive" } },
       { originalName: { contains: keyword, mode: "insensitive" } },
       { claim: { is: { user: { is: { phone: { contains: keyword } } } } } },
       { claim: { is: { task: { is: { title: { contains: keyword, mode: "insensitive" } } } } } },
     ];
-    if (input.taskType === "TASK") where.claim = { is: { task: { is: { category: { not: "" } } } } };
-    const [total, submissions] = await prisma.$transaction([
+    if (input.taskType === "TASK") where.AND = [...(where.AND ?? []), { claim: { is: { task: { is: { category: { not: "" } } } } } }];
+    const [total, submissions, markedForDeletion, deletedObjects, deleteFailures] = await prisma.$transaction([
       prisma.taskSubmission.count({ where }),
       prisma.taskSubmission.findMany({
         where, orderBy: { submittedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize,
@@ -476,14 +514,24 @@ export class AiReviewAdminService {
           },
         },
       }),
-      prisma.taskSubmission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] } } }),
+      prisma.taskSubmission.count({ where: { status: { in: ["APPROVED", "REJECTED"] }, submittedAt: { lte: cutoff }, evidenceDeletedAt: null } }),
+      prisma.taskSubmission.count({ where: { evidenceDeletedAt: { not: null } } }),
+      prisma.taskSubmission.count({ where: { evidenceDeleteLastError: { not: null }, evidenceDeletedAt: null } }),
     ]);
     return {
       page, pageSize, total,
-      stats: { total, filtered: submissions.length, markedForDeletion: 0, deletedObjects: 0, deleteFailures: 0 },
+      stats: { total, filtered: submissions.length, markedForDeletion, deletedObjects, deleteFailures },
       records: submissions.map((item) => ({
         id: item.id, userPhone: item.claim.user.phone, targetPhone: item.claim.contactAssignment?.contactNumber.phoneE164 ?? null,
-        status: item.status, retentionStatus: "NORMAL", source: "实时屏幕截图",
+        status: item.status,
+        retentionStatus: item.evidenceDeletedAt ? "DELETED" : item.evidenceDeleteLastError ? "DELETE_FAILED" :
+          item.submittedAt <= cutoff && ["APPROVED", "REJECTED"].includes(item.status) ? "PENDING_DELETION" : "NORMAL",
+        retentionUntil: new Date(item.submittedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString(),
+        deletionAttempts: item.evidenceDeleteAttempts,
+        archivedAt: item.evidenceDeletedAt?.toISOString() ?? null,
+        nextRetryAt: item.evidenceDeleteNextAttemptAt?.toISOString() ?? null,
+        lastStorageError: item.evidenceDeleteLastError,
+        source: "实时屏幕截图",
         reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
           ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
           item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
