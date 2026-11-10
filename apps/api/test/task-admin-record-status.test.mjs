@@ -81,3 +81,13 @@ test("admin task record filters are wired to the backend query parameters", asyn
   assert.match(service, /if \(input\.useStage === "USED"\)/);
   assert.match(service, /if \(input\.reviewResult === "APPROVED"\)/);
 });
+
+
+test("new task default reward amount matches the API two-decimal validation", async () => {
+  const page = await readSource("../../admin/src/app/tasks/new/page.tsx");
+  const dto = await readSource("../src/task-admin/task-admin.dto.ts");
+  const match = page.match(/rewardAmount: "([^"]+)"/);
+  assert.ok(match, "new task form must define a default reward amount");
+  assert.match(match[1], /^\\d{1,8}(?:\\.\\d{1,2})?$/);
+  assert.match(dto, /@Matches\\(\/\\^\\\\d\\{1,8\\}\\(\?:\\\\\\.\\d\\{1,2\\}\\)\?\\$\//);
+});
