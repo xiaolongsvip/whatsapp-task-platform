@@ -597,19 +597,21 @@ export class TaskAdminService {
         if (pending) throw new ConflictException("该任务正在审核中，不能回收号码。");
         if (["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
           await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "CANCELLED" } });
-          if (claim.contactAssignment?.status === "ASSIGNED") {
-            await tx.contactAssignment.update({
-              where: { id: claim.contactAssignment.id },
-              data: { status: "RELEASED", releasedAt: new Date() },
-            });
-            await tx.contactNumber.updateMany({
-              where: { id: claim.contactAssignment.contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
-              data: { status: "AVAILABLE" },
-            });
-          }
           await tx.task.updateMany({
             where: { id: claim.taskId, claimedCount: { gt: 0 } },
             data: { claimedCount: { decrement: 1 } },
+          });
+        }
+        // Also repair legacy VOIDED rows whose claim was already closed but
+        // whose assignment was not released by the older implementation.
+        if (claim.contactAssignment?.status === "ASSIGNED") {
+          await tx.contactAssignment.update({
+            where: { id: claim.contactAssignment.id },
+            data: { status: "RELEASED", releasedAt: new Date() },
+          });
+          await tx.contactNumber.updateMany({
+            where: { id: claim.contactAssignment.contactNumberId, status: "ASSIGNED", consentStatus: "GRANTED" },
+            data: { status: "AVAILABLE" },
           });
         }
       }
