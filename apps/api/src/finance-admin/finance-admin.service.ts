@@ -134,6 +134,29 @@ export class FinanceAdminService {
     return { id, status: next, balanceReservationReleased: action === "REJECT" };
   }
 
+  async startWithdrawalProcessing(id: string, adminId: string) {
+    if (!isUuid(id)) throw new BadRequestException("提现单 ID 格式不正确");
+    return prisma.$transaction(async tx => {
+      const changed = await tx.withdrawalRequest.updateMany({
+        where: { id, status: "APPROVED" },
+        data: { status: "PROCESSING", reviewedById: adminId },
+      });
+      if (changed.count !== 1) {
+        const current = await tx.withdrawalRequest.findUnique({ where: { id }, select: { id: true, status: true } });
+        if (!current) throw new NotFoundException("提现申请不存在");
+        throw new ConflictException(`提现单当前状态为 ${current.status}，不能开始付款处理`);
+      }
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId, action: "WITHDRAWAL_PAYOUT_PROCESSING_STARTED",
+          targetType: "WITHDRAWAL_REQUEST", targetId: id,
+          metadata: { fromStatus: "APPROVED", toStatus: "PROCESSING", balanceReservationRetained: true },
+        },
+      });
+      return { id, status: "PROCESSING", balanceReservationRetained: true };
+    }, { isolationLevel: "Serializable" });
+  }
+
   async recordManualPayout(id: string, outcome: "PAID" | "FAILED", adminId: string, input: { providerCode?: string; reference?: string; note?: string; payoutAmountMinor?: string }) {
     if (!isUuid(id)) throw new BadRequestException("提现单 ID 格式不正确");
     const reference = typeof input.reference === "string" ? input.reference.trim().slice(0, 160) : "";
