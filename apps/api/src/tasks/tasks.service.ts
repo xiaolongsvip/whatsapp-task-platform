@@ -405,6 +405,10 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     const today = startOfDay(timezone);
     try {
       const claim = await prisma.$transaction(async (tx) => {
+        // Serialize slot selection with FIFO allocation/reassignment. Without
+        // this lock, an allocator could move an AVAILABLE slot to another task
+        // after the taskId check but before the reservation update.
+        await lockTaskSlotAllocation(tx);
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
         const [userPolicy, limitsRow] = await Promise.all([
           tx.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } }),
