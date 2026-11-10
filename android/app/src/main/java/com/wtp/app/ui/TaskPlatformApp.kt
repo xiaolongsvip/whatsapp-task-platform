@@ -1204,7 +1204,7 @@ private fun WalletScreen(
                                 Text(transactionTitle(item), color = Color(0xFF243B4A), fontWeight = FontWeight.SemiBold)
                                 Text(item.optString("createdAt").replace("T", " ").take(16), color = Color(0xFF81919C), style = MaterialTheme.typography.bodySmall)
                             }
-                            Text((if (credit) "+" else "−") + formatCurrencyTotals(JSONObject().put(item.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF258BB8), fontWeight = FontWeight.Bold)
+                            Text((if (item.optString("direction") == "CREDIT") "+" else if (item.optString("direction") == "DEBIT") "−" else "") + formatCurrencyTotals(JSONObject().put(item.optString("currency"), item.optString("amountMinor"))), color = Color(0xFF258BB8), fontWeight = FontWeight.Bold)
                         }
                         if (i < minOf((recentItems?.length() ?: 0) - 1, 4)) HorizontalDivider(color = Color(0xFFEAF1F5))
                     }
