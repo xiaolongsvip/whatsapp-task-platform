@@ -451,17 +451,14 @@ export class AiReviewAdminService {
     };
   }
 
-  async listEvidenceRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; taskType?: string }) {
+  async listEvidenceRecords(input: { page?: number; pageSize?: number; keyword?: string; taskType?: string }) {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
     const keyword = input.keyword?.trim() ?? "";
-    const status = input.status || "ALL";
     const configuredDays = Number(process.env.TASK_EVIDENCE_RETENTION_DAYS ?? 30);
     const retentionDays = Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 3650 ? configuredDays : 30;
     const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
     const where: any = {};
-    if (status === "SUBMITTED") where.status = { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] };
-    if (status === "URL_ISSUED") where.id = "00000000-0000-0000-0000-000000000000";
     if (keyword) where.OR = [
       { id: { contains: keyword, mode: "insensitive" } },
       { originalName: { contains: keyword, mode: "insensitive" } },
