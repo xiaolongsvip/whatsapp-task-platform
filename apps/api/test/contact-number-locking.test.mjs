@@ -25,22 +25,25 @@ test("claim reserves contact number before task slot", async () => {
   assert.ok(slotLock > numberLock, "number must be reserved before slot");
 });
 
-test("cancel and expiry release number before slot", async () => {
+test("cancel and expiry release number before slot through the shared inventory helper", async () => {
   const source = await readSource("../src/tasks/tasks.service.ts");
   const cancel = section(source, "async cancelClaim(", "private async expireOverdueClaims(");
-  assert.ok(cancel.indexOf("tx.contactNumber.updateMany") < cancel.indexOf("tx.taskSlot.updateMany"));
+  assert.ok(cancel.indexOf("tx.contactNumber.updateMany") < cancel.indexOf("tx.taskSlot.update"));
 
   const expiry = section(source, "private async expireOverdueClaims(", "async submitEvidence(");
-  assert.ok(expiry.indexOf("tx.contactNumber.updateMany") < expiry.indexOf("tx.taskSlot.updateMany"));
+  assert.match(expiry, /recycleUnsuccessfulTaskClaimInventory\(tx, claim\.id, claim\.taskId, now\)/);
+  const helper = await readSource("../src/tasks/task-claim-inventory.ts");
+  assert.ok(helper.indexOf("tx.contactNumber.updateMany") < helper.indexOf("tx.taskSlot.update"));
 });
 
 test("admin block locks claims, then number, then retires slots", async () => {
   const source = await readSource("../src/contact-numbers/contact-numbers.service.ts");
   const body = source.slice(source.indexOf("async block("));
+  const allocationLock = body.indexOf("lockTaskSlotAllocation(tx)");
   const claimLock = body.indexOf("FROM task_claims");
   const numberLock = body.indexOf("FROM contact_numbers");
   const slotUpdate = body.indexOf("tx.taskSlot.updateMany");
-  assert.ok(claimLock >= 0 && numberLock > claimLock && slotUpdate > numberLock);
+  assert.ok(allocationLock >= 0 && claimLock > allocationLock && numberLock > claimLock && slotUpdate > numberLock);
   assert.match(body, /status: \{ in: \["AVAILABLE", "ASSIGNED"\] \}/);
   assert.match(body, /status: "USED"/);
 });
