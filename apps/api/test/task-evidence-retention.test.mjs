@@ -38,3 +38,13 @@ test("evidence task-type filter composes with keyword search instead of replacin
   assert.ok(listing.includes('if (input.taskType === "TASK") where.AND = [...(where.AND ?? []),'));
   assert.ok(listing.includes('if (keyword) where.OR = ['));
 });
+
+
+test("deleted evidence is not requested by the admin image viewer and duplicate status tabs are removed", async () => {
+  const source = await readSource("../../admin/src/app/ai-reviews/EvidenceRecords.tsx");
+  assert.ok(source.includes('detail.retentionStatus === "DELETED"'));
+  assert.ok(source.includes("截图已按保留策略清理"));
+  assert.ok(source.includes('disabled={detail.retentionStatus === "DELETED"}'));
+  assert.ok(!source.includes('const tabs = [{ key: "ALL"'));
+  assert.ok(!source.includes("setTab("));
+});
