@@ -220,3 +220,19 @@ test("expiry scanning ignores recycled rejected history and selects rejected row
   assert.match(expiredRows, /assignment\.status = 'ASSIGNED'/);
   assert.match(expiredRows, /slot\.status IN \('ASSIGNED', 'AVAILABLE'\)/);
 });
+
+test("task claims serialize slot selection with FIFO allocation and reassignment", async () => {
+  const service = await read("../src/tasks/tasks.service.ts");
+  const claim = service.slice(service.indexOf("async claimTask("), service.indexOf("async startClaim("));
+  assert.ok(claim.indexOf("lockTaskSlotAllocation(tx)") >= 0);
+  assert.ok(claim.indexOf("lockTaskSlotAllocation(tx)") < claim.indexOf("FROM users"));
+  assert.ok(claim.indexOf("lockTaskSlotAllocation(tx)") < claim.indexOf("const slot = await tx.taskSlot.findUnique"));
+});
+
+test("AI auto-approval cannot settle a claim that was cancelled or otherwise closed", async () => {
+  const worker = await read("../src/ai-config/ai-review.worker.ts");
+  const approve = worker.slice(worker.indexOf("private async approve("), worker.indexOf("private async reject("));
+  assert.match(approve, /!\["SUBMITTED", "UNDER_REVIEW"\]\.includes\(submission\.status\)/);
+  assert.match(approve, /!\["SUBMITTED", "UNDER_REVIEW"\]\.includes\(claim\.status\)/);
+  assert.match(approve, /提交或领取状态已变化，停止自动结算/);
+});
