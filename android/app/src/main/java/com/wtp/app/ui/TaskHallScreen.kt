@@ -144,6 +144,13 @@ fun TaskHallScreen(
                 }
                 tasks = result.first.optJSONArray("tasks").asObjectList()
                 claims = result.second.optJSONArray("claims").asObjectList()
+                val activeId = CaptureSessionState.activeClaimId.value
+                if (!activeId.isNullOrBlank()) {
+                    val activeClaim = claims.firstOrNull { it.optString("id") == activeId }
+                    if (activeClaim == null || activeClaim.optString("status") !in setOf("CLAIMED", "IN_PROGRESS")) {
+                        CaptureSessionState.clearActiveClaim()
+                    }
+                }
                 dashboard = result.third
                 val serverTime = result.third.optString("serverTime")
                 runCatching { Instant.parse(serverTime).toEpochMilli() }.getOrNull()?.let {
