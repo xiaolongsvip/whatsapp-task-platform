@@ -95,7 +95,7 @@ test("bulk recycle endpoint reports recycling instead of terminal voiding", asyn
   const admin = await read("../src/task-admin/task-admin.service.ts");
   const bulk = admin.slice(admin.indexOf("async bulkVoidTaskRecords("), admin.indexOf("async bulkDeleteTaskRecords("));
   assert.match(bulk, /action: "RECYCLE"/);
-  assert.match(bulk, /号码已回收并重新分配/);
+  assert.match(bulk, /号码已回收到可分配库存/);
 });
 
 
