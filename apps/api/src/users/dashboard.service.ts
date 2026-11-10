@@ -320,29 +320,38 @@ export class DashboardService {
     return { totals, categories, frozenBalances: totals.map((row) => ({ currency: row.currency, amountMinor: row.frozenMinor })), frozenBalanceAvailable: true };
   }
 
-  async getWalletTransactions(userId: string, limit = 100) {
+  async getWalletTransactions(userId: string, limit = 100, beforeCreatedAt?: string, beforeId?: string) {
     const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 100, 1), 100);
+    const cursorDate = beforeCreatedAt ? new Date(beforeCreatedAt) : null;
+    const hasCursor = Boolean(cursorDate && Number.isFinite(cursorDate.getTime()) && beforeId?.trim());
+    const cursorFilter = hasCursor ? {
+      OR: [
+        { createdAt: { lt: cursorDate! } },
+        { createdAt: cursorDate!, id: { lt: beforeId!.trim() } },
+      ],
+    } : undefined;
     const wallets = await prisma.wallet.findMany({
       where: { userId },
       select: {
         id: true,
         currency: true,
         entries: {
-          orderBy: { createdAt: "desc" },
-          take,
+          where: cursorFilter,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: take + 1,
           select: { id: true, sourceType: true, sourceId: true, direction: true, amountMinor: true, currency: true, createdAt: true },
         },
         withdrawals: {
           // PAID withdrawals already have a corresponding WITHDRAWAL_PAYOUT ledger debit.
           // Keep non-paid requests visible as workflow records without duplicating posted money movement.
-          where: { status: { not: "PAID" } },
-          orderBy: { createdAt: "desc" },
-          take,
+          where: { status: { not: "PAID" }, ...(cursorFilter ?? {}) },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: take + 1,
           select: { id: true, amountMinor: true, currency: true, status: true, createdAt: true, updatedAt: true },
         },
       },
     });
-    const items = wallets.flatMap((wallet) => [
+    const merged = wallets.flatMap((wallet) => [
       ...wallet.entries.map((entry) => ({
         id: entry.id,
         type: entry.sourceType === "WITHDRAWAL_PAYOUT" ? "WITHDRAWAL" : entry.direction === "CREDIT" ? "INCOME" : "EXPENSE",
@@ -366,7 +375,9 @@ export class DashboardService {
         status: withdrawal.status,
         createdAt: withdrawal.createdAt.toISOString(),
       })),
-    ]).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, take);
+    ]).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+    const hasMore = merged.length > take;
+    const items = merged.slice(0, take);
     const totals: Record<string, { incomeMinor: string; expenseMinor: string }> = {};
     for (const wallet of wallets) {
       const currency = wallet.currency.trim();
@@ -374,7 +385,11 @@ export class DashboardService {
       const expense = wallet.entries.filter((entry) => entry.direction === "DEBIT").reduce((sum, entry) => sum + entry.amountMinor, 0n);
       totals[currency] = { incomeMinor: income.toString(), expenseMinor: expense.toString() };
     }
-    return { items, totals, hasMore: wallets.some((wallet) => wallet.entries.length === take || wallet.withdrawals.length === take) };
+    const last = items[items.length - 1];
+    return {
+      items, totals, hasMore,
+      nextCursor: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
+    };
   }
 
   async getCommissionRecords(userId: string) {
