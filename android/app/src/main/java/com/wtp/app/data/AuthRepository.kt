@@ -299,7 +299,16 @@ object AuthRepository {
 
     fun deletePayoutAccount(id: String): JSONObject = request("DELETE", "users/payout-accounts/$id")
 
-    fun publishedTasks(): JSONObject = request("GET", "tasks")
+    fun publishedTasks(limit: Int = 100, beforeCreatedAt: String? = null, beforeId: String? = null): JSONObject {
+        val query = buildString {
+            append("limit=").append(limit.coerceIn(1, 100))
+            if (!beforeCreatedAt.isNullOrBlank() && !beforeId.isNullOrBlank()) {
+                append("&beforeCreatedAt=").append(java.net.URLEncoder.encode(beforeCreatedAt, "UTF-8"))
+                append("&beforeId=").append(java.net.URLEncoder.encode(beforeId, "UTF-8"))
+            }
+        }
+        return request("GET", "tasks?$query")
+    }
 
     fun myTaskClaims(): JSONObject = request("GET", "tasks/my/claims")
 
