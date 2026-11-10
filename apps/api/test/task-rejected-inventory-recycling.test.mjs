@@ -237,3 +237,13 @@ test("AI auto-approval cannot settle a claim that was cancelled or otherwise clo
   assert.match(approve, /!\["SUBMITTED", "UNDER_REVIEW"\]\.includes\(claim\.status\)/);
   assert.match(approve, /提交或领取状态已变化，停止自动结算/);
 });
+
+
+test("rejected claims are rendered only as history and cannot be selected for another execution", async () => {
+  const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt");
+  const rejected = screen.slice(screen.indexOf("HallFilter.REJECTED -> {"), screen.indexOf("HallFilter.SETTLED -> {", screen.indexOf("HallFilter.REJECTED -> {")));
+  assert.match(rejected, /ClaimRecordCard\(claim, isEnglish\)/);
+  assert.doesNotMatch(rejected, /ClaimedTaskCard|startAndOpenWhatsApp|setActiveClaim/);
+  assert.match(rejected, /号码已回收到可分配库存/);
+  assert.match(rejected, /numbers have been recycled/);
+});
