@@ -552,24 +552,38 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         data: { status: "CANCELLED" },
       });
 
-      let numberReturnedToPool = false;
+      const now = new Date();
       if (claim.contactAssignment?.status === "ASSIGNED") {
         await tx.contactAssignment.update({
           where: { id: claim.contactAssignment.id },
-          data: { status: "RELEASED", releasedAt: new Date() },
+          data: { status: "RELEASED", releasedAt: now },
         });
-        const released = await tx.contactNumber.updateMany({
-          where: {
-            id: claim.contactAssignment.contactNumberId,
-            status: "ASSIGNED",
-            consentStatus: "GRANTED",
+      }
+      const assignedSlot = await tx.taskSlot.findUnique({
+        where: { claimId },
+        select: { id: true, contactNumberId: true, status: true },
+      });
+      const contactNumberId = claim.contactAssignment?.contactNumberId ?? assignedSlot?.contactNumberId;
+      const releasedNumber = contactNumberId
+        ? await tx.contactNumber.updateMany({
+            where: {
+              id: contactNumberId,
+              status: "ASSIGNED",
+              consentStatus: "GRANTED",
+            },
+            data: { status: "AVAILABLE" },
+          })
+        : { count: 0 };
+      if (assignedSlot && ["ASSIGNED", "AVAILABLE"].includes(assignedSlot.status)) {
+        await tx.taskSlot.update({
+          where: { id: assignedSlot.id },
+          data: {
+            status: "AVAILABLE",
+            claimId: null,
+            assignedAt: null,
+            releasedAt: now,
+            usedAt: null,
           },
-          data: { status: "AVAILABLE" },
-        });
-        numberReturnedToPool = released.count === 1;
-        await tx.taskSlot.updateMany({
-          where: { claimId, status: "ASSIGNED" },
-          data: { status: "AVAILABLE", claimId: null, assignedAt: null, releasedAt: new Date() },
         });
       }
 
@@ -577,8 +591,13 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         where: { id: claim.taskId, claimedCount: { gt: 0 } },
         data: { claimedCount: { decrement: 1 } },
       });
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
 
-      return { claimId, status: "CANCELLED", numberReturnedToPool };
+      return {
+        claimId,
+        status: "CANCELLED",
+        numberReturnedToPool: releasedNumber.count === 1,
+      };
     });
   }
 
