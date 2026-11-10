@@ -106,3 +106,10 @@ test("withdrawal creation calculates available balance with database aggregates"
   assert.match(withdrawals, /withdrawalRequest\.aggregate\([\s\S]*?_sum: \{ amountMinor: true \}/);
   assert.doesNotMatch(withdrawals, /ledgerEntry\.findMany\(\{ where: \{ walletId: wallet\.id \}/);
 });
+
+
+test("Android wallet recognizes the backend referral commission ledger source type", () => {
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(app, /"REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if \(en\) "Referral commission" else "邀请佣金"/);
+  assert.match(app, /"REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if \(en\) "Referral commissions" else "邀请佣金"/);
+});
