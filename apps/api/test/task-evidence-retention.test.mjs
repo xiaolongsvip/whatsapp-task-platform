@@ -48,3 +48,14 @@ test("deleted evidence is not requested by the admin image viewer and duplicate 
   assert.ok(!source.includes('const tabs = [{ key: "ALL"'));
   assert.ok(!source.includes("setTab("));
 });
+
+
+test("evidence listing no longer exposes duplicate or impossible status filters", async () => {
+  const service = await readSource("../src/ai-config/ai-review-admin.service.ts");
+  const controller = await readSource("../src/ai-config/ai-review-admin.controller.ts");
+  const listing = service.slice(service.indexOf("async listEvidenceRecords"), service.indexOf("async rerunAiReview"));
+  assert.ok(!listing.includes('status === "SUBMITTED"'));
+  assert.ok(!listing.includes('status === "URL_ISSUED"'));
+  assert.ok(!listing.includes("00000000-0000-0000-0000-000000000000"));
+  assert.ok(!controller.includes('@Query("status") status?: string'));
+});
