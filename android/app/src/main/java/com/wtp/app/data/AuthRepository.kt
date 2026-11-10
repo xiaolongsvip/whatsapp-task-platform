@@ -228,7 +228,16 @@ object AuthRepository {
 
     fun promotionSummary(): JSONObject = request("GET", "users/promotion")
 
-    fun commissionRecords(): JSONObject = request("GET", "users/commission-records")
+    fun commissionRecords(limit: Int = 100, beforeCreatedAt: String? = null, beforeId: String? = null): JSONObject {
+        val query = buildString {
+            append("users/commission-records?limit=$limit")
+            if (!beforeCreatedAt.isNullOrBlank() && !beforeId.isNullOrBlank()) {
+                append("&beforeCreatedAt=").append(java.net.URLEncoder.encode(beforeCreatedAt, "UTF-8"))
+                append("&beforeId=").append(java.net.URLEncoder.encode(beforeId, "UTF-8"))
+            }
+        }
+        return request("GET", query)
+    }
 
     fun walletTransactions(limit: Int = 100, beforeCreatedAt: String? = null, beforeId: String? = null): JSONObject {
         val query = buildString {
@@ -243,7 +252,17 @@ object AuthRepository {
 
     fun walletOverview(): JSONObject = request("GET", "users/wallet-overview")
 
-    fun teamMembers(): JSONObject = request("GET", "users/team")
+    fun teamMembers(limit: Int = 300, beforeCreatedAt: String? = null, beforeUserId: String? = null, beforeDepth: Int? = null): JSONObject {
+        val query = buildString {
+            append("users/team?limit=$limit")
+            if (!beforeCreatedAt.isNullOrBlank() && !beforeUserId.isNullOrBlank() && beforeDepth != null) {
+                append("&beforeCreatedAt=").append(java.net.URLEncoder.encode(beforeCreatedAt, "UTF-8"))
+                append("&beforeUserId=").append(java.net.URLEncoder.encode(beforeUserId, "UTF-8"))
+                append("&beforeDepth=").append(beforeDepth)
+            }
+        }
+        return request("GET", query)
+    }
 
     fun withdrawalHistory(): JSONObject = request("GET", "users/withdrawals")
 
