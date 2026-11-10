@@ -1412,6 +1412,16 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
                                 Text(amount, color = Color(0xFF123E56), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
                                 Text(statusLabel(item.optString("status")), color = Color(0xFF319CCB), fontWeight = FontWeight.SemiBold)
                             }
+                            val rejectionReason = item.optString("rejectionReason").takeIf {
+                                item.optString("status") == "REJECTED" && it.isNotBlank() && it != "null"
+                            }
+                            if (rejectionReason != null) {
+                                Text(
+                                    (if (isEnglish) "Rejection reason: " else "拒绝原因：") + rejectionReason,
+                                    color = Color(0xFFB42318),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                             val hasActualPayout = !item.isNull("actualPayoutAmountMinor")
                             val payoutCurrency = if (hasActualPayout) item.optString("actualPayoutCurrency", item.optString("payoutCurrency", currency)) else item.optString("payoutCurrency", currency)
                             val payoutMinor = if (hasActualPayout) item.optString("actualPayoutAmountMinor") else item.optString("payoutAmountMinor", item.optString("amountMinor", "0"))
