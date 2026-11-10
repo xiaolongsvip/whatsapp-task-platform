@@ -44,7 +44,7 @@ export class AdminAuthService {
         throw new ConflictException("管理员已经初始化，首次开通入口已关闭。");
       }
       return tx.adminUser.create({
-        data: { email, passwordHash, status: "ACTIVE" },
+        data: { email, name: email.split("@")[0] || "Administrator", login: email, passwordHash, status: "ACTIVE" },
         select: { id: true, email: true },
       });
     });
@@ -59,8 +59,8 @@ export class AdminAuthService {
 
   async login(emailInput: string, password: string) {
     const email = emailInput.trim().toLowerCase();
-    const admin = await prisma.adminUser.findUnique({
-      where: { email },
+    const admin = await prisma.adminUser.findFirst({
+      where: { OR: [{ email }, { login: email }] },
       select: { id: true, email: true, passwordHash: true, status: true },
     });
 

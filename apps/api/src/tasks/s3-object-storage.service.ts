@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { StorageConfigService } from "../storage-config/storage-config.service";
 import { createHash, createHmac } from "node:crypto";
 
 type StorageConfig = {
@@ -25,7 +26,16 @@ function awsEncode(value: string): string {
 
 @Injectable()
 export class S3ObjectStorageService {
-  private config(): StorageConfig {
+  constructor(private readonly storageConfig: StorageConfigService) {}
+
+  private async config(): Promise<StorageConfig> {
+    const saved = await this.storageConfig.getRuntimeCredentials();
+    if (saved) {
+      let endpoint: URL;
+      try { endpoint = new URL(saved.endpoint); }
+      catch { throw new ServiceUnavailableException("后台对象存储 Endpoint 无效。"); }
+      return { endpoint, bucket: saved.bucket, accessKey: saved.accessKey, secretKey: saved.secretKey, region: saved.region || "auto" };
+    }
     const endpointValue = process.env.STORAGE_ENDPOINT?.trim();
     const bucket = process.env.STORAGE_BUCKET?.trim();
     const accessKey = process.env.STORAGE_ACCESS_KEY?.trim();
@@ -59,8 +69,58 @@ export class S3ObjectStorageService {
     };
   }
 
+  async testConnection(): Promise<{ success: true; message: string }> {
+    const probeKey = `task-evidence/.connection-test/${Date.now()}-${createHash("sha256").update(String(Math.random())).digest("hex").slice(0, 12)}.txt`;
+    const payload = Buffer.from("WTP object storage connection test", "utf8");
+    await this.putObject(probeKey, payload, "text/plain");
+    try {
+      await this.deleteObject(probeKey);
+    } catch {
+      throw new ServiceUnavailableException("存储桶可以写入测试文件，但无法删除测试文件。请检查 DeleteObject 权限后清理该测试文件。");
+    }
+    return { success: true, message: "对象存储连接成功，临时测试文件已删除。" };
+  }
+
+  async createPresignedPutUrl(key: string, expiresSeconds = 3600): Promise<string> {
+    const config = await this.config();
+    const now = new Date();
+    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+    const dateStamp = amzDate.slice(0, 8);
+    const endpointPrefix = config.endpoint.pathname.replace(/\/+$/, "");
+    const encodedKey = key.split("/").map(awsEncode).join("/");
+    const canonicalUri = `${endpointPrefix}/${awsEncode(config.bucket)}/${encodedKey}`;
+    const host = config.endpoint.host;
+    const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
+    const params: Array<[string, string]> = [
+      ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
+      ["X-Amz-Credential", `${config.accessKey}/${scope}`],
+      ["X-Amz-Date", amzDate],
+      ["X-Amz-Expires", String(Math.max(60, Math.min(3600, expiresSeconds)))],
+      ["X-Amz-SignedHeaders", "host"],
+    ];
+    const canonicalQuery = params.map(([name, value]) => `${awsEncode(name)}=${awsEncode(value)}`).sort().join("&");
+    const canonicalHeaders = `host:${host}\n`;
+    const canonicalRequest = `PUT\n${canonicalUri}\n${canonicalQuery}\n${canonicalHeaders}host\nUNSIGNED-PAYLOAD`;
+    const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${sha256(canonicalRequest)}`;
+    const dateKey = hmac(Buffer.from(`AWS4${config.secretKey}`, "utf8"), dateStamp);
+    const regionKey = hmac(dateKey, config.region);
+    const serviceKey = hmac(regionKey, "s3");
+    const signingKey = hmac(serviceKey, "aws4_request");
+    const signature = createHmac("sha256", signingKey).update(stringToSign, "utf8").digest("hex");
+    const url = new URL(config.endpoint.toString());
+    url.pathname = canonicalUri;
+    url.search = canonicalQuery + "&X-Amz-Signature=" + signature;
+    return url.toString();
+  }
+
   async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
     await this.send("PUT", key, body, contentType);
+  }
+
+  async getObjectBuffer(key: string): Promise<Buffer> {
+    const result = await this.send("GET", key);
+    if (!result) throw new ServiceUnavailableException("证据存储未返回文件内容。");
+    return result;
   }
 
   async deleteObject(key: string): Promise<void> {
@@ -68,12 +128,12 @@ export class S3ObjectStorageService {
   }
 
   private async send(
-    method: "PUT" | "DELETE",
+    method: "PUT" | "GET" | "DELETE",
     key: string,
     body: Buffer = Buffer.alloc(0),
     contentType?: string,
-  ): Promise<void> {
-    const config = this.config();
+  ): Promise<Buffer | void> {
+    const config = await this.config();
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
     const dateStamp = amzDate.slice(0, 8);
@@ -135,6 +195,13 @@ export class S3ObjectStorageService {
       throw new ServiceUnavailableException(
         `证据存储请求失败（HTTP ${response.status}）。请检查桶名称、区域和访问密钥权限。`,
       );
+    }
+    if (method === "GET") {
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length > 8 * 1024 * 1024) {
+        throw new ServiceUnavailableException("证据图片超过审核读取大小限制。");
+      }
+      return bytes;
     }
   }
 }

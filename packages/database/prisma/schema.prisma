@@ -60,6 +60,25 @@ enum WithdrawalStatus {
   CANCELLED
 }
 
+enum PayoutAccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum PaymentFlow {
+  DEPOSIT
+  PAYOUT
+}
+
+enum PaymentTransactionStatus {
+  CREATED
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 enum ContactNumberStatus {
   AVAILABLE
   ASSIGNED
@@ -83,11 +102,37 @@ enum TaskSlotStatus {
   AVAILABLE
   ASSIGNED
   USED
+  VOIDED
 }
 
 enum AdminStatus {
   ACTIVE
   DISABLED
+}
+
+enum DeviceStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum WalletHoldStatus {
+  ACTIVE
+  RELEASED
+  CAPTURED
+}
+
+enum WalletHoldEventType {
+  FROZEN
+  RELEASED
+  CAPTURED
+}
+
+enum AiReviewJobStatus {
+  PENDING
+  PROCESSING
+  RETRY
+  COMPLETED
+  NEEDS_REVIEW
 }
 
 model User {
@@ -99,6 +144,7 @@ model User {
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
   profile               UserProfile?
+  emailChallenges       EmailVerificationChallenge[]
   invitedBy             ReferralEdge?           @relation("Invitee")
   invitees              ReferralEdge[]          @relation("Inviter")
   ancestors             ReferralAncestor[]      @relation("Descendant")
@@ -108,9 +154,58 @@ model User {
   adminIdentity         AdminUser?
   sessions              AuthSession[]
   contactAssignments    ContactAssignment[]
+  payoutAccounts        PayoutAccount[]
+  paymentTransactions   PaymentTransaction[]
+  devices               UserDevice[]
 
   @@index([status, createdAt])
   @@map("users")
+}
+
+
+model UserDevice {
+  id                 String             @id @default(uuid()) @db.Uuid
+  userId             String             @map("user_id") @db.Uuid
+  deviceIdentifier   String             @map("device_identifier")
+  manufacturer       String?
+  model              String
+  androidVersion     String?            @map("android_version")
+  sdkInt             Int?               @map("sdk_int")
+  appVersion         String             @map("app_version")
+  firstSeenAt        DateTime           @default(now()) @map("first_seen_at")
+  lastSeenAt         DateTime           @default(now()) @map("last_seen_at")
+  status             DeviceStatus       @default(ACTIVE)
+  isFlagged          Boolean            @default(false) @map("is_flagged")
+  flagReason         String?            @map("flag_reason")
+  statusUpdatedAt    DateTime           @default(now()) @map("status_updated_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events             UserDeviceEvent[]
+
+  @@unique([userId, deviceIdentifier])
+  @@index([userId, lastSeenAt])
+  @@index([deviceIdentifier])
+  @@index([status, isFlagged])
+  @@map("user_devices")
+}
+
+model UserDeviceEvent {
+  id               String     @id @default(uuid()) @db.Uuid
+  deviceId         String     @map("device_id") @db.Uuid
+  eventType        String     @map("event_type")
+  manufacturer     String?
+  model            String
+  androidVersion   String?    @map("android_version")
+  appVersion       String     @map("app_version")
+  sdkInt           Int?       @map("sdk_int")
+  actorId          String?    @map("actor_id") @db.Uuid
+  reason           String?    @db.Text
+  createdAt        DateTime   @default(now()) @map("created_at")
+  device           UserDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, createdAt])
+  @@map("user_device_events")
 }
 
 model AuthSession {
@@ -129,8 +224,13 @@ model AuthSession {
 model UserProfile {
   userId       String   @id @map("user_id") @db.Uuid
   displayName  String?  @map("display_name")
+  email        String?  @unique @db.VarChar(254)
+  emailVerifiedAt DateTime? @map("email_verified_at")
   locale       String   @default("en")
   timezone     String   @default("UTC")
+  dailyTaskLimit Int?    @map("daily_task_limit")
+  minClaimIntervalSeconds Int? @map("min_claim_interval_seconds")
+  reputationScore Int    @default(60) @map("reputation_score")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -164,6 +264,22 @@ model ReferralAncestor {
   @@map("referral_ancestors")
 }
 
+model EmailVerificationChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  email      String    @db.VarChar(254)
+  codeHash   String    @map("code_hash") @db.Char(64)
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([email, expiresAt])
+  @@map("email_verification_challenges")
+}
+
 model ContactImportBatch {
   id                String          @id @default(uuid()) @db.Uuid
   fileName          String?         @map("file_name")
@@ -183,6 +299,8 @@ model ContactImportBatch {
 model ContactNumber {
   id              String                @id @default(uuid()) @db.Uuid
   phoneE164       String                @unique @map("phone_e164")
+  countryCode     String?               @map("country_code") @db.Char(2)
+  countryName     String?               @map("country_name") @db.VarChar(100)
   status          ContactNumberStatus   @default(AVAILABLE)
   consentStatus   ContactConsentStatus  @default(UNKNOWN) @map("consent_status")
   consentSource   String?               @map("consent_source") @db.Text
@@ -199,6 +317,7 @@ model ContactNumber {
   consentEvents   ContactConsentEvent[]
 
   @@index([status, consentStatus, importOrder])
+  @@index([countryCode, importOrder])
   @@index([importBatchId, importOrder])
   @@map("contact_numbers")
 }
@@ -257,6 +376,8 @@ model Task {
   title        String
   description  String      @db.Text
   category     String
+  groupId      String?     @map("group_id") @db.Uuid
+  group        TaskGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
   status       TaskStatus  @default(DRAFT)
   rewardMinor  BigInt      @map("reward_minor")
   currency     String      @db.Char(3)
@@ -276,7 +397,20 @@ model Task {
   slots        TaskSlot[]
 
   @@index([status, startsAt, endsAt])
+  @@index([groupId])
   @@map("tasks")
+}
+
+
+model TaskGroup {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  tasks       Task[]
+
+  @@map("task_groups")
 }
 
 model TaskClaim {
@@ -309,24 +443,47 @@ model TaskSubmission {
   mimeType       String?          @map("mime_type")
   sizeBytes      Int?             @map("size_bytes")
   originalName   String?          @map("original_name")
+  contentSha256  String?          @map("content_sha256") @db.Char(64)
   submittedAt    DateTime         @default(now()) @map("submitted_at")
   claim          TaskClaim        @relation(fields: [claimId], references: [id], onDelete: Restrict)
   reviews        TaskReview[]
+  aiReviewJob    AiReviewJob?
 
   @@index([status, submittedAt])
   @@index([claimId, submittedAt])
+  @@index([contentSha256])
   @@map("task_submissions")
+}
+
+model AiReviewJob {
+  id             String           @id @default(uuid()) @db.Uuid
+  submissionId   String           @unique @map("submission_id") @db.Uuid
+  status         AiReviewJobStatus @default(PENDING)
+  attemptCount   Int              @default(0) @map("attempt_count")
+  nextAttemptAt  DateTime         @default(now()) @map("next_attempt_at")
+  lockedAt       DateTime?        @map("locked_at")
+  lastError      String?          @map("last_error") @db.Text
+  decision       String?
+  confidence     Float?
+  reason         String?          @db.Text
+  extractedText  String?          @map("extracted_text") @db.Text
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  submission     TaskSubmission   @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@map("ai_review_jobs")
 }
 
 model TaskReview {
   id                String         @id @default(uuid()) @db.Uuid
   submissionId      String         @map("submission_id") @db.Uuid
-  reviewerAdminId   String         @map("reviewer_admin_id") @db.Uuid
+  reviewerAdminId   String?        @map("reviewer_admin_id") @db.Uuid
   decision          ReviewDecision
   reason            String?        @db.Text
   reviewedAt        DateTime       @default(now()) @map("reviewed_at")
   submission        TaskSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
-  reviewer          AdminUser      @relation(fields: [reviewerAdminId], references: [id], onDelete: Restrict)
+  reviewer          AdminUser?     @relation(fields: [reviewerAdminId], references: [id], onDelete: Restrict)
 
   @@index([submissionId, reviewedAt])
   @@map("task_reviews")
@@ -340,6 +497,8 @@ model Wallet {
   user      User              @relation(fields: [userId], references: [id], onDelete: Restrict)
   entries   LedgerEntry[]
   withdrawals WithdrawalRequest[]
+  paymentTransactions PaymentTransaction[]
+  holds WalletHold[]
 
   @@unique([userId, currency])
   @@map("wallets")
@@ -360,6 +519,47 @@ model LedgerEntry {
   @@index([walletId, createdAt])
   @@index([sourceType, sourceId])
   @@map("ledger_entries")
+}
+
+model WalletHold {
+  id              String            @id @default(uuid()) @db.Uuid
+  walletId        String            @map("wallet_id") @db.Uuid
+  amountMinor     BigInt            @map("amount_minor")
+  currency        String            @db.Char(3)
+  status          WalletHoldStatus  @default(ACTIVE)
+  reason          String            @db.VarChar(500)
+  referenceType   String?           @map("reference_type") @db.VarChar(80)
+  referenceId     String?           @map("reference_id") @db.VarChar(160)
+  idempotencyKey  String            @unique @map("idempotency_key")
+  createdByAdminId String           @map("created_by_admin_id") @db.Uuid
+  resolvedByAdminId String?         @map("resolved_by_admin_id") @db.Uuid
+  resolvedAt      DateTime?         @map("resolved_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  wallet          Wallet            @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  events          WalletHoldEvent[]
+  createdBy       AdminUser         @relation("WalletHoldCreator", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  resolvedBy      AdminUser?        @relation("WalletHoldResolver", fields: [resolvedByAdminId], references: [id], onDelete: Restrict)
+
+  @@index([walletId, status, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("wallet_holds")
+}
+
+model WalletHoldEvent {
+  id             String              @id @default(uuid()) @db.Uuid
+  holdId         String              @map("hold_id") @db.Uuid
+  eventType      WalletHoldEventType @map("event_type")
+  amountMinor    BigInt              @map("amount_minor")
+  reason         String              @db.VarChar(500)
+  adminId        String              @map("admin_id") @db.Uuid
+  idempotencyKey String              @unique @map("idempotency_key")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  hold           WalletHold          @relation(fields: [holdId], references: [id], onDelete: Restrict)
+  admin          AdminUser           @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([holdId, createdAt])
+  @@map("wallet_hold_events")
 }
 
 model ReferralReward {
@@ -386,17 +586,156 @@ model WithdrawalRequest {
   status        WithdrawalStatus @default(REQUESTED)
   reviewedById  String?          @map("reviewed_by_id") @db.Uuid
   payoutReference String?         @map("payout_reference")
+  payoutAccountId String?          @map("payout_account_id") @db.Uuid
+  payoutCurrency String?           @map("payout_currency") @db.Char(3)
+  payoutAmountMinor BigInt?        @map("payout_amount_minor")
+  exchangeRate Decimal?            @map("exchange_rate") @db.Decimal(30, 12)
+  exchangeRateSource String?       @map("exchange_rate_source") @db.VarChar(80)
+  exchangeRateFetchedAt DateTime?  @map("exchange_rate_fetched_at")
+  exchangeRateProviderUpdatedAt DateTime? @map("exchange_rate_provider_updated_at")
+  exchangeRateEffectiveAt DateTime? @map("exchange_rate_effective_at")
+  feeAmountMinor BigInt?           @map("fee_amount_minor")
+  feeCurrency String?              @map("fee_currency") @db.Char(3)
+  payoutMethod String?             @map("payout_method") @db.VarChar(40)
+  payoutProviderCode String?       @map("payout_provider_code") @db.VarChar(80)
+  payoutNetwork String?            @map("payout_network") @db.VarChar(20)
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
   wallet        Wallet           @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  payoutAccount PayoutAccount?    @relation(fields: [payoutAccountId], references: [id], onDelete: Restrict)
+  paymentTransactions PaymentTransaction[]
 
   @@index([status, createdAt])
+  @@index([payoutAccountId])
   @@map("withdrawal_requests")
+}
+
+model PayoutAccount {
+  id                       String             @id @default(uuid()) @db.Uuid
+  userId                   String             @map("user_id") @db.Uuid
+  countryCode              String             @map("country_code") @db.Char(2)
+  currency                 String             @db.Char(3)
+  bankCode                 String?            @map("bank_code") @db.VarChar(80)
+  network                  String?            @db.VarChar(20)
+  providerCode             String             @map("provider_code")
+  methodCode               String             @map("method_code")
+  accountHolder            String             @map("account_holder")
+  accountDetailsCiphertext String             @map("account_details_ciphertext") @db.Text
+  accountDetailsIv         String             @map("account_details_iv")
+  accountDetailsTag        String             @map("account_details_tag")
+  maskedAccount            String             @map("masked_account")
+  status                   PayoutAccountStatus @default(ACTIVE)
+  isDefault                Boolean            @default(false) @map("is_default")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+  user                     User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  withdrawals              WithdrawalRequest[]
+
+  @@index([userId, status, createdAt])
+  @@map("payout_accounts")
+}
+
+model PaymentProviderConfig {
+  id                    String   @id @default(uuid()) @db.Uuid
+  providerCode          String   @unique @map("provider_code")
+  displayName           String   @map("display_name")
+  serviceProviderName   String   @default("") @map("service_provider_name")
+  countryCode           String   @default("GLOBAL") @map("country_code")
+  methodCode            String   @default("BANK_TRANSFER") @map("method_code")
+  supportedChannels     String[] @default([]) @map("supported_channels")
+  minimumPayoutMinor    BigInt?  @map("minimum_payout_minor")
+  maximumPayoutMinor    BigInt?  @map("maximum_payout_minor")
+  apiBaseUrl            String?  @map("api_base_url")
+  merchantId            String?  @map("merchant_id")
+  environment           String   @default("SANDBOX")
+  credentialsCiphertext String?  @map("credentials_ciphertext") @db.Text
+  credentialsIv         String?  @map("credentials_iv")
+  credentialsTag        String?  @map("credentials_tag")
+  webhookSecretCiphertext String? @map("webhook_secret_ciphertext") @db.Text
+  webhookSecretIv       String?  @map("webhook_secret_iv")
+  webhookSecretTag      String?  @map("webhook_secret_tag")
+  enabled               Boolean  @default(false)
+  supportedCurrencies   String[] @default([]) @map("supported_currencies")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  transactions          PaymentTransaction[]
+
+  @@map("payment_provider_configs")
+}
+
+model PaymentTransaction {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  userId                String                  @map("user_id") @db.Uuid
+  walletId              String?                 @map("wallet_id") @db.Uuid
+  withdrawalRequestId   String?                 @map("withdrawal_request_id") @db.Uuid
+  providerCode          String                  @map("provider_code")
+  flow                  PaymentFlow
+  status                PaymentTransactionStatus @default(CREATED)
+  amountMinor           BigInt                  @map("amount_minor")
+  currency              String                  @db.Char(3)
+  idempotencyKey        String                  @unique @map("idempotency_key")
+  providerTransactionId String?                 @map("provider_transaction_id")
+  providerReference     String?                 @map("provider_reference")
+  failureCode           String?                 @map("failure_code")
+  failureMessage        String?                 @map("failure_message") @db.Text
+  metadata              Json?
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  wallet                Wallet?                 @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  withdrawalRequest     WithdrawalRequest?      @relation(fields: [withdrawalRequestId], references: [id], onDelete: Restrict)
+  provider              PaymentProviderConfig   @relation(fields: [providerCode], references: [providerCode], onDelete: Restrict)
+
+  @@unique([providerCode, providerTransactionId])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([withdrawalRequestId])
+  @@map("payment_transactions")
+}
+
+model AiReviewConfig {
+  id               String   @id @default("default")
+  apiKeyCiphertext String?  @map("api_key_ciphertext") @db.Text
+  apiKeyIv         String?  @map("api_key_iv")
+  apiKeyTag        String?  @map("api_key_tag")
+  baseUrl          String   @default("https://api.openai.com/v1") @map("base_url")
+  model            String   @default("gpt-4.1")
+  enabled          Boolean  @default(false)
+  approveThreshold Float   @default(0.9) @map("approve_threshold")
+  rejectThreshold  Float   @default(0.9) @map("reject_threshold")
+  systemPrompt     String?  @map("system_prompt") @db.Text
+  updatedByAdminId String?  @map("updated_by_admin_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_review_configs")
+}
+
+model ObjectStorageConfig {
+  id                  String   @id @default("default")
+  endpoint            String   @db.Text
+  bucket              String
+  region              String   @default("auto")
+  accessKeyCiphertext String?    @map("access_key_ciphertext") @db.Text
+  accessKeyIv         String?    @map("access_key_iv")
+  accessKeyTag        String?    @map("access_key_tag")
+  secretKeyCiphertext String?    @map("secret_key_ciphertext") @db.Text
+  secretKeyIv         String?    @map("secret_key_iv")
+  secretKeyTag        String?    @map("secret_key_tag")
+  enabled             Boolean  @default(false)
+  updatedByAdminId    String?  @map("updated_by_admin_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("object_storage_configs")
 }
 
 model AdminUser {
   id           String       @id @default(uuid()) @db.Uuid
   userId       String?      @unique @map("user_id") @db.Uuid
+  name         String       @default("Administrator") @db.VarChar(120)
+  login        String       @unique @default("") @db.VarChar(80)
+  phone        String?      @db.VarChar(40)
   email        String       @unique
   passwordHash String       @map("password_hash")
   status       AdminStatus  @default(ACTIVE)
@@ -406,6 +745,9 @@ model AdminUser {
   reviews      TaskReview[]
   sessions     AdminSession[]
   importBatches ContactImportBatch[]
+  walletHoldsCreated WalletHold[] @relation("WalletHoldCreator")
+  walletHoldsResolved WalletHold[] @relation("WalletHoldResolver")
+  walletHoldEvents WalletHoldEvent[]
 
   @@map("admin_users")
 }
@@ -427,6 +769,10 @@ model Role {
   id          String       @id @default(uuid()) @db.Uuid
   name        String       @unique
   description String?
+  status      String       @default("ACTIVE") @db.VarChar(20)
+  isSystem    Boolean      @default(false) @map("is_system")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at")
   permissions RolePermission[]
   users       AdminUserRole[]
 
@@ -462,6 +808,52 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+
+model RiskRule {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String    @db.VarChar(160)
+  category       String    @db.VarChar(80)
+  impactScore    Int       @default(0) @map("impact_score")
+  executionOrder Int       @default(100) @map("execution_order")
+  startsAt       DateTime? @map("starts_at")
+  endsAt         DateTime? @map("ends_at")
+  status         String    @default("DRAFT") @db.VarChar(20)
+  description    String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, executionOrder])
+  @@index([category])
+  @@map("risk_rules")
+}
+
+
+model AdminHttpRequestLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  requestId     String   @unique @map("request_id") @db.VarChar(100)
+  adminUserId   String?  @map("admin_user_id") @db.Uuid
+  method        String   @db.VarChar(12)
+  path          String   @db.Text
+  module        String   @db.VarChar(100)
+  action        String   @db.Text
+  targetId      String?  @map("target_id") @db.VarChar(200)
+  ipAddress     String?  @map("ip_address") @db.VarChar(100)
+  userAgent     String?  @map("user_agent") @db.Text
+  statusCode    Int      @map("status_code")
+  result        String   @db.VarChar(20)
+  errorCode     String?  @map("error_code") @db.VarChar(160)
+  requestData   Json?    @map("request_data")
+  responseData  Json?    @map("response_data")
+  durationMs    Int      @default(0) @map("duration_ms")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([adminUserId, createdAt])
+  @@index([module, createdAt])
+  @@index([result, createdAt])
+  @@map("admin_http_request_logs")
+}
+
 model AuditEvent {
   id         String   @id @default(uuid()) @db.Uuid
   actorType  String   @map("actor_type")
@@ -475,4 +867,46 @@ model AuditEvent {
   @@index([actorType, actorId, createdAt])
   @@index([targetType, targetId, createdAt])
   @@map("audit_events")
+}
+
+model FinanceReconciliationRun {
+  id                String   @id @default(uuid()) @db.Uuid
+  triggerType       String   @default("MANUAL") @map("trigger_type") @db.VarChar(30)
+  status            String   @default("SUCCESS") @db.VarChar(30)
+  checkedCount      Int      @default(0) @map("checked_count")
+  exceptionCount    Int      @default(0) @map("exception_count")
+  summary           Json?
+  items             Json?
+  createdByAdminId  String   @map("created_by_admin_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  completedAt       DateTime? @map("completed_at")
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@map("finance_reconciliation_runs")
+}
+
+model MessageTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(160)
+  platform  String   @default("WhatsApp") @db.VarChar(40)
+  platformCode String? @map("platform_code") @db.VarChar(40)
+  action    String   @default("MESSAGE") @db.VarChar(40)
+  content   String   @db.Text
+  language  String?  @db.VarChar(40)
+  keywords  String?  @db.Text
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([enabled, platform, action])
+  @@index([name])
+  @@map("message_templates")
+}
+
+model TaskConfiguration {
+  key       String   @id @db.VarChar(80)
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@map("task_configurations")
 }

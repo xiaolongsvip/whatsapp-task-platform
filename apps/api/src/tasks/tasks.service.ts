@@ -3,13 +3,16 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "../users/dashboard.service";
 import { S3ObjectStorageService } from "./s3-object-storage.service";
 
 const DAILY_TASK_LIMIT = 20;
+const DEFAULT_MIN_CLAIM_INTERVAL_SECONDS = 60;
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
 type EvidenceFile = {
@@ -64,7 +67,9 @@ function publicSubmission(submission: {
   mimeType: string | null;
   sizeBytes: number | null;
   originalName: string | null;
+  reviews?: Array<{ decision: string; reason: string | null; reviewedAt: Date }>;
 }) {
+  const latestReview = submission.reviews?.[0];
   return {
     id: submission.id,
     claimId: submission.claimId,
@@ -73,12 +78,43 @@ function publicSubmission(submission: {
     mimeType: submission.mimeType,
     sizeBytes: submission.sizeBytes,
     originalName: submission.originalName,
+    reviewDecision: latestReview?.decision ?? null,
+    reviewReason: latestReview?.reason ?? null,
+    reviewedAt: latestReview?.reviewedAt.toISOString() ?? null,
   };
 }
 
 @Injectable()
-export class TasksService {
+export class TasksService implements OnModuleInit, OnModuleDestroy {
+  private expiryTimer: ReturnType<typeof setInterval> | null = null;
+  private expiryRunInProgress = false;
+
   constructor(private readonly storage: S3ObjectStorageService) {}
+
+  onModuleInit() {
+    // Recover expired assignments in the background, even when the member app
+    // is closed and no further API request is made.
+    this.expiryTimer = setInterval(() => {
+      if (this.expiryRunInProgress) return;
+      this.expiryRunInProgress = true;
+      void this.expireOverdueClaims().catch((error: unknown) => {
+        console.error("[tasks] automatic claim expiry failed", error);
+      }).finally(() => {
+        this.expiryRunInProgress = false;
+      });
+    }, 15_000);
+    this.expiryTimer.unref?.();
+
+    // Run once on startup to recover claims left behind by a previous process.
+    void this.expireOverdueClaims().catch((error: unknown) => {
+      console.error("[tasks] startup claim expiry failed", error);
+    });
+  }
+
+  onModuleDestroy() {
+    if (this.expiryTimer) clearInterval(this.expiryTimer);
+    this.expiryTimer = null;
+  }
 
   async listPublished(userId: string) {
     await this.expireOverdueClaims(userId);
@@ -133,6 +169,7 @@ export class TasksService {
   }
 
   async myClaims(userId: string) {
+    // Expiry recovery applies the current global deadline to legacy claims.
     await this.expireOverdueClaims(userId);
     const claims = await prisma.taskClaim.findMany({
       where: { userId },
@@ -167,6 +204,15 @@ export class TasksService {
             mimeType: true,
             sizeBytes: true,
             originalName: true,
+            reviews: {
+              orderBy: { reviewedAt: "desc" },
+              take: 1,
+              select: {
+                decision: true,
+                reason: true,
+                reviewedAt: true,
+              },
+            },
           },
         },
       },
@@ -196,11 +242,15 @@ export class TasksService {
     await this.expireOverdueClaims(userId);
     const replay = await prisma.taskClaim.findUnique({
       where: { idempotencyKey: key },
-      include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
+      include: {
+        task: true,
+        taskSlot: true,
+        contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
+      },
     });
     if (replay) {
-      if (replay.userId !== userId || replay.taskId !== taskId) {
-        throw new ConflictException("该幂等键已用于其他任务领取。");
+      if (replay.userId !== userId || replay.taskId !== taskId || replay.taskSlot?.id !== slotId) {
+        throw new ConflictException("该幂等键已用于其他任务或号码领取。");
       }
       return this.claimResponse(replay);
     }
@@ -210,6 +260,20 @@ export class TasksService {
     try {
       const claim = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+        const [userPolicy, limitsRow] = await Promise.all([
+          tx.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } }),
+          tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } }),
+        ]);
+        const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
+          ? limitsRow.value as Record<string, unknown>
+          : {};
+        const positiveInteger = (value: unknown, fallback: number) => {
+          const parsed = Number(value);
+          return Number.isInteger(parsed) && parsed >= 1 && parsed <= 1000000 ? parsed : fallback;
+        };
+        const dailyTaskLimit = userPolicy?.dailyTaskLimit ?? positiveInteger(globalLimits.dailyLimit, DAILY_TASK_LIMIT);
+        const minClaimIntervalSeconds = userPolicy?.minClaimIntervalSeconds ?? positiveInteger(globalLimits.minimumIntervalSeconds, DEFAULT_MIN_CLAIM_INTERVAL_SECONDS);
+        const taskTimeLimitMinutes = positiveInteger(globalLimits.taskTimeLimitMinutes, 3);
         const slot = await tx.taskSlot.findUnique({
           where: { id: slotId },
           include: { task: true, contactNumber: true },
@@ -225,16 +289,51 @@ export class TasksService {
           throw new ConflictException("该号码当前不可分配，请刷新任务大厅。");
         }
 
+        // A user may hold only one unfinished task at a time. Keep the lock
+        // on the user row above so concurrent claim requests cannot bypass this.
+        // Count only claims that are genuinely still active.
+        // Expired/stale CLAIMED, IN_PROGRESS or REJECTED rows must never
+        // permanently block a member from taking another task. Pending
+        // submissions remain blocking until review is completed.
         const activeClaims = await tx.taskClaim.count({
-          where: { userId, status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] } },
+          where: {
+            userId,
+            OR: [
+              {
+                status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+                expiresAt: { gt: now },
+              },
+              {
+                status: { in: ["SUBMITTED", "UNDER_REVIEW"] },
+              },
+            ],
+          },
         });
-        if (activeClaims >= 3) {
-          throw new ConflictException("最多同时保留 3 个未完成任务，请先完成或放弃一个任务。");
+        if (activeClaims >= 1) {
+          throw new ConflictException("一次只能领取一个任务，请先完成当前任务后再领取下一个。");
         }
         const claimedToday = await tx.taskClaim.count({ where: { userId, claimedAt: { gte: today } } });
-        if (claimedToday >= DAILY_TASK_LIMIT) {
-          throw new ConflictException("已达到每日领取上限（" + DAILY_TASK_LIMIT + " 个任务）。");
+        if (claimedToday >= dailyTaskLimit) {
+          throw new ConflictException("已达到每日领取上限（" + dailyTaskLimit + " 个任务）。");
         }
+        if (minClaimIntervalSeconds > 0) {
+          const latestClaim = await tx.taskClaim.findFirst({ where: { userId }, orderBy: { claimedAt: "desc" }, select: { claimedAt: true } });
+          if (latestClaim) {
+            const elapsedSeconds = Math.floor((now.getTime() - latestClaim.claimedAt.getTime()) / 1000);
+            if (elapsedSeconds < minClaimIntervalSeconds) {
+              throw new ConflictException("领取间隔尚未达到要求，请等待 " + (minClaimIntervalSeconds - elapsedSeconds) + " 秒后重试。");
+            }
+          }
+        }
+
+        // Keep the inventory lock order consistent with cancellation, expiry,
+        // and admin blocking: contact number first, then task slot. If the slot
+        // reservation fails, the transaction rolls the number reservation back.
+        const numberReserved = await tx.contactNumber.updateMany({
+          where: { id: slot.contactNumberId, status: "AVAILABLE", consentStatus: "GRANTED" },
+          data: { status: "ASSIGNED" },
+        });
+        if (numberReserved.count !== 1) throw new ConflictException("号码刚刚被其他用户领取，请刷新后重试。");
 
         const slotReserved = await tx.taskSlot.updateMany({
           where: { id: slotId, status: "AVAILABLE", claimId: null },
@@ -242,15 +341,11 @@ export class TasksService {
         });
         if (slotReserved.count !== 1) throw new ConflictException("该号码任务刚刚被其他用户领取，请刷新后重试。");
 
-        const numberReserved = await tx.contactNumber.updateMany({
-          where: { id: slot.contactNumberId, status: "AVAILABLE", consentStatus: "GRANTED" },
-          data: { status: "ASSIGNED" },
-        });
-        if (numberReserved.count !== 1) throw new ConflictException("号码刚刚被其他用户领取，请刷新后重试。");
-
         const created = await tx.taskClaim.create({
           data: {
-            taskId, userId, status: "CLAIMED", idempotencyKey: key, expiresAt: null,
+            taskId, userId, status: "CLAIMED", idempotencyKey: key,
+            // A claim that is never started must not reserve a phone forever.
+            expiresAt: new Date(now.getTime() + taskTimeLimitMinutes * 60 * 1000),
             contactAssignment: {
               create: { contactNumberId: slot.contactNumberId, userId, status: "ASSIGNED" },
             },
@@ -269,9 +364,15 @@ export class TasksService {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
         const existing = await prisma.taskClaim.findUnique({
           where: { idempotencyKey: key },
-          include: { task: true, contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } } },
+          include: {
+            task: true,
+            taskSlot: true,
+            contactAssignment: { include: { contactNumber: { select: { phoneE164: true } } } },
+          },
         });
-        if (existing && existing.userId === userId && existing.taskId === taskId) return this.claimResponse(existing);
+        if (existing && existing.userId === userId && existing.taskId === taskId && existing.taskSlot?.id === slotId) {
+          return this.claimResponse(existing);
+        }
       }
       throw error;
     }
@@ -297,18 +398,30 @@ export class TasksService {
       if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能开始或继续。");
       }
+      const now = new Date();
+      if (claim.expiresAt && claim.expiresAt <= now) {
+        throw new ConflictException("任务领取已过期，请返回任务大厅重新领取。");
+      }
+      if (claim.status === "REJECTED" && !claim.expiresAt) {
+        throw new ConflictException("该驳回任务没有剩余执行时间，不能重新开始。");
+      }
       if (claim.status === "IN_PROGRESS" && claim.expiresAt) {
-        if (claim.expiresAt <= new Date()) {
-          throw new ConflictException("任务时间已结束，请返回任务大厅重新领取。");
-        }
         return this.claimResponse(claim);
       }
-      const now = new Date();
       if (claim.task.endsAt && claim.task.endsAt <= now) {
         throw new ConflictException("任务已结束，无法开始。");
       }
-      const expiresAt = new Date(Math.min(
-        now.getTime() + 3 * 60 * 1000,
+      // The three-minute deadline starts when the task is claimed, not when
+      // the member opens WhatsApp. Starting or restarting never extends it.
+      // The fallback only supports legacy claims created without expiresAt.
+      const limitsRow = await tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } });
+      const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
+        ? limitsRow.value as Record<string, unknown>
+        : {};
+      const configuredMinutes = Number(globalLimits.taskTimeLimitMinutes);
+      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000 ? configuredMinutes : 3;
+      const expiresAt = claim.expiresAt ?? new Date(Math.min(
+        now.getTime() + taskTimeLimitMinutes * 60 * 1000,
         claim.task.endsAt?.getTime() ?? Number.POSITIVE_INFINITY,
       ));
       const started = await tx.taskClaim.update({
@@ -393,10 +506,48 @@ export class TasksService {
     });
   }
 
-  private async expireOverdueClaims(userId: string) {
+  private async expireOverdueClaims(userId?: string) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
-      const expiredRows = await tx.$queryRaw<Array<{ id: string }>>`
+      const limitsRow = await tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } });
+      const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
+        ? limitsRow.value as Record<string, unknown>
+        : {};
+      const configuredMinutes = Number(globalLimits.taskTimeLimitMinutes);
+      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000 ? configuredMinutes : 3;
+      // Backfill deadlines for legacy active claims before checking expiry.
+      // Without this, expires_at IS NULL rows are invisible to the expiry
+      // query but still count as active in claimTask(), permanently blocking
+      // the member from claiming another task.
+      if (userId) {
+        await tx.$executeRaw`
+          UPDATE task_claims AS claim
+          SET expires_at = LEAST(
+            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
+            COALESCE(task.ends_at, 'infinity'::timestamptz)
+          )
+          FROM tasks AS task
+          WHERE claim.task_id = task.id
+            AND claim.user_id = ${userId}::uuid
+            AND claim.expires_at IS NULL
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        `;
+      } else {
+        await tx.$executeRaw`
+          UPDATE task_claims AS claim
+          SET expires_at = LEAST(
+            claim.claimed_at + (${taskTimeLimitMinutes} * INTERVAL '1 minute'),
+            COALESCE(task.ends_at, 'infinity'::timestamptz)
+          )
+          FROM tasks AS task
+          WHERE claim.task_id = task.id
+            AND claim.expires_at IS NULL
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        `;
+      }
+
+      const expiredRows = userId
+        ? await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id
         FROM task_claims
         WHERE user_id = ${userId}::uuid
@@ -404,7 +555,17 @@ export class TasksService {
           AND expires_at <= ${now}
           AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
         ORDER BY expires_at ASC
-        LIMIT 100
+        LIMIT 200
+        FOR UPDATE SKIP LOCKED
+      `
+        : await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM task_claims
+        WHERE expires_at IS NOT NULL
+          AND expires_at <= ${now}
+          AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+        ORDER BY expires_at ASC
+        LIMIT 200
         FOR UPDATE SKIP LOCKED
       `;
 
@@ -464,6 +625,11 @@ export class TasksService {
     }
 
     const detected = evidenceType(file.buffer);
+    const aiConfig = await prisma.aiReviewConfig.findUnique({
+      where: { id: "default" },
+      select: { enabled: true, apiKeyCiphertext: true },
+    });
+    const queueForAi = aiConfig?.enabled === true && Boolean(aiConfig.apiKeyCiphertext);
     const replay = await prisma.taskSubmission.findUnique({
       where: { idempotencyKey: key },
       include: { claim: { select: { userId: true, id: true } } },
@@ -483,7 +649,7 @@ export class TasksService {
     if (claim.expiresAt && claim.expiresAt < new Date()) {
       throw new ConflictException("该任务领取已过期，不能再提交证据。");
     }
-    if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+    if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
       throw new ConflictException("该任务当前状态不允许提交证据。");
     }
     const pending = await prisma.taskSubmission.findFirst({
@@ -491,6 +657,29 @@ export class TasksService {
       select: { id: true },
     });
     if (pending) throw new ConflictException("该任务已有一份待审核提交，请勿重复提交。");
+
+    const contentSha256 = createHash("sha256").update(file.buffer).digest("hex");
+    const riskConfigRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.riskSettings" }, select: { value: true } });
+    const riskConfig = riskConfigRow?.value && typeof riskConfigRow.value === "object" && !Array.isArray(riskConfigRow.value)
+      ? riskConfigRow.value as Record<string, unknown> : {};
+    const crossAccountDuplicate = riskConfig.crossAccountScreenshotSimilarity === true
+      ? await prisma.taskSubmission.findFirst({
+          where: { contentSha256, claim: { is: { userId: { not: userId } } } },
+          select: { id: true },
+        })
+      : null;
+    const profile = riskConfig.userRiskManualReview === true
+      ? await prisma.userProfile.findUnique({ where: { userId }, select: { reputationScore: true } })
+      : null;
+    const riskScore = Math.max(0, 100 - (profile?.reputationScore ?? 60));
+    const riskThreshold = Math.max(0, Math.min(100, Number(riskConfig.manualReviewThreshold ?? 70)));
+    const highUserRisk = riskConfig.userRiskManualReview === true && riskScore >= riskThreshold;
+    const manualRiskReview = Boolean(crossAccountDuplicate) || highUserRisk;
+    const manualRiskReason = crossAccountDuplicate
+      ? "检测到其他账号提交过完全相同的截图文件（SHA-256 指纹一致），需要人工复核。"
+      : highUserRisk
+        ? `用户风险分 ${riskScore} 达到人工审核阈值 ${riskThreshold}（按 100 - 当前信誉分折算）。`
+        : null;
 
     const safeName = file.originalname
       .replace(/[^A-Za-z0-9._-]/g, "_")
@@ -518,7 +707,13 @@ export class TasksService {
           return idempotent;
         }
 
-        if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(lockedClaim.status)) {
+        // The evidence object is uploaded before this transaction. Recheck the
+        // deadline after acquiring the claim row lock so an upload that finishes
+        // after expiry cannot submit evidence or keep an expired number assigned.
+        if (lockedClaim.expiresAt && lockedClaim.expiresAt.getTime() <= Date.now()) {
+          throw new ConflictException("该任务领取已过期，不能再提交证据。");
+        }
+        if (!["CLAIMED", "IN_PROGRESS"].includes(lockedClaim.status)) {
           throw new ConflictException("任务状态已变化，请刷新后重试。");
         }
         const alreadyPending = await tx.taskSubmission.findFirst({
@@ -534,17 +729,30 @@ export class TasksService {
             claimId,
             objectKey,
             note: note?.trim() || null,
-            status: "SUBMITTED",
+            status: queueForAi || manualRiskReview ? "UNDER_REVIEW" : "SUBMITTED",
             idempotencyKey: key,
             mimeType: detected.mimeType,
             sizeBytes: file.buffer.length,
             originalName: safeName || null,
+            contentSha256,
           },
         });
         await tx.taskClaim.update({
           where: { id: claimId },
-          data: { status: "SUBMITTED" },
+          data: { status: queueForAi || manualRiskReview ? "UNDER_REVIEW" : "SUBMITTED" },
         });
+        if (queueForAi || manualRiskReview) {
+          await tx.aiReviewJob.create({
+            data: {
+              submissionId: created.id,
+              status: manualRiskReview ? "NEEDS_REVIEW" : "PENDING",
+              decision: manualRiskReview ? "UNCERTAIN" : null,
+              confidence: manualRiskReview ? 1 : null,
+              reason: manualRiskReason,
+              nextAttemptAt: new Date(),
+            },
+          });
+        }
         return created;
       });
       // A concurrent retry with the same idempotency key may have created the

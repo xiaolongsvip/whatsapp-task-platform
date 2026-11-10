@@ -15,8 +15,8 @@ android {
         applicationId = "com.wtp.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 145
+        versionName = "1.4.5"
         buildConfigField("String", "API_BASE_URL", "\"$configuredApiBaseUrl\"")
     }
 
@@ -47,6 +47,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.zxing:core:3.5.3")
+    testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

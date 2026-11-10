@@ -1,0 +1,185 @@
+import { BadRequestException, Injectable } from "@nestjs/common";
+import { prisma } from "@wtp/database";
+
+type Range = { from: Date; to: Date };
+type TrendRow = { period: string; status: string; count: number | bigint };
+type CountryTaskRow = { country: string; taskCount: number; approvedCount: number; rejectedCount: number };
+type CountryPaidRow = { country: string; currency: string; amountMinor: string };
+type CurrencyAmountRow = { currency: string; amountMinor: bigint | null };
+const DAY = 86400000;
+
+function validDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(value + "T00:00:00.000Z");
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+function offsetOf(value: string | undefined) {
+  if (value === undefined) return 0;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < -840 || parsed > 840) throw new BadRequestException("时区偏移量无效");
+  return parsed;
+}
+function rangeOf(query: Record<string, string | undefined>): Range {
+  const now = new Date();
+  const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const defaultFrom = new Date(defaultTo.getTime() - 6 * DAY);
+  if (query.from && !validDate(query.from)) throw new BadRequestException("开始日期格式不正确");
+  if (query.to && !validDate(query.to)) throw new BadRequestException("结束日期格式不正确");
+  const fromOffset = offsetOf(query.fromOffset);
+  const toOffset = offsetOf(query.toOffset);
+  const fromDate = query.from ? new Date(query.from + "T00:00:00.000Z") : defaultFrom;
+  const toDate = query.to ? new Date(query.to + "T00:00:00.000Z") : defaultTo;
+  const from = new Date(fromDate.getTime() + fromOffset * 60000);
+  const to = new Date(toDate.getTime() + toOffset * 60000 + DAY - 1);
+  if (from > to) throw new BadRequestException("开始日期不能晚于结束日期");
+  const days = Math.ceil((to.getTime() - from.getTime() + 1) / DAY);
+  if (days > 366) throw new BadRequestException("报表日期范围不能超过 366 天");
+  return { from, to };
+}
+function previousRange(range: Range): Range {
+  const duration = range.to.getTime() - range.from.getTime() + 1;
+  return { from: new Date(range.from.getTime() - duration), to: new Date(range.from.getTime() - 1) };
+}
+function change(current: number, previous: number) {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return Number(((current - previous) / previous * 100).toFixed(1));
+}
+type MoneyGroup = { currency: string; _sum: { amountMinor: bigint | null } };
+function moneyRows(rows: MoneyGroup[]) {
+  return rows.map(row => ({ currency: row.currency.trim(), amountMinor: (row._sum.amountMinor ?? 0n).toString() }));
+}
+function moneyChanges(current: MoneyGroup[], previous: MoneyGroup[]) {
+  const currencies = new Set([...current, ...previous].map(row => row.currency.trim()));
+  return [...currencies].sort().map(currency => {
+    const now = current.find(row => row.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+    const before = previous.find(row => row.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+    return { currency, change: change(Number(now), Number(before)) };
+  });
+}
+const claimStatus = (value?: string) => {
+  if (!value || value === "ALL") return undefined;
+  const allowed = ["CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "EXPIRED", "CANCELLED"];
+  if (allowed.includes(value)) return value as "CLAIMED" | "IN_PROGRESS" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "EXPIRED" | "CANCELLED";
+  throw new BadRequestException("不支持的报表状态筛选");
+};
+
+@Injectable()
+export class ReportsService {
+  async summary(query: Record<string, string | undefined>) {
+    const range = rangeOf(query);
+    const previous = previousRange(range);
+    const status = claimStatus(query.status);
+    const period = ["day", "week", "month"].includes(query.period || "day") ? query.period || "day" : "day";
+    const claimWhere = (r: Range) => ({ claimedAt: { gte: r.from, lte: r.to }, ...(status ? { status } : {}) });
+    const paidWhere = (r: Range) => ({ flow: "PAYOUT" as const, status: "SUCCEEDED" as const, updatedAt: { gte: r.from, lte: r.to } });
+    const [
+      taskTotal, previousTaskTotal, activeUsers, previousActiveUsers, distribution, previousDistribution,
+      withdrawalApplications, previousWithdrawalApplications, actualPayout, previousActualPayout,
+      expectedPayoutApplications, previousExpectedPayoutApplications,
+      trendRows, countryTaskRows, countryPaidRows,
+    ] = await Promise.all([
+      prisma.taskClaim.count({ where: claimWhere(range) }),
+      prisma.taskClaim.count({ where: claimWhere(previous) }),
+      prisma.taskClaim.groupBy({ by: ["userId"], where: claimWhere(range) }),
+      prisma.taskClaim.groupBy({ by: ["userId"], where: claimWhere(previous) }),
+      prisma.taskClaim.groupBy({ by: ["status"], where: claimWhere(range), _count: { _all: true } }),
+      prisma.taskClaim.groupBy({ by: ["status"], where: claimWhere(previous), _count: { _all: true } }),
+      prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: range.from, lte: range.to } }, _sum: { amountMinor: true } }),
+      prisma.withdrawalRequest.groupBy({ by: ["currency"], where: { createdAt: { gte: previous.from, lte: previous.to } }, _sum: { amountMinor: true } }),
+      prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(range), _sum: { amountMinor: true } }),
+      prisma.paymentTransaction.groupBy({ by: ["currency"], where: paidWhere(previous), _sum: { amountMinor: true } }),
+      prisma.$queryRaw<CurrencyAmountRow[]>`SELECT COALESCE(NULLIF(BTRIM(payout_currency), ''), currency) AS currency, SUM(COALESCE(payout_amount_minor, amount_minor))::bigint AS "amountMinor" FROM withdrawal_requests WHERE created_at >= ${range.from} AND created_at <= ${range.to} GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<CurrencyAmountRow[]>`SELECT COALESCE(NULLIF(BTRIM(payout_currency), ''), currency) AS currency, SUM(COALESCE(payout_amount_minor, amount_minor))::bigint AS "amountMinor" FROM withdrawal_requests WHERE created_at >= ${previous.from} AND created_at <= ${previous.to} GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<TrendRow[]>`SELECT to_char(date_trunc(${period}, claimed_at + (${-offsetOf(query.fromOffset)} * interval '1 minute')), 'YYYY-MM-DD') AS period, status::text AS status, COUNT(*)::int AS count FROM task_claims WHERE claimed_at >= ${range.from} AND claimed_at <= ${range.to} AND (${status ?? null}::text IS NULL OR status::text = ${status ?? null}) GROUP BY 1, 2 ORDER BY 1`,
+      prisma.$queryRaw<CountryTaskRow[]>`SELECT COALESCE(NULLIF(BTRIM(cn.country_code), ''), 'UNSPECIFIED') AS country, COUNT(DISTINCT tc.id)::int AS "taskCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'APPROVED')::int AS "approvedCount", COUNT(DISTINCT tc.id) FILTER (WHERE tc.status::text = 'REJECTED')::int AS "rejectedCount" FROM task_claims tc LEFT JOIN contact_assignments ca ON ca.claim_id = tc.id LEFT JOIN contact_numbers cn ON cn.id = ca.contact_number_id WHERE tc.claimed_at >= ${range.from} AND tc.claimed_at <= ${range.to} AND (${status ?? null}::text IS NULL OR tc.status::text = ${status ?? null}) GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<CountryPaidRow[]>`SELECT COALESCE(NULLIF(BTRIM(pa.country_code), ''), 'UNSPECIFIED') AS country, pt.currency, SUM(pt.amount_minor)::text AS "amountMinor" FROM payment_transactions pt LEFT JOIN withdrawal_requests wr ON wr.id = pt.withdrawal_request_id LEFT JOIN payout_accounts pa ON pa.id = wr.payout_account_id WHERE pt.flow::text = 'PAYOUT' AND pt.status::text = 'SUCCEEDED' AND pt.updated_at >= ${range.from} AND pt.updated_at <= ${range.to} GROUP BY 1, pt.currency ORDER BY 1, pt.currency`,
+    ]);
+
+    const periods = new Map<string, { submitted: number; approved: number; rejected: number }>();
+    const fromOffset = offsetOf(query.fromOffset);
+    const toOffset = offsetOf(query.toOffset);
+    const localFrom = new Date(range.from.getTime() - fromOffset * 60000);
+    const localTo = new Date(range.to.getTime() - toOffset * 60000);
+    const cursor = new Date(Date.UTC(localFrom.getUTCFullYear(), localFrom.getUTCMonth(), localFrom.getUTCDate()));
+    if (period === "week") cursor.setUTCDate(cursor.getUTCDate() - ((cursor.getUTCDay() + 6) % 7));
+    if (period === "month") cursor.setUTCDate(1);
+    while (cursor <= localTo) {
+      const key = cursor.toISOString().slice(0, 10);
+      periods.set(key, { submitted: 0, approved: 0, rejected: 0 });
+      if (period === "day") cursor.setUTCDate(cursor.getUTCDate() + 1);
+      else if (period === "week") cursor.setUTCDate(cursor.getUTCDate() + 7);
+      else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
+    for (const row of trendRows) {
+      const item = periods.get(row.period) ?? { submitted: 0, approved: 0, rejected: 0 };
+      const count = Number(row.count);
+      item.submitted += count;
+      if (row.status === "APPROVED") item.approved += count;
+      if (row.status === "REJECTED") item.rejected += count;
+      periods.set(row.period, item);
+    }
+    const trend = [...periods.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, ...value }));
+    const currencySet = new Set([...expectedPayoutApplications, ...actualPayout].map(x => x.currency.trim()));
+    const finance = [...currencySet].sort().map(currency => {
+      const requested = expectedPayoutApplications.find(x => x.currency.trim() === currency)?.amountMinor ?? 0n;
+      const paid = actualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      const previousRequested = previousExpectedPayoutApplications.find(x => x.currency.trim() === currency)?.amountMinor ?? 0n;
+      const previousPaid = previousActualPayout.find(x => x.currency.trim() === currency)?._sum.amountMinor ?? 0n;
+      return { currency, requestedMinor: requested.toString(), paidMinor: paid.toString(), estimatedDifferenceMinor: (requested - paid).toString(), requestedChange: change(Number(requested), Number(previousRequested)), paidChange: change(Number(paid), Number(previousPaid)), differenceChange: change(Number(requested - paid), Number(previousRequested - previousPaid)) };
+    });
+    const countStatus = (rows: typeof distribution, key: string) => rows.find(x => x.status === key)?._count._all ?? 0;
+    const dist = (key: string) => countStatus(distribution, key);
+    const approved = dist("APPROVED");
+    const previousApproved = countStatus(previousDistribution, "APPROVED");
+    const rejected = dist("REJECTED");
+    const previousRejected = countStatus(previousDistribution, "REJECTED");
+    const totalReviewClaims = approved + rejected + dist("SUBMITTED") + dist("UNDER_REVIEW");
+    const paidByCountry = new Map<string, Array<{ currency: string; amountMinor: string }>>();
+    for (const row of countryPaidRows) {
+      const values = paidByCountry.get(row.country) ?? [];
+      values.push({ currency: row.currency.trim(), amountMinor: row.amountMinor });
+      paidByCountry.set(row.country, values);
+    }
+    const countries = new Set([...countryTaskRows.map(x => x.country), ...paidByCountry.keys()]);
+    const countryBreakdown = [...countries].sort().map(country => {
+      const task = countryTaskRows.find(x => x.country === country);
+      return {
+        country,
+        taskCount: task?.taskCount ?? 0,
+        approvedCount: task?.approvedCount ?? 0,
+        rejectedCount: task?.rejectedCount ?? 0,
+        actualPaid: paidByCountry.get(country) ?? [],
+        approvalRate: task?.taskCount ? Number((task.approvedCount / task.taskCount * 100).toFixed(1)) : 0,
+        note: "任务数量按任务关联号码国家统计；实际支出按收款账户国家统计。",
+      };
+    });
+    return {
+      range: { from: range.from.toISOString(), to: range.to.toISOString() },
+      filters: { status: status ?? "ALL", period },
+      cards: {
+        taskTotal: { value: taskTotal, change: change(taskTotal, previousTaskTotal) },
+        approved: { value: approved, change: change(approved, previousApproved) },
+        rejected: { value: rejected, change: change(rejected, previousRejected) },
+        activeUsers: { value: activeUsers.length, change: change(activeUsers.length, previousActiveUsers.length) },
+        withdrawalApplications: { amounts: moneyRows(withdrawalApplications), changes: moneyChanges(withdrawalApplications, previousWithdrawalApplications) },
+        actualPayout: { amounts: moneyRows(actualPayout), changes: moneyChanges(actualPayout, previousActualPayout) },
+      },
+      reviewDistribution: {
+        total: totalReviewClaims,
+        approved: dist("APPROVED"),
+        rejected: dist("REJECTED"),
+        pending: dist("SUBMITTED") + dist("UNDER_REVIEW"),
+      },
+      finance,
+      trend,
+      countryBreakdown,
+      limitations: [
+        "任务总数按任务领取记录统计；审核通过数、拒绝数及趋势按领取记录的当前状态统计，状态筛选会同步作用于任务指标。",
+        "审核状态环形图只统计已提交、审核中、已通过、已拒绝的任务领取记录；不把尚未提交的领取任务算入审核分母。",
+        "活跃用户按所选周期内领取过符合筛选条件任务的去重用户数统计。",
+        "国家明细中，任务数量按任务关联号码国家统计，实际支出按收款账户国家统计；没有对应国家资料的记录归入“未标记”。",
+        "顶部提现申请金额按钱包扣款币种统计；财务摘要按提现单保存的预计出款币种/金额与成功代付交易比较，跨币种数据不会直接相减；预计差额不是钱包余额。",
+      ],
+    };
+  }
+}

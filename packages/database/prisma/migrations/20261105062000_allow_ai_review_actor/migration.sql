@@ -1,0 +1,1 @@
+ALTER TABLE "task_reviews" ALTER COLUMN "reviewer_admin_id" DROP NOT NULL;

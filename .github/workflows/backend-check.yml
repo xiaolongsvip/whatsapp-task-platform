@@ -1,0 +1,51 @@
+name: Backend and Database Check
+
+on:
+  push:
+    branches: [main, feature/automatic-task-slot-allocation, fix/withdrawal-app-rule-alignment]
+    paths:
+      - "apps/api/**"
+      - "packages/database/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/backend-check.yml"
+  pull_request:
+    branches: [main, fix/withdrawal-app-rule-alignment]
+    paths:
+      - "apps/api/**"
+      - "packages/database/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/backend-check.yml"
+
+concurrency:
+  group: wtp-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate Prisma schema
+        run: pnpm --filter @wtp/database exec prisma validate --schema prisma/schema.prisma
+      - name: Generate Prisma client
+        run: pnpm --filter @wtp/database db:generate
+      - name: Typecheck API
+        run: pnpm --filter @wtp/api typecheck
+      - name: Run API source contract tests
+        run: pnpm --filter @wtp/api test

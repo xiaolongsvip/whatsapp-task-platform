@@ -2,6 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import AdminSidebar from "../../components/AdminSidebar";
+import { useRouter } from "next/navigation";
+import { BarChart3, Bell, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileClock, Filter, HandCoins, LayoutDashboard, LogOut, Menu, MessageSquare, Phone, Search, Settings, Shield, Trash2, Users, UserRound, WalletCards, Zap } from "lucide-react";
 
 type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED";
 
@@ -10,6 +13,7 @@ type AdminTask = {
   title: string;
   description: string;
   category: string;
+  groupName: string;
   status: TaskStatus;
   rewardMinor: string;
   rewardAmount: string;
@@ -19,6 +23,7 @@ type AdminTask = {
   remainingCapacity: number | null;
   startsAt: string | null;
   endsAt: string | null;
+  createdAt: string;
   messageTemplate: string | null;
   linkUrl: string | null;
   previewTitle: string | null;
@@ -29,6 +34,11 @@ type AdminTask = {
 };
 
 type TaskList = { tasks: AdminTask[] };
+type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
+type TaskGroupOption = { id: string; name: string; description: string | null; taskCount: number };
+type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
+type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
+type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
 
 type TaskForm = {
   title: string;
@@ -89,16 +99,8 @@ function toIso(value: string): string | null {
   return value ? new Date(value).toISOString() : null;
 }
 
-function statusLabel(status: TaskStatus): string {
-  return {
-    DRAFT: "草稿",
-    PUBLISHED: "已发布",
-    PAUSED: "已暂停",
-    CLOSED: "已结束",
-  }[status];
-}
-
 export default function AdminTasksPage() {
+  const router = useRouter();
   const [adminEmail, setAdminEmail] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -109,11 +111,62 @@ export default function AdminTasksPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | RecordStatus>("ALL");
+  const [records, setRecords] = useState<TaskRecord[]>([]);
+  const [recordStats, setRecordStats] = useState<TaskRecordsResponse["stats"]>({total:0,available:0,inProgress:0,review:0,completed:0,closed:0,frozen:0,voided:0,todayCreated:0,todayCompleted:0,todayVoided:0,successRate:0});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [groupFilterOpen, setGroupFilterOpen] = useState(false);
+  const [groupFilter, setGroupFilter] = useState("ALL");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [taskGroups, setTaskGroups] = useState<TaskGroupOption[]>([]);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);
+  const [bulkMessageTab, setBulkMessageTab] = useState<"manual" | "template">("manual");
+  const [bulkMessageText, setBulkMessageText] = useState("");
+  const [bulkTemplateId, setBulkTemplateId] = useState("");
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateOption[]>([]);
+  const [bulkPlatforms, setBulkPlatforms] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     const result = await api<TaskList>("/api/v1/admin/tasks");
     setTasks(result.tasks);
   }, []);
+
+  const loadRecords = useCallback(async () => {
+    const params = new URLSearchParams({page:String(page),pageSize:String(pageSize),keyword:appliedSearch,status:statusFilter,groupName:groupFilter,countryRegion:countryFilter.trim()});
+    if (createdFrom) params.set("createdFrom", new Date(createdFrom + "T00:00:00").toISOString());
+    if (createdTo) params.set("createdTo", new Date(createdTo + "T23:59:59.999").toISOString());
+    const result = await api<TaskRecordsResponse>("/api/v1/admin/tasks/records?" + params.toString());
+    setRecords(result.items);
+    setRecordStats(result.stats);
+    setTotalPages(result.pagination.totalPages);
+    setTotalRecords(result.pagination.total);
+    setSelectedIds([]);
+  }, [page,pageSize,appliedSearch,statusFilter,groupFilter,createdFrom,createdTo,countryFilter]);
+
+  useEffect(() => {
+    if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
+  }, [authenticated,loadRecords]);
+
+  const groupNames = Array.from(new Set(tasks.map((task) => task.groupName).filter((name) => name && name !== "未分组")));
+  const visibleRecords = records;
+  const pageStart = Math.max(1, Math.min(page - 2, totalPages - 4));
+  const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, index) => pageStart + index);
 
   useEffect(() => {
     api<{ id: string; email: string }>("/api/v1/admin-auth/me")
@@ -121,6 +174,8 @@ export default function AdminTasksPage() {
         setAdminEmail(admin.email);
         setAuthenticated(true);
         await refresh();
+        const groups = await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups");
+        setTaskGroups(groups);
       })
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false));
@@ -133,9 +188,7 @@ export default function AdminTasksPage() {
   function startCreate() {
     setEditingId(null);
     setForm(emptyForm);
-    setFormOpen(true);
-    setError("");
-    setMessage("");
+    router.push("/tasks/new");
   }
 
   function startEdit(task: AdminTask) {
@@ -172,7 +225,6 @@ export default function AdminTasksPage() {
         category: form.category.trim(),
         rewardAmount: form.rewardAmount.trim(),
         currency: form.currency.trim().toUpperCase(),
-        capacity: null,
         startsAt: toIso(form.startsAt),
         endsAt: toIso(form.endsAt),
         messageTemplate: form.messageTemplate,
@@ -193,6 +245,7 @@ export default function AdminTasksPage() {
       setEditingId(null);
       setForm(emptyForm);
       await refresh();
+      await loadRecords();
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存任务失败。");
     } finally {
@@ -215,6 +268,7 @@ export default function AdminTasksPage() {
       await api(`/api/v1/admin/tasks/${id}/${action}`, { method: "POST", body: "{}" });
       setMessage(action === "publish" ? "任务已发布，客户端任务大厅现在可以读取。" : action === "pause" ? "任务已暂停。" : "任务已结束。");
       await refresh();
+      await loadRecords();
     } catch (err) {
       setError(err instanceof Error ? err.message : "任务状态更新失败。");
     } finally {
@@ -243,71 +297,295 @@ export default function AdminTasksPage() {
   }
 
   return (
-    <main className="admin-shell">
-      <header className="admin-header">
-        <div>
-          <div className="admin-brand">WTP 管理后台</div>
-          <div className="admin-subtitle">任务管理 · 创建 · 发布 · 暂停</div>
-        </div>
-        <div className="action-row" style={{ marginTop: 0 }}>
-          <span className="muted">{adminEmail}</span>
-          <Link className="secondary-btn" href="/" style={{ textDecoration: "none" }}>号码池管理</Link>
-          <button className="secondary-btn" onClick={logout}>退出登录</button>
+    <main className="dashboard-app">
+      <AdminSidebar />
+      <section className="dashboard-main">
+        <header className="dashboard-topbar">
+          <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="打开菜单"><Menu size={20}/></button>
+          <div className="topbar-search"><Search size={16}/><input value={adminSearch} onChange={(event)=>setAdminSearch(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setSearchTerm(adminSearch);setAppliedSearch(adminSearch);setPage(1);}}} placeholder="搜索任务、用户、手机号码..."/></div>
+          <div className="topbar-actions"><span className="topbar-language">文</span><button className="topbar-icon" title="帮助"><CircleHelp size={19}/></button><button className="topbar-icon" title="通知"><Bell size={19}/><i/></button><div className="admin-profile"><span className="profile-avatar"><UserRound size={18}/></span><span><strong>{adminEmail || "Administrator"}</strong><small>超级管理员</small></span></div><button className="topbar-icon" title="退出登录" onClick={()=>void logout()}><LogOut size={16}/></button></div>
+        </header>
+        <div className="dashboard-content tasks-dashboard-content">
+      <header className="tasks-page-heading">
+        <div><h1>任务管理</h1><p>添加和管理可领取任务，并可按任务整理和筛选。</p></div>
+        <div className="tasks-heading-actions">
+          <button className="tasks-outline-btn" type="button" onClick={async()=>{setGroupModalOpen(true);try{const result=await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups");setTaskGroups(result);}catch(err){setError(err instanceof Error?err.message:"任务组加载失败。");}}}>任务组</button>
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
+            if(!selectedIds.length)return;
+            const chosen=records.filter((item)=>selectedIds.includes(item.id));
+            const taskIds=Array.from(new Set(chosen.map((item)=>item.taskId)));
+            const warning="将修改所选记录涉及的 "+taskIds.length+" 个任务的任务组名称。\n注意：同一任务下未勾选的其他号码记录也会同步显示新任务组。\n确定继续吗？";
+            if(!window.confirm(warning))return;
+            const groupName=window.prompt("请输入新的任务组名称：");
+            if(groupName===null)return;
+            setBusy(true);setError("");setMessage("");
+            try{
+              const result=await api<{total:number;succeeded:number;failed:number;results:Array<{taskId:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-group",{method:"PATCH",body:JSON.stringify({ids:selectedIds,groupName})});
+              setMessage("批量更换任务组完成：成功 "+result.succeeded+" 个任务，失败 "+result.failed+" 个任务。");
+              if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.taskId+": "+item.message).join("；"));}
+              await refresh();await loadRecords();
+            }catch(err){setError(err instanceof Error?err.message:"批量更换任务组失败。");}
+            finally{setBusy(false);}
+          }}>批量更换任务组（{selectedIds.length}）</button>
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
+            if(!selectedIds.length)return;
+            const chosen=records.filter((item)=>selectedIds.includes(item.id));
+            const eligible=chosen.filter((item)=>item.taskStatus!=="PUBLISHED"&&["AVAILABLE","CLOSED"].includes(item.status)&&!item.claimId);
+            const skipped=chosen.length-eligible.length;
+            if(!eligible.length){window.alert("选中的记录没有符合删除条件的项目。只能删除已暂停/草稿任务下未领取的可用记录。");return;}
+            if(!window.confirm("确定批量删除 "+eligible.length+" 条未领取记录吗？"+(skipped?"\n另有 "+skipped+" 条不符合条件，将保留不动。":"")+"\n删除后号码回到可分配号码池。"))return;
+            setBusy(true);setError("");setMessage("");
+            try{
+              const result=await api<{total:number;succeeded:number;failed:number;results:Array<{id:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-delete",{method:"POST",body:JSON.stringify({ids:eligible.map((item)=>item.id)})});
+              setMessage("批量删除完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
+              if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.id+": "+item.message).join("；"));}
+              await refresh();await loadRecords();
+            }catch(err){setError(err instanceof Error?err.message:"批量删除失败。");}
+            finally{setBusy(false);}
+          }}>批量删除（{selectedIds.length}）</button>
+          <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
+            if(!selectedIds.length)return;
+            const chosen=records.filter((item)=>selectedIds.includes(item.id));
+            const eligible=chosen.filter((item)=>!["COMPLETED","REVIEW","FROZEN","VOIDED"].includes(item.status));
+            const skipped=chosen.length-eligible.length;
+            if(!eligible.length){window.alert("选中的记录没有符合作废条件的项目。");return;}
+            if(!window.confirm("确定批量作废 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中、冻结或已作废的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
+            setBusy(true);setError("");setMessage("");
+            try{
+              const result=await api<{total:number;succeeded:number;failed:number;results:Array<{id:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-void",{method:"POST",body:JSON.stringify({ids:eligible.map((item)=>item.id)})});
+              setMessage("批量作废完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
+              if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.id+": "+item.message).join("；"));}
+              await refresh();await loadRecords();
+            }catch(err){setError(err instanceof Error?err.message:"批量作废失败。");}
+            finally{setBusy(false);}
+          }}>批量作废（{selectedIds.length}）</button>
+
+          <button className="tasks-outline-btn" type="button" disabled={busy} onClick={async()=>{
+            try{
+              const eligible=tasks.filter((task)=>task.status!=="PUBLISHED"&&task.claimedCount===0&&(groupFilter==="ALL"||task.groupName===groupFilter));
+              setBulkPlatforms(Array.from(new Set(eligible.map((task)=>task.category))));
+              const templates=await api<MessageTemplateOption[]>("/api/v1/admin/tasks/message-templates?enabled=true");
+              setMessageTemplates(templates.filter((item)=>item.enabled));
+              setBulkMessageText("");
+              setBulkTemplateId("");
+              setBulkMessageTab("manual");
+              setBulkMessageOpen(true);
+            }catch(err){setError(err instanceof Error?err.message:"话术模板加载失败。");}
+          }}>批量更换话术</button>
+          <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
-
+      {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>{setGroupFilter(event.target.value);setPage(1);}}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><label>创建开始</label><input aria-label="创建开始日期" type="date" value={createdFrom} onChange={(event)=>{setCreatedFrom(event.target.value);setPage(1);}}/><label>创建结束</label><input aria-label="创建结束日期" type="date" value={createdTo} onChange={(event)=>{setCreatedTo(event.target.value);setPage(1);}}/><label>国家/地区</label><input aria-label="国家/地区筛选" value={countryFilter} onChange={(event)=>{setCountryFilter(event.target.value);setPage(1);}} placeholder="国家代码或名称"/><button type="button" onClick={()=>{setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setPage(1);setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
-
-      <section className="panel">
-        <div className="admin-header" style={{ marginBottom: 8 }}>
-          <div>
-            <h2 style={{ marginBottom: 5 }}>任务列表</h2>
-            <p className="muted" style={{ margin: 0 }}>草稿不会显示在用户任务大厅；只有发布状态且在有效时间内的任务才会开放领取。</p>
+      <section className="tasks-management-card">
+        <div className="tasks-toolbar">
+          <div className="tasks-search"><Search size={15}/><input value={searchTerm} onChange={(event)=>setSearchTerm(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setPage(1);setAppliedSearch(searchTerm);}}} placeholder="任务名称、任务/执行编号或完整号码" aria-label="搜索任务"/></div>
+          <div className="tasks-status-tabs" role="group" aria-label="任务状态筛选">
+            {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"],["VOIDED","已作废"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
           </div>
-          <button className="primary-btn" onClick={startCreate}>＋ 创建任务</button>
+          <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setPage(1);}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}><Filter size={13}/> 更多筛选</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{
+            const headers=["任务名称","任务号码","任务组","奖励","话术","国家/地区","任务状态","创建时间"];
+            const labels={AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"};
+            const rows=visibleRecords.map((item)=>[item.taskName,item.phoneNumber,item.groupName,item.rewardAmount+" "+item.currency,item.messageTemplate,item.countryRegion,labels[item.status],new Date(item.createdAt).toLocaleString("zh-CN")]);
+            const csv=[headers,...rows].map((row)=>row.map((value)=>'"'+String(value).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+            const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="任务管理.csv";link.click();URL.revokeObjectURL(url);
+          }}><Download size={13}/> 导出</button>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>任务名称</th><th>分类</th><th>奖励</th><th>领取次数</th><th>号码库存（总数 / 可领取 / 已分配 / 已使用）</th><th>状态</th><th>开始时间</th><th>操作</th>
-              </tr>
-            </thead>
+        <div className="tasks-stat-grid">
+          <article className="tasks-stat-card"><span className="tasks-stat-icon blue"><Phone size={18}/></span><div><small>总任务</small><strong>{recordStats.total.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon green"><UserRound size={18}/></span><div><small>可领取</small><strong>{recordStats.available.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon orange"><Users size={18}/></span><div><small>已领取任务</small><strong>{(recordStats.inProgress+recordStats.review+recordStats.completed).toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon red"><UserRound size={18}/></span><div><small>已作废</small><strong>{recordStats.voided.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon blue"><BarChart3 size={18}/></span><div><small>今日新增</small><strong>{recordStats.todayCreated.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon green"><ClipboardCheck size={18}/></span><div><small>今日完成</small><strong>{recordStats.todayCompleted.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon orange"><Trash2 size={18}/></span><div><small>今日作废</small><strong>{recordStats.todayVoided.toLocaleString()}</strong></div></article>
+          <article className="tasks-stat-card"><span className="tasks-stat-icon green"><BarChart3 size={18}/></span><div><small>执行成功率</small><strong>{recordStats.successRate.toFixed(2)}%</strong></div></article>
+        </div>
+        <div className="tasks-table-scroll">
+          <table className="tasks-management-table">
+            <thead><tr>
+              <th><input type="checkbox" aria-label="全选当前页" checked={visibleRecords.length>0&&visibleRecords.every((item)=>selectedIds.includes(item.id))} onChange={(event)=>setSelectedIds(event.target.checked?[...new Set([...selectedIds,...visibleRecords.map((item)=>item.id)])]:selectedIds.filter((id)=>!visibleRecords.some((item)=>item.id===id)))}/></th>
+              <th>任务名称</th><th>任务号码</th><th>任务组</th><th>奖励</th><th>话术</th><th>国家/地区</th><th>任务状态</th><th>创建时间</th><th>操作</th>
+            </tr></thead>
             <tbody>
-              {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td>{task.title}</td>
-                  <td>{task.category}</td>
-                  <td>{task.currency} {task.rewardAmount}</td>
-                  <td>{task.claimedCount}</td>
-                  <td>{task.inventory ? `${task.inventory.total} / ${task.inventory.available} / ${task.inventory.assigned} / ${task.inventory.used}` : "尚未绑定号码"}</td>
-                  <td><span className={`pill ${task.status === "PUBLISHED" ? "available" : task.status === "PAUSED" ? "assigned" : task.status === "CLOSED" ? "blocked" : ""}`}>{statusLabel(task.status)}</span></td>
-                  <td>{task.startsAt ? new Date(task.startsAt).toLocaleString() : "立即"}</td>
-                  <td>
-                    <div className="action-row" style={{ margin: 0, flexWrap: "nowrap" }}>
-                      {(task.status === "DRAFT" || task.status === "PAUSED") && (
-                        <button className="secondary-btn" disabled={busy || task.claimedCount > 0} onClick={() => startEdit(task)}>编辑</button>
-                      )}
-                      {(task.status === "DRAFT" || task.status === "PAUSED") && (
-                        <button className="primary-btn" disabled={busy} onClick={() => void taskAction(task.id, "publish")}>发布</button>
-                      )}
-                      {task.status === "PUBLISHED" && (
-                        <button className="secondary-btn" disabled={busy} onClick={() => void taskAction(task.id, "pause")}>暂停</button>
-                      )}
-                      {task.status !== "CLOSED" && (
-                        <button className="danger-btn" disabled={busy} onClick={() => void taskAction(task.id, "close")}>结束</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {tasks.length === 0 && <tr><td colSpan={8} className="muted">目前还没有任务，请先创建任务草稿。</td></tr>}
+              {visibleRecords.map((record)=><tr key={record.id}>
+                <td><input type="checkbox" aria-label={"选择 "+record.phoneNumber} checked={selectedIds.includes(record.id)} onChange={(event)=>setSelectedIds((current)=>event.target.checked?[...current,record.id]:current.filter((id)=>id!==record.id))}/></td>
+                <td className="tasks-title-cell" title={record.taskName}>{record.taskName}</td>
+                <td>{record.phoneNumber}</td><td>{record.groupName}</td><td>{record.rewardAmount} {record.currency}</td>
+                <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
+                <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[record.status]}</span></td>
+                <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
+                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(record.status) || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":!["AVAILABLE","CLOSED"].includes(record.status)?"仅未领取的可用记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
+                  if(!window.confirm("确定删除这条未领取的任务号码记录吗？"))return;
+                  try{
+                    await api("/api/v1/admin/tasks/records/"+record.id,{method:"DELETE"});
+                    setMessage("任务号码记录已删除。");
+                    await refresh();await loadRecords();
+                  }catch(err){setError(err instanceof Error?err.message:"删除任务号码记录失败。");}
+                }}>删除</button></div></td>
+              </tr>)}
+              {visibleRecords.length===0&&<tr><td colSpan={10} className="tasks-empty-row">当前任务组没有任务号码记录</td></tr>}
             </tbody>
           </table>
         </div>
+        <footer className="tasks-table-footer">
+          <span>共 {totalRecords.toLocaleString()} 条</span>
+          <div className="tasks-pagination">
+            <button className="tasks-outline-btn" disabled={page<=1} onClick={()=>setPage((value)=>Math.max(1,value-1))}><ChevronLeft size={14}/></button>
+            {pageNumbers.map((number)=><button key={number} className={"tasks-outline-btn "+(page===number?"active":"")} onClick={()=>setPage(number)}>{number}</button>)}
+            <button className="tasks-outline-btn" disabled={page>=totalPages} onClick={()=>setPage((value)=>Math.min(totalPages,value+1))}><ChevronRight size={14}/></button>
+            <select value={pageSize} onChange={(event)=>{setPageSize(Number(event.target.value));setPage(1);}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select>
+          </div>
+        </footer>
       </section>
-
+      {selectedRecord && (
+        <div className="tasks-detail-backdrop" onClick={() => setSelectedRecord(null)}>
+          <aside className="tasks-detail-drawer" role="dialog" aria-modal="true" aria-label="任务详情" onClick={(event) => event.stopPropagation()}>
+            <header className="tasks-detail-header">
+              <div>
+                <div className="tasks-detail-title">任务详情 <span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></div>
+                <p>{selectedRecord.phoneNumber}</p>
+              </div>
+              <button type="button" aria-label="关闭详情" onClick={() => setSelectedRecord(null)}>×</button>
+            </header>
+            <div className="tasks-detail-body">
+              <section className="tasks-detail-section">
+                <h3>基本信息</h3>
+                <dl className="tasks-detail-list">
+                  <div><dt>任务 ID</dt><dd title={selectedRecord.taskId}>{selectedRecord.taskId}</dd></div>
+                  <div><dt>任务名称</dt><dd>{selectedRecord.taskName}</dd></div>
+                  <div><dt>任务号码</dt><dd>{selectedRecord.phoneNumber}</dd></div>
+                  <div><dt>国家/地区</dt><dd>{selectedRecord.countryRegion || "—"}</dd></div>
+                  <div><dt>任务奖励</dt><dd>{selectedRecord.rewardAmount} {selectedRecord.currency}</dd></div>
+                  <div><dt>任务组</dt><dd>{selectedRecord.groupName}</dd></div>
+                  <div><dt>创建时间</dt><dd>{new Date(selectedRecord.createdAt).toLocaleString("zh-CN",{hour12:false})}</dd></div>
+                </dl>
+                <div className="tasks-detail-message">
+                  <strong>完整话术</strong>
+                  <p>{selectedRecord.messageTemplate || "当前任务未设置话术。"}</p>
+                </div>
+              </section>
+              <section className="tasks-detail-section">
+                <h3>当前状态</h3>
+                <dl className="tasks-detail-list">
+                  <div><dt>任务状态</dt><dd><span className={"tasks-status-pill " + selectedRecord.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[selectedRecord.status]}</span></dd></div>
+                  <div><dt>领取用户</dt><dd>{selectedRecord.claimedUserId || "—"}</dd></div>
+                  <div><dt>执行记录</dt><dd>{selectedRecord.claimId || "—"}</dd></div>
+                  {selectedRecord.claimedAt && <div><dt>领取时间</dt><dd>{new Date(selectedRecord.claimedAt).toLocaleString("zh-CN",{hour12:false})}</dd></div>}
+                </dl>
+              </section>
+              <section className="tasks-detail-section tasks-organize-section">
+                <h3>整理任务</h3>
+                <p>这里只修改任务组，不会修改奖励、话术、审核或结算规则。</p>
+                <div className="tasks-organize-row">
+                  <select value={selectedGroup} onChange={(event)=>setSelectedGroup(event.target.value)}>
+                    {Array.from(new Set([...groupNames,...taskGroups.map((group)=>group.name),selectedRecord.groupName])).filter(Boolean).map((group)=><option key={group} value={group}>{group}</option>)}
+                  </select>
+                  <button type="button" disabled={groupSaving || !selectedGroup.trim() || selectedGroup===selectedRecord.groupName} onClick={async()=>{
+                    setGroupSaving(true);
+                    try{
+                      await api("/api/v1/admin/tasks/"+selectedRecord.taskId+"/group",{method:"PATCH",body:JSON.stringify({groupName:selectedGroup})});
+                      setMessage("任务组已更新。");
+                      setSelectedRecord({...selectedRecord,groupName:selectedGroup});
+                      await refresh();
+                      await loadRecords();
+                    }catch(err){setError(err instanceof Error?err.message:"保存任务组失败。");}
+                    finally{setGroupSaving(false);}
+                  }}>{groupSaving?"保存中…":"保存"}</button>
+                </div>
+              </section>
+            </div>
+            <footer className="tasks-detail-footer">
+              <button type="button" className="tasks-detail-delete" disabled={selectedRecord.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(selectedRecord.status) || Boolean(selectedRecord.claimId)} title={selectedRecord.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取的号码记录。":!["AVAILABLE","CLOSED"].includes(selectedRecord.status)?"仅可删除未领取的可用记录；其他记录请作废保留审计。":"删除后号码回到可分配号码池。"} onClick={async()=>{
+                if(!window.confirm("确定删除这条未领取的任务号码记录吗？号码会回到可分配号码池。"))return;
+                try{
+                  await api("/api/v1/admin/tasks/records/"+selectedRecord.id,{method:"DELETE"});
+                  setSelectedRecord(null);
+                  setMessage("任务号码记录已删除。");
+                  await refresh();await loadRecords();
+                }catch(err){setError(err instanceof Error?err.message:"删除任务号码记录失败。");}
+              }}><Trash2 size={13}/> 删除</button>
+              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="VOIDED" || selectedRecord.status==="COMPLETED" || selectedRecord.status==="REVIEW" || selectedRecord.status==="FROZEN"} onClick={async()=>{
+                if(!window.confirm("确定作废当前这条任务号码记录吗？不会关闭整批任务。"))return;
+                try{
+                  await api("/api/v1/admin/tasks/records/"+selectedRecord.id+"/void",{method:"POST"});
+                  setSelectedRecord(null);
+                  setMessage("当前任务号码记录已作废，其他号码任务不受影响。");
+                  await refresh();await loadRecords();
+                }catch(err){setError(err instanceof Error?err.message:"作废任务号码记录失败。");}
+              }}>⊗ 作废任务</button>
+            </footer>
+          </aside>
+        </div>
+      )}
+      {groupModalOpen && (
+        <div className="tasks-detail-backdrop" onClick={()=>setGroupModalOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-label="任务组管理" onClick={(event)=>event.stopPropagation()} style={{width:"min(94vw,560px)",background:"#fff",borderRadius:10,padding:18,boxShadow:"0 18px 50px rgba(15,23,42,.2)"}}>
+            <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><strong style={{fontSize:16}}>任务组</strong><button type="button" onClick={()=>setGroupModalOpen(false)} aria-label="关闭">×</button></header>
+            <p style={{fontSize:13,color:"#536176",margin:"0 0 14px"}}>任务组仅用于整理任务；删除任务组不会删除任务及任务号码记录。</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1.4fr auto",gap:7,marginBottom:14}}>
+              <input value={newGroupName} onChange={(event)=>setNewGroupName(event.target.value)} placeholder="任务组名称" style={{minWidth:0,padding:9,border:"1px solid #dbe2ec",borderRadius:6}}/>
+              <input value={newGroupDescription} onChange={(event)=>setNewGroupDescription(event.target.value)} placeholder="任务组说明（可选）" style={{minWidth:0,padding:9,border:"1px solid #dbe2ec",borderRadius:6}}/>
+              <button type="button" className="tasks-primary-btn" disabled={busy||newGroupName.trim().length<2} onClick={async()=>{setBusy(true);try{await api("/api/v1/admin/tasks/groups",{method:"POST",body:JSON.stringify({name:newGroupName,description:newGroupDescription})});setNewGroupName("");setNewGroupDescription("");setTaskGroups(await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups"));setMessage("任务组创建成功。");}catch(err){setError(err instanceof Error?err.message:"创建任务组失败。");}finally{setBusy(false);}}}>＋ 新建</button>
+            </div>
+            <div style={{border:"1px solid #e5eaf1",borderRadius:8,overflow:"hidden",maxHeight:340,overflowY:"auto"}}>
+              {taskGroups.length===0?<div style={{padding:18,color:"#718096",fontSize:13}}>暂无任务组</div>:taskGroups.map((group)=><div key={group.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 13px",borderBottom:"1px solid #edf0f5"}}>
+                <div style={{minWidth:0}}><strong style={{fontSize:13}}>{group.name}</strong><div style={{fontSize:12,color:"#718096",marginTop:4}}>{group.description||"未填写说明"} · {group.taskCount} 个任务</div></div>
+                <div style={{display:"flex",gap:7,flexShrink:0}}><button type="button" className="tasks-outline-btn" onClick={()=>{setGroupFilter(group.name);setPage(1);setGroupModalOpen(false);}}>查看任务</button><button type="button" className="tasks-outline-btn" disabled={busy} onClick={async()=>{if(!window.confirm("确定删除任务组“"+group.name+"”吗？任务本身及其号码记录会保留，并转为未分组。"))return;setBusy(true);try{await api("/api/v1/admin/tasks/groups/"+group.id,{method:"DELETE"});setTaskGroups(await api<TaskGroupOption[]>("/api/v1/admin/tasks/groups"));await refresh();await loadRecords();setMessage("任务组已删除，任务和号码记录均已保留。");}catch(err){setError(err instanceof Error?err.message:"删除任务组失败。");}finally{setBusy(false);}}}>删除</button></div>
+              </div>)}
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}><button type="button" className="tasks-outline-btn" onClick={()=>setGroupModalOpen(false)}>关闭</button></div>
+          </section>
+        </div>
+      )}
+      {bulkMessageOpen && (
+        <div className="tasks-detail-backdrop" onClick={()=>setBulkMessageOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-label="批量更换话术" onClick={(event)=>event.stopPropagation()} style={{width:"min(94vw,520px)",background:"#fff",borderRadius:10,padding:18,boxShadow:"0 18px 50px rgba(15,23,42,.2)"}}>
+            <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <strong style={{fontSize:16}}>批量更换话术</strong>
+              <button type="button" onClick={()=>setBulkMessageOpen(false)} aria-label="关闭">×</button>
+            </header>
+            <p style={{fontSize:13,color:"#536176",lineHeight:1.6}}>更换当前已应用筛选条件下全部未领取、未占用且未进入回收站的普通任务话术，不受页码和勾选状态影响。</p>
+            <div style={{padding:12,background:"#f7f9fc",border:"1px solid #e5eaf1",borderRadius:7,fontSize:12,color:"#52627a"}}>按当前筛选条件匹配任务；只修改未发布、未领取且未占用的任务。</div>
+            <div style={{display:"flex",gap:18,borderBottom:"1px solid #e5eaf1",marginTop:14}}>
+              <button type="button" className={bulkMessageTab==="manual"?"active":""} onClick={()=>setBulkMessageTab("manual")} style={{padding:"10px 12px",border:0,borderBottom:bulkMessageTab==="manual"?"2px solid #2864ed":"2px solid transparent",background:"transparent",color:bulkMessageTab==="manual"?"#2864ed":"#52627a"}}>手工输入</button>
+              <button type="button" onClick={()=>setBulkMessageTab("template")} style={{padding:"10px 12px",border:0,borderBottom:bulkMessageTab==="template"?"2px solid #2864ed":"2px solid transparent",background:"transparent",color:bulkMessageTab==="template"?"#2864ed":"#52627a"}}>选择模板</button>
+            </div>
+            <div style={{paddingTop:14}}>
+              {bulkMessageTab==="manual" ? <textarea rows={6} value={bulkMessageText} onChange={(event)=>setBulkMessageText(event.target.value)} placeholder="请输入需要批量更换的话术" style={{width:"100%",boxSizing:"border-box",padding:11,border:"1px solid #dbe2ec",borderRadius:7,resize:"vertical"}}/> :
+                <div><label style={{display:"block",fontSize:13,marginBottom:7}}>话术模板</label><select value={bulkTemplateId} onChange={(event)=>setBulkTemplateId(event.target.value)} style={{width:"100%",padding:10,border:"1px solid #dbe2ec",borderRadius:7}}><option value="">请选择话术模板</option>{messageTemplates.filter((item)=>item.action==="MESSAGE"&&(item.platform==="通用"||(bulkPlatforms.length===1&&bulkPlatforms[0]===item.platform))).map((item)=><option key={item.id} value={item.id}>{item.name} · {item.platform} · {item.action}</option>)}</select><p style={{fontSize:12,color:"#718096"}}>只显示已启用且适用于当前任务平台的模板。模板内容将复制到任务中，之后编辑模板不会改变已创建任务。</p>{bulkTemplateId && <pre style={{whiteSpace:"pre-wrap",maxHeight:140,overflow:"auto",padding:10,background:"#f8fafc",borderRadius:6,fontSize:12}}>{messageTemplates.find((item)=>item.id===bulkTemplateId)?.content}</pre>}</div>}
+            </div>
+            <footer style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
+              <button type="button" className="tasks-outline-btn" onClick={()=>setBulkMessageOpen(false)}>取消</button>
+              <button type="button" className="tasks-primary-btn" disabled={busy || (bulkMessageTab==="manual"?!bulkMessageText.trim():!bulkTemplateId)} onClick={async()=>{
+                const text=bulkMessageTab==="manual"?bulkMessageText.trim():(messageTemplates.find((item)=>item.id===bulkTemplateId)?.content??"");
+                if(!text.trim())return;
+                if(!window.confirm("将更换当前筛选条件下所有符合条件的未领取任务话术。已发布、已领取或已占用任务不会修改。确定继续吗？"))return;
+                setBusy(true);setError("");setMessage("");
+                try{
+                  const result=await api<{matchedTasks:number;updatedTasks:number;message:string}>("/api/v1/admin/tasks/records/bulk-message",{method:"POST",body:JSON.stringify({
+                    messageTemplate:text,
+                    keyword:appliedSearch,
+                    groupName:groupFilter,
+                    countryRegion:countryFilter.trim(),
+                    createdFrom:createdFrom?new Date(createdFrom+"T00:00:00").toISOString():undefined,
+                    createdTo:createdTo?new Date(createdTo+"T23:59:59.999").toISOString():undefined
+                  })});
+                  setBulkMessageOpen(false);
+                  setMessage(result.message+" 匹配 "+result.matchedTasks+" 个任务，更新 "+result.updatedTasks+" 个任务。");
+                  await refresh();await loadRecords();
+                }catch(err){setError(err instanceof Error?err.message:"批量更新失败。");}
+                finally{setBusy(false);}
+              }}>{busy?"正在更换…":"确认更换"}</button>
+            </footer>
+          </section>
+        </div>
+      )}
       {formOpen && (
         <section className="panel">
           <div className="admin-header">
@@ -382,6 +660,8 @@ export default function AdminTasksPage() {
           </form>
         </section>
       )}
+        </div>
+      </section>
     </main>
   );
 }

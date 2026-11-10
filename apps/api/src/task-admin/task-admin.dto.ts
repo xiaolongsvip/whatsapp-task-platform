@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -23,6 +24,10 @@ export class CreateAdminTaskDto {
   @IsString()
   @Length(2, 80)
   category!: string;
+
+  @IsOptional()
+  @IsUUID()
+  groupId?: string | null;
 
   @IsString()
   @Matches(/^\d{1,8}(?:\.\d{1,2})?$/, {
@@ -89,6 +94,10 @@ export class UpdateAdminTaskDto {
   @IsString()
   @Length(2, 80)
   category?: string;
+
+  @IsOptional()
+  @IsUUID()
+  groupId?: string | null;
 
   @IsOptional()
   @IsString()

@@ -1,6 +1,9 @@
 package com.wtp.app.data
 
+import com.wtp.app.BuildConfig
 import android.content.Context
+import android.os.Build
+import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -146,6 +149,7 @@ object AuthRepository {
         when (method) {
             "POST" -> builder.post((body ?: JSONObject()).toString().toRequestBody(mediaType))
             "PATCH" -> builder.patch((body ?: JSONObject()).toString().toRequestBody(mediaType))
+            "DELETE" -> builder.delete()
             "GET" -> builder.get()
             else -> throw IllegalArgumentException("Unsupported method")
         }
@@ -164,18 +168,108 @@ object AuthRepository {
         }
     }
 
-    fun login(phone: String, password: String): JSONObject =
-        request("POST", "auth/login", JSONObject().put("phone", phone).put("password", password))
+    private fun reportDevice() {
+        val context = appContext ?: return
+        val identifier = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)?.takeIf { it.isNotBlank() } ?: return
+        val model = listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.distinct().joinToString(" ").take(120)
+        try {
+            request("POST", "users/device", JSONObject()
+                .put("deviceIdentifier", identifier)
+                .put("manufacturer", Build.MANUFACTURER.orEmpty())
+                .put("model", model.ifBlank { "Android device" })
+                .put("androidVersion", Build.VERSION.RELEASE.orEmpty())
+                .put("sdkInt", Build.VERSION.SDK_INT)
+                .put("appVersion", BuildConfig.VERSION_NAME))
+        } catch (error: IOException) {
+            // Keep sign-in available during transient network failures, but honor
+            // an explicit device restriction returned by the administrator.
+            if (error.message.orEmpty().contains("设备已被管理员限制")) throw error
+        }
+    }
+
+    fun login(phone: String, password: String): JSONObject {
+        val result = request("POST", "auth/login", JSONObject().put("phone", phone).put("password", password))
+        reportDevice()
+        return result
+    }
 
     fun register(phone: String, password: String, inviteCode: String?): JSONObject {
         val body = JSONObject().put("phone", phone).put("password", password)
         if (!inviteCode.isNullOrBlank()) body.put("inviteCode", inviteCode.trim())
-        return request("POST", "auth/register", body)
+        val result = request("POST", "auth/register", body)
+        reportDevice()
+        return result
     }
 
-    fun currentUser(): JSONObject = request("GET", "auth/me")
+    fun currentUser(): JSONObject {
+        val result = try {
+            request("GET", "auth/me")
+        } catch (error: IOException) {
+            val message = error.message.orEmpty()
+            val sessionExpired = message.contains("HTTP 401") ||
+                message.contains("登录会话已失效") ||
+                message.contains("请先登录")
+            if (!sessionExpired) throw error
+
+            // The API rotates the HttpOnly session cookie on refresh. OkHttp's
+            // CookieJar persists the replacement cookie before the retry.
+            request("POST", "auth/refresh")
+            request("GET", "auth/me")
+        }
+        reportDevice()
+        return result
+    }
+
+    fun publicAppUpdate(): JSONObject = request("GET", "app/update")
+
+    fun publicAppSupport(): JSONObject = request("GET", "app/support")
 
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
+
+    fun promotionSummary(): JSONObject = request("GET", "users/promotion")
+
+    fun commissionRecords(): JSONObject = request("GET", "users/commission-records")
+
+    fun walletTransactions(limit: Int = 100): JSONObject = request("GET", "users/wallet-transactions?limit=$limit")
+
+    fun walletOverview(): JSONObject = request("GET", "users/wallet-overview")
+
+    fun teamMembers(): JSONObject = request("GET", "users/team")
+
+    fun withdrawalHistory(): JSONObject = request("GET", "users/withdrawals")
+
+    fun createWithdrawal(payoutAccountId: String, amountMinor: String, quote: JSONObject): JSONObject =
+        request("POST", "users/withdrawals", JSONObject()
+            .put("payoutAccountId", payoutAccountId)
+            .put("amountMinor", amountMinor)
+            .put("expectedRate", quote.optString("rate"))
+            .put("expectedRateSource", quote.optString("rateSource"))
+            .put("expectedRateFetchedAt", quote.optString("rateFetchedAt"))
+            .put("expectedQuoteAmountMinor", quote.optString("amountMinor"))
+            .put("expectedWalletCurrency", quote.optString("walletCurrency"))
+            .put("expectedPayoutCurrency", quote.optString("payoutCurrency"))
+            .put("expectedPayoutAmountMinor", quote.optString("payoutAmountMinor")))
+
+    fun payoutOptions(): JSONObject = request("GET", "users/payout-options")
+
+    fun withdrawalQuote(payoutAccountId: String, amountMinor: String? = null): JSONObject {
+        val query = "payoutAccountId=" + java.net.URLEncoder.encode(payoutAccountId, "UTF-8") +
+            (amountMinor?.let { "&amountMinor=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
+        return request("GET", "users/withdrawal-quote?$query")
+    }
+
+    fun payoutAccounts(): JSONObject = request("GET", "users/payout-accounts")
+
+    fun addPayoutAccount(
+        countryCode: String, currency: String, providerCode: String, methodCode: String,
+        accountHolder: String, accountNumber: String, phoneNumber: String
+    ): JSONObject = request("POST", "users/payout-accounts", JSONObject()
+        .put("countryCode", countryCode).put("currency", currency)
+        .put("providerCode", providerCode).put("methodCode", methodCode)
+        .put("accountHolder", accountHolder).put("accountNumber", accountNumber)
+        .put("phoneNumber", phoneNumber))
+
+    fun deletePayoutAccount(id: String): JSONObject = request("DELETE", "users/payout-accounts/$id")
 
     fun publishedTasks(): JSONObject = request("GET", "tasks")
 
@@ -206,9 +300,25 @@ object AuthRepository {
     ): JSONObject {
         val file = File(filePath)
         if (!file.isFile || !file.canRead()) throw IOException("找不到待上传截图，请重新截图。")
+        val header = ByteArray(12)
+        val headerSize = file.inputStream().use { it.read(header) }
+        val mimeType = when {
+            headerSize >= 3 &&
+                (header[0].toInt() and 0xff) == 0xff &&
+                (header[1].toInt() and 0xff) == 0xd8 &&
+                (header[2].toInt() and 0xff) == 0xff -> "image/jpeg"
+            headerSize >= 8 &&
+                header.copyOfRange(0, 8).contentEquals(
+                    byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+                ) -> "image/png"
+            headerSize >= 12 &&
+                String(header, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+                String(header, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
+            else -> throw IOException("截图格式不受支持，请使用 JPEG、PNG 或 WebP。")
+        }
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("file", file.name, file.asRequestBody("image/jpeg".toMediaType()))
+            .addFormDataPart("file", file.name, file.asRequestBody(mimeType.toMediaType()))
             .addFormDataPart("note", note)
             .build()
         val httpRequest = Request.Builder()
@@ -230,6 +340,11 @@ object AuthRepository {
             return json
         }
     }
+
+    fun changePassword(currentPassword: String, newPassword: String): JSONObject =
+        request("PATCH", "users/me/password", JSONObject()
+            .put("currentPassword", currentPassword)
+            .put("newPassword", newPassword))
 
     fun updateLocale(locale: String): JSONObject =
         request("PATCH", "users/me", JSONObject().put("locale", locale))

@@ -23,7 +23,19 @@ function hashToken(token: string): string {
 }
 
 function createReferralCode(): string {
-  return randomBytes(6).toString("hex").toUpperCase();
+  // Five characters, excluding visually ambiguous 0/O and 1/I.
+  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const bytes = randomBytes(5);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+async function createUniqueReferralCode(): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const code = createReferralCode();
+    const existing = await prisma.user.findUnique({ where: { referralCode: code }, select: { id: true } });
+    if (!existing) return code;
+  }
+  throw new ConflictException("暂时无法生成邀请码，请重试。");
 }
 
 @Injectable()
@@ -52,7 +64,7 @@ export class AuthService {
     if (inviterCode && !inviter) throw new BadRequestException("邀请码无效，请检查后重试。");
 
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
-    const referralCode = createReferralCode();
+    const referralCode = await createUniqueReferralCode();
 
     const user = await prisma.$transaction(async (tx) => {
         const created = await tx.user.create({
@@ -136,6 +148,31 @@ export class AuthService {
       where: { refreshTokenHash: hashToken(token), revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  async changePassword(token: string | undefined, currentPassword: string, newPassword: string) {
+    const currentUser = await this.getCurrentUser(token);
+    const user = await prisma.user.findUnique({
+      where: { id: currentUser.id },
+      select: { id: true, passwordHash: true },
+    });
+    if (!user || !(await argon2.verify(user.passwordHash, currentPassword))) {
+      throw new UnauthorizedException("当前密码错误。");
+    }
+    if (await argon2.verify(user.passwordHash, newPassword)) {
+      throw new BadRequestException("新密码不能与当前密码相同。");
+    }
+
+    const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
+    const currentTokenHash = hashToken(token!);
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+      prisma.authSession.updateMany({
+        where: { userId: user.id, revokedAt: null, refreshTokenHash: { not: currentTokenHash } },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    return { success: true, message: "密码已修改，其他设备的登录会话已失效。" };
   }
 
   async updateProfile(token: string | undefined, input: { displayName?: string; locale?: string; timezone?: string }) {

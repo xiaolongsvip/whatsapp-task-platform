@@ -76,9 +76,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
-private val WtpGreen = Color(0xFF27BD68)
+private val WtpGreen = Color(0xFF319CCB)
+private val WtpWhatsAppGreen = Color(0xFF27BD68)
 private val WtpDarkGreen = Color(0xFF176B8A)
-private val WtpPaleGreen = Color(0xFFE4F4EC)
+private val WtpPaleGreen = Color(0xFFDDF3FF)
 private val WtpPage = Color(0xFFF0F7FB)
 private val WtpSky = Color(0xFFE6F3FA)
 private val WtpSkyBorder = Color(0xFFD5E9F4)
@@ -100,10 +101,23 @@ fun TaskHallScreen(
     val scope = rememberCoroutineScope()
     val activeClaimId by CaptureSessionState.activeClaimId.collectAsState()
     val uploadMessage by CaptureSessionState.uploadMessage.collectAsState()
+    val captureError by CaptureSessionState.error.collectAsState()
+    val lastCaptureName by CaptureSessionState.lastCaptureName.collectAsState()
+    val lastCapturePath by CaptureSessionState.lastCapturePath.collectAsState()
+    val lastCaptureClaimId by CaptureSessionState.lastCaptureClaimId.collectAsState()
 
     var tasks by remember { mutableStateOf(emptyList<JSONObject>()) }
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var locallyExpiredClaimIds by remember { mutableStateOf(emptySet<String>()) }
     var dashboard by remember { mutableStateOf(JSONObject()) }
+    var clockMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var serverClockOffsetMillis by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            clockMillis = System.currentTimeMillis()
+            delay(1000L)
+        }
+    }
     var loading by remember { mutableStateOf(true) }
     var busyId by remember { mutableStateOf<String?>(null) }
     var abandoningId by remember { mutableStateOf<String?>(null) }
@@ -131,6 +145,10 @@ fun TaskHallScreen(
                 tasks = result.first.optJSONArray("tasks").asObjectList()
                 claims = result.second.optJSONArray("claims").asObjectList()
                 dashboard = result.third
+                val serverTime = result.third.optString("serverTime")
+                runCatching { Instant.parse(serverTime).toEpochMilli() }.getOrNull()?.let {
+                    serverClockOffsetMillis = it - System.currentTimeMillis()
+                }
             } catch (e: Exception) {
                 error = e.message ?: if (isEnglish) "Could not load tasks." else "任务加载失败。"
             } finally {
@@ -140,6 +158,52 @@ fun TaskHallScreen(
     }
 
     fun startAndOpenWhatsApp(claim: JSONObject) {
+        // The countdown is a client-side guard only; the API rechecks expiry
+        // under the claim lock before changing the claim to IN_PROGRESS.
+        if (isClaimDeadlinePassed(claim)) {
+            val expiredId = claim.optString("id")
+            locallyExpiredClaimIds = locallyExpiredClaimIds + expiredId
+            if (selectedClaimId == expiredId) selectedClaimId = null
+            error = if (isEnglish) {
+                "This task has expired. Refreshing the task list…"
+            } else {
+                "任务已超时，正在刷新任务列表…"
+            }
+            refresh()
+            mainTab = TaskMainTab.HALL
+            hallFilter = HallFilter.EXPIRED
+            return
+        }
+        // Do not start the task or leave the app until both required permissions
+        // are ready. The overlay hosts the screenshot control; the active
+        // MediaProjection session enables screenshot evidence capture.
+        if (!android.provider.Settings.canDrawOverlays(context)) {
+            Toast.makeText(
+                context,
+                if (isEnglish) "Enable overlay permission on the Home page before opening WhatsApp."
+                else "请先在首页开启悬浮窗权限，再前往 WhatsApp。",
+                Toast.LENGTH_LONG
+            ).show()
+            runCatching {
+                context.startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                )
+            }
+            return
+        }
+        if (!CaptureSessionState.active.value) {
+            Toast.makeText(
+                context,
+                if (isEnglish) "Start the screenshot session on the Home page before opening WhatsApp."
+                else "请先在首页开启持续截图会话，再前往 WhatsApp。",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
         val claimId = claim.optString("id")
         scope.launch {
             busyId = claimId
@@ -152,18 +216,11 @@ fun TaskHallScreen(
                     if (existing.optString("id") == claimId) started else existing
                 }
                 CaptureSessionState.setActiveClaim(claimId)
-                if (CaptureSessionState.active.value && android.provider.Settings.canDrawOverlays(context)) {
-                    context.startService(
-                        Intent(context, ScreenCaptureService::class.java)
-                            .setAction(ScreenCaptureService.ACTION_SHOW_FLOATING)
-                    )
-                } else {
-                    Toast.makeText(
-                        context,
-                        if (isEnglish) "Enable the screenshot session and overlay permission on the Home page before starting." else "请先在首页开启悬浮窗权限和截图会话，再开始任务。",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                // Permissions were checked before the claim was started.
+                context.startService(
+                    Intent(context, ScreenCaptureService::class.java)
+                        .setAction(ScreenCaptureService.ACTION_SHOW_FLOATING)
+                )
                 openWhatsApp(context, started, isEnglish)
             } catch (e: Exception) {
                 error = e.message ?: if (isEnglish) "Could not start the task." else "启动任务失败，请重试。"
@@ -174,11 +231,41 @@ fun TaskHallScreen(
     }
 
     LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(uploadMessage) {
+        if (!uploadMessage.isNullOrBlank()) {
+            // A successful evidence upload changes the server-side claim state.
+            // Refresh all task data so the hall and records never keep stale status.
+            refresh()
+            mainTab = TaskMainTab.RECORDS
+            recordFilter = RecordFilter.ALL
+        }
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
-    val inProgressClaims = claims.filter { it.optString("status") in IN_PROGRESS_STATUSES }
-    val expiredClaims = claims.filter { it.optString("status") in setOf("EXPIRED", "CANCELLED") }
-    val rejectedClaims = claims.filter { it.optString("status") == "REJECTED" }
+    val expirableStatuses = setOf("CLAIMED", "IN_PROGRESS", "REJECTED")
+    val isLocallyExpired: (JSONObject) -> Boolean = { claim ->
+        claim.optString("status") in expirableStatuses &&
+            (claim.optString("id") in locallyExpiredClaimIds || isClaimDeadlinePassed(claim))
+    }
+    val inProgressClaims = claims.filter {
+        it.optString("status") in IN_PROGRESS_STATUSES && !isLocallyExpired(it)
+    }
+    val hasUnfinishedTask = claims.any {
+        it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW") &&
+            !isLocallyExpired(it)
+    }
+    val expiredClaims = claims.filter {
+        it.optString("status") in setOf("EXPIRED", "CANCELLED") || isLocallyExpired(it)
+    }.map { claim ->
+        if (isLocallyExpired(claim)) {
+            JSONObject(claim.toString()).put("status", "EXPIRED")
+        } else {
+            claim
+        }
+    }
+    val rejectedClaims = claims.filter {
+        it.optString("status") == "REJECTED" && !isLocallyExpired(it)
+    }
     val settledClaims = claims.filter { it.optString("status") == "APPROVED" }
     // API supplies one independent card for every available authorized number slot.
     val availableTasks = tasks
@@ -214,11 +301,53 @@ fun TaskHallScreen(
         RecordFilter.NEED_ACTION -> rejectedClaims
         RecordFilter.INCOMPLETE -> expiredClaims
     }
+    val evidenceClaim = claims.firstOrNull { it.optString("id") == lastCaptureClaimId }
+    val evidenceTaskTitle = evidenceClaim?.optJSONObject("task")?.optString("title")
+        ?.takeIf { it.isNotBlank() && it != "null" }
 
     Column(
         modifier.fillMaxSize().background(WtpPage).padding(bottom = 2.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
+        if (!lastCaptureName.isNullOrBlank()) {
+                Surface(
+                    color = if (lastCapturePath.isNullOrBlank() && !uploadMessage.isNullOrBlank()) WtpPaleGreen else Color(0xFFEAF4FF),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            if (isEnglish) "Latest screenshot evidence" else "最近一次截图凭证",
+                            color = WtpText,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (evidenceTaskTitle != null) {
+                            Text(
+                                (if (isEnglish) "Task: " else "所属任务：") + evidenceTaskTitle,
+                                color = WtpText
+                            )
+                        }
+                        Text(
+                            (if (isEnglish) "File: " else "截图文件：") + lastCaptureName.orEmpty(),
+                            color = WtpMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            when {
+                                !lastCapturePath.isNullOrBlank() && !captureError.isNullOrBlank() ->
+                                    if (isEnglish) "Upload failed — original screenshot retained; tap the floating bubble to retry." else "上传失败，原截图已保留；点击悬浮水球可重传。"
+                                !lastCapturePath.isNullOrBlank() ->
+                                    if (isEnglish) "Screenshot saved; upload is pending." else "截图已保存，正在等待上传或重传。"
+                                !uploadMessage.isNullOrBlank() ->
+                                    if (isEnglish) "Uploaded successfully and submitted for review." else "已上传成功并提交审核。"
+                                else -> if (isEnglish) "Screenshot saved locally." else "截图已保存在本机。"
+                            },
+                            color = if (lastCapturePath.isNullOrBlank() && !uploadMessage.isNullOrBlank()) WtpDarkGreen else WtpMuted,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+        }
         Row(
             Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -294,7 +423,65 @@ fun TaskHallScreen(
                     }
                 }
             } else {
-                Spacer(Modifier.width(80.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.IconButton(onClick = {
+                        val supportUrl = dashboard.optString("supportUrl").takeIf { it.isNotBlank() && it != "null" }
+                        if (supportUrl == null) supportDialogOpen = true
+                        else runCatching {
+                            val uri = Uri.parse(supportUrl)
+                            require(uri.scheme == "https" || uri.scheme == "http")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        }.onFailure { supportDialogOpen = true }
+                    }) {
+                        androidx.compose.material3.Icon(
+                            Icons.Default.HeadsetMic,
+                            contentDescription = if (isEnglish) "Customer support" else "客服",
+                            tint = Color(0xFF58786A)
+                        )
+                    }
+                    Box {
+                        androidx.compose.material3.IconButton(onClick = { languageMenuOpen = true }) {
+                            androidx.compose.material3.Icon(
+                                Icons.Default.Language,
+                                contentDescription = if (isEnglish) "Language" else "语言",
+                                tint = Color(0xFF58786A)
+                            )
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = languageMenuOpen,
+                            onDismissRequest = { languageMenuOpen = false }
+                        ) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("简体中文") },
+                                onClick = {
+                                    languageMenuOpen = false
+                                    scope.launch {
+                                        try {
+                                            withContext(Dispatchers.IO) { AuthRepository.updateLocale("zh-CN") }
+                                            onLanguageChanged("zh-CN")
+                                        } catch (e: Exception) {
+                                            error = e.message ?: "语言保存失败"
+                                        }
+                                    }
+                                }
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("English") },
+                                onClick = {
+                                    languageMenuOpen = false
+                                    scope.launch {
+                                        try {
+                                            withContext(Dispatchers.IO) { AuthRepository.updateLocale("en") }
+                                            onLanguageChanged("en")
+                                        } catch (e: Exception) {
+                                            error = e.message ?: "Could not save language"
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -325,6 +512,20 @@ fun TaskHallScreen(
                     Modifier.padding(12.dp),
                     color = WtpDarkGreen,
                     fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+        if (!captureError.isNullOrBlank()) {
+            Surface(
+                color = Color(0xFFFFF1E8),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(
+                    captureError.orEmpty(),
+                    Modifier.padding(12.dp),
+                    color = Color(0xFF9A3412),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -376,6 +577,48 @@ fun TaskHallScreen(
                                 (if (isEnglish) "Available" else "可领取") to availableTasks.size.toString()
                             )
                         )
+                        val intervalSeconds = dashboard.optInt("minClaimIntervalSeconds", 60)
+                        val nextClaimAt = dashboard.optString("nextClaimAt").takeIf { it.isNotBlank() && it != "null" }
+                        val nextClaimMillis = nextClaimAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+                        val remainingWaitSeconds = nextClaimMillis?.let { ((it - (clockMillis + serverClockOffsetMillis) + 999L) / 1000L).coerceAtLeast(0L) } ?: 0L
+                        Surface(
+                            color = WtpSky,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                        ) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    if (isEnglish) "Minimum claim interval: ${intervalSeconds}s" else "任务领取间隔：${intervalSeconds} 秒",
+                                    color = WtpText, fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    if (remainingWaitSeconds > 0L) {
+                                        val minutes = remainingWaitSeconds / 60L
+                                        val seconds = remainingWaitSeconds % 60L
+                                        if (isEnglish) "Next claim in %02d:%02d".format(minutes, seconds)
+                                        else "距离下次领取还需 %02d:%02d".format(minutes, seconds)
+                                    } else {
+                                        if (isEnglish) "Claim interval satisfied" else "领取间隔已满足"
+                                    },
+                                    color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        if (hasUnfinishedTask) {
+                            Surface(
+                                color = WtpSky,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                            ) {
+                                Text(
+                                    if (isEnglish) "Finish your current task before claiming another one." else "请先完成当前任务，再领取下一个任务。",
+                                    Modifier.padding(12.dp),
+                                    color = Color(0xFF176B9A),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                         if (loading && tasks.isEmpty()) {
                             LoadingState()
                         } else if (availableTasks.isEmpty()) {
@@ -388,11 +631,15 @@ fun TaskHallScreen(
                                 AvailableTaskCard(
                                     task = task,
                                     isEnglish = isEnglish,
-                                    busy = busyId == task.optString("id") || busyId != null,
+                                    busy = busyId == task.optString("id") || busyId != null || hasUnfinishedTask || remainingWaitSeconds > 0L,
                                     onStart = {
                                         val taskId = task.optString("taskId")
                                         val slotId = task.optString("slotId")
                                         scope.launch {
+                                            if (remainingWaitSeconds > 0L) {
+                                                error = if (isEnglish) "Please wait for the claim interval." else "领取间隔未结束，请等待倒计时完成。"
+                                                return@launch
+                                            }
                                             busyId = slotId
                                             error = null
                                             notice = null
@@ -460,6 +707,10 @@ fun TaskHallScreen(
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for evidence capture." else "已将该任务设为当前截图提交任务。"
+                                },
+                                onCountdownExpired = {
+                                    locallyExpiredClaimIds = locallyExpiredClaimIds + claim.optString("id")
+                                    refresh()
                                 }
                             )
                         }
@@ -497,6 +748,10 @@ fun TaskHallScreen(
                                 onSelect = {
                                     CaptureSessionState.setActiveClaim(claim.optString("id"))
                                     notice = if (isEnglish) "This task is selected for resubmission." else "已选择此任务，可返回 WhatsApp 重新处理。"
+                                },
+                                onCountdownExpired = {
+                                    locallyExpiredClaimIds = locallyExpiredClaimIds + claim.optString("id")
+                                    refresh()
                                 }
                             )
                         }
@@ -545,6 +800,17 @@ fun TaskHallScreen(
                 abandoning = abandoningId == selectedClaim.optString("id"),
                 starting = busyId == selectedClaim.optString("id"),
                 onGoWhatsApp = { startAndOpenWhatsApp(selectedClaim) },
+                onExpired = {
+                    if (activeClaimId == selectedClaim.optString("id")) {
+                        CaptureSessionState.clearActiveClaim()
+                        context.startService(Intent(context, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_HIDE_FLOATING))
+                    }
+                    selectedClaimId = null
+                    refresh()
+                    mainTab = TaskMainTab.HALL
+                    hallFilter = HallFilter.EXPIRED
+                    notice = if (isEnglish) "Task expired. The assigned number has been released." else "任务已失效，分配号码已释放。"
+                },
                 onAbandon = {
                     val claimId = selectedClaim.optString("id")
                     scope.launch {
@@ -602,37 +868,55 @@ private fun TaskExecutionScreen(
     abandoning: Boolean,
     starting: Boolean,
     onGoWhatsApp: () -> Unit,
+    onExpired: () -> Unit,
     onAbandon: () -> Unit
 ) {
     val task = claim.optJSONObject("task") ?: JSONObject()
     val status = claim.optString("status")
     val phone = claim.optString("assignedPhoneNumber")
-    val previewTitle = task.optString("previewTitle").takeUnless { it == "null" }.orEmpty()
-    val previewDescription = task.optString("previewDescription").takeUnless { it == "null" }.orEmpty()
-    val previewImageUrl = task.optString("previewImageUrl").takeUnless { it == "null" }.orEmpty()
-    val link = task.optString("linkUrl").takeUnless { it == "null" }.orEmpty()
-    val message = task.optString("messageTemplate").takeUnless { it == "null" }.orEmpty()
-    val expiryValue = claim.optString("expiresAt")
-    val timerStarted = expiryValue.isNotBlank() && expiryValue != "null"
+    // Prefer the server deadline. For older claim responses without expiresAt,
+    // derive the same fixed deadline from claimedAt rather than starting a new
+    // three-minute countdown when this screen is opened.
+    val expiryValue = taskExpiryValue(claim).orEmpty()
+    val timerStarted = expiryValue.isNotBlank()
     val expiryMillis = remember(expiryValue) {
         if (timerStarted) runCatching { Instant.parse(expiryValue).toEpochMilli() }.getOrDefault(0L) else 0L
     }
     var remainingSeconds by remember(expiryMillis, timerStarted) {
-        mutableStateOf(if (timerStarted) ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0) else 180L)
+        mutableStateOf(
+            if (timerStarted) {
+                ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            } else {
+                0L
+            }
+        )
     }
     var showAbandonDialog by remember { mutableStateOf(false) }
     val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "EXPIRED")
     val reward = formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD"))
+    val taskDescription = task.optString("description")
+        .takeUnless { it.isBlank() || it == "null" }
+        ?: if (isEnglish) {
+            "Send the required message manually and submit a screenshot for review."
+        } else {
+            "手动发送指定信息，完成后提交截图审核。"
+        }
 
     LaunchedEffect(expiryMillis, timerStarted) {
         while (timerStarted && remainingSeconds > 0) {
             remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0) delay(1000)
         }
+        if (timerStarted && remainingSeconds <= 0 && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")) {
+            // The server owns expiry and returns the assigned number to the pool.
+            onExpired()
+        }
     }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
+        Modifier.fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Card(
@@ -640,38 +924,108 @@ private fun TaskExecutionScreen(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text(if (isEnglish) "WhatsApp private message task" else "WhatsApp 私信任务", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatusPill(claimStatus(status, isEnglish), WtpPaleGreen, WtpDarkGreen)
-                    StatusPill("WhatsApp", WtpSky, WtpDarkGreen)
-                    if (activeClaimId == claim.optString("id")) {
-                        Text(if (isEnglish) "Evidence task" else "截图任务", color = WtpDarkGreen, style = MaterialTheme.typography.labelSmall)
-                    }
-                }
+            Column(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
                 Text(
-                    if (isEnglish) "Manually send the specified message, then submit a screenshot for review." else "手动发送指定信息，提交截图审核",
+                    if (isEnglish) "WhatsApp Private Message Task" else "WhatsApp 私信任务",
+                    color = Color(0xFF40594E),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                StatusPill(
+                    claimStatus(status, isEnglish),
+                    if (status == "IN_PROGRESS") Color(0xFFE1F5EC) else WtpSky,
+                    if (status == "IN_PROGRESS") Color(0xFF21835F) else WtpDarkGreen
+                )
+                Text(
+                    taskDescription,
                     color = WtpMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
                 Row(
-                    Modifier.fillMaxWidth().background(Color(0xFFF3F8F5), RoundedCornerShape(10.dp))
+                    Modifier.fillMaxWidth()
+                        .background(
+                            Color(0xFFF4F8F6),
+                            RoundedCornerShape(10.dp)
+                        )
                         .padding(horizontal = 12.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (isEnglish) "Reward" else "单次奖励", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(reward, color = WtpDarkGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    }
-                    Surface(Modifier.width(1.dp).height(34.dp), color = WtpSkyBorder) {}
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (isEnglish) "Time remaining" else "剩余时间", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                    Column(
+                        Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(
-                            String.format(Locale.ROOT, "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60),
-                            color = if (remainingSeconds <= 30) Color(0xFFD14343) else WtpDarkGreen,
+                            if (isEnglish) "Single reward" else "单次奖励",
+                            color = WtpMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            reward,
+                            color = Color(0xFF278765),
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleMedium
                         )
+                    }
+                    Box(
+                        Modifier.width(1.dp).height(34.dp).background(Color(0xFFDDE8E2))
+                    )
+                    Column(
+                        Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            if (isEnglish) "Time remaining" else "剩余时间",
+                            color = WtpMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            if (timerStarted) {
+                                String.format(
+                                    Locale.ROOT,
+                                    "%02d:%02d",
+                                    remainingSeconds / 60,
+                                    remainingSeconds % 60
+                                )
+                            } else {
+                                "--:--"
+                            },
+                            color = if (remainingSeconds <= 30) Color(0xFFD14343) else Color(0xFF278765),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                }
+                if (status == "REJECTED") {
+                    val submission = claim.optJSONObject("latestSubmission")
+                    val reason = submission?.optString("reviewReason")
+                        ?.takeUnless { it.isNullOrBlank() || it == "null" }
+                    Surface(
+                        color = Color(0xFFFFF4E8),
+                        shape = RoundedCornerShape(9.dp)
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(11.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                if (isEnglish) "Rejected — you can try again before the deadline"
+                                else "审核未通过，可在原截止时间前重新执行",
+                                color = Color(0xFF9A3412),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                reason ?: if (isEnglish) "Please review the task requirements."
+                                else "请检查任务要求后重新执行。",
+                                color = Color(0xFF7C2D12),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
             }
@@ -682,81 +1036,118 @@ private fun TaskExecutionScreen(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if (isEnglish) "Task steps" else "任务步骤", color = WtpText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+            Column(
+                Modifier.fillMaxWidth().padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(19.dp)
+            ) {
+                Text(
+                    if (isEnglish) "Task steps" else "任务步骤",
+                    color = Color(0xFF40594E),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(13.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
                     StepNumber(1)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text(if (isEnglish) "Open WhatsApp" else "打开 WhatsApp", color = WtpText, fontWeight = FontWeight.SemiBold)
-                        Text(if (isEnglish) "Check the assigned contact and prepared message before sending." else "核对后台分配的号码和预设内容，确认无误后再发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            if (isEnglish) "Open WhatsApp" else "打开WhatsApp",
+                            color = WtpText,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            if (isEnglish) "Open the target app on your phone."
+                            else "请在手机上打开目标 App。",
+                            color = WtpMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         Button(
                             onClick = onGoWhatsApp,
-                            enabled = !starting && phone.isNotBlank() && phone != "null" && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") && (!timerStarted || remainingSeconds > 0),
-                            modifier = Modifier.height(44.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
-                            shape = RoundedCornerShape(10.dp)
+                            enabled = !starting && phone.isNotBlank() && phone != "null" &&
+                                status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                                remainingSeconds > 0,
+                            modifier = Modifier.width(162.dp).height(46.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = WtpWhatsAppGreen,
+                                disabledContainerColor = Color(0xFFB7DCC8)
+                            ),
+                            shape = RoundedCornerShape(9.dp)
                         ) {
-                            Text(if (starting) { if (isEnglish) "Opening…" else "正在打开…" } else { if (isEnglish) "Go to WhatsApp" else "前往 WhatsApp" }, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(
+                                when {
+                                    starting -> if (isEnglish) "Opening…" else "正在打开…"
+                                    status == "REJECTED" -> if (isEnglish) "Restart task" else "重新开始任务"
+                                    else -> if (isEnglish) "Open WhatsApp" else "打开WhatsApp"
+                                },
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    StepNumber(2)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(if (isEnglish) "Complete the task in WhatsApp" else "在 WhatsApp 中完成任务", color = WtpText, fontWeight = FontWeight.SemiBold)
-                        Text(if (isEnglish) "Review the contact, message and link preview. Send manually only after confirming the recipient has consented to receive the message." else "使用已分配号码和预设内容，检查链接预览；确认收件人同意接收后，由你本人点击发送。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                        if (phone.isNotBlank() && phone != "null") {
-                            Surface(color = WtpSky, shape = RoundedCornerShape(8.dp)) {
-                                Text((if (isEnglish) "Assigned contact: " else "后台分配号码：") + maskPhoneNumber(phone), Modifier.fillMaxWidth().padding(9.dp), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    StepNumber(3)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(if (isEnglish) "Submit screenshot" else "通过悬浮窗提交截图", color = WtpText, fontWeight = FontWeight.SemiBold)
-                        Text(if (isEnglish) "After sending, return to this app and tap the floating capture button. The screenshot will be uploaded to review." else "完成后返回本页，点击右侧悬浮球的截图按钮，系统会自动截图并上传审核。", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
-                if (message.isNotBlank()) {
-                    Text(if (isEnglish) "Prepared message" else "预设消息内容", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
-                    Surface(color = WtpPage, shape = RoundedCornerShape(9.dp)) {
-                        Text(message, Modifier.fillMaxWidth().padding(12.dp), color = WtpText)
-                    }
-                }
-                if (link.isNotBlank()) {
-                    Text(if (isEnglish) "Link preview" else "链接预览", color = WtpMuted, style = MaterialTheme.typography.labelMedium)
-                    Surface(color = WtpSky, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, WtpSkyBorder)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            if (previewTitle.isNotBlank()) Text(previewTitle, color = WtpText, fontWeight = FontWeight.Bold)
-                            if (previewDescription.isNotBlank()) Text(previewDescription, color = WtpMuted, style = MaterialTheme.typography.bodySmall)
-                            Text(link, color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
-                            if (previewImageUrl.isNotBlank()) TaskPreviewImage(previewImageUrl, isEnglish)
-                        }
-                    }
-                }
+                TaskStep(
+                    2,
+                    if (isEnglish) "Complete the task in WhatsApp"
+                    else "在目标 App 中完成任务",
+                    if (isEnglish) "Use the floating helper to copy the assigned number and message, then complete the task manually."
+                    else "使用悬浮窗复制分配号码和话术，再手动完成任务。"
+                )
+
+                TaskStep(
+                    3,
+                    if (isEnglish) "Submit a screenshot through the floating bubble"
+                    else "通过悬浮窗提交截图",
+                    if (isEnglish) "When finished, tap the screenshot/submit control on the floating bubble and wait for review."
+                    else "完成后点击悬浮窗的截图/提交按钮，等待审核。"
+                )
+
                 Text(
-                    if (isEnglish) "Up to 3 unfinished tasks can be held at once. Default task time limit: 3 minutes." else "最多可保留 3 个未完成任务。默认时限 3 分钟；请以任务页显示的最新状态为准。",
-                    color = WtpMuted,
+                    if (isEnglish) "The task deadline is 3 minutes. Follow the countdown shown above."
+                    else "任务默认时限为 3 分钟，请以页面倒计时为准。",
+                    color = Color(0xFF668276),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
         }
 
         if (!errorMessage.isNullOrBlank()) {
-            Surface(color = Color(0xFFFFEEEE), shape = RoundedCornerShape(9.dp)) {
-                Text(errorMessage, Modifier.fillMaxWidth().padding(11.dp), color = Color(0xFFB42318), style = MaterialTheme.typography.bodySmall)
+            Surface(
+                color = Color(0xFFFFEEEE),
+                shape = RoundedCornerShape(9.dp)
+            ) {
+                Text(
+                    errorMessage,
+                    Modifier.fillMaxWidth().padding(11.dp),
+                    color = Color(0xFFB42318),
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
+
         if (canAbandon) {
             TextButton(
                 onClick = { showAbandonDialog = true },
                 enabled = !abandoning,
                 modifier = Modifier.fillMaxWidth().height(46.dp)
             ) {
-                Text(if (abandoning) { if (isEnglish) "Cancelling…" else "正在放弃…" } else { if (isEnglish) "Abandon task" else "放弃任务" }, color = Color(0xFFD92D20), fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (abandoning) {
+                        if (isEnglish) "Cancelling…" else "正在放弃…"
+                    } else {
+                        if (isEnglish) "Abandon task" else "放弃任务"
+                    },
+                    color = Color(0xFFD92D20),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
@@ -765,24 +1156,94 @@ private fun TaskExecutionScreen(
         AlertDialog(
             onDismissRequest = { showAbandonDialog = false },
             title = { Text(if (isEnglish) "Abandon this task?" else "确定放弃当前任务？") },
-            text = { Text(if (isEnglish) "The task will be cancelled and its assigned contact may be returned to the available pool." else "放弃后任务将被取消，已分配号码会按后台规则释放，之后需要重新领取。") },
+            text = {
+                Text(
+                    if (isEnglish) "The task will be cancelled and its assigned contact may be returned to the available pool."
+                    else "放弃后任务将被取消，已分配号码会按后台规则释放，之后需要重新领取。"
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     showAbandonDialog = false
                     onAbandon()
-                }) { Text(if (isEnglish) "Confirm abandon" else "确认放弃", color = Color(0xFFD92D20)) }
+                }) {
+                    Text(if (isEnglish) "Confirm abandon" else "确认放弃", color = Color(0xFFD92D20))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showAbandonDialog = false }) { Text(if (isEnglish) "Keep task" else "继续任务") }
+                TextButton(onClick = { showAbandonDialog = false }) {
+                    Text(if (isEnglish) "Keep task" else "继续任务")
+                }
             }
         )
     }
 }
 
 @Composable
+private fun TaskCountdownBadge(expiresAt: String, isEnglish: Boolean, onExpired: () -> Unit) {
+    val expiryMillis = remember(expiresAt) {
+        runCatching { Instant.parse(expiresAt).toEpochMilli() }.getOrDefault(0L)
+    }
+    var remainingSeconds by remember(expiryMillis) {
+        mutableStateOf(((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0))
+    }
+    var expiryNotified by remember(expiryMillis) { mutableStateOf(false) }
+
+    LaunchedEffect(expiryMillis) {
+        while (expiryMillis > 0L && remainingSeconds > 0L) {
+            remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            if (remainingSeconds > 0L) delay(1000)
+        }
+        remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+        if (expiryMillis > 0L && remainingSeconds <= 0L && !expiryNotified) {
+            expiryNotified = true
+            onExpired()
+        }
+    }
+
+    Surface(
+        color = if (remainingSeconds <= 30) Color(0xFFFFF1E5) else Color(0xFFE1F5EC),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                if (isEnglish) "Time left" else "剩余时间",
+                color = WtpMuted,
+                style = MaterialTheme.typography.labelSmall
+            )
+            Text(
+                String.format(
+                    Locale.ROOT,
+                    "%02d:%02d",
+                    remainingSeconds / 60,
+                    remainingSeconds % 60
+                ),
+                color = if (remainingSeconds <= 30) Color(0xFFD14343) else Color(0xFF278765),
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+@Composable
 private fun StepNumber(number: Int) {
-    Surface(color = WtpSky, shape = RoundedCornerShape(50)) {
-        Text(number.toString(), Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = WtpDarkGreen, fontWeight = FontWeight.Bold)
+    Surface(
+        modifier = Modifier.width(40.dp).height(40.dp),
+        color = Color(0xFFE1F5EC),
+        shape = RoundedCornerShape(50)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                number.toString(),
+                color = Color(0xFF278765),
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -863,11 +1324,11 @@ private fun MainTab(
     ) {
         Text(
             text,
-            color = if (selected) Color(0xFF258765) else WtpMuted,
+            color = if (selected) Color(0xFF319CCB) else WtpMuted,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
         )
         Surface(
-            color = if (selected) Color(0xFF258765) else Color.Transparent,
+            color = if (selected) Color(0xFF319CCB) else Color.Transparent,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(2.dp)
         ) {}
     }
@@ -934,11 +1395,11 @@ private fun RecordFilterTabs(
             ) {
                 Text(
                     label,
-                    color = if (selected == filter) Color(0xFF258765) else WtpMuted,
+                    color = if (selected == filter) Color(0xFF319CCB) else WtpMuted,
                     fontWeight = if (selected == filter) FontWeight.Bold else FontWeight.Medium
                 )
                 Surface(
-                    color = if (selected == filter) Color(0xFF258765) else Color.Transparent,
+                    color = if (selected == filter) Color(0xFF319CCB) else Color.Transparent,
                     modifier = Modifier.width(48.dp).height(2.dp)
                 ) {}
             }
@@ -992,9 +1453,9 @@ private fun AvailableTaskCard(
             )
 
             Surface(
-                color = Color(0xFFF6FCF8),
+                color = Color(0xFFF2F7FB),
                 shape = RoundedCornerShape(9.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE1F0E7))
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD8E5EC))
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -1013,7 +1474,7 @@ private fun AvailableTaskCard(
                         )
                     }
                     Box(
-                        Modifier.width(1.dp).height(34.dp).background(Color(0xFFDCEBE3))
+                        Modifier.width(1.dp).height(34.dp).background(Color(0xFFD8E5EC))
                     )
                     Column(
                         Modifier.weight(1f).padding(start = 12.dp),
@@ -1072,13 +1533,16 @@ private fun ClaimedTaskCard(
     busy: Boolean,
     onViewDetails: () -> Unit,
     onGoWhatsApp: () -> Unit,
-    onSelect: () -> Unit
+    onSelect: () -> Unit,
+    onCountdownExpired: () -> Unit
 ) {
     val task = claim.optJSONObject("task") ?: JSONObject()
     val status = claim.optString("status")
     val submission = claim.optJSONObject("latestSubmission")
     val phone = claim.optString("assignedPhoneNumber")
-    val canOpen = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+    var countdownExpired by remember(claim.optString("id")) { mutableStateOf(false) }
+    val canOpen = !countdownExpired &&
+        status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
         (submission == null || submission.optString("status") == "REJECTED")
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -1086,7 +1550,34 @@ private fun ClaimedTaskCard(
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(task.optString("title"), color = WtpText, fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    task.optString("title"),
+                    modifier = Modifier.weight(1f),
+                    color = WtpText,
+                    fontWeight = FontWeight.Bold
+                )
+                val expiresAt = taskExpiryValue(claim)
+                if (
+                    status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                    expiresAt != null
+                ) {
+                    TaskCountdownBadge(
+                        expiresAt = expiresAt,
+                        isEnglish = isEnglish,
+                        onExpired = {
+                            if (!countdownExpired) {
+                                countdownExpired = true
+                                onCountdownExpired()
+                            }
+                        }
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (isEnglish) "Status: " else "状态：", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                 Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold)
@@ -1099,31 +1590,57 @@ private fun ClaimedTaskCard(
                     }
                 }
             }
-            val messageTemplate = task.optString("messageTemplate")
-            if (messageTemplate.isNotBlank() && messageTemplate != "null") {
-                Text(
-                    (if (isEnglish) "Message: " else "消息模板：") + messageTemplate,
-                    color = WtpMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 3
-                )
-            }
-            val link = task.optString("linkUrl")
-            if (link.isNotBlank() && link != "null") {
-                Text(
-                    (if (isEnglish) "Link: " else "任务链接：") + link,
-                    color = WtpDarkGreen,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1
-                )
-            }
             if (submission != null) {
-                Text(
-                    (if (isEnglish) "Latest submission: " else "最近提交：") +
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (isEnglish) "Evidence review" else "凭证审核状态",
+                        color = WtpMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    StatusPill(
                         claimStatus(submission.optString("status"), isEnglish),
-                    color = WtpMuted,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                        when (submission.optString("status")) {
+                            "APPROVED" -> WtpPaleGreen
+                            "REJECTED" -> Color(0xFFFFF1E5)
+                            else -> Color(0xFFEAF4FF)
+                        },
+                        when (submission.optString("status")) {
+                            "APPROVED" -> WtpDarkGreen
+                            "REJECTED" -> Color(0xFFB45309)
+                            else -> Color(0xFF245987)
+                        }
+                    )
+                }
+                val submittedAt = submission.optString("submittedAt")
+                if (submittedAt.isNotBlank() && submittedAt != "null") {
+                    Text(
+                        (if (isEnglish) "Submitted: " else "提交时间：") + formatDate(submittedAt),
+                        color = WtpMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                val reviewReason = submission.optString("reviewReason").takeUnless { it.isNullOrBlank() || it == "null" }
+                if (submission.optString("status") == "REJECTED" && reviewReason != null) {
+                    Surface(
+                        color = Color(0xFFFFF4E8),
+                        shape = RoundedCornerShape(9.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                if (isEnglish) "Reason for rejection" else "审核驳回原因",
+                                color = Color(0xFF9A3412),
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(reviewReason, color = Color(0xFF7C2D12), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
             if (activeClaimId == claim.optString("id")) {
                 StatusPill(
@@ -1137,7 +1654,7 @@ private fun ClaimedTaskCard(
                     OutlinedButton(
                         onClick = onViewDetails,
                         modifier = Modifier.weight(1f),
-                        enabled = !busy,
+                        enabled = !busy && !countdownExpired,
                         shape = RoundedCornerShape(9.dp)
                     ) {
                         Text(if (isEnglish) "View details" else "查看详情", color = WtpDarkGreen)
@@ -1148,7 +1665,7 @@ private fun ClaimedTaskCard(
                             onGoWhatsApp()
                         },
                         modifier = Modifier.weight(1.35f),
-                        enabled = !busy && phone.isNotBlank() && phone != "null",
+                        enabled = !busy && !countdownExpired && phone.isNotBlank() && phone != "null",
                         colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
                         shape = RoundedCornerShape(9.dp)
                     ) {
@@ -1175,7 +1692,7 @@ private fun ClaimRecordCard(claim: JSONObject, isEnglish: Boolean) {
         "APPROVED" -> WtpPaleGreen to WtpDarkGreen
         "REJECTED" -> Color(0xFFFFF1E5) to Color(0xFFB45309)
         "EXPIRED", "CANCELLED" -> Color(0xFFF0F2F3) to Color(0xFF6B7280)
-        else -> Color(0xFFEAF4EF) to WtpDarkGreen
+        else -> Color(0xFFDDF3FF) to WtpDarkGreen
     }
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -1249,6 +1766,27 @@ private fun JSONObject.isWithinLastSevenDays(): Boolean {
     val instant = runCatching { Instant.parse(value) }.getOrNull() ?: return false
     return instant.isAfter(Instant.now().minus(7, ChronoUnit.DAYS))
 }
+
+private fun taskExpiryValue(claim: JSONObject): String? {
+    val serverExpiry = claim.optString("expiresAt")
+    if (serverExpiry.isNotBlank() && serverExpiry != "null") {
+        val parsed = runCatching { Instant.parse(serverExpiry) }.getOrNull()
+        if (parsed != null) return parsed.toString()
+    }
+
+    val claimedAt = claim.optString("claimedAt")
+    if (claimedAt.isBlank() || claimedAt == "null") return null
+    val claimedInstant = runCatching { Instant.parse(claimedAt) }.getOrNull() ?: return null
+    return claimedInstant.plusSeconds(180).toString()
+}
+
+private fun isClaimDeadlinePassed(claim: JSONObject): Boolean =
+    ClaimDeadline.isExpired(
+        status = claim.optString("status"),
+        expiresAt = claim.optString("expiresAt").takeUnless { it == "null" },
+        claimedAt = claim.optString("claimedAt").takeUnless { it == "null" },
+        nowMillis = System.currentTimeMillis()
+    )
 
 private fun formatDate(value: String): String {
     val instant = runCatching { Instant.parse(value) }.getOrNull() ?: return "—"
