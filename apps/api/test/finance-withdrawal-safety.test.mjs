@@ -643,3 +643,16 @@ test("manual payout maps provider-reference uniqueness conflicts to a clear dupl
   assert.match(finance, /target\.includes\("provider_reference"\)/);
   assert.match(finance, /该服务商付款凭证已被使用，不能重复登记/);
 });
+
+
+test("member withdrawal history exposes the admin rejection note only for the member's own withdrawal records", () => {
+  const dashboard = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(dashboard, /targetType: "WITHDRAWAL_REQUEST"/);
+  assert.match(dashboard, /targetId: \{ in: rows\.map\(\(row\) => row\.id\) \}/);
+  assert.match(dashboard, /action: "WITHDRAWAL_REJECTED"/);
+  assert.match(dashboard, /metadata\.note/);
+  assert.match(dashboard, /rejectionReason: row\.status === "REJECTED" \? rejectionReasons\.get\(row\.id\) \?\? null : null/);
+  assert.match(app, /item\.optString\("rejectionReason"\)/);
+  assert.match(app, /拒绝原因：/);
+});
