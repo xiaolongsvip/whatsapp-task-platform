@@ -518,13 +518,13 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
   async cancelClaim(userId: string, claimId: string) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT id FROM task_claims WHERE id = ${claimId}::uuid FOR UPDATE
-      `;
+      await tx.$queryRaw<Array<{ id: string }>>\`
+        SELECT id FROM task_claims WHERE id = \${claimId}::uuid FOR UPDATE
+      \`;
 
       const claim = await tx.taskClaim.findUnique({
         where: { id: claimId },
-        include: { contactAssignment: true },
+        select: { id: true, taskId: true, userId: true, status: true },
       });
       if (!claim || claim.userId !== userId) {
         throw new NotFoundException("任务领取记录不存在。");
@@ -549,23 +549,58 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         throw new ConflictException("任务正在审核中，不能取消。");
       }
 
+      const initialAssignment = await tx.contactAssignment.findUnique({
+        where: { claimId },
+        select: { id: true, contactNumberId: true },
+      });
+      const initialSlot = await tx.taskSlot.findUnique({
+        where: { claimId },
+        select: { id: true, contactNumberId: true },
+      });
+      const initialNumberId = initialAssignment?.contactNumberId ?? initialSlot?.contactNumberId;
+      if (initialNumberId) {
+        await tx.$queryRaw<Array<{ id: string }>>\`
+          SELECT id FROM contact_numbers WHERE id = \${initialNumberId}::uuid FOR UPDATE
+        \`;
+      }
+      if (initialSlot) {
+        await tx.$queryRaw<Array<{ id: string }>>\`
+          SELECT id FROM task_slots WHERE id = \${initialSlot.id}::uuid FOR UPDATE
+        \`;
+      }
+      if (initialAssignment) {
+        await tx.$queryRaw<Array<{ id: string }>>\`
+          SELECT id FROM contact_assignments WHERE id = \${initialAssignment.id}::uuid FOR UPDATE
+        \`;
+      }
+
+      const [assignment, assignedSlot] = await Promise.all([
+        tx.contactAssignment.findUnique({
+          where: { claimId },
+          select: { id: true, contactNumberId: true, status: true },
+        }),
+        tx.taskSlot.findUnique({
+          where: { claimId },
+          select: { id: true, contactNumberId: true, status: true },
+        }),
+      ]);
+      const contactNumberId = assignment?.contactNumberId ?? assignedSlot?.contactNumberId;
+      if (assignment && assignedSlot && assignment.contactNumberId !== assignedSlot.contactNumberId) {
+        throw new ConflictException("领取记录与号码库存关联不一致，暂不能取消。");
+      }
+
       await tx.taskClaim.update({
         where: { id: claimId },
         data: { status: "CANCELLED" },
       });
 
       const now = new Date();
-      if (claim.contactAssignment?.status === "ASSIGNED") {
+      if (assignment?.status === "ASSIGNED") {
         await tx.contactAssignment.update({
-          where: { id: claim.contactAssignment.id },
+          where: { id: assignment.id },
           data: { status: "RELEASED", releasedAt: now },
         });
       }
-      const assignedSlot = await tx.taskSlot.findUnique({
-        where: { claimId },
-        select: { id: true, contactNumberId: true, status: true },
-      });
-      const contactNumberId = claim.contactAssignment?.contactNumberId ?? assignedSlot?.contactNumberId;
       if (contactNumberId) {
         await tx.contactNumber.updateMany({
           where: {
@@ -603,11 +638,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       });
       await allocateAvailableNumbersToOldestPublishedTask(tx);
 
-      return {
-        claimId,
-        status: "CANCELLED",
-        numberReturnedToPool,
-      };
+      return { claimId, status: "CANCELLED", numberReturnedToPool };
     });
   }
 
