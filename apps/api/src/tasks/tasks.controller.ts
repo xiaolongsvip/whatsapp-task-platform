@@ -6,6 +6,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -39,9 +40,14 @@ export class TasksController {
   ) {}
 
   @Get()
-  async list(@Req() request: Request) {
+  async list(
+    @Req() request: Request,
+    @Query("limit") limit?: string,
+    @Query("beforeCreatedAt") beforeCreatedAt?: string,
+    @Query("beforeId") beforeId?: string,
+  ) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.tasks.listPublished(user.id);
+    return this.tasks.listPublished(user.id, limit, beforeCreatedAt, beforeId);
   }
 
   @Get("my/claims")
