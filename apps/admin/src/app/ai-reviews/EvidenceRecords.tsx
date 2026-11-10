@@ -120,19 +120,19 @@ export default function EvidenceRecords() {
         {detailLoading ? <div className="evidence-detail-loading">正在读取证据详情…</div> : detailError ? <div className="notice error">{detailError}</div> : detail && <div className="evidence-detail-content">
           <div className="evidence-detail-left">
             <section className="evidence-detail-card"><h3>基本信息与来源</h3><div className="evidence-detail-grid">
-              {field("目标号码",detail.targetPhone || "—")}{field("提交来源","悬浮窗提交")}
+              {field("目标号码",detail.targetPhone || "—")}{field("提交来源",detail.captureMode)}
               {field("截图方式",detail.captureMode)}{field("证据来源",detail.source)}
-              {field("可信等级",detail.trustLevel)}
+              {field("风险评估状态",detail.trustLevel)}
             </div></section>
             <section className="evidence-detail-card"><h3>审核结论</h3><div className="evidence-detail-grid">
-              {field("审核结论",<span className="evidence-pill warning">{detail.reviewStatus}</span>)}{field("人工复核",detail.reviewDecision === "APPROVE" ? "已通过" : detail.reviewDecision === "REJECT" ? "已拒绝" : "无需人工复核")}
+              {field("审核结论",<span className="evidence-pill warning">{detail.reviewStatus}</span>)}{field("最终审核决策",detail.reviewDecision === "APPROVE" ? "已通过" : detail.reviewDecision === "REJECT" ? "已拒绝" : "尚无最终决策")}
               {field("AI 图像识别置信度",detail.aiConfidence == null ? "未提供" : (detail.aiConfidence * 100).toFixed(1) + "%")}
             </div>
             <div className="evidence-detail-note-grid"><div><strong>AI 原始说明</strong><p>{detail.aiReason || "未提供"}</p></div><div><strong>系统判定原因</strong><p>{detail.reviewReason || "本次审核尚未生成独立判定说明。"}</p></div></div>
             {detail.extractedText && <div className="evidence-detail-message"><strong>OCR 识别文字</strong><p>{detail.extractedText}</p></div>}
             </section>
             <section className="evidence-detail-card"><h3>文件规格与时间</h3><div className="evidence-detail-grid">
-              {field("图片尺寸",detail.imageDimensions || "未记录")}{field("提交备注", detail.note || "无")}
+              {field("图片尺寸",detail.imageDimensions || "尚未提取")}{field("提交备注", detail.note || "无")}
               {field("文件类型",detail.mimeType || "未知")}{field("文件大小",bytes(detail.sizeBytes))}
               {field("提交时间",fmt(detail.submittedAt))}
               {field("图片访问方式","后台授权接口实时读取")}
