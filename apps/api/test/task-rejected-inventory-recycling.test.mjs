@@ -135,12 +135,12 @@ test("all recycling entry points acquire the shared allocator advisory lock befo
   assert.ok(helper.indexOf("lockTaskSlotAllocation(tx)") < helper.indexOf("FROM contact_numbers"));
   const admin = await read("../src/task-admin/task-admin.service.ts");
   const recycle = admin.slice(admin.indexOf("async voidTaskRecord("), admin.indexOf("async deleteTaskRecord("));
-  assert.ok(recycle.indexOf("FOR UPDATE") < recycle.indexOf("lockTaskSlotAllocation(tx)"));
-  assert.ok(recycle.indexOf("lockTaskSlotAllocation(tx)") < recycle.indexOf("FROM contact_numbers"));
+  assert.ok(recycle.indexOf("lockTaskSlotAllocation(tx)") < recycle.indexOf("FOR UPDATE"));
+  assert.ok(recycle.indexOf("FOR UPDATE") < recycle.indexOf("FROM contact_numbers"));
   const service = await read("../src/tasks/tasks.service.ts");
   const cancel = service.slice(service.indexOf("async cancelClaim("), service.indexOf("private async expireOverdueClaims("));
-  assert.ok(cancel.indexOf("FOR UPDATE") < cancel.indexOf("lockTaskSlotAllocation(tx)"));
-  assert.ok(cancel.indexOf("lockTaskSlotAllocation(tx)") < cancel.indexOf("FROM contact_numbers"));
+  assert.ok(cancel.indexOf("lockTaskSlotAllocation(tx)") < cancel.indexOf("FOR UPDATE"));
+  assert.ok(cancel.indexOf("FOR UPDATE") < cancel.indexOf("FROM contact_numbers"));
 });
 
 
@@ -165,4 +165,12 @@ test("admin task deletion acquires allocator lock before locking the slot", asyn
   const body = admin.slice(admin.indexOf("async deleteTaskRecord("), admin.indexOf("private normalizeBulkRecordIds("));
   assert.ok(body.indexOf("lockTaskSlotAllocation(tx)") >= 0);
   assert.ok(body.indexOf("lockTaskSlotAllocation(tx)") < body.indexOf("FROM task_slots"));
+});
+
+
+test("number blocking acquires the shared allocator lock before claim and number locks", async () => {
+  const service = await read("../src/contact-numbers/contact-numbers.service.ts");
+  const block = service.slice(service.indexOf("async block("));
+  assert.ok(block.indexOf("lockTaskSlotAllocation(tx)") < block.indexOf("FROM task_claims"));
+  assert.ok(block.indexOf("FROM task_claims") < block.indexOf("FROM contact_numbers"));
 });
