@@ -563,12 +563,12 @@ export class TaskAdminService {
 
   async voidTaskRecord(slotId: string, actorId?: string) {
     return prisma.$transaction(async (tx) => {
+      await lockTaskSlotAllocation(tx);
       const identity = await tx.taskSlot.findUnique({
         where: { id: slotId },
         select: { id: true, claimId: true, contactNumberId: true },
       });
       if (!identity) throw new NotFoundException("任务号码记录不存在。");
-      await lockTaskSlotAllocation(tx);
       if (identity.claimId) {
         await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_claims WHERE id = ${identity.claimId}::uuid FOR UPDATE`;
       }
