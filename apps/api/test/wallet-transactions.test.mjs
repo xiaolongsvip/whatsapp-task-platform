@@ -114,3 +114,13 @@ test("Android wallet recognizes the backend referral commission ledger source ty
   assert.match(app, /"REFERRAL_COMMISSION", "REFERRAL_REWARD" -> if \(en\) "Referral commissions" else "邀请佣金"/);
   assert.ok((app.match(/"REFERRAL_COMMISSION", "REFERRAL_REWARD" ->/g) || []).length >= 3);
 });
+
+
+test("posted withdrawal ledger debits remain in the withdrawals category while requests are not shown as posted debits", () => {
+  assert.match(service, /entry\.sourceType === "WITHDRAWAL_PAYOUT" \? "WITHDRAWAL"/);
+  assert.match(service, /direction: "PENDING"/);
+  assert.match(service, /non-paid request reserves funds but is not yet a posted ledger debit/);
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(app, /"WITHDRAWAL", "WITHDRAWAL_PAYOUT" -> if \(en\) "Withdrawal" else "提现"/);
+  assert.match(app, /if \(item\.optString\("direction"\) == "CREDIT"\) "\+" else if \(item\.optString\("direction"\) == "DEBIT"\) "−" else ""/);
+});
