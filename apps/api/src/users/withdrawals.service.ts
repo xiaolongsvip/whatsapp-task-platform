@@ -48,7 +48,7 @@ export class WithdrawalsService {
     if (configuredMethod?.countryCodes?.length && !configuredMethod.countryCodes.map((x: string) => x.toUpperCase()).includes(countryCode)) throw new BadRequestException("This payout method is not available in this country.");
     if (configuredMethod?.currencyCodes?.length && !configuredMethod.currencyCodes.map((x: string) => x.toUpperCase()).includes(payoutCurrency)) throw new BadRequestException("This payout method does not support this currency.");
     const rulesRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
-    const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ countryCode: "PK", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", status: "ENABLED", minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, channels: ["jazzcash", "easypaisa"] }];
+    const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [];
     const matchesRule = (item: Record<string, unknown>) =>
       item.status === "ENABLED" &&
       String(item.payoutCurrency ?? "").trim().toUpperCase() === payoutCurrency &&
@@ -198,7 +198,7 @@ export class WithdrawalsService {
             throw new BadRequestException("The payout country, currency or method configuration changed. Please refresh your payout account.");
           }
           const rulesRow = await tx.taskConfiguration.findUnique({ where: { key: "system.withdrawalRules" }, select: { value: true } });
-          const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [{ countryCode: "PK", walletCurrency: "USD", payoutCurrency: "PKR", method: "LOCAL_ACCOUNT", status: "ENABLED", minimumAmount: 1, maximumAmount: 1000, dailyLimit: 5000000, channels: ["jazzcash", "easypaisa"] }];
+          const rules = Array.isArray(rulesRow?.value) ? rulesRow.value as Array<Record<string, unknown>> : [];
           const matchesCurrentRule = (item: Record<string, unknown>) =>
             item.status === "ENABLED" &&
             String(item.walletCurrency ?? "").trim().toUpperCase() === context.walletCurrency &&
