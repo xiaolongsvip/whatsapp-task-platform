@@ -113,7 +113,7 @@ export default function TaskSettingsListPage() {
               <input value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") runSearch(); }} placeholder="搜索任务、号码、用户或编号" style={inputStyle}/>
             </div>
             <select value={useStage} onChange={e => setUseStage(e.target.value)} style={selectStyle}><option value="ALL">全部使用阶段</option><option value="UNUSED">未使用</option><option value="USED">已使用</option></select>
-            <select style={selectStyle}><option>全部执行状态</option>{filters.slice(1).map(f => <option key={f.key}>{f.label}</option>)}</select>
+            <select value={status} onChange={e => { setStatus(e.target.value as "ALL" | Status); setPage(1); }} style={selectStyle}><option value="ALL">全部执行状态</option>{filters.slice(1).map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</select>
             <input value={taskId} onChange={e => setTaskId(e.target.value)} placeholder="任务编号" style={{ ...inputStyle, paddingLeft: 10, width: 112, flex: "0 1 112px" }}/>
             <input value={countryRegion} onChange={e => setCountryRegion(e.target.value)} placeholder="国家" style={{ ...inputStyle, paddingLeft: 10, width: 90, flex: "0 1 90px" }}/>
             <select value={reviewResult} onChange={e => setReviewResult(e.target.value)} style={selectStyle}><option value="ALL">全部审核结果</option><option value="APPROVED">已通过</option><option value="PENDING">待审核</option><option value="REJECTED">已拒绝</option></select>
@@ -156,7 +156,7 @@ export default function TaskSettingsListPage() {
                 <td style={{...tdStyle,display:hiddenColumns.includes(6)?"none":undefined}}>{item.claimedUserId || "—"}</td>
                 <td style={{...tdStyle,display:hiddenColumns.includes(7)?"none":undefined}}>{item.claimedAt ? fmt(item.claimedAt) : "—"}</td>
                 <td style={{...tdStyle,display:hiddenColumns.includes(8)?"none":undefined}}>{item.status === "COMPLETED" ? "已通过" : item.status === "REVIEW" ? "待审核" : item.status === "VOIDED" ? "已拒绝" : "—"}</td>
-                <td style={{...tdStyle,display:hiddenColumns.includes(8)?"none":undefined}}>{fmt(item.createdAt)}</td>
+                <td style={{...tdStyle,display:hiddenColumns.includes(9)?"none":undefined}}>{fmt(item.createdAt)}</td>
                 <td style={{ ...tdStyle, display:hiddenColumns.includes(10)?"none":undefined, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={item.messageTemplate}>{item.messageTemplate || "—"}</td>
                 <td style={{...tdStyle,display:hiddenColumns.includes(11)?"none":undefined}}>{item.rewardAmount} {item.currency}</td>
                 <td style={{...tdStyle,display:hiddenColumns.includes(12)?"none":undefined}}><button onClick={() => void openDetail(item)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}><Eye size={13} style={{ verticalAlign: "middle", marginRight: 3 }}/>查看</button></td>
