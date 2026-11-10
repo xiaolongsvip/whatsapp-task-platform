@@ -346,10 +346,10 @@ export default function AdminTasksPage() {
           <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
             if(!selectedIds.length)return;
             const chosen=records.filter((item)=>selectedIds.includes(item.id));
-            const eligible=chosen.filter((item)=>!["COMPLETED","REVIEW","FROZEN","VOIDED"].includes(item.status));
+            const eligible=chosen.filter((item)=>!["COMPLETED","REVIEW","FROZEN"].includes(item.status));
             const skipped=chosen.length-eligible.length;
             if(!eligible.length){window.alert("选中的记录没有符合作废条件的项目。");return;}
-            if(!window.confirm("确定回收并重新分配 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中、冻结或已作废的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
+            if(!window.confirm("确定回收并重新分配 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中或冻结的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
             setBusy(true);setError("");setMessage("");
             try{
               const result=await api<{total:number;succeeded:number;failed:number;results:Array<{id:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-void",{method:"POST",body:JSON.stringify({ids:eligible.map((item)=>item.id)})});
@@ -510,7 +510,7 @@ export default function AdminTasksPage() {
                   await refresh();await loadRecords();
                 }catch(err){setError(err instanceof Error?err.message:"删除任务号码记录失败。");}
               }}><Trash2 size={13}/> 删除</button>
-              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="VOIDED" || selectedRecord.status==="COMPLETED" || selectedRecord.status==="REVIEW" || selectedRecord.status==="FROZEN"} onClick={async()=>{
+              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="COMPLETED" || selectedRecord.status==="REVIEW" || selectedRecord.status==="FROZEN"} onClick={async()=>{
                 if(!window.confirm("确定回收当前号码并重新分配吗？不会关闭整批任务；未完成号码将返回可分配库存。"))return;
                 try{
                   await api("/api/v1/admin/tasks/records/"+selectedRecord.id+"/void",{method:"POST"});
