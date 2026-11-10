@@ -682,6 +682,7 @@ export class TaskAdminService {
 
   async deleteTaskRecord(slotId: string, actorId?: string) {
     return prisma.$transaction(async (tx) => {
+      await lockTaskSlotAllocation(tx);
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
       const slot = await tx.taskSlot.findUnique({ where: { id: slotId }, include: { task: true } });
       if (!slot) throw new NotFoundException("任务号码记录不存在。");
