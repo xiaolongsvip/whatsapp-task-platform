@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { prisma } from "@wtp/database";
 import { AiConfigService } from "../ai-config/ai-config.service";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
-import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "../tasks/task-slot-allocation";
 import { recycleUnsuccessfulTaskClaimInventory } from "../tasks/task-claim-inventory";
 
 type AiDecision = {
