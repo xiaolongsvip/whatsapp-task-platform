@@ -893,7 +893,7 @@ export class TaskAdminService {
     });
   }
 
-  async bulkUpdateMessageTemplate(input: { messageTemplate?: string; keyword?: string; groupName?: string; countryRegion?: string; createdFrom?: string; createdTo?: string }) {
+  async bulkUpdateMessageTemplate(input: { messageTemplate?: string; templatePlatform?: string; keyword?: string; groupName?: string; countryRegion?: string; createdFrom?: string; createdTo?: string }) {
     const messageTemplate = input.messageTemplate?.trim() ?? "";
     if (!messageTemplate || messageTemplate.length > 5000) throw new BadRequestException("话术不能为空且不能超过 5000 个字符。");
     const filters: Prisma.TaskSlotWhereInput[] = [
@@ -928,6 +928,17 @@ export class TaskAdminService {
     });
     const taskIds = slots.map((slot) => slot.taskId);
     if (!taskIds.length) return { matchedTasks: 0, updatedTasks: 0, message: "当前筛选条件下没有符合批量更换条件的任务。" };
+    const templatePlatform = input.templatePlatform?.trim();
+    if (templatePlatform && templatePlatform !== "通用") {
+      const matchedTasks = await prisma.task.findMany({
+        where: { id: { in: taskIds }, status: { in: ["DRAFT", "PAUSED"] }, claimedCount: 0 },
+        select: { category: true },
+      });
+      const categories = Array.from(new Set(matchedTasks.map((task) => task.category)));
+      if (categories.length !== 1 || categories[0] !== templatePlatform) {
+        throw new BadRequestException("所选专用话术模板的平台与当前筛选匹配的任务平台不一致；请缩小筛选范围或改用通用模板。");
+      }
+    }
     const result = await prisma.task.updateMany({
       where: { id: { in: taskIds }, status: { in: ["DRAFT", "PAUSED"] }, claimedCount: 0 },
       data: { messageTemplate },
