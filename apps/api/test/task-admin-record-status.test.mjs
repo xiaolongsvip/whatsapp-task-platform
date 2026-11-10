@@ -63,3 +63,21 @@ test("admin record deletion eligibility uses the underlying inventory status", a
   assert.match(admin, /record\.taskStatus\s*===\s*"PUBLISHED"\s*\|\|\s*record\.inventoryStatus\s*!==\s*"AVAILABLE"\s*\|\|\s*Boolean\(record\.claimId\)/);
   assert.match(service, /slot\.status !== "AVAILABLE" \|\| slot\.claimId/);
 });
+
+
+test("admin task record filters are wired to the backend query parameters", async () => {
+  const admin = await readSource("../../admin/src/app/tasks/page.tsx");
+  const controller = await readSource("../src/task-admin/task-admin.controller.ts");
+  const service = await readSource("../src/task-admin/task-admin.service.ts");
+  assert.match(admin, /params\.set\("useStage", useStageFilter\)/);
+  assert.match(admin, /params\.set\("reviewResult", reviewResultFilter\)/);
+  assert.match(admin, /params\.set\("taskId", taskIdFilter\.trim\(\)\)/);
+  assert.match(admin, /aria-label="使用阶段筛选"/);
+  assert.match(admin, /aria-label="审核结果筛选"/);
+  assert.match(admin, /aria-label="任务完整编号筛选"/);
+  assert.match(controller, /@Query\("useStage"\) useStage\?: string/);
+  assert.match(controller, /@Query\("reviewResult"\) reviewResult\?: string/);
+  assert.match(controller, /@Query\("taskId"\) taskId\?: string/);
+  assert.match(service, /if \(input\.useStage === "USED"\)/);
+  assert.match(service, /if \(input\.reviewResult === "APPROVED"\)/);
+});
