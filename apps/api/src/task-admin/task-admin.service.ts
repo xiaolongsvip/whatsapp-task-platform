@@ -616,8 +616,12 @@ export class TaskAdminService {
 
       // Only consented, currently available numbers can re-enter the pool.
       // Completed, blocked, or consent-revoked numbers are never recycled.
-      const recyclable = slot.contactNumber.status === "AVAILABLE"
-        && slot.contactNumber.consentStatus === "GRANTED";
+      const currentNumber = await tx.contactNumber.findUnique({
+        where: { id: slot.contactNumberId },
+        select: { status: true, consentStatus: true },
+      });
+      const recyclable = currentNumber?.status === "AVAILABLE"
+        && currentNumber.consentStatus === "GRANTED";
       if (!recyclable) {
         if (slot.status === "VOIDED") {
           return { id: slot.id, status: "VOIDED", alreadyVoided: true, numberRecycled: false };
