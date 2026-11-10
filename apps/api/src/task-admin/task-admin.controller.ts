@@ -68,7 +68,7 @@ export class TaskAdminController {
   @Post("records/bulk-message")
   async bulkUpdateMessages(
     @Req() request: Request,
-    @Body() body: { messageTemplate?: string; keyword?: string; groupName?: string; countryRegion?: string; createdFrom?: string; createdTo?: string },
+    @Body() body: { messageTemplate?: string; templatePlatform?: string; keyword?: string; groupName?: string; countryRegion?: string; createdFrom?: string; createdTo?: string },
   ) {
     await this.adminAuth.getCurrentAdmin(adminToken(request));
     return this.tasks.bulkUpdateMessageTemplate(body);
