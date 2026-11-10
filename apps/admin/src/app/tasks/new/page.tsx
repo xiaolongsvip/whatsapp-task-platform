@@ -9,7 +9,7 @@ type Template = { id: string; name: string; platform: string; action: string; co
 type TaskGroup = { id: string; name: string; description: string | null; taskCount: number };
 type RewardPreset = { name: string; platform?: string; amount: number | string; currency?: string; enabled?: boolean };
 type Form = { title: string; platform: string; groupId: string; rewardAmount: string; currency: string; description: string; messageTemplate: string; linkUrl: string; previewTitle: string; previewDescription: string; previewImageUrl: string; startsAt: string; endsAt: string };
-const initial: Form = { title: "", platform: "WhatsApp", groupId: "", rewardAmount: "0.070", currency: "USD", description: "", messageTemplate: "", linkUrl: "", previewTitle: "", previewDescription: "", previewImageUrl: "", startsAt: "", endsAt: "" };
+const initial: Form = { title: "", platform: "WhatsApp", groupId: "", rewardAmount: "0.07", currency: "USD", description: "", messageTemplate: "", linkUrl: "", previewTitle: "", previewDescription: "", previewImageUrl: "", startsAt: "", endsAt: "" };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, credentials: "include", headers: { "Content-Type": "application/json", ...init.headers } });
