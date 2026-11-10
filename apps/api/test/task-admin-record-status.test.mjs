@@ -40,7 +40,7 @@ test("voiding an unfinished task number recycles its slot instead of stranding i
   assert.match(body, /currentNumber\?\.status === "AVAILABLE"/);
   assert.match(body, /currentNumber\.consentStatus === "GRANTED"/);
   assert.match(body, /allocateAvailableNumbersToOldestPublishedTask\(tx\)/);
-  assert.match(body, /status: "USED" \|\| slot\.claim\?\.status === "APPROVED"/);
+  assert.match(body, /slot\.status === "USED" \|\| slot\.claim\?\.status === "APPROVED"/);
   assert.match(body, /status: \{ in: \["SUBMITTED", "UNDER_REVIEW"\] \}/);
   assert.match(body, /recycledToPool: true/);
   assert.doesNotMatch(body, /data: \{ status: "VOIDED", releasedAt:/);
