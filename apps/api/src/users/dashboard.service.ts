@@ -465,6 +465,24 @@ export class DashboardService {
         updatedAt: true,
       },
     });
+    const rejectionEvents = rows.length ? await prisma.auditEvent.findMany({
+      where: {
+        targetType: "WITHDRAWAL_REQUEST",
+        targetId: { in: rows.map((row) => row.id) },
+        action: "WITHDRAWAL_REJECTED",
+      },
+      orderBy: { createdAt: "desc" },
+      select: { targetId: true, metadata: true },
+    }) : [];
+    const rejectionReasons = new Map<string, string>();
+    for (const event of rejectionEvents) {
+      if (!event.targetId || rejectionReasons.has(event.targetId)) continue;
+      const metadata = event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+        ? event.metadata as Record<string, unknown>
+        : {};
+      const note = typeof metadata.note === "string" ? metadata.note.trim() : "";
+      if (note) rejectionReasons.set(event.targetId, note);
+    }
     return {
       items: rows.map((row) => ({
         id: row.id,
@@ -481,6 +499,7 @@ export class DashboardService {
         actualPayoutCurrency: row.paymentTransactions[0]?.currency.trim() ?? null,
         actualPayoutAt: row.paymentTransactions[0]?.createdAt.toISOString() ?? null,
         status: row.status,
+        rejectionReason: row.status === "REJECTED" ? rejectionReasons.get(row.id) ?? null : null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       })),
