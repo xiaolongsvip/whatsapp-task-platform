@@ -574,6 +574,15 @@ export class TaskAdminService {
       }
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM contact_numbers WHERE id = ${identity.contactNumberId}::uuid FOR UPDATE`;
       await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_slots WHERE id = ${slotId}::uuid FOR UPDATE`;
+      // A claim may have won the number/slot race after the initial identity
+      // read. Re-lock its claim row before evaluating the now-current slot.
+      const currentClaimLink = await tx.taskSlot.findUnique({
+        where: { id: slotId },
+        select: { claimId: true },
+      });
+      if (currentClaimLink?.claimId && currentClaimLink.claimId !== identity.claimId) {
+        await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM task_claims WHERE id = ${currentClaimLink.claimId}::uuid FOR UPDATE`;
+      }
       const slot = await tx.taskSlot.findUnique({
         where: { id: slotId },
         include: {
