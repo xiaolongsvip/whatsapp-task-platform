@@ -163,7 +163,7 @@ export default function AdminTasksPage() {
     if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
   }, [authenticated,loadRecords]);
 
-  const groupNames = Array.from(new Set(tasks.map((task) => task.groupName).filter((name) => name && name !== "未分组")));
+  const groupNames = Array.from(new Set(taskGroups.map((group) => group.name).filter((name) => name && name !== "未分组")));
   const visibleRecords = records;
   const pageStart = Math.max(1, Math.min(page - 2, totalPages - 4));
   const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, index) => pageStart + index);
@@ -570,6 +570,7 @@ export default function AdminTasksPage() {
                 try{
                   const result=await api<{matchedTasks:number;updatedTasks:number;message:string}>("/api/v1/admin/tasks/records/bulk-message",{method:"POST",body:JSON.stringify({
                     messageTemplate:text,
+                    ...(bulkMessageTab==="template" ? { templatePlatform: messageTemplates.find((item)=>item.id===bulkTemplateId)?.platform } : {}),
                     keyword:appliedSearch,
                     groupName:groupFilter,
                     countryRegion:countryFilter.trim(),
