@@ -132,7 +132,7 @@ export class TaskAdminService {
   }
 
 
-  async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; groupName?: string; createdFrom?: string; createdTo?: string; countryRegion?: string }) {
+  async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; groupName?: string; createdFrom?: string; createdTo?: string; countryRegion?: string; useStage?: string; taskId?: string; reviewResult?: string }) {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
     const keyword = input.keyword?.trim() ?? "";
@@ -145,6 +145,17 @@ export class TaskAdminService {
       searchConditions.push({ id: keyword }, { taskId: keyword });
     }
     const filters: Prisma.TaskSlotWhereInput[] = [];
+    if (input.taskId?.trim()) {
+      const taskId = input.taskId.trim();
+      filters.push({ taskId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)
+        ? taskId
+        : { contains: taskId, mode: "insensitive" } });
+    }
+    if (input.useStage === "USED") filters.push({ status: "USED" });
+    if (input.useStage === "UNUSED") filters.push({ status: { not: "USED" } });
+    if (input.reviewResult === "APPROVED") filters.push({ claim: { is: { status: "APPROVED" } } });
+    if (input.reviewResult === "PENDING") filters.push({ claim: { is: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } } });
+    if (input.reviewResult === "REJECTED") filters.push({ claim: { is: { status: "REJECTED" } } });
     if (keyword) filters.push({ OR: searchConditions });
     if (input.groupName?.trim() && input.groupName !== "ALL") {
       filters.push({ task: { is: { group: { is: { name: input.groupName.trim() } } } } });
