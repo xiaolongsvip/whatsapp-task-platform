@@ -64,3 +64,34 @@ test("Android app treats rejected claims as history, not active work, and clears
   assert.match(screen, /号码已回收/);
   assert.doesNotMatch(screen, /Rejected — you can try again before the deadline/);
 });
+
+
+test("admin recycling a previously AI-rejected claim does not decrement claimedCount twice", async () => {
+  const admin = await read("../src/task-admin/task-admin.service.ts");
+  const body = admin.slice(admin.indexOf("async voidTaskRecord("), admin.indexOf("async deleteTaskRecord("));
+  assert.match(body, /const assignmentWasActive = claim\.contactAssignment\?\.status === "ASSIGNED"/);
+  assert.match(body, /const slotWasActive = slot\.status === "ASSIGNED" && slot\.claimId === claim\.id/);
+  assert.match(body, /if \(\["CLAIMED", "IN_PROGRESS"\]\.includes\(claim\.status\)\)/);
+  assert.match(body, /claim\.status === "REJECTED" && \(assignmentWasActive \|\| slotWasActive\)/);
+  assert.doesNotMatch(body, /if \(\["CLAIMED", "IN_PROGRESS", "REJECTED"\]\.includes\(claim\.status\)\)\s*\{[\s\S]{0,160}status: "CANCELLED"/);
+  assert.match(body, /action: "TASK_RECORD_VOID"/);
+});
+
+test("user cancellation and expiry both clear slot linkage and rerun FIFO allocation", async () => {
+  const service = await read("../src/tasks/tasks.service.ts");
+  const cancel = service.slice(service.indexOf("async cancelClaim("), service.indexOf("private async expireOverdueClaims("));
+  assert.match(cancel, /claimId: null/);
+  assert.match(cancel, /status: numberReturnedToPool \? "AVAILABLE" : "VOIDED"/);
+  assert.match(cancel, /allocateAvailableNumbersToOldestPublishedTask\(tx\)/);
+  const expiry = service.slice(service.indexOf("private async expireOverdueClaims("), service.indexOf("async submitEvidence("));
+  assert.match(expiry, /recycleUnsuccessfulTaskClaimInventory\(tx, claim\.id, claim\.taskId, now\)/);
+  assert.match(expiry, /allocateAvailableNumbersToOldestPublishedTask\(tx\)/);
+  assert.match(expiry, /if \(claim\.status !== "REJECTED"\)/);
+});
+
+test("bulk recycle endpoint reports recycling instead of terminal voiding", async () => {
+  const admin = await read("../src/task-admin/task-admin.service.ts");
+  const bulk = admin.slice(admin.indexOf("async bulkVoidTaskRecords("), admin.indexOf("async bulkDeleteTaskRecords("));
+  assert.match(bulk, /action: "RECYCLE"/);
+  assert.match(bulk, /号码已回收并重新分配/);
+});
