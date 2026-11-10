@@ -242,7 +242,7 @@ fun TaskHallScreen(
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
-    val expirableStatuses = setOf("CLAIMED", "IN_PROGRESS", "REJECTED")
+    val expirableStatuses = setOf("CLAIMED", "IN_PROGRESS")
     val isLocallyExpired: (JSONObject) -> Boolean = { claim ->
         claim.optString("status") in expirableStatuses &&
             (claim.optString("id") in locallyExpiredClaimIds || isClaimDeadlinePassed(claim))
@@ -251,7 +251,7 @@ fun TaskHallScreen(
         it.optString("status") in IN_PROGRESS_STATUSES && !isLocallyExpired(it)
     }
     val hasUnfinishedTask = claims.any {
-        it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW") &&
+        it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW") &&
             !isLocallyExpired(it)
     }
     val expiredClaims = claims.filter {
@@ -270,7 +270,7 @@ fun TaskHallScreen(
     // API supplies one independent card for every available authorized number slot.
     val availableTasks = tasks
 
-    val selectedClaim = claims.firstOrNull { it.optString("id") == selectedClaimId }
+    val selectedClaim = claims.firstOrNull { it.optString("id") == selectedClaimId && it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW") }
 
     val claimedLastSevenDays = claims.count { it.isWithinLastSevenDays() }
     val approvedLastSevenDays = claims.count {
@@ -892,7 +892,7 @@ private fun TaskExecutionScreen(
         )
     }
     var showAbandonDialog by remember { mutableStateOf(false) }
-    val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "EXPIRED")
+    val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "EXPIRED")
     val reward = formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD"))
     val taskDescription = task.optString("description")
         .takeUnless { it.isBlank() || it == "null" }
@@ -907,7 +907,7 @@ private fun TaskExecutionScreen(
             remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0) delay(1000)
         }
-        if (timerStarted && remainingSeconds <= 0 && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")) {
+        if (timerStarted && remainingSeconds <= 0 && status in setOf("CLAIMED", "IN_PROGRESS")) {
             // The server owns expiry and returns the assigned number to the pool.
             onExpired()
         }
@@ -1072,7 +1072,7 @@ private fun TaskExecutionScreen(
                         Button(
                             onClick = onGoWhatsApp,
                             enabled = !starting && phone.isNotBlank() && phone != "null" &&
-                                status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                                status in setOf("CLAIMED", "IN_PROGRESS") &&
                                 remainingSeconds > 0,
                             modifier = Modifier.width(162.dp).height(46.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -1084,7 +1084,7 @@ private fun TaskExecutionScreen(
                             Text(
                                 when {
                                     starting -> if (isEnglish) "Opening…" else "正在打开…"
-                                    status == "REJECTED" -> if (isEnglish) "Restart task" else "重新开始任务"
+                                    status == "REJECTED" -> if (isEnglish) "Number recycled" else "号码已回收"
                                     else -> if (isEnglish) "Open WhatsApp" else "打开WhatsApp"
                                 },
                                 color = Color.White,
@@ -1542,7 +1542,7 @@ private fun ClaimedTaskCard(
     val phone = claim.optString("assignedPhoneNumber")
     var countdownExpired by remember(claim.optString("id")) { mutableStateOf(false) }
     val canOpen = !countdownExpired &&
-        status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+        status in setOf("CLAIMED", "IN_PROGRESS") &&
         (submission == null || submission.optString("status") == "REJECTED")
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -1563,7 +1563,7 @@ private fun ClaimedTaskCard(
                 )
                 val expiresAt = taskExpiryValue(claim)
                 if (
-                    status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                    status in setOf("CLAIMED", "IN_PROGRESS") &&
                     expiresAt != null
                 ) {
                     TaskCountdownBadge(
