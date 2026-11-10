@@ -31,17 +31,19 @@ export async function recycleUnsuccessfulTaskClaimInventory(
       where: { id: assignment.id },
       data: { status: "RELEASED", releasedAt: now },
     });
+  }
+
+  const contactNumberId = assignment?.contactNumberId ?? slot?.contactNumberId;
+  if (contactNumberId) {
     await tx.contactNumber.updateMany({
       where: {
-        id: assignment.contactNumberId,
+        id: contactNumberId,
         status: "ASSIGNED",
         consentStatus: "GRANTED",
       },
       data: { status: "AVAILABLE" },
     });
   }
-
-  const contactNumberId = assignment?.contactNumberId ?? slot?.contactNumberId;
   const number = contactNumberId
     ? await tx.contactNumber.findUnique({
         where: { id: contactNumberId },
