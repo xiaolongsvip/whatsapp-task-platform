@@ -53,3 +53,14 @@ test("expiry recovery does not overwrite newly rejected claims after their inven
   assert.match(expiry, /if \(claim\.status === "REJECTED" && !reservationWasActive\) continue/);
   assert.match(expiry, /if \(reservationWasActive\)[\s\S]*claimedCount: \{ gt: 0 \}/);
 });
+
+
+test("Android app treats rejected claims as history, not active work, and clears their capture session", async () => {
+  const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt");
+  assert.match(screen, /val expirableStatuses = setOf\("CLAIMED", "IN_PROGRESS"\)/);
+  assert.match(screen, /setOf\("CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW"\)/);
+  assert.match(screen, /CaptureSessionState\.clearActiveClaim\(\)/);
+  assert.match(screen, /该号码已回收到可分配号码池/);
+  assert.match(screen, /号码已回收/);
+  assert.doesNotMatch(screen, /Rejected — you can try again before the deadline/);
+});
