@@ -196,9 +196,28 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async listPublished(userId: string) {
+  async listPublished(
+    userId: string,
+    limitInput?: string,
+    beforeCreatedAtInput?: string,
+    beforeIdInput?: string,
+  ) {
     await this.expireOverdueClaims(userId);
     const now = new Date();
+    const parsedLimit = Number.parseInt(limitInput ?? "100", 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : 100;
+    let cursorCreatedAt: Date | null = null;
+    let cursorId: string | null = null;
+    if (beforeCreatedAtInput || beforeIdInput) {
+      if (!beforeCreatedAtInput || !beforeIdInput || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(beforeIdInput)) {
+        throw new BadRequestException("任务列表分页游标无效，请刷新任务大厅。");
+      }
+      cursorCreatedAt = new Date(beforeCreatedAtInput);
+      if (Number.isNaN(cursorCreatedAt.getTime())) {
+        throw new BadRequestException("任务列表分页时间无效，请刷新任务大厅。");
+      }
+      cursorId = beforeIdInput;
+    }
     const slots = await prisma.taskSlot.findMany({
       where: {
         status: "AVAILABLE",
@@ -210,9 +229,15 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
           ],
         },
+        ...(cursorCreatedAt && cursorId ? {
+          OR: [
+            { createdAt: { gt: cursorCreatedAt } },
+            { createdAt: cursorCreatedAt, id: { gt: cursorId } },
+          ],
+        } : {}),
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: 500,
+      take: take + 1,
       include: {
         task: {
           select: {
@@ -225,8 +250,11 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         contactNumber: { select: { phoneE164: true } },
       },
     });
+    const hasMore = slots.length > take;
+    const pageSlots = slots.slice(0, take);
+    const last = pageSlots[pageSlots.length - 1];
     return {
-      tasks: slots.map((slot) => ({
+      tasks: pageSlots.map((slot) => ({
         id: slot.id,
         slotId: slot.id,
         taskId: slot.taskId,
@@ -245,16 +273,47 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         maskedPhoneNumber: maskPhoneMiddleFour(slot.contactNumber.phoneE164),
         remainingCapacity: 1,
       })),
+      hasMore,
+      nextCursor: hasMore && last
+        ? { createdAt: last.createdAt.toISOString(), id: last.id }
+        : null,
     };
   }
 
-  async myClaims(userId: string) {
+  async myClaims(
+    userId: string,
+    limitInput?: string,
+    beforeClaimedAtInput?: string,
+    beforeIdInput?: string,
+  ) {
     // Expiry recovery applies the current global deadline to legacy claims.
     await this.expireOverdueClaims(userId);
+    const parsedLimit = Number.parseInt(limitInput ?? "100", 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : 100;
+    let cursorClaimedAt: Date | null = null;
+    let cursorId: string | null = null;
+    if (beforeClaimedAtInput || beforeIdInput) {
+      if (!beforeClaimedAtInput || !beforeIdInput || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(beforeIdInput)) {
+        throw new BadRequestException("任务记录分页游标无效，请刷新后重试。");
+      }
+      cursorClaimedAt = new Date(beforeClaimedAtInput);
+      if (Number.isNaN(cursorClaimedAt.getTime())) {
+        throw new BadRequestException("任务记录分页时间无效，请刷新后重试。");
+      }
+      cursorId = beforeIdInput;
+    }
     const claims = await prisma.taskClaim.findMany({
-      where: { userId },
-      orderBy: { claimedAt: "desc" },
-      take: 100,
+      where: {
+        userId,
+        ...(cursorClaimedAt && cursorId ? {
+          OR: [
+            { claimedAt: { lt: cursorClaimedAt } },
+            { claimedAt: cursorClaimedAt, id: { lt: cursorId } },
+          ],
+        } : {}),
+      },
+      orderBy: [{ claimedAt: "desc" }, { id: "desc" }],
+      take: take + 1,
       include: {
         task: {
           select: {
@@ -298,8 +357,11 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
+    const hasMore = claims.length > take;
+    const pageClaims = claims.slice(0, take);
+    const last = pageClaims[pageClaims.length - 1];
     return {
-      claims: claims.map((claim) => ({
+      claims: pageClaims.map((claim) => ({
         id: claim.id,
         taskId: claim.taskId,
         status: claim.status,
@@ -314,6 +376,10 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           ? publicSubmission({ ...claim.submissions[0], claimId: claim.id })
           : null,
       })),
+      hasMore,
+      nextCursor: hasMore && last
+        ? { claimedAt: last.claimedAt.toISOString(), id: last.id }
+        : null,
     };
   }
 
@@ -792,7 +858,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
                   )
                 )
               )
-            ORDER BY expires_at ASC
+            ORDER BY expires_at ASC NULLS FIRST, claimed_at ASC, id ASC
             LIMIT 200
             FOR UPDATE SKIP LOCKED
           `
