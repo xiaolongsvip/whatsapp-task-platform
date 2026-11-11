@@ -123,15 +123,20 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
 
       const reviewConfig = await prisma.taskConfiguration.findUnique({ where: { key: "reviews" } });
       const reviewSchemes = Array.isArray(reviewConfig?.value) ? reviewConfig.value : [];
-      const matchingScheme = reviewSchemes.find((item): item is {
+      const isEnabledScheme = (item: unknown): item is {
         name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean;
       } => {
         if (!item || typeof item !== "object") return false;
         const scheme = item as Record<string, unknown>;
-        return scheme.enabled === true &&
-          typeof scheme.platform === "string" &&
-          (scheme.platform === claim.task.category || scheme.platform === "通用");
-      });
+        return scheme.enabled === true && typeof scheme.platform === "string";
+      };
+      const matchingScheme =
+        reviewSchemes.find((item): item is NonNullable<typeof reviewSchemes[number]> & {
+          name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean;
+        } => isEnabledScheme(item) && item.platform === claim.task.category) ??
+        reviewSchemes.find((item): item is NonNullable<typeof reviewSchemes[number]> & {
+          name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean;
+        } => isEnabledScheme(item) && item.platform === "通用");
       const schemeInstructions = matchingScheme?.instructions?.trim() ?? "";
       const referenceImageUrl = (() => {
         const value = matchingScheme?.referenceImage?.trim();
