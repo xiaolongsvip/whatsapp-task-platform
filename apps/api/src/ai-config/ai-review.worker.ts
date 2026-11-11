@@ -122,24 +122,23 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
       });
 
       const reviewConfig = await prisma.taskConfiguration.findUnique({ where: { key: "reviews" } });
-      const reviewSchemes = Array.isArray(reviewConfig?.value) ? reviewConfig.value : [];
-      const isEnabledScheme = (item: unknown): item is {
-        name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean;
-      } => {
-        if (!item || typeof item !== "object") return false;
-        const scheme = item as Record<string, unknown>;
-        return scheme.enabled === true && typeof scheme.platform === "string";
-      };
+      const reviewSchemes: unknown[] = Array.isArray(reviewConfig?.value) ? reviewConfig.value : [];
+      const enabledSchemes = reviewSchemes.filter((item): item is Record<string, unknown> =>
+        Boolean(item) && typeof item === "object" && !Array.isArray(item) &&
+        (item as Record<string, unknown>).enabled === true &&
+        typeof (item as Record<string, unknown>).platform === "string"
+      );
       const matchingScheme =
-        reviewSchemes.find((item): item is NonNullable<typeof reviewSchemes[number]> & {
-          name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean;
-        } => isEnabledScheme(item) && item.platform === claim.task.category) ??
-        reviewSchemes.find((item): item is NonNullable<typeof reviewSchemes[number]> & {
-          name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean;
-        } => isEnabledScheme(item) && item.platform === "通用");
-      const schemeInstructions = matchingScheme?.instructions?.trim() ?? "";
+        enabledSchemes.find((item) => item.platform === claim.task.category) ??
+        enabledSchemes.find((item) => item.platform === "通用");
+      const schemeName = typeof matchingScheme?.name === "string" ? matchingScheme.name : "未命名";
+      const schemeInstructions = typeof matchingScheme?.instructions === "string"
+        ? matchingScheme.instructions.trim()
+        : "";
       const referenceImageUrl = (() => {
-        const value = matchingScheme?.referenceImage?.trim();
+        const value = typeof matchingScheme?.referenceImage === "string"
+          ? matchingScheme.referenceImage.trim()
+          : "";
         if (!value) return null;
         try {
           const url = new URL(value);
