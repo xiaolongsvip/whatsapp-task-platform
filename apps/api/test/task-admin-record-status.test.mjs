@@ -92,3 +92,14 @@ test("new task default reward amount matches the API two-decimal validation", as
   assert.match(dto, /rewardAmount/);
   assert.match(dto, /@Matches/);
 });
+
+
+test("admin task configuration list exposes edit, publish, pause and close actions", async () => {
+  const admin = await readSource("../../admin/src/app/tasks/page.tsx");
+  assert.match(admin, /aria-label="任务配置管理"/);
+  assert.match(admin, /tasks\.map\(\(task\)/);
+  assert.match(admin, /onClick=\{\(\)=>startEdit\(task\)\}/);
+  assert.match(admin, /taskAction\(task\.id,"publish"\)/);
+  assert.match(admin, /taskAction\(task\.id,"pause"\)/);
+  assert.match(admin, /taskAction\(task\.id,"close"\)/);
+});
