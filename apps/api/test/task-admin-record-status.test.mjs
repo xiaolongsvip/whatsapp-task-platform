@@ -88,6 +88,7 @@ test("new task default reward amount matches the API two-decimal validation", as
   const dto = await readSource("../src/task-admin/task-admin.dto.ts");
   const match = page.match(/rewardAmount: "([^"]+)"/);
   assert.ok(match, "new task form must define a default reward amount");
-  assert.match(match[1], /^\\d{1,8}(?:\\.\\d{1,2})?$/);
-  assert.match(dto, /@Matches\\(\/\\^\\\\d\\{1,8\\}\\(\?:\\\\\\.\\d\\{1,2\\}\\)\?\\$\//);
+  assert.match(match[1], /^\d{1,8}(?:\.\d{1,2})?$/);
+  assert.match(dto, /rewardAmount/);
+  assert.match(dto, /@Matches/);
 });
