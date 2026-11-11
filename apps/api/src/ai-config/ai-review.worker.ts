@@ -121,12 +121,36 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
         maxRetries: 0,
       });
 
+      const reviewConfig = await prisma.taskConfiguration.findUnique({ where: { key: "reviews" } });
+      const reviewSchemes = Array.isArray(reviewConfig?.value) ? reviewConfig.value : [];
+      const matchingScheme = reviewSchemes.find((item): item is {
+        name: string; platform: string; referenceImage: string; instructions: string; enabled: boolean;
+      } => {
+        if (!item || typeof item !== "object") return false;
+        const scheme = item as Record<string, unknown>;
+        return scheme.enabled === true &&
+          typeof scheme.platform === "string" &&
+          (scheme.platform === claim.task.category || scheme.platform === "通用");
+      });
+      const schemeInstructions = matchingScheme?.instructions?.trim() ?? "";
+      const referenceImageUrl = (() => {
+        const value = matchingScheme?.referenceImage?.trim();
+        if (!value) return null;
+        try {
+          const url = new URL(value);
+          return url.protocol === "https:" ? url.toString() : null;
+        } catch {
+          return null;
+        }
+      })();
+
       const taskRequirements = [
         `任务标题：${claim.task.title}`,
         `任务说明：${claim.task.description}`,
-        `任务分类：${claim.task.category}`,
+        `任务分类 / 平台：${claim.task.category}`,
         `任务消息模板：${claim.task.messageTemplate || "无"}`,
         `用户提交说明：${submission.note || "无"}`,
+        ...(schemeInstructions ? [`当前平台审核方案（${matchingScheme?.name || "未命名"}）：\n${schemeInstructions}`] : []),
       ].join("\n");
 
       const instruction = `你是任务截图审核器。只依据截图中可见证据判断，不得猜测、补全或把模糊内容当成事实。
@@ -154,6 +178,7 @@ ${taskRequirements}
           role: "user",
           content: [
             { type: "input_text", text: instruction },
+            ...(referenceImageUrl ? [{ type: "input_image" as const, image_url: referenceImageUrl, detail: "high" as const }] : []),
             { type: "input_image", image_url: imageUrl, detail: "high" },
           ],
         }],
