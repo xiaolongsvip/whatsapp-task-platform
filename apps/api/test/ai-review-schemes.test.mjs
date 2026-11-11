@@ -6,7 +6,7 @@ const worker = readFileSync(new URL("../src/ai-config/ai-review.worker.ts", impo
 
 test("AI worker loads enabled review schemes and prefers exact platform over generic", () => {
   assert.match(worker, /taskConfiguration\.findUnique\(\{ where: \{ key: "reviews" \} \}\)/);
-  assert.match(worker, /scheme\)\.enabled === true/);
+  assert.match(worker, /\(item as Record<string, unknown>\)\.enabled === true/);
   assert.match(worker, /enabledSchemes\.find\(\(item\) => item\.platform === claim\.task\.category\)/);
   assert.match(worker, /enabledSchemes\.find\(\(item\) => item\.platform === "通用"\)/);
   assert.ok(worker.indexOf('item.platform === claim.task.category') < worker.indexOf('item.platform === "通用"'));
