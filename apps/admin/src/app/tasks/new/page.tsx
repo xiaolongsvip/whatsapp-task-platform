@@ -9,7 +9,7 @@ type Template = { id: string; name: string; platform: string; action: string; co
 type TaskGroup = { id: string; name: string; description: string | null; taskCount: number };
 type RewardPreset = { name: string; platform?: string; amount: number | string; currency?: string; enabled?: boolean };
 type Form = { title: string; platform: string; groupId: string; rewardAmount: string; currency: string; description: string; messageTemplate: string; linkUrl: string; previewTitle: string; previewDescription: string; previewImageUrl: string; startsAt: string; endsAt: string };
-const initial: Form = { title: "", platform: "WhatsApp", groupId: "", rewardAmount: "0.070", currency: "USD", description: "", messageTemplate: "", linkUrl: "", previewTitle: "", previewDescription: "", previewImageUrl: "", startsAt: "", endsAt: "" };
+const initial: Form = { title: "", platform: "WhatsApp", groupId: "", rewardAmount: "0.07", currency: "USD", description: "", messageTemplate: "", linkUrl: "", previewTitle: "", previewDescription: "", previewImageUrl: "", startsAt: "", endsAt: "" };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, credentials: "include", headers: { "Content-Type": "application/json", ...init.headers } });
@@ -26,8 +26,6 @@ export default function NewTaskPage() {
   const [rewardPresets, setRewardPresets] = useState<RewardPreset[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [messageMode, setMessageMode] = useState<"manual" | "template">("manual");
-  const [uploadMode, setUploadMode] = useState<"manual" | "file">("manual");
-  const [numberText, setNumberText] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -96,7 +94,8 @@ export default function NewTaskPage() {
         <section style={{ ...card, marginTop: 16 }}>
           <div style={grid}>
             <label style={label}>目标平台<select required value={form.platform} onChange={(e) => update("platform", e.target.value)} style={input}><option>WhatsApp</option><option>Telegram</option><option>Facebook</option></select><small style={hint}>平台分类会保存到任务分类字段。</small></label>
-            <label style={label}>奖励预设（可选）<select value="" onChange={(e) => { const preset = rewardPresets[Number(e.target.value)]; if (preset) { update("rewardAmount", String(preset.amount)); if (preset.currency) update("currency", preset.currency.toUpperCase()); if (preset.platform && preset.platform !== "通用") update("platform", preset.platform); } }} style={input}><option value="">不使用预设，手动填写</option>{rewardPresets.map((preset, index) => <option key={`${preset.name}-${index}`} value={index}>{preset.name} · {preset.amount} {preset.currency ?? ""}</option>)}</select><small style={hint}>选择后自动填入奖励金额、币种及适用平台（如有）。</small></label>\n            <label style={label}>单个任务奖励<input required value={form.rewardAmount} onChange={(e) => update("rewardAmount", e.target.value)} inputMode="decimal" pattern="\d{1,8}(\.\d{1,2})?" style={input}/></label>
+            <label style={label}>奖励预设（可选）<select value="" onChange={(e) => { const preset = rewardPresets[Number(e.target.value)]; if (preset) { update("rewardAmount", String(preset.amount)); if (preset.currency) update("currency", preset.currency.toUpperCase()); if (preset.platform && preset.platform !== "通用") update("platform", preset.platform); } }} style={input}><option value="">不使用预设，手动填写</option>{rewardPresets.map((preset, index) => <option key={`${preset.name}-${index}`} value={index}>{preset.name} · {preset.amount} {preset.currency ?? ""}</option>)}</select><small style={hint}>选择后自动填入奖励金额、币种及适用平台（如有）。</small></label>
+            <label style={label}>单个任务奖励<input required value={form.rewardAmount} onChange={(e) => update("rewardAmount", e.target.value)} inputMode="decimal" pattern="\d{1,8}(\.\d{1,2})?" style={input}/></label>
             <label style={label}>奖励币种<input required maxLength={3} minLength={3} value={form.currency} onChange={(e) => update("currency", e.target.value.toUpperCase())} style={input}/></label>
             <label style={label}>任务名称<input required minLength={2} maxLength={120} value={form.title} onChange={(e) => update("title", e.target.value)} style={input} placeholder="请输入任务名称"/></label>
             <label style={label}>任务组<select value={form.groupId} onChange={(e) => update("groupId", e.target.value)} style={input}><option value="">暂不分组</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><small style={hint}>可在任务管理的“任务组”弹窗中新建任务组。</small></label>
@@ -121,14 +120,14 @@ export default function NewTaskPage() {
           </div>
         </section>
         <section style={{ ...card, marginTop: 16 }}>
-          <strong style={{ fontSize: 14 }}>添加目标号码</strong>
-          <div style={tabs}>
-            <button type="button" onClick={() => setUploadMode("manual")} style={tab(uploadMode === "manual")}>手工输入</button>
-            <button type="button" onClick={() => setUploadMode("file")} style={tab(uploadMode === "file")}>上传文件</button>
+          <strong style={{ fontSize: 14 }}>号码库存与任务分配</strong>
+          <p style={{ ...hint, margin: "9px 0 0", lineHeight: 1.7 }}>
+            创建任务只会保存任务草稿，不会把本页输入或选择的文件写入号码池。请先到“号码池管理”导入号码，并记录号码持有人的有效授权来源与时间。任务发布后，系统会从已授权且未分配的号码中按 FIFO 规则自动分配。
+          </p>
+          <div style={{ marginTop: 13, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Link href="/contact-numbers" style={{ ...primary, textDecoration: "none" }}>打开号码池管理</Link>
+            <span style={hint}>导入完成后返回任务列表发布草稿即可。</span>
           </div>
-          {uploadMode === "manual" ? <label style={{ ...label, marginTop: 12 }}>每个非空行填写一个号码<textarea rows={8} value={numberText} onChange={(e) => setNumberText(e.target.value)} placeholder={"+15551234567\n+15551234568"} style={{ ...input, resize: "vertical" }}/></label> :
-            <label style={{ ...label, marginTop: 12 }}>选择号码文件<input type="file" accept=".txt,.csv" style={{ ...input, padding: 8 }} onChange={async (e) => { const file = e.target.files?.[0]; if (file) setNumberText(await file.text()); }}/><small style={hint}>支持读取 TXT / CSV 文本中的号码行。当前创建任务接口仍从已授权号码池分配号码，文件内容暂作导入预览，不会直接写入号码池。</small></label>}
-          <div style={{ marginTop: 10, padding: 11, borderRadius: 7, background: "#f7f9fc", color: "#68778d", fontSize: 12 }}>当前已录入 {numberText.split(/\r?\n/).filter((line) => line.trim()).length} 行号码。发布任务时，系统按现有号码池分配规则自动分配已授权且未分配的号码；本页面暂不直接导入号码池。</div>
         </section>
         <section style={{ ...card, marginTop: 16 }}>
           <strong style={{ fontSize: 14 }}>消息链接与预览（可选）</strong>

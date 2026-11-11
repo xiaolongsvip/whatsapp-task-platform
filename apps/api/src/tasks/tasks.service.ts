@@ -10,6 +10,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "../users/dashboard.service";
 import { S3ObjectStorageService } from "./s3-object-storage.service";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "./task-slot-allocation";
+import { recycleUnsuccessfulTaskClaimInventory } from "./task-claim-inventory";
 
 const DAILY_TASK_LIMIT = 20;
 const DEFAULT_MIN_CLAIM_INTERVAL_SECONDS = 60;
@@ -194,9 +196,28 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async listPublished(userId: string) {
+  async listPublished(
+    userId: string,
+    limitInput?: string,
+    beforeCreatedAtInput?: string,
+    beforeIdInput?: string,
+  ) {
     await this.expireOverdueClaims(userId);
     const now = new Date();
+    const parsedLimit = Number.parseInt(limitInput ?? "100", 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : 100;
+    let cursorCreatedAt: Date | null = null;
+    let cursorId: string | null = null;
+    if (beforeCreatedAtInput || beforeIdInput) {
+      if (!beforeCreatedAtInput || !beforeIdInput || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(beforeIdInput)) {
+        throw new BadRequestException("任务列表分页游标无效，请刷新任务大厅。");
+      }
+      cursorCreatedAt = new Date(beforeCreatedAtInput);
+      if (Number.isNaN(cursorCreatedAt.getTime())) {
+        throw new BadRequestException("任务列表分页时间无效，请刷新任务大厅。");
+      }
+      cursorId = beforeIdInput;
+    }
     const slots = await prisma.taskSlot.findMany({
       where: {
         status: "AVAILABLE",
@@ -208,9 +229,15 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
           ],
         },
+        ...(cursorCreatedAt && cursorId ? {
+          OR: [
+            { createdAt: { gt: cursorCreatedAt } },
+            { createdAt: cursorCreatedAt, id: { gt: cursorId } },
+          ],
+        } : {}),
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: 500,
+      take: take + 1,
       include: {
         task: {
           select: {
@@ -223,8 +250,11 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         contactNumber: { select: { phoneE164: true } },
       },
     });
+    const hasMore = slots.length > take;
+    const pageSlots = slots.slice(0, take);
+    const last = pageSlots[pageSlots.length - 1];
     return {
-      tasks: slots.map((slot) => ({
+      tasks: pageSlots.map((slot) => ({
         id: slot.id,
         slotId: slot.id,
         taskId: slot.taskId,
@@ -243,16 +273,47 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         maskedPhoneNumber: maskPhoneMiddleFour(slot.contactNumber.phoneE164),
         remainingCapacity: 1,
       })),
+      hasMore,
+      nextCursor: hasMore && last
+        ? { createdAt: last.createdAt.toISOString(), id: last.id }
+        : null,
     };
   }
 
-  async myClaims(userId: string) {
+  async myClaims(
+    userId: string,
+    limitInput?: string,
+    beforeClaimedAtInput?: string,
+    beforeIdInput?: string,
+  ) {
     // Expiry recovery applies the current global deadline to legacy claims.
     await this.expireOverdueClaims(userId);
+    const parsedLimit = Number.parseInt(limitInput ?? "100", 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : 100;
+    let cursorClaimedAt: Date | null = null;
+    let cursorId: string | null = null;
+    if (beforeClaimedAtInput || beforeIdInput) {
+      if (!beforeClaimedAtInput || !beforeIdInput || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(beforeIdInput)) {
+        throw new BadRequestException("任务记录分页游标无效，请刷新后重试。");
+      }
+      cursorClaimedAt = new Date(beforeClaimedAtInput);
+      if (Number.isNaN(cursorClaimedAt.getTime())) {
+        throw new BadRequestException("任务记录分页时间无效，请刷新后重试。");
+      }
+      cursorId = beforeIdInput;
+    }
     const claims = await prisma.taskClaim.findMany({
-      where: { userId },
-      orderBy: { claimedAt: "desc" },
-      take: 100,
+      where: {
+        userId,
+        ...(cursorClaimedAt && cursorId ? {
+          OR: [
+            { claimedAt: { lt: cursorClaimedAt } },
+            { claimedAt: cursorClaimedAt, id: { lt: cursorId } },
+          ],
+        } : {}),
+      },
+      orderBy: [{ claimedAt: "desc" }, { id: "desc" }],
+      take: take + 1,
       include: {
         task: {
           select: {
@@ -296,8 +357,11 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
+    const hasMore = claims.length > take;
+    const pageClaims = claims.slice(0, take);
+    const last = pageClaims[pageClaims.length - 1];
     return {
-      claims: claims.map((claim) => ({
+      claims: pageClaims.map((claim) => ({
         id: claim.id,
         taskId: claim.taskId,
         status: claim.status,
@@ -312,6 +376,10 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           ? publicSubmission({ ...claim.submissions[0], claimId: claim.id })
           : null,
       })),
+      hasMore,
+      nextCursor: hasMore && last
+        ? { claimedAt: last.claimedAt.toISOString(), id: last.id }
+        : null,
     };
   }
 
@@ -337,6 +405,10 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     const today = startOfDay(timezone);
     try {
       const claim = await prisma.$transaction(async (tx) => {
+        // Serialize slot selection with FIFO allocation/reassignment. Without
+        // this lock, an allocator could move an AVAILABLE slot to another task
+        // after the taskId check but before the reservation update.
+        await lockTaskSlotAllocation(tx);
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
         const [userPolicy, limitsRow] = await Promise.all([
           tx.userProfile.findUnique({ where: { userId }, select: { dailyTaskLimit: true, minClaimIntervalSeconds: true } }),
@@ -370,15 +442,16 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         // A user may hold only one unfinished task at a time. Keep the lock
         // on the user row above so concurrent claim requests cannot bypass this.
         // Count only claims that are genuinely still active.
-        // Expired/stale CLAIMED, IN_PROGRESS or REJECTED rows must never
-        // permanently block a member from taking another task. Pending
+        // Expired/stale CLAIMED and IN_PROGRESS rows must never
+        // permanently block a member from taking another task. Rejected claims
+        // release inventory immediately. Pending
         // submissions remain blocking until review is completed.
         const activeClaims = await tx.taskClaim.count({
           where: {
             userId,
             OR: [
               {
-                status: { in: ["CLAIMED", "IN_PROGRESS", "REJECTED"] },
+                status: { in: ["CLAIMED", "IN_PROGRESS"] },
                 expiresAt: { gt: now },
               },
               {
@@ -473,15 +546,12 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       if (!claim || claim.userId !== userId) {
         throw new NotFoundException("任务领取记录不存在。");
       }
-      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能开始或继续。");
       }
       const now = new Date();
       if (claim.expiresAt && claim.expiresAt <= now) {
         throw new ConflictException("任务领取已过期，请返回任务大厅重新领取。");
-      }
-      if (claim.status === "REJECTED" && !claim.expiresAt) {
-        throw new ConflictException("该驳回任务没有剩余执行时间，不能重新开始。");
       }
       if (claim.status === "IN_PROGRESS" && claim.expiresAt) {
         return this.claimResponse(claim);
@@ -518,13 +588,14 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
   async cancelClaim(userId: string, claimId: string) {
     return prisma.$transaction(async (tx) => {
+      await lockTaskSlotAllocation(tx);
       await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM task_claims WHERE id = ${claimId}::uuid FOR UPDATE
       `;
 
       const claim = await tx.taskClaim.findUnique({
         where: { id: claimId },
-        include: { contactAssignment: true },
+        select: { id: true, taskId: true, userId: true, status: true },
       });
       if (!claim || claim.userId !== userId) {
         throw new NotFoundException("任务领取记录不存在。");
@@ -537,7 +608,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           alreadyClosed: true,
         };
       }
-      if (!["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) {
+      if (!["CLAIMED", "IN_PROGRESS"].includes(claim.status)) {
         throw new ConflictException("当前任务状态不能取消。");
       }
 
@@ -549,29 +620,86 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         throw new ConflictException("任务正在审核中，不能取消。");
       }
 
+      const initialAssignment = await tx.contactAssignment.findUnique({
+        where: { claimId },
+        select: { id: true, contactNumberId: true },
+      });
+      const initialSlot = await tx.taskSlot.findUnique({
+        where: { claimId },
+        select: { id: true, contactNumberId: true },
+      });
+      const initialNumberId = initialAssignment?.contactNumberId ?? initialSlot?.contactNumberId;
+      if (initialNumberId) {
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM contact_numbers WHERE id = ${initialNumberId}::uuid FOR UPDATE
+        `;
+      }
+      if (initialSlot) {
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM task_slots WHERE id = ${initialSlot.id}::uuid FOR UPDATE
+        `;
+      }
+      if (initialAssignment) {
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM contact_assignments WHERE id = ${initialAssignment.id}::uuid FOR UPDATE
+        `;
+      }
+
+      const [assignment, assignedSlot] = await Promise.all([
+        tx.contactAssignment.findUnique({
+          where: { claimId },
+          select: { id: true, contactNumberId: true, status: true },
+        }),
+        tx.taskSlot.findUnique({
+          where: { claimId },
+          select: { id: true, contactNumberId: true, status: true },
+        }),
+      ]);
+      const contactNumberId = assignment?.contactNumberId ?? assignedSlot?.contactNumberId;
+      if (assignment && assignedSlot && assignment.contactNumberId !== assignedSlot.contactNumberId) {
+        throw new ConflictException("领取记录与号码库存关联不一致，暂不能取消。");
+      }
+
       await tx.taskClaim.update({
         where: { id: claimId },
         data: { status: "CANCELLED" },
       });
 
-      let numberReturnedToPool = false;
-      if (claim.contactAssignment?.status === "ASSIGNED") {
+      const now = new Date();
+      if (assignment?.status === "ASSIGNED") {
         await tx.contactAssignment.update({
-          where: { id: claim.contactAssignment.id },
-          data: { status: "RELEASED", releasedAt: new Date() },
+          where: { id: assignment.id },
+          data: { status: "RELEASED", releasedAt: now },
         });
-        const released = await tx.contactNumber.updateMany({
+      }
+      if (contactNumberId) {
+        await tx.contactNumber.updateMany({
           where: {
-            id: claim.contactAssignment.contactNumberId,
+            id: contactNumberId,
             status: "ASSIGNED",
             consentStatus: "GRANTED",
           },
           data: { status: "AVAILABLE" },
         });
-        numberReturnedToPool = released.count === 1;
-        await tx.taskSlot.updateMany({
-          where: { claimId, status: "ASSIGNED" },
-          data: { status: "AVAILABLE", claimId: null, assignedAt: null, releasedAt: new Date() },
+      }
+      const currentNumber = contactNumberId
+        ? await tx.contactNumber.findUnique({
+            where: { id: contactNumberId },
+            select: { status: true, consentStatus: true },
+          })
+        : null;
+      const numberReturnedToPool = currentNumber?.status === "AVAILABLE"
+        && currentNumber.consentStatus === "GRANTED";
+      if (assignedSlot && ["ASSIGNED", "AVAILABLE"].includes(assignedSlot.status)) {
+        await tx.taskSlot.update({
+          where: { id: assignedSlot.id },
+          data: {
+            status: numberReturnedToPool ? "AVAILABLE" : "VOIDED",
+            claimId: null,
+            assignedAt: null,
+            releasedAt: now,
+            usedAt: null,
+          },
         });
       }
 
@@ -579,6 +707,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         where: { id: claim.taskId, claimedCount: { gt: 0 } },
         data: { claimedCount: { decrement: 1 } },
       });
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
 
       return { claimId, status: "CANCELLED", numberReturnedToPool };
     });
@@ -587,17 +716,100 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
   private async expireOverdueClaims(userId?: string) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
-      const limitsRow = await tx.taskConfiguration.findUnique({ where: { key: "claim-limits" }, select: { value: true } });
+      const limitsRow = await tx.taskConfiguration.findUnique({
+        where: { key: "claim-limits" },
+        select: { value: true },
+      });
       const globalLimits = limitsRow?.value && typeof limitsRow.value === "object" && !Array.isArray(limitsRow.value)
         ? limitsRow.value as Record<string, unknown>
         : {};
       const configuredMinutes = Number(globalLimits.taskTimeLimitMinutes);
-      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000 ? configuredMinutes : 3;
+      const taskTimeLimitMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 1000000
+        ? configuredMinutes
+        : 3;
+
+      // Preflight without row locks so we only take the global inventory lock
+      // when there are legacy deadlines to backfill or claims to expire.
+      const legacyNullExpiry = userId
+        ? await tx.taskClaim.findFirst({
+            where: {
+              userId,
+              expiresAt: null,
+              status: { in: ["CLAIMED", "IN_PROGRESS"] },
+            },
+            select: { id: true },
+          })
+        : await tx.taskClaim.findFirst({
+            where: {
+              expiresAt: null,
+              status: { in: ["CLAIMED", "IN_PROGRESS"] },
+            },
+            select: { id: true },
+          });
+      // Rejected claims are history, not active expiry work. Include a legacy
+      // rejected claim only while it still owns an active inventory link.
+      const overdueCandidate = userId
+        ? await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT claim.id
+            FROM task_claims AS claim
+            WHERE claim.user_id = ${userId}::uuid
+              AND (
+                (
+                  claim.status IN ('CLAIMED', 'IN_PROGRESS')
+                  AND claim.expires_at IS NOT NULL
+                  AND claim.expires_at <= ${now}
+                )
+                OR (
+                  claim.status = 'REJECTED'
+                  AND (claim.expires_at IS NULL OR claim.expires_at <= ${now})
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = claim.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = claim.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
+            LIMIT 1
+          `
+        : await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT claim.id
+            FROM task_claims AS claim
+            WHERE (
+                (
+                  claim.status IN ('CLAIMED', 'IN_PROGRESS')
+                  AND claim.expires_at IS NOT NULL
+                  AND claim.expires_at <= ${now}
+                )
+                OR (
+                  claim.status = 'REJECTED'
+                  AND (claim.expires_at IS NULL OR claim.expires_at <= ${now})
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = claim.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = claim.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
+            LIMIT 1
+          `;
+      if (!legacyNullExpiry && overdueCandidate.length === 0) return;
+
+      // Acquire the global inventory lock before any claim/number/slot row
+      // locks. This prevents deadlocks with admin blocking and task allocation.
+      await lockTaskSlotAllocation(tx);
+
       // Backfill deadlines for legacy active claims before checking expiry.
-      // Without this, expires_at IS NULL rows are invisible to the expiry
-      // query but still count as active in claimTask(), permanently blocking
-      // the member from claiming another task.
-      if (userId) {
+      if (legacyNullExpiry && userId) {
         await tx.$executeRaw`
           UPDATE task_claims AS claim
           SET expires_at = LEAST(
@@ -608,9 +820,9 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           WHERE claim.task_id = task.id
             AND claim.user_id = ${userId}::uuid
             AND claim.expires_at IS NULL
-            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS')
         `;
-      } else {
+      } else if (legacyNullExpiry) {
         await tx.$executeRaw`
           UPDATE task_claims AS claim
           SET expires_at = LEAST(
@@ -620,68 +832,89 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
           FROM tasks AS task
           WHERE claim.task_id = task.id
             AND claim.expires_at IS NULL
-            AND claim.status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
+            AND claim.status IN ('CLAIMED', 'IN_PROGRESS')
         `;
       }
 
       const expiredRows = userId
         ? await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT id
-        FROM task_claims
-        WHERE user_id = ${userId}::uuid
-          AND expires_at IS NOT NULL
-          AND expires_at <= ${now}
-          AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
-        ORDER BY expires_at ASC
-        LIMIT 200
-        FOR UPDATE SKIP LOCKED
-      `
+            SELECT id
+            FROM task_claims
+            WHERE user_id = ${userId}::uuid
+              AND (
+                (
+                  status IN ('CLAIMED', 'IN_PROGRESS')
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ${now}
+                )
+                OR (
+                  status = 'REJECTED'
+                  AND (expires_at IS NULL OR expires_at <= ${now})
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = task_claims.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = task_claims.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
+            ORDER BY expires_at ASC NULLS FIRST, claimed_at ASC, id ASC
+            LIMIT 200
+            FOR UPDATE SKIP LOCKED
+          `
         : await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT id
-        FROM task_claims
-        WHERE expires_at IS NOT NULL
-          AND expires_at <= ${now}
-          AND status IN ('CLAIMED', 'IN_PROGRESS', 'REJECTED')
-        ORDER BY expires_at ASC
-        LIMIT 200
-        FOR UPDATE SKIP LOCKED
-      `;
+            SELECT id
+            FROM task_claims
+            WHERE (
+                (
+                  status IN ('CLAIMED', 'IN_PROGRESS')
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ${now}
+                )
+                OR (
+                  status = 'REJECTED'
+                  AND (expires_at IS NULL OR expires_at <= ${now})
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM contact_assignments AS assignment
+                      WHERE assignment.claim_id = task_claims.id AND assignment.status = 'ASSIGNED'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM task_slots AS slot
+                      WHERE slot.claim_id = task_claims.id AND slot.status IN ('ASSIGNED', 'AVAILABLE')
+                    )
+                  )
+                )
+              )
+            ORDER BY expires_at ASC NULLS FIRST, claimed_at ASC, id ASC
+            LIMIT 200
+            FOR UPDATE SKIP LOCKED
+          `;
 
       for (const row of expiredRows) {
         const claim = await tx.taskClaim.findUnique({
           where: { id: row.id },
-          include: { contactAssignment: true },
+          select: { id: true, taskId: true, status: true },
         });
         if (!claim || !["CLAIMED", "IN_PROGRESS", "REJECTED"].includes(claim.status)) continue;
 
-        await tx.taskClaim.update({
-          where: { id: claim.id },
-          data: { status: "EXPIRED" },
-        });
-
-        if (claim.contactAssignment?.status === "ASSIGNED") {
-          await tx.contactAssignment.update({
-            where: { id: claim.contactAssignment.id },
-            data: { status: "RELEASED", releasedAt: now },
-          });
-          await tx.contactNumber.updateMany({
-            where: {
-              id: claim.contactAssignment.contactNumberId,
-              status: "ASSIGNED",
-              consentStatus: "GRANTED",
-            },
-            data: { status: "AVAILABLE" },
-          });
-          await tx.taskSlot.updateMany({
-            where: { claimId: claim.id, status: "ASSIGNED" },
-            data: { status: "AVAILABLE", claimId: null, assignedAt: null, releasedAt: now },
+        // Rejected claims are retained as rejected history; only unfinished
+        // execution claims transition to EXPIRED here.
+        if (claim.status !== "REJECTED") {
+          await tx.taskClaim.update({
+            where: { id: claim.id },
+            data: { status: "EXPIRED" },
           });
         }
+        await recycleUnsuccessfulTaskClaimInventory(tx, claim.id, claim.taskId, now);
+      }
 
-        await tx.task.updateMany({
-          where: { id: claim.taskId, claimedCount: { gt: 0 } },
-          data: { claimedCount: { decrement: 1 } },
-        });
+      if (expiredRows.length) {
+        await allocateAvailableNumbersToOldestPublishedTask(tx);
       }
     });
   }

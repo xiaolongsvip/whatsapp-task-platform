@@ -7,13 +7,36 @@ type TransactionClient = Prisma.TransactionClient;
  * published task. The advisory transaction lock serializes imports and task
  * publishing so two requests cannot allocate the same inventory concurrently.
  */
+export async function lockTaskSlotAllocation(tx: TransactionClient): Promise<void> {
+  // The lock function returns PostgreSQL VOID; project it to a boolean so Prisma can deserialize the result.
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(1732050807) IS NULL AS locked`;
+}
+
 export async function allocateAvailableNumbersToOldestPublishedTask(
   tx: TransactionClient,
 ): Promise<{ taskId: string | null; allocatedCount: number; reassignedCount: number }> {
-  // The lock function returns PostgreSQL VOID; project it to a boolean so Prisma can deserialize the result.
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(1732050807) IS NULL AS locked`;
+  await lockTaskSlotAllocation(tx);
 
   const now = new Date();
+
+  // Recover legacy voided rows created before unsuccessful numbers were
+  // recycled. Only numbers that are still AVAILABLE with GRANTED consent
+  // qualify; blocked/revoked/completed numbers remain unavailable.
+  await tx.taskSlot.updateMany({
+    where: {
+      status: "VOIDED",
+      contactNumber: {
+        is: { status: "AVAILABLE", consentStatus: "GRANTED" },
+      },
+    },
+    data: {
+      status: "AVAILABLE",
+      claimId: null,
+      assignedAt: null,
+      usedAt: null,
+    },
+  });
+
   const targetTask = await tx.task.findFirst({
     where: {
       status: "PUBLISHED",

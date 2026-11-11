@@ -37,7 +37,7 @@ type TaskList = { tasks: AdminTask[] };
 type MessageTemplateOption = { id: string; name: string; platform: string; action: string; content: string; enabled: boolean };
 type TaskGroupOption = { id: string; name: string; description: string | null; taskCount: number };
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
-type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
+type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; inventoryStatus: "AVAILABLE" | "ASSIGNED" | "USED" | "VOIDED"; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
 
 type TaskForm = {
@@ -128,6 +128,9 @@ export default function AdminTasksPage() {
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
+  const [useStageFilter, setUseStageFilter] = useState<"ALL" | "USED" | "UNUSED">("ALL");
+  const [reviewResultFilter, setReviewResultFilter] = useState<"ALL" | "APPROVED" | "PENDING" | "REJECTED">("ALL");
+  const [taskIdFilter, setTaskIdFilter] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
   const [selectedGroup, setSelectedGroup] = useState("");
   const [groupSaving, setGroupSaving] = useState(false);
@@ -149,6 +152,9 @@ export default function AdminTasksPage() {
 
   const loadRecords = useCallback(async () => {
     const params = new URLSearchParams({page:String(page),pageSize:String(pageSize),keyword:appliedSearch,status:statusFilter,groupName:groupFilter,countryRegion:countryFilter.trim()});
+    if (useStageFilter !== "ALL") params.set("useStage", useStageFilter);
+    if (reviewResultFilter !== "ALL") params.set("reviewResult", reviewResultFilter);
+    if (taskIdFilter.trim()) params.set("taskId", taskIdFilter.trim());
     if (createdFrom) params.set("createdFrom", new Date(createdFrom + "T00:00:00").toISOString());
     if (createdTo) params.set("createdTo", new Date(createdTo + "T23:59:59.999").toISOString());
     const result = await api<TaskRecordsResponse>("/api/v1/admin/tasks/records?" + params.toString());
@@ -157,7 +163,7 @@ export default function AdminTasksPage() {
     setTotalPages(result.pagination.totalPages);
     setTotalRecords(result.pagination.total);
     setSelectedIds([]);
-  }, [page,pageSize,appliedSearch,statusFilter,groupFilter,createdFrom,createdTo,countryFilter]);
+  }, [page,pageSize,appliedSearch,statusFilter,groupFilter,createdFrom,createdTo,countryFilter,useStageFilter,reviewResultFilter,taskIdFilter]);
 
   useEffect(() => {
     if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
@@ -330,7 +336,7 @@ export default function AdminTasksPage() {
           <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
             if(!selectedIds.length)return;
             const chosen=records.filter((item)=>selectedIds.includes(item.id));
-            const eligible=chosen.filter((item)=>item.taskStatus!=="PUBLISHED"&&["AVAILABLE","CLOSED"].includes(item.status)&&!item.claimId);
+            const eligible=chosen.filter((item)=>item.taskStatus!=="PUBLISHED"&&item.inventoryStatus==="AVAILABLE"&&!item.claimId);
             const skipped=chosen.length-eligible.length;
             if(!eligible.length){window.alert("选中的记录没有符合删除条件的项目。只能删除已暂停/草稿任务下未领取的可用记录。");return;}
             if(!window.confirm("确定批量删除 "+eligible.length+" 条未领取记录吗？"+(skipped?"\n另有 "+skipped+" 条不符合条件，将保留不动。":"")+"\n删除后号码回到可分配号码池。"))return;
@@ -346,19 +352,19 @@ export default function AdminTasksPage() {
           <button className="tasks-outline-btn" type="button" disabled={!selectedIds.length || busy} onClick={async()=>{
             if(!selectedIds.length)return;
             const chosen=records.filter((item)=>selectedIds.includes(item.id));
-            const eligible=chosen.filter((item)=>!["COMPLETED","REVIEW","FROZEN","VOIDED"].includes(item.status));
+            const eligible=chosen.filter((item)=>!["COMPLETED","REVIEW","FROZEN"].includes(item.status));
             const skipped=chosen.length-eligible.length;
             if(!eligible.length){window.alert("选中的记录没有符合作废条件的项目。");return;}
-            if(!window.confirm("确定批量作废 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中、冻结或已作废的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
+            if(!window.confirm("确定回收并重新分配 "+eligible.length+" 条任务号码记录吗？"+(skipped?"\n另有 "+skipped+" 条已完成、审核中或冻结的记录将跳过。":"")+"\n不会关闭整批任务。"))return;
             setBusy(true);setError("");setMessage("");
             try{
               const result=await api<{total:number;succeeded:number;failed:number;results:Array<{id:string;success:boolean;message:string}>}>("/api/v1/admin/tasks/records/bulk-void",{method:"POST",body:JSON.stringify({ids:eligible.map((item)=>item.id)})});
-              setMessage("批量作废完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
+              setMessage("批量回收完成：成功 "+result.succeeded+" 条，失败 "+result.failed+" 条。"+(skipped?"跳过 "+skipped+" 条不符合条件的记录。":""));
               if(result.failed){setError(result.results.filter((item)=>!item.success).map((item)=>item.id+": "+item.message).join("；"));}
               await refresh();await loadRecords();
             }catch(err){setError(err instanceof Error?err.message:"批量作废失败。");}
             finally{setBusy(false);}
-          }}>批量作废（{selectedIds.length}）</button>
+          }}>回收并重新分配（{selectedIds.length}）</button>
 
           <button className="tasks-outline-btn" type="button" disabled={busy} onClick={async()=>{
             try{
@@ -375,9 +381,30 @@ export default function AdminTasksPage() {
           <button className="tasks-primary-btn" type="button" onClick={startCreate}>＋ 添加任务</button>
         </div>
       </header>
-      {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>{setGroupFilter(event.target.value);setPage(1);}}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><label>创建开始</label><input aria-label="创建开始日期" type="date" value={createdFrom} onChange={(event)=>{setCreatedFrom(event.target.value);setPage(1);}}/><label>创建结束</label><input aria-label="创建结束日期" type="date" value={createdTo} onChange={(event)=>{setCreatedTo(event.target.value);setPage(1);}}/><label>国家/地区</label><input aria-label="国家/地区筛选" value={countryFilter} onChange={(event)=>{setCountryFilter(event.target.value);setPage(1);}} placeholder="国家代码或名称"/><button type="button" onClick={()=>{setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setPage(1);setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
+      {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>{setGroupFilter(event.target.value);setPage(1);}}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><label>创建开始</label><input aria-label="创建开始日期" type="date" value={createdFrom} onChange={(event)=>{setCreatedFrom(event.target.value);setPage(1);}}/><label>创建结束</label><input aria-label="创建结束日期" type="date" value={createdTo} onChange={(event)=>{setCreatedTo(event.target.value);setPage(1);}}/><label>国家/地区</label><input aria-label="国家/地区筛选" value={countryFilter} onChange={(event)=>{setCountryFilter(event.target.value);setPage(1);}} placeholder="国家代码或名称"/><label>使用阶段</label><select aria-label="使用阶段筛选" value={useStageFilter} onChange={(event)=>{setUseStageFilter(event.target.value as typeof useStageFilter);setPage(1);}}><option value="ALL">全部阶段</option><option value="USED">已使用</option><option value="UNUSED">未使用</option></select><label>审核结果</label><select aria-label="审核结果筛选" value={reviewResultFilter} onChange={(event)=>{setReviewResultFilter(event.target.value as typeof reviewResultFilter);setPage(1);}}><option value="ALL">全部结果</option><option value="APPROVED">已通过</option><option value="PENDING">待审核</option><option value="REJECTED">已拒绝</option></select><label>任务完整编号</label><input aria-label="任务完整编号筛选" value={taskIdFilter} onChange={(event)=>{setTaskIdFilter(event.target.value);setPage(1);}} placeholder="输入完整 UUID"/><button type="button" onClick={()=>{setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setUseStageFilter("ALL");setReviewResultFilter("ALL");setTaskIdFilter("");setPage(1);setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
+      <section className="tasks-management-card" aria-label="任务配置管理" style={{marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",padding:"16px 18px",borderBottom:"1px solid #e5eaf1"}}>
+          <div><h2 style={{margin:0,fontSize:16}}>任务配置管理</h2><p style={{margin:"5px 0 0",fontSize:12,color:"#718096"}}>管理任务草稿、发布状态及任务规则；号码记录与库存状态请在下方查看。</p></div>
+          <button type="button" className="tasks-primary-btn" onClick={startCreate}>＋ 添加任务</button>
+        </div>
+        {tasks.length===0 ? <div style={{padding:18,color:"#718096",fontSize:13}}>暂无任务配置。点击“添加任务”创建草稿。</div> :
+          <div className="tasks-table-scroll"><table className="tasks-management-table">
+            <thead><tr><th>任务名称</th><th>平台/分类</th><th>任务组</th><th>奖励</th><th>任务状态</th><th>领取数</th><th>号码库存</th><th>操作</th></tr></thead>
+            <tbody>{tasks.map((task)=><tr key={task.id}>
+              <td className="tasks-title-cell" title={task.title}>{task.title}</td><td>{task.category}</td><td>{task.groupName||"未分组"}</td><td>{task.rewardAmount} {task.currency}</td>
+              <td><span className={"tasks-status-pill "+task.status.toLowerCase()}>{({DRAFT:"草稿",PUBLISHED:"已发布",PAUSED:"已暂停",CLOSED:"已结束"} as Record<TaskStatus,string>)[task.status]}</span></td>
+              <td>{task.claimedCount.toLocaleString()}</td><td>{task.inventory ? `总 ${task.inventory.total} / 可用 ${task.inventory.available} / 已分配 ${task.inventory.assigned} / 已使用 ${task.inventory.used}` : "—"}</td>
+              <td><div className="tasks-row-actions">
+                <button type="button" disabled={busy||!["DRAFT","PAUSED"].includes(task.status)||task.claimedCount>0} title={task.claimedCount>0?"已有领取记录，不能修改任务规则。":!["DRAFT","PAUSED"].includes(task.status)?"请先暂停任务再编辑。":"编辑任务配置"} onClick={()=>startEdit(task)}>编辑</button>
+                {(["DRAFT","PAUSED"].includes(task.status))&&<button type="button" disabled={busy} onClick={()=>void taskAction(task.id,"publish")}>发布</button>}
+                {task.status==="PUBLISHED"&&<button type="button" disabled={busy} onClick={()=>void taskAction(task.id,"pause")}>暂停</button>}
+                {task.status!=="CLOSED"&&<button type="button" className="danger" disabled={busy} onClick={()=>void taskAction(task.id,"close")}>结束</button>}
+              </div></td>
+            </tr>)}</tbody>
+          </table></div>}
+      </section>
       <section className="tasks-management-card">
         <div className="tasks-toolbar">
           <div className="tasks-search"><Search size={15}/><input value={searchTerm} onChange={(event)=>setSearchTerm(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setPage(1);setAppliedSearch(searchTerm);}}} placeholder="任务名称、任务/执行编号或完整号码" aria-label="搜索任务"/></div>
@@ -385,7 +412,7 @@ export default function AdminTasksPage() {
             {([["ALL","全部"],["AVAILABLE","可领取"],["IN_PROGRESS","进行中"],["REVIEW","审核中"],["COMPLETED","已完成"],["CLOSED","已关闭"],["FROZEN","已冻结"],["VOIDED","已作废"]] as const).map(([value,label])=><button key={value} type="button" className={statusFilter===value?"active":""} onClick={()=>{setStatusFilter(value);setPage(1);}}>{label}</button>)}
           </div>
           <button className="tasks-primary-btn tasks-search-btn" type="button" onClick={()=>{setPage(1);setAppliedSearch(searchTerm);}}>搜索</button>
-          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setPage(1);}}>重置</button>
+          <button className="tasks-outline-btn" type="button" onClick={()=>{setSearchTerm("");setAppliedSearch("");setStatusFilter("ALL");setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setUseStageFilter("ALL");setReviewResultFilter("ALL");setTaskIdFilter("");setPage(1);}}>重置</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>setGroupFilterOpen((open)=>!open)}><Filter size={13}/> 更多筛选</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{setStatusFilter("CLOSED");setPage(1);}}><Trash2 size={13}/> 回收站</button>
           <button className="tasks-outline-btn" type="button" onClick={()=>{
@@ -420,7 +447,7 @@ export default function AdminTasksPage() {
                 <td className="tasks-template-cell" title={record.messageTemplate}>{record.messageTemplate||"—"}</td><td>{record.countryRegion}</td>
                 <td><span className={"tasks-status-pill "+record.status.toLowerCase()}>{({AVAILABLE:"可领取",IN_PROGRESS:"进行中",REVIEW:"审核中",COMPLETED:"已结算",CLOSED:"已关闭",FROZEN:"已冻结",VOIDED:"已作废"} as Record<RecordStatus,string>)[record.status]}</span></td>
                 <td>{new Date(record.createdAt).toLocaleString("zh-CN",{hour12:false})}</td>
-                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || !["AVAILABLE","CLOSED"].includes(record.status) || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":!["AVAILABLE","CLOSED"].includes(record.status)?"仅未领取的可用记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
+                <td><div className="tasks-row-actions"><button type="button" onClick={()=>{setSelectedRecord(record);setSelectedGroup(record.groupName);}}>查看</button><button type="button" className="danger" disabled={record.taskStatus==="PUBLISHED" || record.inventoryStatus!=="AVAILABLE" || Boolean(record.claimId)} title={record.taskStatus==="PUBLISHED"?"请先暂停任务，再删除未领取记录。":record.inventoryStatus!=="AVAILABLE"?"仅底层库存状态为可用且未领取的记录允许删除。":"删除后号码回到可分配号码池。"} onClick={async()=>{
                   if(!window.confirm("确定删除这条未领取的任务号码记录吗？"))return;
                   try{
                     await api("/api/v1/admin/tasks/records/"+record.id,{method:"DELETE"});
@@ -510,15 +537,15 @@ export default function AdminTasksPage() {
                   await refresh();await loadRecords();
                 }catch(err){setError(err instanceof Error?err.message:"删除任务号码记录失败。");}
               }}><Trash2 size={13}/> 删除</button>
-              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="VOIDED" || selectedRecord.status==="COMPLETED" || selectedRecord.status==="REVIEW" || selectedRecord.status==="FROZEN"} onClick={async()=>{
-                if(!window.confirm("确定作废当前这条任务号码记录吗？不会关闭整批任务。"))return;
+              <button type="button" className="tasks-detail-void" disabled={selectedRecord.status==="COMPLETED" || selectedRecord.status==="REVIEW" || selectedRecord.status==="FROZEN"} onClick={async()=>{
+                if(!window.confirm("确定回收当前号码并重新分配吗？不会关闭整批任务；未完成号码将返回可分配库存。"))return;
                 try{
                   await api("/api/v1/admin/tasks/records/"+selectedRecord.id+"/void",{method:"POST"});
                   setSelectedRecord(null);
-                  setMessage("当前任务号码记录已作废，其他号码任务不受影响。");
+                  setMessage("号码已回收到可分配库存，后续按 FIFO 规则重新分配。");
                   await refresh();await loadRecords();
                 }catch(err){setError(err instanceof Error?err.message:"作废任务号码记录失败。");}
-              }}>⊗ 作废任务</button>
+              }}>↻ 回收并重新分配</button>
             </footer>
           </aside>
         </div>

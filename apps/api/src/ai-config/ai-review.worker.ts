@@ -3,6 +3,8 @@ import OpenAI from "openai";
 import { prisma } from "@wtp/database";
 import { AiConfigService } from "../ai-config/ai-config.service";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "../tasks/task-slot-allocation";
+import { recycleUnsuccessfulTaskClaimInventory } from "../tasks/task-claim-inventory";
 
 type AiDecision = {
   decision: "APPROVE" | "REJECT" | "UNCERTAIN";
@@ -119,12 +121,40 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
         maxRetries: 0,
       });
 
+      const reviewConfig = await prisma.taskConfiguration.findUnique({ where: { key: "reviews" } });
+      const reviewSchemes: unknown[] = Array.isArray(reviewConfig?.value) ? reviewConfig.value : [];
+      const enabledSchemes = reviewSchemes.filter((item): item is Record<string, unknown> =>
+        Boolean(item) && typeof item === "object" && !Array.isArray(item) &&
+        (item as Record<string, unknown>).enabled === true &&
+        typeof (item as Record<string, unknown>).platform === "string"
+      );
+      const matchingScheme =
+        enabledSchemes.find((item) => item.platform === claim.task.category) ??
+        enabledSchemes.find((item) => item.platform === "通用");
+      const schemeName = typeof matchingScheme?.name === "string" ? matchingScheme.name : "未命名";
+      const schemeInstructions = typeof matchingScheme?.instructions === "string"
+        ? matchingScheme.instructions.trim()
+        : "";
+      const referenceImageUrl = (() => {
+        const value = typeof matchingScheme?.referenceImage === "string"
+          ? matchingScheme.referenceImage.trim()
+          : "";
+        if (!value) return null;
+        try {
+          const url = new URL(value);
+          return url.protocol === "https:" ? url.toString() : null;
+        } catch {
+          return null;
+        }
+      })();
+
       const taskRequirements = [
         `任务标题：${claim.task.title}`,
         `任务说明：${claim.task.description}`,
-        `任务分类：${claim.task.category}`,
+        `任务分类 / 平台：${claim.task.category}`,
         `任务消息模板：${claim.task.messageTemplate || "无"}`,
         `用户提交说明：${submission.note || "无"}`,
+        ...(schemeInstructions ? [`当前平台审核方案（${matchingScheme?.name || "未命名"}）：\n${schemeInstructions}`] : []),
       ].join("\n");
 
       const instruction = `你是任务截图审核器。只依据截图中可见证据判断，不得猜测、补全或把模糊内容当成事实。
@@ -152,6 +182,7 @@ ${taskRequirements}
           role: "user",
           content: [
             { type: "input_text", text: instruction },
+            ...(referenceImageUrl ? [{ type: "input_image" as const, image_url: referenceImageUrl, detail: "high" as const }] : []),
             { type: "input_image", image_url: imageUrl, detail: "high" },
           ],
         }],
@@ -280,10 +311,17 @@ ${taskRequirements}
         await tx.aiReviewJob.update({ where: { id: jobId }, data: { status: "COMPLETED", lockedAt: null } });
         return;
       }
-      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status)) {
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(submission.status) ||
+          !["SUBMITTED", "UNDER_REVIEW"].includes(claim.status)) {
         await tx.aiReviewJob.update({
           where: { id: jobId },
-          data: { status: "NEEDS_REVIEW", decision: result.decision, confidence: result.confidence, reason: "提交状态已变化，停止自动结算。", lockedAt: null },
+          data: {
+            status: "NEEDS_REVIEW",
+            decision: result.decision,
+            confidence: result.confidence,
+            reason: "提交或领取状态已变化，停止自动结算。",
+            lockedAt: null,
+          },
         });
         return;
       }
@@ -423,13 +461,15 @@ ${taskRequirements}
         include: { submission: { include: { claim: true } } },
       });
       if (!current || current.status !== "PROCESSING") return;
-      if (!["SUBMITTED", "UNDER_REVIEW"].includes(current.submission.status)) {
+      if (!["SUBMITTED", "UNDER_REVIEW"].includes(current.submission.status)
+          || !["SUBMITTED", "UNDER_REVIEW"].includes(current.submission.claim.status)) {
         await tx.aiReviewJob.update({
           where: { id: jobId },
-          data: { status: "NEEDS_REVIEW", reason: "提交状态已变化，停止自动拒绝。", lockedAt: null },
+          data: { status: "NEEDS_REVIEW", reason: "提交或领取状态已变化，停止自动拒绝。", lockedAt: null },
         });
         return;
       }
+      await lockTaskSlotAllocation(tx);
       await tx.taskReview.create({
         data: {
           submissionId: current.submissionId,
@@ -446,6 +486,12 @@ ${taskRequirements}
         where: { id: current.submission.claimId },
         data: { status: "REJECTED" },
       });
+      await recycleUnsuccessfulTaskClaimInventory(
+        tx,
+        current.submission.claimId,
+        current.submission.claim.taskId,
+      );
+      await allocateAvailableNumbersToOldestPublishedTask(tx);
       await tx.aiReviewJob.update({
         where: { id: jobId },
         data: {

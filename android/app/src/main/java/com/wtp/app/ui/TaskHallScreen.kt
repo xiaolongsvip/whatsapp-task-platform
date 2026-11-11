@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -88,7 +89,7 @@ private val WtpMuted = Color(0xFF647987)
 
 private enum class TaskMainTab { HALL, RECORDS }
 private enum class HallFilter { AVAILABLE, IN_PROGRESS, EXPIRED, REJECTED, SETTLED }
-private enum class RecordFilter { ALL, IN_PROGRESS, COMPLETED, NEED_ACTION, INCOMPLETE }
+private enum class RecordFilter { ALL, IN_PROGRESS, COMPLETED, REJECTED, INCOMPLETE }
 
 @Composable
 fun TaskHallScreen(
@@ -107,7 +108,13 @@ fun TaskHallScreen(
     val lastCaptureClaimId by CaptureSessionState.lastCaptureClaimId.collectAsState()
 
     var tasks by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var taskCursor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var taskHasMore by remember { mutableStateOf(false) }
+    var loadingMoreTasks by remember { mutableStateOf(false) }
     var claims by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var claimsCursor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var claimsHasMore by remember { mutableStateOf(false) }
+    var loadingMoreClaims by remember { mutableStateOf(false) }
     var locallyExpiredClaimIds by remember { mutableStateOf(emptySet<String>()) }
     var dashboard by remember { mutableStateOf(JSONObject()) }
     var clockMillis by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -143,7 +150,28 @@ fun TaskHallScreen(
                     )
                 }
                 tasks = result.first.optJSONArray("tasks").asObjectList()
+                val taskNext = result.first.optJSONObject("nextCursor")
+                taskCursor = if (taskNext != null) {
+                    val createdAt = taskNext.optString("createdAt")
+                    val id = taskNext.optString("id")
+                    if (createdAt.isNotBlank() && id.isNotBlank()) createdAt to id else null
+                } else null
+                taskHasMore = result.first.optBoolean("hasMore", false)
                 claims = result.second.optJSONArray("claims").asObjectList()
+                val claimsNext = result.second.optJSONObject("nextCursor")
+                claimsCursor = if (claimsNext != null) {
+                    val claimedAt = claimsNext.optString("claimedAt")
+                    val id = claimsNext.optString("id")
+                    if (claimedAt.isNotBlank() && id.isNotBlank()) claimedAt to id else null
+                } else null
+                claimsHasMore = result.second.optBoolean("hasMore", false)
+                val activeId = CaptureSessionState.activeClaimId.value
+                if (!activeId.isNullOrBlank()) {
+                    val activeClaim = claims.firstOrNull { it.optString("id") == activeId }
+                    if (activeClaim == null || activeClaim.optString("status") !in setOf("CLAIMED", "IN_PROGRESS")) {
+                        CaptureSessionState.clearActiveClaim()
+                    }
+                }
                 dashboard = result.third
                 val serverTime = result.third.optString("serverTime")
                 runCatching { Instant.parse(serverTime).toEpochMilli() }.getOrNull()?.let {
@@ -154,6 +182,52 @@ fun TaskHallScreen(
             } finally {
                 loading = false
             }
+        }
+    }
+
+    fun loadMoreTasks() {
+        val cursor = taskCursor ?: return
+        if (loadingMoreTasks || !taskHasMore) return
+        scope.launch {
+            loadingMoreTasks = true
+            try {
+                val result = withContext(Dispatchers.IO) { AuthRepository.publishedTasks(100, cursor.first, cursor.second) }
+                val incoming = result.optJSONArray("tasks").asObjectList()
+                val knownIds = tasks.map { it.optString("slotId", it.optString("id")) }.toMutableSet()
+                tasks = tasks + incoming.filter { knownIds.add(it.optString("slotId", it.optString("id"))) }
+                val next = result.optJSONObject("nextCursor")
+                taskCursor = if (next != null) {
+                    val createdAt = next.optString("createdAt")
+                    val id = next.optString("id")
+                    if (createdAt.isNotBlank() && id.isNotBlank()) createdAt to id else null
+                } else null
+                taskHasMore = result.optBoolean("hasMore", false)
+            } catch (e: Exception) {
+                error = e.message ?: if (isEnglish) "Could not load more tasks." else "加载更多任务失败，请重试。"
+            } finally { loadingMoreTasks = false }
+        }
+    }
+
+    fun loadMoreClaims() {
+        val cursor = claimsCursor ?: return
+        if (loadingMoreClaims || !claimsHasMore) return
+        scope.launch {
+            loadingMoreClaims = true
+            try {
+                val result = withContext(Dispatchers.IO) { AuthRepository.myTaskClaims(100, cursor.first, cursor.second) }
+                val incoming = result.optJSONArray("claims").asObjectList()
+                val knownIds = claims.map { it.optString("id") }.toMutableSet()
+                claims = claims + incoming.filter { knownIds.add(it.optString("id")) }
+                val next = result.optJSONObject("nextCursor")
+                claimsCursor = if (next != null) {
+                    val claimedAt = next.optString("claimedAt")
+                    val id = next.optString("id")
+                    if (claimedAt.isNotBlank() && id.isNotBlank()) claimedAt to id else null
+                } else null
+                claimsHasMore = result.optBoolean("hasMore", false)
+            } catch (e: Exception) {
+                error = e.message ?: if (isEnglish) "Could not load more task records." else "加载更多任务记录失败，请重试。"
+            } finally { loadingMoreClaims = false }
         }
     }
 
@@ -242,7 +316,7 @@ fun TaskHallScreen(
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
-    val expirableStatuses = setOf("CLAIMED", "IN_PROGRESS", "REJECTED")
+    val expirableStatuses = setOf("CLAIMED", "IN_PROGRESS")
     val isLocallyExpired: (JSONObject) -> Boolean = { claim ->
         claim.optString("status") in expirableStatuses &&
             (claim.optString("id") in locallyExpiredClaimIds || isClaimDeadlinePassed(claim))
@@ -251,7 +325,7 @@ fun TaskHallScreen(
         it.optString("status") in IN_PROGRESS_STATUSES && !isLocallyExpired(it)
     }
     val hasUnfinishedTask = claims.any {
-        it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW") &&
+        it.optString("status") in setOf("CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW") &&
             !isLocallyExpired(it)
     }
     val expiredClaims = claims.filter {
@@ -298,7 +372,7 @@ fun TaskHallScreen(
         RecordFilter.ALL -> claims
         RecordFilter.IN_PROGRESS -> inProgressClaims
         RecordFilter.COMPLETED -> settledClaims
-        RecordFilter.NEED_ACTION -> rejectedClaims
+        RecordFilter.REJECTED -> rejectedClaims
         RecordFilter.INCOMPLETE -> expiredClaims
     }
     val evidenceClaim = claims.firstOrNull { it.optString("id") == lastCaptureClaimId }
@@ -666,6 +740,20 @@ fun TaskHallScreen(
                                 )
                             }
                         }
+                        if (taskHasMore) {
+                            OutlinedButton(
+                                onClick = { loadMoreTasks() },
+                                enabled = !loadingMoreTasks,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                shape = RoundedCornerShape(9.dp)
+                            ) {
+                                Text(if (loadingMoreTasks) {
+                                    if (isEnglish) "Loading…" else "正在加载…"
+                                } else {
+                                    if (isEnglish) "Load more tasks" else "加载更多任务"
+                                }, color = WtpDarkGreen)
+                            }
+                        }
                     }
                     HallFilter.IN_PROGRESS -> {
                         SummaryCard(
@@ -736,24 +824,9 @@ fun TaskHallScreen(
                         )
                         if (rejectedClaims.isEmpty()) EmptyState(
                             if (isEnglish) "No rejected tasks" else "暂无已拒绝任务",
-                            if (isEnglish) "Tasks requiring resubmission will appear here." else "审核未通过的任务会显示在这里。"
+                            if (isEnglish) "Rejected tasks remain in history; their numbers have been recycled." else "审核未通过的任务仅保留历史记录，号码已回收到可分配库存。"
                         ) else rejectedClaims.forEach { claim ->
-                            ClaimedTaskCard(
-                                claim = claim,
-                                isEnglish = isEnglish,
-                                activeClaimId = activeClaimId,
-                                busy = busyId != null,
-                                onViewDetails = { selectedClaimId = claim.optString("id") },
-                                onGoWhatsApp = { startAndOpenWhatsApp(claim) },
-                                onSelect = {
-                                    CaptureSessionState.setActiveClaim(claim.optString("id"))
-                                    notice = if (isEnglish) "This task is selected for resubmission." else "已选择此任务，可返回 WhatsApp 重新处理。"
-                                },
-                                onCountdownExpired = {
-                                    locallyExpiredClaimIds = locallyExpiredClaimIds + claim.optString("id")
-                                    refresh()
-                                }
-                            )
+                            ClaimRecordCard(claim, isEnglish)
                         }
                     }
                     HallFilter.SETTLED -> {
@@ -774,7 +847,7 @@ fun TaskHallScreen(
                     onSelect = { recordFilter = it }
                 )
                 SummaryCard(
-                    title = if (isEnglish) "Last 7 days" else "近 7 天领取的任务",
+                    title = if (isEnglish) "Last 7 days · loaded records" else "近 7 天（已加载记录）",
                     columns = listOf(
                         (if (isEnglish) "Claimed" else "已领取") to claimedLastSevenDays.toString(),
                         (if (isEnglish) "Approved" else "已通过") to approvedLastSevenDays.toString(),
@@ -788,6 +861,20 @@ fun TaskHallScreen(
                 )
                 else displayedRecords.sortedByDescending { it.optString("claimedAt") }.forEach { claim ->
                     ClaimRecordCard(claim, isEnglish)
+                }
+                if (claimsHasMore) {
+                    OutlinedButton(
+                        onClick = { loadMoreClaims() },
+                        enabled = !loadingMoreClaims,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        shape = RoundedCornerShape(9.dp)
+                    ) {
+                        Text(if (loadingMoreClaims) {
+                            if (isEnglish) "Loading…" else "正在加载…"
+                        } else {
+                            if (isEnglish) "Load more records" else "加载更多记录"
+                        }, color = WtpDarkGreen)
+                    }
                 }
             }
         }
@@ -892,7 +979,7 @@ private fun TaskExecutionScreen(
         )
     }
     var showAbandonDialog by remember { mutableStateOf(false) }
-    val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED", "EXPIRED")
+    val canAbandon = status in setOf("CLAIMED", "IN_PROGRESS", "EXPIRED")
     val reward = formatTaskReward(task.optString("rewardMinor"), task.optString("currency", "USD"))
     val taskDescription = task.optString("description")
         .takeUnless { it.isBlank() || it == "null" }
@@ -907,7 +994,7 @@ private fun TaskExecutionScreen(
             remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0) delay(1000)
         }
-        if (timerStarted && remainingSeconds <= 0 && status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED")) {
+        if (timerStarted && remainingSeconds <= 0 && status in setOf("CLAIMED", "IN_PROGRESS")) {
             // The server owns expiry and returns the assigned number to the pool.
             onExpired()
         }
@@ -1014,8 +1101,8 @@ private fun TaskExecutionScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                if (isEnglish) "Rejected — you can try again before the deadline"
-                                else "审核未通过，可在原截止时间前重新执行",
+                                if (isEnglish) "Rejected — this number has been recycled"
+                                else "审核未通过，号码已回收，不能重新执行",
                                 color = Color(0xFF9A3412),
                                 fontWeight = FontWeight.Bold
                             )
@@ -1072,7 +1159,7 @@ private fun TaskExecutionScreen(
                         Button(
                             onClick = onGoWhatsApp,
                             enabled = !starting && phone.isNotBlank() && phone != "null" &&
-                                status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                                status in setOf("CLAIMED", "IN_PROGRESS") &&
                                 remainingSeconds > 0,
                             modifier = Modifier.width(162.dp).height(46.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -1084,7 +1171,7 @@ private fun TaskExecutionScreen(
                             Text(
                                 when {
                                     starting -> if (isEnglish) "Opening…" else "正在打开…"
-                                    status == "REJECTED" -> if (isEnglish) "Restart task" else "重新开始任务"
+                                    status == "REJECTED" -> if (isEnglish) "Number recycled" else "号码已回收"
                                     else -> if (isEnglish) "Open WhatsApp" else "打开WhatsApp"
                                 },
                                 color = Color.White,
@@ -1380,7 +1467,7 @@ private fun RecordFilterTabs(
         RecordFilter.ALL to (if (isEnglish) "All" else "全部"),
         RecordFilter.IN_PROGRESS to (if (isEnglish) "In progress" else "进行中"),
         RecordFilter.COMPLETED to (if (isEnglish) "Completed" else "已完成"),
-        RecordFilter.NEED_ACTION to (if (isEnglish) "Action" else "需处理"),
+        RecordFilter.REJECTED to (if (isEnglish) "Rejected" else "已拒绝"),
         RecordFilter.INCOMPLETE to (if (isEnglish) "Unfinished" else "未完成")
     )
     Row(
@@ -1541,7 +1628,7 @@ private fun ClaimedTaskCard(
     val submission = claim.optJSONObject("latestSubmission")
     val phone = claim.optString("assignedPhoneNumber")
     var countdownExpired by remember(claim.optString("id")) { mutableStateOf(false) }
-    val canOpen = !countdownExpired &&
+    val canViewDetails = !countdownExpired &&
         status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
         (submission == null || submission.optString("status") == "REJECTED")
     Card(
@@ -1563,7 +1650,7 @@ private fun ClaimedTaskCard(
                 )
                 val expiresAt = taskExpiryValue(claim)
                 if (
-                    status in setOf("CLAIMED", "IN_PROGRESS", "REJECTED") &&
+                    status in setOf("CLAIMED", "IN_PROGRESS") &&
                     expiresAt != null
                 ) {
                     TaskCountdownBadge(
@@ -1582,7 +1669,17 @@ private fun ClaimedTaskCard(
                 Text(if (isEnglish) "Status: " else "状态：", color = WtpMuted, style = MaterialTheme.typography.bodySmall)
                 Text(claimStatus(status, isEnglish), color = WtpDarkGreen, fontWeight = FontWeight.SemiBold)
             }
-            if (phone.isNotBlank() && phone != "null") {
+            if (status == "REJECTED") {
+                Surface(color = Color(0xFFFFF4E8), shape = RoundedCornerShape(9.dp)) {
+                    Text(
+                        if (isEnglish) "This number has been returned to the task pool and may be assigned to another task."
+                        else "该号码已回收到任务号码池，可能已重新分配给其他任务。",
+                        modifier = Modifier.fillMaxWidth().padding(11.dp),
+                        color = Color(0xFF9A3412),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            } else if (phone.isNotBlank() && phone != "null") {
                 Surface(color = WtpPaleGreen, shape = RoundedCornerShape(9.dp)) {
                     Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(if (isEnglish) "Assigned WhatsApp number" else "本任务专属号码", color = WtpDarkGreen, style = MaterialTheme.typography.bodySmall)
@@ -1649,7 +1746,7 @@ private fun ClaimedTaskCard(
                     WtpDarkGreen
                 )
             }
-            if (canOpen) {
+            if (canViewDetails) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     OutlinedButton(
                         onClick = onViewDetails,
@@ -1659,20 +1756,36 @@ private fun ClaimedTaskCard(
                     ) {
                         Text(if (isEnglish) "View details" else "查看详情", color = WtpDarkGreen)
                     }
-                    Button(
-                        onClick = {
-                            onSelect()
-                            onGoWhatsApp()
-                        },
-                        modifier = Modifier.weight(1.35f),
-                        enabled = !busy && !countdownExpired && phone.isNotBlank() && phone != "null",
-                        colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
-                        shape = RoundedCornerShape(9.dp)
-                    ) {
-                        Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
+                    if (status == "REJECTED") {
+                        Surface(
+                            modifier = Modifier.weight(1.35f),
+                            color = Color(0xFFFFF4E8),
+                            shape = RoundedCornerShape(9.dp)
+                        ) {
+                            Text(
+                                if (isEnglish) "Number recycled" else "号码已回收",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 13.dp),
+                                color = Color(0xFF9A3412),
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                onSelect()
+                                onGoWhatsApp()
+                            },
+                            modifier = Modifier.weight(1.35f),
+                            enabled = !busy && !countdownExpired && phone.isNotBlank() && phone != "null",
+                            colors = ButtonDefaults.buttonColors(containerColor = WtpGreen),
+                            shape = RoundedCornerShape(9.dp)
+                        ) {
+                            Text(if (isEnglish) "Go to WhatsApp  ▷" else "前往 WhatsApp  ▷", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-                if (phone.isBlank() || phone == "null") {
+                if (status != "REJECTED" && (phone.isBlank() || phone == "null")) {
                     Text(
                         if (isEnglish) "No assigned number was returned. Refresh or contact support." else "没有获取到分配号码，请刷新任务或联系管理员。",
                         color = Color(0xFFB45309),

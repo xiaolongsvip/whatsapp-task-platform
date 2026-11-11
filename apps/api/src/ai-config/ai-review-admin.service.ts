@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "../tasks/task-slot-allocation";
+import { recycleUnsuccessfulTaskClaimInventory } from "../tasks/task-claim-inventory";
 
 const AI_REVIEW_STALE_AFTER_MS = 10 * 60 * 1000;
 
@@ -151,6 +153,9 @@ export class AiReviewAdminService {
         throw new ConflictException("该提交已处理或状态已变化，不能重复审核。");
       }
 
+      if (decision === "REJECT") {
+        await lockTaskSlotAllocation(tx);
+      }
       await tx.taskReview.create({
         data: {
           submissionId: submission.id,
@@ -260,6 +265,8 @@ export class AiReviewAdminService {
       } else {
         await tx.taskSubmission.update({ where: { id: submission.id }, data: { status: "REJECTED" } });
         await tx.taskClaim.update({ where: { id: claim.id }, data: { status: "REJECTED" } });
+        await recycleUnsuccessfulTaskClaimInventory(tx, claim.id, claim.taskId);
+        await allocateAvailableNumbersToOldestPublishedTask(tx);
       }
 
       if (submission.aiReviewJob) {

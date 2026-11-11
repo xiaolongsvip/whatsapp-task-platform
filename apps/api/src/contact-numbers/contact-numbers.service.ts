@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { prisma } from "@wtp/database";
 import type { ImportContactNumbersDto } from "./contact-numbers.dto";
-import { allocateAvailableNumbersToOldestPublishedTask } from "../tasks/task-slot-allocation";
+import { allocateAvailableNumbersToOldestPublishedTask, lockTaskSlotAllocation } from "../tasks/task-slot-allocation";
 
 function normalizePhone(input: string): string | null {
   const value = input.trim();
@@ -366,6 +366,8 @@ export class ContactNumbersService {
 
   async block(numberId: string, adminId: string) {
     return prisma.$transaction(async (tx) => {
+      // Acquire the shared allocation lock before claim/number/slot row locks.
+      await lockTaskSlotAllocation(tx);
       // Match claim cancellation/expiry lock order: claim first, then number,
       // then slot. This avoids a number/claim lock inversion during cleanup.
       await tx.$queryRaw<Array<{ id: string }>>`
