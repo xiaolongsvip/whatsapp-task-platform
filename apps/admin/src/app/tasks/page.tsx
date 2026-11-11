@@ -384,6 +384,27 @@ export default function AdminTasksPage() {
       {groupFilterOpen && <div className="tasks-group-filter"><span>任务组：</span><select value={groupFilter} onChange={(event)=>{setGroupFilter(event.target.value);setPage(1);}}><option value="ALL">全部任务组</option>{groupNames.map((name)=><option key={name} value={name}>{name}</option>)}</select><label>创建开始</label><input aria-label="创建开始日期" type="date" value={createdFrom} onChange={(event)=>{setCreatedFrom(event.target.value);setPage(1);}}/><label>创建结束</label><input aria-label="创建结束日期" type="date" value={createdTo} onChange={(event)=>{setCreatedTo(event.target.value);setPage(1);}}/><label>国家/地区</label><input aria-label="国家/地区筛选" value={countryFilter} onChange={(event)=>{setCountryFilter(event.target.value);setPage(1);}} placeholder="国家代码或名称"/><label>使用阶段</label><select aria-label="使用阶段筛选" value={useStageFilter} onChange={(event)=>{setUseStageFilter(event.target.value as typeof useStageFilter);setPage(1);}}><option value="ALL">全部阶段</option><option value="USED">已使用</option><option value="UNUSED">未使用</option></select><label>审核结果</label><select aria-label="审核结果筛选" value={reviewResultFilter} onChange={(event)=>{setReviewResultFilter(event.target.value as typeof reviewResultFilter);setPage(1);}}><option value="ALL">全部结果</option><option value="APPROVED">已通过</option><option value="PENDING">待审核</option><option value="REJECTED">已拒绝</option></select><label>任务完整编号</label><input aria-label="任务完整编号筛选" value={taskIdFilter} onChange={(event)=>{setTaskIdFilter(event.target.value);setPage(1);}} placeholder="输入完整 UUID"/><button type="button" onClick={()=>{setGroupFilter("ALL");setCreatedFrom("");setCreatedTo("");setCountryFilter("");setUseStageFilter("ALL");setReviewResultFilter("ALL");setTaskIdFilter("");setPage(1);setGroupFilterOpen(false);}}>重置 / 收起</button></div>}
       {error && <div className="notice error">{error}</div>}
       {message && <div className="notice">{message}</div>}
+      <section className="tasks-management-card" aria-label="任务配置管理" style={{marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",padding:"16px 18px",borderBottom:"1px solid #e5eaf1"}}>
+          <div><h2 style={{margin:0,fontSize:16}}>任务配置管理</h2><p style={{margin:"5px 0 0",fontSize:12,color:"#718096"}}>管理任务草稿、发布状态及任务规则；号码记录与库存状态请在下方查看。</p></div>
+          <button type="button" className="tasks-primary-btn" onClick={startCreate}>＋ 添加任务</button>
+        </div>
+        {tasks.length===0 ? <div style={{padding:18,color:"#718096",fontSize:13}}>暂无任务配置。点击“添加任务”创建草稿。</div> :
+          <div className="tasks-table-scroll"><table className="tasks-management-table">
+            <thead><tr><th>任务名称</th><th>平台/分类</th><th>任务组</th><th>奖励</th><th>任务状态</th><th>领取数</th><th>号码库存</th><th>操作</th></tr></thead>
+            <tbody>{tasks.map((task)=><tr key={task.id}>
+              <td className="tasks-title-cell" title={task.title}>{task.title}</td><td>{task.category}</td><td>{task.groupName||"未分组"}</td><td>{task.rewardAmount} {task.currency}</td>
+              <td><span className={"tasks-status-pill "+task.status.toLowerCase()}>{({DRAFT:"草稿",PUBLISHED:"已发布",PAUSED:"已暂停",CLOSED:"已结束"} as Record<TaskStatus,string>)[task.status]}</span></td>
+              <td>{task.claimedCount.toLocaleString()}</td><td>{task.inventory ? `总 ${task.inventory.total} / 可用 ${task.inventory.available} / 已分配 ${task.inventory.assigned} / 已使用 ${task.inventory.used}` : "—"}</td>
+              <td><div className="tasks-row-actions">
+                <button type="button" disabled={busy||!["DRAFT","PAUSED"].includes(task.status)||task.claimedCount>0} title={task.claimedCount>0?"已有领取记录，不能修改任务规则。":!["DRAFT","PAUSED"].includes(task.status)?"请先暂停任务再编辑。":"编辑任务配置"} onClick={()=>startEdit(task)}>编辑</button>
+                {(["DRAFT","PAUSED"].includes(task.status))&&<button type="button" disabled={busy} onClick={()=>void taskAction(task.id,"publish")}>发布</button>}
+                {task.status==="PUBLISHED"&&<button type="button" disabled={busy} onClick={()=>void taskAction(task.id,"pause")}>暂停</button>}
+                {task.status!=="CLOSED"&&<button type="button" className="danger" disabled={busy} onClick={()=>void taskAction(task.id,"close")}>结束</button>}
+              </div></td>
+            </tr>)}</tbody>
+          </table></div>}
+      </section>
       <section className="tasks-management-card">
         <div className="tasks-toolbar">
           <div className="tasks-search"><Search size={15}/><input value={searchTerm} onChange={(event)=>setSearchTerm(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setPage(1);setAppliedSearch(searchTerm);}}} placeholder="任务名称、任务/执行编号或完整号码" aria-label="搜索任务"/></div>
