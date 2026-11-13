@@ -661,7 +661,7 @@ test("member withdrawal history exposes the admin rejection note only for the me
   const dashboard = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
   const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
   assert.match(dashboard, /targetType: "WITHDRAWAL_REQUEST"/);
-  assert.match(dashboard, /targetId: \{ in: rows\.map\(\(row\) => row\.id\) \}/);
+  assert.match(dashboard, /targetId: \{ in: pageRows\.map\(\(row\) => row\.id\) \}/);
   assert.match(dashboard, /action: "WITHDRAWAL_REJECTED"/);
   assert.match(dashboard, /metadata\.note/);
   assert.match(dashboard, /rejectionReason: row\.status === "REJECTED" \? rejectionReasons\.get\(row\.id\) \?\? null : null/);
