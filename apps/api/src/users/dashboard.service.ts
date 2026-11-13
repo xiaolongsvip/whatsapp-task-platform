@@ -491,11 +491,20 @@ export class DashboardService {
     };
   }
 
-  async getWithdrawalHistory(userId: string, limit = 50) {
+  async getWithdrawalHistory(userId: string, limit = 50, beforeCreatedAt?: string, beforeId?: string) {
+    const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 50, 1), 100);
+    const cursorDate = beforeCreatedAt ? new Date(beforeCreatedAt) : null;
+    const hasCursor = Boolean(cursorDate && Number.isFinite(cursorDate.getTime()) && beforeId?.trim());
+    const cursorFilter = hasCursor ? {
+      OR: [
+        { createdAt: { lt: cursorDate! } },
+        { createdAt: cursorDate!, id: { lt: beforeId!.trim() } },
+      ],
+    } : undefined;
     const rows = await prisma.withdrawalRequest.findMany({
-      where: { wallet: { userId } },
-      orderBy: { createdAt: "desc" },
-      take: Math.min(Math.max(limit, 1), 100),
+      where: { wallet: { userId }, ...(cursorFilter ?? {}) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: take + 1,
       select: {
         id: true,
         amountMinor: true,
@@ -518,10 +527,12 @@ export class DashboardService {
         updatedAt: true,
       },
     });
-    const rejectionEvents = rows.length ? await prisma.auditEvent.findMany({
+    const hasMore = rows.length > take;
+    const pageRows = rows.slice(0, take);
+    const rejectionEvents = pageRows.length ? await prisma.auditEvent.findMany({
       where: {
         targetType: "WITHDRAWAL_REQUEST",
-        targetId: { in: rows.map((row) => row.id) },
+        targetId: { in: pageRows.map((row) => row.id) },
         action: "WITHDRAWAL_REJECTED",
       },
       orderBy: { createdAt: "desc" },
@@ -537,7 +548,7 @@ export class DashboardService {
       if (note) rejectionReasons.set(event.targetId, note);
     }
     return {
-      items: rows.map((row) => ({
+      items: pageRows.map((row) => ({
         id: row.id,
         amountMinor: row.amountMinor.toString(),
         currency: row.currency.trim(),
@@ -556,6 +567,11 @@ export class DashboardService {
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       })),
+      hasMore,
+      nextCursor: hasMore && pageRows.length ? {
+        createdAt: pageRows[pageRows.length - 1].createdAt.toISOString(),
+        id: pageRows[pageRows.length - 1].id,
+      } : null,
     };
   }
 
