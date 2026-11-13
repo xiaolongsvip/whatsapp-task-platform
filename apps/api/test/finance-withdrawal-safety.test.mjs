@@ -766,4 +766,6 @@ test("member withdrawal history uses stable cursor pagination end to end", () =>
   assert.match(app, /AuthRepository\.withdrawalHistory\(/);
   assert.match(app, /loadPage\(false\)/);
   assert.match(app, /"Load more"/);
+  assert.match(app, /error != null && items == null/);
+  assert.match(app, /"Retry loading"/);
 });
