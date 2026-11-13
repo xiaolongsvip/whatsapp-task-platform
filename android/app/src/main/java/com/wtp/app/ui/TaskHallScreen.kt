@@ -1022,8 +1022,8 @@ private fun TaskExecutionScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                if (isEnglish) "Rejected — you can try again before the deadline"
-                                else "审核未通过，可在原截止时间前重新执行",
+                                if (isEnglish) "Rejected — number recycled; this task cannot be restarted"
+                                else "审核未通过，号码已回收，不能重新执行",
                                 color = Color(0xFF9A3412),
                                 fontWeight = FontWeight.Bold
                             )
@@ -1594,7 +1594,7 @@ private fun ClaimedTaskCard(
                 Surface(color = Color(0xFFFFF4E8), shape = RoundedCornerShape(9.dp)) {
                     Text(
                         if (isEnglish) "This number has been returned to the task pool and may be assigned to another task."
-                        else "该号码已回收到任务号码池，可能已重新分配给其他任务。",
+                        else "该号码已回收到可分配号码池，可能已重新分配给其他任务。",
                         modifier = Modifier.fillMaxWidth().padding(11.dp),
                         color = Color(0xFF9A3412),
                         style = MaterialTheme.typography.bodySmall
