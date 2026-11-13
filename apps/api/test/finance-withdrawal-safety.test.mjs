@@ -6,6 +6,7 @@ const service = readFileSync(new URL("../src/finance-admin/finance-admin.service
 const controller = readFileSync(new URL("../src/finance-admin/finance-admin.controller.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../../../packages/database/prisma/migrations/20261108193000_unique_manual_payout_reference/migration.sql", import.meta.url), "utf8");
 const adminPage = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
+const adminPermissionGuard = readFileSync(new URL("../src/permissions-admin/admin-permission.guard.ts", import.meta.url), "utf8");
 const dashboardService = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
 const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
 const androidAuthRepository = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
@@ -692,4 +693,18 @@ test("wallet transaction history supports stable cursor pagination end to end", 
   assert.match(androidApp, /AuthRepository\.walletTransactions\(100, beforeCreatedAt, beforeId\)/);
   assert.match(androidApp, /"Load more"/);
   assert.doesNotMatch(androidApp, /Showing the latest records/);
+});
+
+
+test("full payout account details require payout permission and every reveal is audited", () => {
+  assert.match(controller, /@Get\("payout-accounts\/:id\/sensitive-details"\)/);
+  assert.match(controller, /payoutAccountSensitiveDetails\(id, admin\.id\)/);
+  assert.match(adminPermissionGuard, /sensitive-details/);
+  assert.match(adminPermissionGuard, /finance\.withdrawals\.pay/);
+  assert.match(service, /async payoutAccountSensitiveDetails\(id: string, adminId: string\)/);
+  assert.match(service, /accountNumber: typeof parsed\.accountNumber === "string"/);
+  assert.match(service, /PAYOUT_ACCOUNT_SENSITIVE_DETAILS_VIEWED/);
+  assert.match(service, /无法解密收款账号/);
+  assert.match(adminPage, /查看完整收款账号（需打款权限）/);
+  assert.match(adminPage, /sensitiveAccountDetails\.accountNumber/);
 });
