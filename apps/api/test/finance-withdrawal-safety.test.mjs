@@ -769,3 +769,17 @@ test("member withdrawal history uses stable cursor pagination end to end", () =>
   assert.match(app, /error != null && items == null/);
   assert.match(app, /"Retry loading"/);
 });
+
+
+test("admin withdrawal review and processing transitions refresh their detail and audit history", () => {
+  const reviewStart = adminPage.indexOf("async function reviewWithdrawal(");
+  const processingStart = adminPage.indexOf("async function startPayoutProcessing(", reviewStart);
+  const payoutStart = adminPage.indexOf("async function recordPayout(", processingStart);
+  assert.ok(reviewStart >= 0 && processingStart > reviewStart && payoutStart > processingStart);
+  const reviewHandler = adminPage.slice(reviewStart, processingStart);
+  const processingHandler = adminPage.slice(processingStart, payoutStart);
+  assert.match(reviewHandler, /setWithdrawalDetail\(await get<Row>\("\/api\/v1\/admin\/finance\/withdrawals\/"\+encodeURIComponent\(withdrawalDetail\.id\)\)\)/);
+  assert.match(processingHandler, /setWithdrawalDetail\(await get<Row>\("\/api\/v1\/admin\/finance\/withdrawals\/"\+encodeURIComponent\(withdrawalDetail\.id\)\)\)/);
+  assert.match(reviewHandler, /审核操作已成功，但详情历史刷新失败/);
+  assert.match(processingHandler, /已开始付款处理，但详情历史刷新失败/);
+});
