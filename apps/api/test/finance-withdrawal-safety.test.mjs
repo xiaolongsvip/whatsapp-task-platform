@@ -707,6 +707,8 @@ test("TRC20 payout accounts require a checksummed TRON mainnet address and use a
   assert.match(app, /val isTrc20 = methodCode\.contains\("TRC20", ignoreCase = true\)/);
   assert.match(app, /TRON 钱包地址（TRC20）/);
   assert.match(app, /if \(isTrc20\) "TRC20 wallet" else holder/);
+  assert.match(adminPage, /TRC20 钱包地址无需填写姓名/);
+  assert.match(adminPage, /不能填写 ERC20 或 BEP20 地址/);
 
   const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   const validTronAddress = (value) => {
