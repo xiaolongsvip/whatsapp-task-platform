@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { Injectable, BadRequestException, ConflictException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
 import { prisma, type Prisma } from "@wtp/database";
 
