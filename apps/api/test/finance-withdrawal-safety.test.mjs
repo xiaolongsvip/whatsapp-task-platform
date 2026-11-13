@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const service = readFileSync(new URL("../src/finance-admin/finance-admin.service.ts", import.meta.url), "utf8");
 const controller = readFileSync(new URL("../src/finance-admin/finance-admin.controller.ts", import.meta.url), "utf8");
@@ -703,7 +704,28 @@ test("TRC20 payout accounts require a checksummed TRON mainnet address and use a
   assert.match(payoutAccounts, /createHash\("sha256"\)/);
   assert.match(payoutAccounts, /isTrc20Method && !isValidTronAddress\(accountNumber\)/);
   assert.match(payoutAccounts, /Invalid TRON mainnet address for the TRC20 network/);
+  assert.match(payoutAccounts, /(?:\^|\[_-\])trc20\$\/i/);
   assert.match(app, /val isTrc20 = methodCode\.contains\("TRC20", ignoreCase = true\)/);
   assert.match(app, /TRON 钱包地址（TRC20）/);
   assert.match(app, /if \(isTrc20\) "TRC20 wallet" else holder/);
+
+  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const validTronAddress = (value) => {
+    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value)) return false;
+    let number = 0n;
+    for (const character of value) {
+      const digit = alphabet.indexOf(character);
+      if (digit < 0) return false;
+      number = number * 58n + BigInt(digit);
+    }
+    let hex = number.toString(16);
+    if (hex.length % 2) hex = "0" + hex;
+    const decoded = Buffer.from(hex, "hex");
+    if (decoded.length !== 25 || decoded[0] !== 0x41) return false;
+    const first = createHash("sha256").update(decoded.subarray(0, 21)).digest();
+    return createHash("sha256").update(first).digest().subarray(0, 4).equals(decoded.subarray(21));
+  };
+  assert.equal(validTronAddress("TJRabPrwbZy45sbavfcjinPJC18kjpRTv8"), true);
+  assert.equal(validTronAddress("TJRabPrwbZy45sbavfcjinPJC18kjpRTv9"), false);
+  assert.equal(validTronAddress("0JRabPrwbZy45sbavfcjinPJC18kjpRTv8"), false);
 });
