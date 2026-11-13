@@ -1418,14 +1418,42 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
     var items by remember { mutableStateOf<JSONArray?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var nextCursor by remember { mutableStateOf<JSONObject?>(null) }
+    var loadingMore by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        loading = true
-        runCatching { withContext(Dispatchers.IO) { AuthRepository.withdrawalHistory() } }
-            .onSuccess { response -> items = response.optJSONArray("items") ?: JSONArray() }
-            .onFailure { error = it.message ?: if (isEnglish) "Unable to load records" else "加载提现记录失败" }
-        loading = false
+    fun loadPage(reset: Boolean) {
+        val cursor = if (reset) null else nextCursor
+        scope.launch {
+            if (reset) { loading = true; error = null } else loadingMore = true
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    AuthRepository.withdrawalHistory(
+                        50,
+                        cursor?.optString("createdAt")?.takeIf { !it.isNullOrBlank() },
+                        cursor?.optString("id")?.takeIf { !it.isNullOrBlank() }
+                    )
+                }
+                val incoming = response.optJSONArray("items") ?: JSONArray()
+                if (reset || items == null) {
+                    items = incoming
+                } else {
+                    val combined = JSONArray()
+                    val existing = items!!
+                    for (index in 0 until existing.length()) combined.put(existing.optJSONObject(index))
+                    for (index in 0 until incoming.length()) combined.put(incoming.optJSONObject(index))
+                    items = combined
+                }
+                nextCursor = response.optJSONObject("nextCursor")
+            } catch (failure: Exception) {
+                error = failure.message ?: if (isEnglish) "Unable to load records" else "加载提现记录失败"
+            } finally {
+                if (reset) loading = false else loadingMore = false
+            }
+        }
     }
+
+    LaunchedEffect(Unit) { loadPage(true) }
 
     fun statusLabel(status: String): String = when (status) {
         "REQUESTED" -> if (isEnglish) "Requested" else "待处理"
@@ -1498,6 +1526,16 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
                             Text(if (isEnglish) "Request ID: " + item.optString("id") else "申请编号：" + item.optString("id"), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
                             Text(item.optString("createdAt"), color = Color(0xFF98A2B3), style = MaterialTheme.typography.bodySmall)
                         }
+                    }
+                }
+                if (nextCursor != null) {
+                    OutlinedButton(
+                        onClick = { loadPage(false) },
+                        enabled = !loadingMore,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    ) {
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Text(if (isEnglish) "Load more" else "加载更多")
                     }
                 }
             }
