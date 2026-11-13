@@ -19,7 +19,7 @@ function safeJson(value: unknown, depth = 0): any {
   if (typeof value === "object") {
     const output: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 60)) {
-      output[key] = /password|token|secret|api.?key|authorization|credential|account.?number|wallet.?address|iban|bank.?account|account.?details/i.test(key) ? "[已脱敏]" : safeJson(item, depth + 1);
+      output[key] = /password|token|secret|api.?key|authorization|credential|account.?number|wallet.?address|iban|bank.?account|account.?details|phone|mobile|telephone/i.test(key) ? "[已脱敏]" : safeJson(item, depth + 1);
     }
     return output;
   }

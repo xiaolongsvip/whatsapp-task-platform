@@ -368,7 +368,10 @@ export class FinanceAdminService {
     });
     if (!row) throw new NotFoundException("收款账户不存在");
     const details = this.decryptPayoutAccountDetails(row);
-    return { id: row.id, userId: row.userId, phone: row.user.phone, accountType: row.methodCode, countryCode: row.countryCode.trim(), currency: row.currency.trim(), providerCode: row.providerCode, methodCode: row.methodCode, accountHolder: row.accountHolder, maskedAccount: row.maskedAccount, phoneNumber: details.phoneNumber, status: row.status, isDefault: row.isDefault, riskLevel: null, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+    const maskedPhoneNumber = details.phoneNumber
+      ? (details.phoneNumber.length <= 4 ? "••••" : "••••" + details.phoneNumber.slice(-4))
+      : null;
+    return { id: row.id, userId: row.userId, phone: row.user.phone, accountType: row.methodCode, countryCode: row.countryCode.trim(), currency: row.currency.trim(), providerCode: row.providerCode, methodCode: row.methodCode, accountHolder: row.accountHolder, maskedAccount: row.maskedAccount, maskedPhoneNumber, status: row.status, isDefault: row.isDefault, riskLevel: null, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
   }
 
   async payoutAccountSensitiveDetails(id: string, adminId: string) {
