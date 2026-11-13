@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Header, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { FinanceAdminService } from "./finance-admin.service";
@@ -36,6 +36,9 @@ export class FinanceAdminController {
   async payoutAccountSummary(@Req() req: Request) { await this.authorize(req); return this.finance.payoutAccountSummary(); }
   @Get("payout-accounts/:id/history")
   async payoutAccountHistory(@Req() req: Request, @Param("id") id: string, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.payoutAccountHistory(id, query); }
+  @Get("payout-accounts/:id/sensitive-details")
+  @Header("Cache-Control", "no-store, private")
+  async payoutAccountSensitiveDetails(@Req() req: Request, @Param("id") id: string) { const admin = await this.authorize(req); return this.finance.payoutAccountSensitiveDetails(id, admin.id); }
   @Get("payout-accounts/:id")
   async payoutAccountDetail(@Req() req: Request, @Param("id") id: string) { await this.authorize(req); return this.finance.payoutAccountDetail(id); }
   @Get("payout-accounts")

@@ -7,6 +7,8 @@ const service = readFileSync(new URL("../src/finance-admin/finance-admin.service
 const controller = readFileSync(new URL("../src/finance-admin/finance-admin.controller.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../../../packages/database/prisma/migrations/20261108193000_unique_manual_payout_reference/migration.sql", import.meta.url), "utf8");
 const adminPage = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
+const adminPermissionGuard = readFileSync(new URL("../src/permissions-admin/admin-permission.guard.ts", import.meta.url), "utf8");
+const adminHttpAuditInterceptor = readFileSync(new URL("../src/system-settings/admin-http-audit.interceptor.ts", import.meta.url), "utf8");
 const dashboardService = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
 const usersController = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
 const androidAuthRepository = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
@@ -729,4 +731,22 @@ test("TRC20 payout accounts require a checksummed TRON mainnet address and use a
   assert.equal(validTronAddress("TJRabPrwbZy45sbavfcjinPJC18kjpRTv8"), true);
   assert.equal(validTronAddress("TJRabPrwbZy45sbavfcjinPJC18kjpRTv9"), false);
   assert.equal(validTronAddress("0JRabPrwbZy45sbavfcjinPJC18kjpRTv8"), false);
+});
+
+
+test("full payout account details require payout permission and every reveal is audited", () => {
+  assert.match(controller, /@Get\("payout-accounts\/:id\/sensitive-details"\)/);
+  assert.match(controller, /payoutAccountSensitiveDetails\(id, admin\.id\)/);
+  assert.match(controller, /Cache-Control", "no-store, private"/);
+  assert.match(adminPermissionGuard, /sensitive-details/);
+  assert.match(adminPermissionGuard, /finance\.withdrawals\.pay/);
+  assert.match(adminHttpAuditInterceptor, /account\.\?number/);
+  assert.match(adminHttpAuditInterceptor, /wallet\.\?address/);
+  assert.match(adminHttpAuditInterceptor, /iban/);
+  assert.match(service, /async payoutAccountSensitiveDetails\(id: string, adminId: string\)/);
+  assert.match(service, /accountNumber: typeof parsed\.accountNumber === "string"/);
+  assert.match(service, /PAYOUT_ACCOUNT_SENSITIVE_DETAILS_VIEWED/);
+  assert.match(service, /无法解密收款账号/);
+  assert.match(adminPage, /查看完整收款账号（需打款权限）/);
+  assert.match(adminPage, /sensitiveAccountDetails\?\.accountNumber/);
 });

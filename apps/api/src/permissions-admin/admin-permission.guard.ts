@@ -76,6 +76,7 @@ export class AdminPermissionGuard implements CanActivate {
       if (path.endsWith("/payout-result") || path.endsWith("/processing")) return "finance.withdrawals.pay";
     }
     if (is(/^\/admin\/finance\/wallets(?:\/[^/]+\/ledger)?$/)) return "finance.wallets.read";
+    if (is(/^\/admin\/finance\/payout-accounts\/[^/]+\/sensitive-details$/)) return "finance.withdrawals.pay";
     if (is(/^\/admin\/finance\/payout-accounts(?:\/summary|\/[^/]+(?:\/history)?)?$/)) return "finance.payout_accounts.read";
     if (is(/^\/admin\/finance\/providers(?:\/[^/]+(?:\/enabled)?)?$/)) return method === "GET" ? "finance.payout_channels.read" : "finance.providers.manage";
     if (is(/^\/admin\/finance\/settlements(?:\/overview|\/tasks|\/payouts)$/)) return "finance.tasks.read";
