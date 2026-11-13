@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { prisma } from "@wtp/database";
 
 type PayoutAccountInput = {
@@ -29,6 +29,27 @@ function encrypt(value: string) {
     accountDetailsIv: iv.toString("base64"),
     accountDetailsTag: cipher.getAuthTag().toString("base64"),
   };
+}
+
+
+const TRON_BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function isValidTronAddress(value: string): boolean {
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value)) return false;
+  let decodedValue = 0n;
+  for (const character of value) {
+    const digit = TRON_BASE58_ALPHABET.indexOf(character);
+    if (digit < 0) return false;
+    decodedValue = decodedValue * 58n + BigInt(digit);
+  }
+  let hex = decodedValue.toString(16);
+  if (hex.length % 2 !== 0) hex = "0" + hex;
+  const decoded = Buffer.concat([Buffer.alloc(value.match(/^1*/)?.[0].length ?? 0), Buffer.from(hex, "hex")]);
+  if (decoded.length !== 25 || decoded[0] !== 0x41) return false;
+  const payload = decoded.subarray(0, 21);
+  const firstHash = createHash("sha256").update(payload).digest();
+  const checksum = createHash("sha256").update(firstHash).digest().subarray(0, 4);
+  return checksum.equals(decoded.subarray(21));
 }
 
 @Injectable()
@@ -122,7 +143,8 @@ export class PayoutAccountsService {
     const providerCode = input.providerCode.trim().toLowerCase();
     const methodCode = input.methodCode.trim().toLowerCase();
     const accountNumber = input.accountNumber.replace(/\s+/g, "");
-    const accountHolder = input.accountHolder.trim();
+    const isTrc20Method = /(?:^|[_-])trc20$/i.test(methodCode);
+    const accountHolder = input.accountHolder.trim() || (isTrc20Method ? "TRC20 wallet" : "");
     if (!/^[A-Z]{2}$/.test(countryCode) || !/^[A-Z]{3}$/.test(currency)) {
       throw new BadRequestException("Invalid country or currency code.");
     }
@@ -131,6 +153,9 @@ export class PayoutAccountsService {
     }
     if (accountNumber.length < 5 || accountNumber.length > 80 || !accountHolder || accountHolder.length > 120) {
       throw new BadRequestException("Invalid payout account details.");
+    }
+    if (isTrc20Method && !isValidTronAddress(accountNumber)) {
+      throw new BadRequestException("Invalid TRON mainnet address for the TRC20 network.");
     }
     const catalogRow = await prisma.taskConfiguration.findUnique({ where: { key: "system.payoutCatalogs" }, select: { value: true } });
     const catalogs = catalogRow?.value as any;

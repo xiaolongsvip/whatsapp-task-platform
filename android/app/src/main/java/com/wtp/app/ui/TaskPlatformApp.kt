@@ -1881,7 +1881,9 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
     val methods = allOptions.filter { it.optString("countryCode") == countryCode && it.optString("payoutCurrency") == payoutCurrency }
         .distinctBy { it.optString("methodCode") + "|" + it.optString("providerCode") }
     val selectedOption = methods.firstOrNull { it.optString("methodCode") == methodCode && it.optString("providerCode") == providerCode } ?: methods.firstOrNull()
-    val valid = account.trim().length in 5..80 && holder.isNotBlank() && selectedOption != null
+    val isTrc20 = methodCode.contains("TRC20", ignoreCase = true)
+    val isValidTrc20Address = Regex("^T[1-9A-HJ-NP-Za-km-z]{33}$").matches(account.trim())
+    val valid = (if (isTrc20) isValidTrc20Address else account.trim().length in 5..80 && holder.isNotBlank()) && selectedOption != null
 
     Column(modifier.fillMaxSize().background(Color(0xFFF2F4F6)).verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1950,9 +1952,12 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
                         }
                     }
                 }
-                OutlinedTextField(value = account, onValueChange = { account = it.take(80) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Payout account number *" else "收款账号 *") })
-                OutlinedTextField(value = holder, onValueChange = { holder = it.take(120) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder *" else "账户持有人姓名 *") })
-                OutlinedTextField(value = phone, onValueChange = { phone = it.take(30) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Phone number (optional)" else "手机号（选填）") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone))
+                OutlinedTextField(value = account, onValueChange = { account = it.take(80) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isTrc20) { if (isEnglish) "TRON wallet address (TRC20) *" else "TRON 钱包地址（TRC20）*" } else { if (isEnglish) "Payout account number *" else "收款账号 *" }) })
+                if (isTrc20) Text(if (isEnglish) "Use a TRON mainnet address. The address must pass the TRON checksum validation." else "请填写 TRON 主网地址；服务器会校验地址校验码，务必确认转账网络为 TRC20。", color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
+                if (!isTrc20) {
+                    OutlinedTextField(value = holder, onValueChange = { holder = it.take(120) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Account holder *" else "账户持有人姓名 *") })
+                    OutlinedTextField(value = phone, onValueChange = { phone = it.take(30) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(if (isEnglish) "Phone number (optional)" else "手机号（选填）") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone))
+                }
             }
             if (error != null) Text(error.orEmpty(), color = Color(0xFFB42318), style = MaterialTheme.typography.bodySmall)
             Button(onClick = {
@@ -1964,7 +1969,7 @@ private fun AddPayoutAccountScreen(modifier: Modifier = Modifier, language: Stri
                             AuthRepository.addPayoutAccount(
                                 option.optString("countryCode"), option.optString("payoutCurrency"),
                                 option.optString("providerCode"), option.optString("methodCode"),
-                                holder, account, phone
+                                if (isTrc20) "TRC20 wallet" else holder, account, if (isTrc20) "" else phone
                             )
                         }
                     }.onSuccess { onSaved() }.onFailure { error = it.message ?: if (isEnglish) "Unable to save account" else "保存失败" }
