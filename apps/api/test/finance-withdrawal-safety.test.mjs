@@ -736,6 +736,7 @@ test("TRC20 payout accounts require a checksummed TRON mainnet address and use a
 test("full payout account details require payout permission and every reveal is audited", () => {
   assert.match(controller, /@Get\("payout-accounts\/:id\/sensitive-details"\)/);
   assert.match(controller, /payoutAccountSensitiveDetails\(id, admin\.id\)/);
+  assert.match(controller, /Cache-Control", "no-store, private"/);
   assert.match(adminPermissionGuard, /sensitive-details/);
   assert.match(adminPermissionGuard, /finance\.withdrawals\.pay/);
   assert.match(service, /async payoutAccountSensitiveDetails\(id: string, adminId: string\)/);
