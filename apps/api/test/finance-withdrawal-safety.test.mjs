@@ -750,3 +750,20 @@ test("full payout account details require payout permission and every reveal is 
   assert.match(adminPage, /查看完整收款账号（需打款权限）/);
   assert.match(adminPage, /sensitiveAccountDetails\?\.accountNumber/);
 });
+
+
+test("member withdrawal history uses stable cursor pagination end to end", () => {
+  const dashboard = readFileSync(new URL("../src/users/dashboard.service.ts", import.meta.url), "utf8");
+  const controller = readFileSync(new URL("../src/users/users.controller.ts", import.meta.url), "utf8");
+  const repo = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(dashboard, /getWithdrawalHistory\(userId: string, limit = 50, beforeCreatedAt\?: string, beforeId\?: string\)/);
+  assert.match(dashboard, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+  assert.match(dashboard, /nextCursor: hasMore && pageRows\.length/);
+  assert.match(controller, /@Query\("beforeCreatedAt"\)/);
+  assert.match(controller, /@Query\("beforeId"\)/);
+  assert.match(repo, /withdrawalHistory\(limit: Int = 50, beforeCreatedAt: String\? = null, beforeId: String\? = null\)/);
+  assert.match(app, /AuthRepository\.withdrawalHistory\(/);
+  assert.match(app, /loadPage\(false\)/);
+  assert.match(app, /"Load more"/);
+});
