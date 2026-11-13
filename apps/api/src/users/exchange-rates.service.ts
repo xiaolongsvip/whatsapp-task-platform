@@ -222,7 +222,7 @@ export class ExchangeRatesService {
       throw new BadRequestException("The payout exchange rate must be a positive finite number.");
     }
     const rateText = rate.toFixed(12);
-    if (!/^\\d+\\.\\d{12}$/.test(rateText)) {
+    if (!/^\d+\.\d{12}$/.test(rateText)) {
       throw new BadRequestException("The payout exchange rate is outside the supported precision range.");
     }
     const scaledRate = BigInt(rateText.replace(".", ""));
