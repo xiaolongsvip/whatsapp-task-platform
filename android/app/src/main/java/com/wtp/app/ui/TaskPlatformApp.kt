@@ -1425,7 +1425,7 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
     fun loadPage(reset: Boolean) {
         val cursor = if (reset) null else nextCursor
         scope.launch {
-            if (reset) { loading = true; error = null } else loadingMore = true
+            if (reset) { loading = true; error = null } else { loadingMore = true; error = null }
             try {
                 val response = withContext(Dispatchers.IO) {
                     AuthRepository.withdrawalHistory(
@@ -1477,7 +1477,12 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
         }
         when {
             loading -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            error != null -> Text(error.orEmpty(), Modifier.padding(20.dp), color = Color(0xFFB42318))
+            error != null && items == null -> Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(error.orEmpty(), color = Color(0xFFB42318))
+                OutlinedButton(onClick = { loadPage(true) }, modifier = Modifier.padding(top = 10.dp)) {
+                    Text(if (isEnglish) "Retry" else "重试")
+                }
+            }
             items == null || items!!.length() == 0 -> Card(
                 Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -1526,6 +1531,12 @@ private fun WithdrawalHistoryScreen(modifier: Modifier = Modifier, language: Str
                             Text(if (isEnglish) "Request ID: " + item.optString("id") else "申请编号：" + item.optString("id"), color = Color(0xFF667085), style = MaterialTheme.typography.bodySmall)
                             Text(item.optString("createdAt"), color = Color(0xFF98A2B3), style = MaterialTheme.typography.bodySmall)
                         }
+                    }
+                }
+                if (!error.isNullOrBlank()) {
+                    Text(error.orEmpty(), color = Color(0xFFB42318), modifier = Modifier.padding(top = 8.dp))
+                    OutlinedButton(onClick = { loadPage(false) }, enabled = !loadingMore) {
+                        Text(if (isEnglish) "Retry loading" else "重试加载")
                     }
                 }
                 if (nextCursor != null) {
