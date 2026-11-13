@@ -264,7 +264,16 @@ object AuthRepository {
         return request("GET", query)
     }
 
-    fun withdrawalHistory(): JSONObject = request("GET", "users/withdrawals")
+    fun withdrawalHistory(limit: Int = 50, beforeCreatedAt: String? = null, beforeId: String? = null): JSONObject {
+        val query = buildString {
+            append("limit=").append(limit.coerceIn(1, 100))
+            if (!beforeCreatedAt.isNullOrBlank() && !beforeId.isNullOrBlank()) {
+                append("&beforeCreatedAt=").append(java.net.URLEncoder.encode(beforeCreatedAt, "UTF-8"))
+                append("&beforeId=").append(java.net.URLEncoder.encode(beforeId, "UTF-8"))
+            }
+        }
+        return request("GET", "users/withdrawals?$query")
+    }
 
     fun createWithdrawal(payoutAccountId: String, amountMinor: String, quote: JSONObject): JSONObject =
         request("POST", "users/withdrawals", JSONObject()
