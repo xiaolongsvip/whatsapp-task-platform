@@ -345,15 +345,18 @@ export class FinanceAdminService {
 
   private decryptPayoutAccountDetails(input: { accountDetailsCiphertext: string; accountDetailsIv: string; accountDetailsTag: string }) {
     const raw = process.env.PAYOUT_DATA_ENCRYPTION_KEY?.trim() ?? "";
-    if (!/^[a-fA-F0-9]{64}$/.test(raw)) return { phoneNumber: null };
+    if (!/^[a-fA-F0-9]{64}$/.test(raw)) return { accountNumber: null, phoneNumber: null };
     try {
       const decipher = createDecipheriv("aes-256-gcm", Buffer.from(raw, "hex"), Buffer.from(input.accountDetailsIv, "base64"));
       decipher.setAuthTag(Buffer.from(input.accountDetailsTag, "base64"));
       const clear = Buffer.concat([decipher.update(Buffer.from(input.accountDetailsCiphertext, "base64")), decipher.final()]).toString("utf8");
-      const parsed = JSON.parse(clear) as { phoneNumber?: unknown };
-      return { phoneNumber: typeof parsed.phoneNumber === "string" ? parsed.phoneNumber : null };
+      const parsed = JSON.parse(clear) as { accountNumber?: unknown; phoneNumber?: unknown };
+      return {
+        accountNumber: typeof parsed.accountNumber === "string" ? parsed.accountNumber : null,
+        phoneNumber: typeof parsed.phoneNumber === "string" ? parsed.phoneNumber : null,
+      };
     } catch {
-      return { phoneNumber: null };
+      return { accountNumber: null, phoneNumber: null };
     }
   }
 
@@ -366,6 +369,31 @@ export class FinanceAdminService {
     if (!row) throw new NotFoundException("收款账户不存在");
     const details = this.decryptPayoutAccountDetails(row);
     return { id: row.id, userId: row.userId, phone: row.user.phone, accountType: row.methodCode, countryCode: row.countryCode.trim(), currency: row.currency.trim(), providerCode: row.providerCode, methodCode: row.methodCode, accountHolder: row.accountHolder, maskedAccount: row.maskedAccount, phoneNumber: details.phoneNumber, status: row.status, isDefault: row.isDefault, riskLevel: null, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+  }
+
+  async payoutAccountSensitiveDetails(id: string, adminId: string) {
+    if (!isUuid(id)) throw new BadRequestException("收款账户 ID 格式不正确");
+    const row = await prisma.payoutAccount.findUnique({
+      where: { id },
+      select: {
+        id: true, countryCode: true, currency: true, providerCode: true, methodCode: true,
+        accountDetailsCiphertext: true, accountDetailsIv: true, accountDetailsTag: true,
+      },
+    });
+    if (!row) throw new NotFoundException("收款账户不存在");
+    const details = this.decryptPayoutAccountDetails(row);
+    if (!details.accountNumber) {
+      throw new InternalServerErrorException("无法解密收款账号，请检查 PAYOUT_DATA_ENCRYPTION_KEY 配置。");
+    }
+    await prisma.auditEvent.create({ data: {
+      actorType: "ADMIN", actorId: adminId, action: "PAYOUT_ACCOUNT_SENSITIVE_DETAILS_VIEWED",
+      targetType: "PAYOUT_ACCOUNT", targetId: id,
+      metadata: {
+        countryCode: row.countryCode.trim(), currency: row.currency.trim(),
+        providerCode: row.providerCode, methodCode: row.methodCode,
+      },
+    } });
+    return { id: row.id, accountNumber: details.accountNumber, phoneNumber: details.phoneNumber };
   }
 
   async payoutAccountHistory(id: string, query: { status?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
