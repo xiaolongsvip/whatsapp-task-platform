@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -57,7 +59,7 @@ val verifyReleaseApiBaseUrl by tasks.registering {
         val raw = releaseApiBaseUrl
             ?: throw GradleException("Release builds require -PwtpApiBaseUrl=https://your-api-host/api/v1/ or WTP_API_BASE_URL.")
         val uri = try {
-            java.net.URI(raw)
+            URI(raw)
         } catch (error: Exception) {
             throw GradleException("WTP release API URL is invalid: $raw", error)
         }
