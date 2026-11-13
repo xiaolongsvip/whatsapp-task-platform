@@ -42,9 +42,10 @@ export class UsersController {
   }
 
   @Get("withdrawals")
-  async getWithdrawals(@Req() request: Request) {
+  async getWithdrawals(@Req() request: Request, @Query("limit") limit?: string, @Query("beforeCreatedAt") beforeCreatedAt?: string, @Query("beforeId") beforeId?: string) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
-    return this.dashboard.getWithdrawalHistory(user.id);
+    const parsedLimit = limit === undefined ? 50 : Number(limit);
+    return this.dashboard.getWithdrawalHistory(user.id, Number.isFinite(parsedLimit) ? parsedLimit : 50, beforeCreatedAt, beforeId);
   }
 
   @Post("withdrawals")
