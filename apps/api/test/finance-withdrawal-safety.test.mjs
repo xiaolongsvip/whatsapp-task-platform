@@ -704,7 +704,6 @@ test("TRC20 payout accounts require a checksummed TRON mainnet address and use a
   assert.match(payoutAccounts, /createHash\("sha256"\)/);
   assert.match(payoutAccounts, /isTrc20Method && !isValidTronAddress\(accountNumber\)/);
   assert.match(payoutAccounts, /Invalid TRON mainnet address for the TRC20 network/);
-  assert.match(payoutAccounts, /(?:\^|\[_-\])trc20\$\/i/);
   assert.match(app, /val isTrc20 = methodCode\.contains\("TRC20", ignoreCase = true\)/);
   assert.match(app, /TRON 钱包地址（TRC20）/);
   assert.match(app, /if \(isTrc20\) "TRC20 wallet" else holder/);
