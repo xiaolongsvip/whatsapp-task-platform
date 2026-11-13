@@ -744,5 +744,5 @@ test("full payout account details require payout permission and every reveal is 
   assert.match(service, /PAYOUT_ACCOUNT_SENSITIVE_DETAILS_VIEWED/);
   assert.match(service, /无法解密收款账号/);
   assert.match(adminPage, /查看完整收款账号（需打款权限）/);
-  assert.match(adminPage, /sensitiveAccountDetails\.accountNumber/);
+  assert.match(adminPage, /sensitiveAccountDetails\?\.accountNumber/);
 });
