@@ -208,7 +208,7 @@ export default function FinancePage(){
   {withdrawalDetail&&<div style={{position:"fixed",left:172,top:48,right:0,bottom:0,zIndex:70,background:"#f7f9fc",overflowY:"auto"}}>
  <div style={{maxWidth:1500,margin:"0 auto",padding:"12px 18px 28px"}}>
  <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
- <button style={btn} onClick={()=>setWithdrawalDetail(null)}><ChevronLeft size={14}/>返回提现列表</button>
+ <button style={btn} onClick={()=>{setWithdrawalDetail(null);setSensitiveAccountDetails(null);}}><ChevronLeft size={14}/>返回提现列表</button>
  <button style={btn} onClick={()=>void openWithdrawal({id:withdrawalDetail.id})}><RefreshCw size={14}/>刷新详情</button>
  </header>
  <section style={{...box,padding:16,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,background:"#f3f7ff",borderColor:"#cbdcff",marginBottom:14}}>
