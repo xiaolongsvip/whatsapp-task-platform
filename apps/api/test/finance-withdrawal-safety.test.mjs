@@ -743,6 +743,7 @@ test("full payout account details require payout permission and every reveal is 
   assert.match(adminHttpAuditInterceptor, /account\.\?number/);
   assert.match(adminHttpAuditInterceptor, /wallet\.\?address/);
   assert.match(adminHttpAuditInterceptor, /iban/);
+  assert.match(adminHttpAuditInterceptor, /phone\|mobile\|telephone/);
   assert.match(service, /async payoutAccountSensitiveDetails\(id: string, adminId: string\)/);
   assert.match(service, /accountNumber: typeof parsed\.accountNumber === "string"/);
   assert.match(service, /PAYOUT_ACCOUNT_SENSITIVE_DETAILS_VIEWED/);
@@ -782,4 +783,19 @@ test("admin withdrawal review and processing transitions refresh their detail an
   assert.match(processingHandler, /setWithdrawalDetail\(await get<Row>\("\/api\/v1\/admin\/finance\/withdrawals\/"\+encodeURIComponent\(withdrawalDetail\.id\)\)\)/);
   assert.match(reviewHandler, /审核操作已成功，但详情历史刷新失败/);
   assert.match(processingHandler, /已开始付款处理，但详情历史刷新失败/);
+});
+
+
+test("standard payout-account details mask account phone numbers and audited reveal is required for full values", () => {
+  const detailStart = service.indexOf("async payoutAccountDetail(");
+  const sensitiveStart = service.indexOf("async payoutAccountSensitiveDetails(", detailStart);
+  assert.ok(detailStart >= 0 && sensitiveStart > detailStart);
+  const standardDetail = service.slice(detailStart, sensitiveStart);
+  assert.match(standardDetail, /maskedPhoneNumber/);
+  assert.doesNotMatch(standardDetail, /phoneNumber: details\.phoneNumber/);
+  assert.match(adminPage, /payoutAccountSensitiveDetails\?\.accountNumber/);
+  assert.match(adminPage, /payoutAccountSensitiveDetails\?\.phoneNumber/);
+  assert.match(adminPage, /maskedPhoneNumber/);
+  assert.match(adminPage, /revealPayoutAccountDetails/);
+  assert.match(adminPage, /查看完整收款信息（需打款权限）/);
 });
