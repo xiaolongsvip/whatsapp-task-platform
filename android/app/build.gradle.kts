@@ -1,11 +1,17 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val configuredApiBaseUrl = (project.findProperty("wtpApiBaseUrl") as String?)
-    ?: "http://10.0.2.2:3002/api/v1/"
+val releaseApiBaseUrl = providers.gradleProperty("wtpApiBaseUrl")
+    .orElse(providers.environmentVariable("WTP_API_BASE_URL"))
+    .orNull
+
+fun String.toBuildConfigString(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
     namespace = "com.wtp.app"
@@ -17,7 +23,18 @@ android {
         targetSdk = 35
         versionCode = 145
         versionName = "1.4.5"
-        buildConfigField("String", "API_BASE_URL", "\"$configuredApiBaseUrl\"")
+        // Emulator-only default. Release variants override this with an injected HTTPS URL.
+        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3002/api/v1/\"")
+    }
+
+    buildTypes {
+        getByName("release") {
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                (releaseApiBaseUrl ?: "https://api.example.invalid/api/v1/").toBuildConfigString(),
+            )
+        }
     }
 
     buildFeatures {
@@ -32,6 +49,29 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+}
+
+val verifyReleaseApiBaseUrl by tasks.registering {
+    group = "verification"
+    description = "Requires a real HTTPS API base URL before building a release APK or bundle."
+    doLast {
+        val raw = releaseApiBaseUrl
+            ?: throw GradleException("Release builds require -PwtpApiBaseUrl=https://your-api-host/api/v1/ or WTP_API_BASE_URL.")
+        val uri = try {
+            URI(raw)
+        } catch (error: Exception) {
+            throw GradleException("WTP release API URL is invalid: $raw", error)
+        }
+        if (uri.scheme != "https" || uri.host.isNullOrBlank() || uri.host == "api.example.invalid" || uri.userInfo != null) {
+            throw GradleException("WTP release API URL must be a real HTTPS URL without embedded credentials: $raw")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name in setOf("assembleRelease", "bundleRelease")) {
+        dependsOn(verifyReleaseApiBaseUrl)
     }
 }
 
