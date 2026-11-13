@@ -693,3 +693,17 @@ test("wallet transaction history supports stable cursor pagination end to end", 
   assert.match(androidApp, /"Load more"/);
   assert.doesNotMatch(androidApp, /Showing the latest records/);
 });
+
+
+test("TRC20 payout accounts require a checksummed TRON mainnet address and use a dedicated APP address field", () => {
+  const payoutAccounts = readFileSync(new URL("../src/users/payout-accounts.service.ts", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt", import.meta.url), "utf8");
+  assert.match(payoutAccounts, /TRON_BASE58_ALPHABET/);
+  assert.match(payoutAccounts, /decoded\[0\] !== 0x41/);
+  assert.match(payoutAccounts, /createHash\("sha256"\)/);
+  assert.match(payoutAccounts, /isTrc20Method && !isValidTronAddress\(accountNumber\)/);
+  assert.match(payoutAccounts, /Invalid TRON mainnet address for the TRC20 network/);
+  assert.match(app, /val isTrc20 = methodCode\.contains\("TRC20", ignoreCase = true\)/);
+  assert.match(app, /TRON 钱包地址（TRC20）/);
+  assert.match(app, /if \(isTrc20\) "TRC20 wallet" else holder/);
+});
