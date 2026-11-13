@@ -218,14 +218,28 @@ export class ExchangeRatesService {
   }
 
   toPayoutMinor(amountMinor: bigint, from: string, to: string, rate: number): bigint {
+    if (!Number.isFinite(rate) || rate <= 0) {
+      throw new BadRequestException("The payout exchange rate must be a positive finite number.");
+    }
+    const rateText = rate.toFixed(12);
+    if (!/^\d+\.\d{12}$/.test(rateText)) {
+      throw new BadRequestException("The payout exchange rate is outside the supported precision range.");
+    }
+    const scaledRate = BigInt(rateText.replace(".", ""));
+    if (scaledRate <= 0n) {
+      throw new BadRequestException("The payout exchange rate is too small to represent safely.");
+    }
     const digits = (code: string) => {
       try { return Math.max(0, new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits ?? 2); }
       catch { return 2; }
     };
     const fromDigits = digits(from), toDigits = digits(to);
-    const scaledRate = BigInt(rate.toFixed(12).replace(".", ""));
     const numerator = amountMinor * scaledRate * (10n ** BigInt(toDigits));
     const denominator = 1_000_000_000_000n * (10n ** BigInt(fromDigits));
-    return (numerator + denominator / 2n) / denominator;
+    const payoutMinor = (numerator + denominator / 2n) / denominator;
+    if (payoutMinor <= 0n) {
+      throw new BadRequestException("The converted payout amount is below one minor currency unit.");
+    }
+    return payoutMinor;
   }
 }
