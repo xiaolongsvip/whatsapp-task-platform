@@ -807,6 +807,7 @@ test("FX conversion rejects rates and converted amounts that round to zero while
   const method = rates.slice(start, rates.indexOf("\n  }", start) + 4);
   assert.match(method, /!Number\.isFinite\(rate\) \|\| rate <= 0/);
   assert.match(method, /rateText = rate\.toFixed\(12\)/);
+  assert.match(method, /\/\^\\d\+\\\.\\d\{12\}\$\//);
   assert.match(method, /scaledRate <= 0n/);
   assert.match(method, /payoutMinor <= 0n/);
   assert.match(method, /below one minor currency unit/);
