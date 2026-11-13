@@ -143,7 +143,7 @@ export class PayoutAccountsService {
     const providerCode = input.providerCode.trim().toLowerCase();
     const methodCode = input.methodCode.trim().toLowerCase();
     const accountNumber = input.accountNumber.replace(/\s+/g, "");
-    const isTrc20Method = /^(?:usdt[_-]?)?trc20$/i.test(methodCode);
+    const isTrc20Method = /(?:^|[_-])trc20$/i.test(methodCode);
     const accountHolder = input.accountHolder.trim() || (isTrc20Method ? "TRC20 wallet" : "");
     if (!/^[A-Z]{2}$/.test(countryCode) || !/^[A-Z]{3}$/.test(currency)) {
       throw new BadRequestException("Invalid country or currency code.");
