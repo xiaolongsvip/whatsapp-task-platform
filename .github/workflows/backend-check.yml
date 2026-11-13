@@ -45,6 +45,8 @@ jobs:
         run: pnpm --filter @wtp/database exec prisma validate --schema prisma/schema.prisma
       - name: Generate Prisma client
         run: pnpm --filter @wtp/database db:generate
+      - name: Build database workspace package
+        run: pnpm --filter @wtp/database build
       - name: Typecheck API
         run: pnpm --filter @wtp/api typecheck
       - name: Run API source contract tests
