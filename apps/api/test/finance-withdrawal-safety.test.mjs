@@ -799,3 +799,32 @@ test("standard payout-account details mask account phone numbers and audited rev
   assert.match(adminPage, /revealPayoutAccountDetails/);
   assert.match(adminPage, /查看完整收款信息（需打款权限）/);
 });
+
+
+test("FX conversion rejects rates and converted amounts that round to zero while preserving valid currency precision", () => {
+  const rates = readFileSync(new URL("../src/users/exchange-rates.service.ts", import.meta.url), "utf8");
+  const start = rates.indexOf("toPayoutMinor(");
+  const method = rates.slice(start, rates.indexOf("\n  }", start) + 4);
+  assert.match(method, /!Number\.isFinite\(rate\) \|\| rate <= 0/);
+  assert.match(method, /rateText = rate\.toFixed\(12\)/);
+  assert.match(method, /scaledRate <= 0n/);
+  assert.match(method, /payoutMinor <= 0n/);
+  assert.match(method, /below one minor currency unit/);
+
+  const convert = (amountMinor, fromDigits, toDigits, rate) => {
+    if (!Number.isFinite(rate) || rate <= 0) throw new Error("invalid rate");
+    const rateText = rate.toFixed(12);
+    if (!/^\d+\.\d{12}$/.test(rateText)) throw new Error("unsupported precision");
+    const scaledRate = BigInt(rateText.replace(".", ""));
+    if (scaledRate <= 0n) throw new Error("rate too small");
+    const numerator = amountMinor * scaledRate * (10n ** BigInt(toDigits));
+    const denominator = 1_000_000_000_000n * (10n ** BigInt(fromDigits));
+    const payoutMinor = (numerator + denominator / 2n) / denominator;
+    if (payoutMinor <= 0n) throw new Error("payout rounds to zero");
+    return payoutMinor;
+  };
+  assert.throws(() => convert(100n, 2, 2, 0.0000000000001), /rate too small/);
+  assert.throws(() => convert(1n, 2, 0, 1), /payout rounds to zero/);
+  assert.equal(convert(12500n, 2, 2, 1.23456789), 15432n);
+  assert.equal(convert(10000n, 2, 0, 150), 15000n);
+});
