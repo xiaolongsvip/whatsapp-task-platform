@@ -134,13 +134,14 @@ fun TaskHallScreen(
     var hallFilter by remember { mutableStateOf(HallFilter.AVAILABLE) }
     var recordFilter by remember { mutableStateOf(RecordFilter.ALL) }
     var selectedClaimId by remember { mutableStateOf<String?>(null) }
+    val claimRequestKeys = remember { TaskClaimRequestKeys() }
     var languageMenuOpen by remember { mutableStateOf(false) }
     var supportDialogOpen by remember { mutableStateOf(false) }
 
-    fun refresh() {
+    fun refresh(clearError: Boolean = true) {
         scope.launch {
             loading = true
-            error = null
+            if (clearError) error = null
             try {
                 val result = withContext(Dispatchers.IO) {
                     Triple(
@@ -724,9 +725,11 @@ fun TaskHallScreen(
                                             error = null
                                             notice = null
                                             try {
+                                                val requestKey = claimRequestKeys.getOrCreate(taskId, slotId)
                                                 val result = withContext(Dispatchers.IO) {
-                                                    AuthRepository.claimTask(taskId, slotId, UUID.randomUUID().toString())
+                                                    AuthRepository.claimTask(taskId, slotId, requestKey)
                                                 }
+                                                claimRequestKeys.markSucceeded(taskId, slotId)
                                                 val claimId = result.optString("id")
                                                 if (claimId.isNotBlank()) {
                                                     CaptureSessionState.setActiveClaim(claimId)
@@ -737,7 +740,13 @@ fun TaskHallScreen(
                                                 }
                                                 refresh()
                                             } catch (e: Exception) {
-                                                error = e.message ?: if (isEnglish) "Could not start task." else "领取任务失败。"
+                                                val requestMessage = e.message ?: if (isEnglish) "The claim result could not be confirmed." else "领取结果暂时无法确认。"
+                                                refresh(clearError = false)
+                                                error = if (isEnglish) {
+                                                    "Claim result not confirmed; task records were refreshed. Check whether the task was already claimed. $requestMessage"
+                                                } else {
+                                                    "领取结果暂未确认，已刷新任务记录；请先核对是否已经领取。$requestMessage"
+                                                }
                                             } finally {
                                                 busyId = null
                                             }
