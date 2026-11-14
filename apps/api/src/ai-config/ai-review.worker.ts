@@ -22,6 +22,8 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AiReviewWorker.name);
   private timer: ReturnType<typeof setInterval> | undefined;
   private activeWorkers = 0;
+  private dispatching = false;
+  private refillRequested = false;
   private readonly maxConcurrentJobs = (() => {
     const configured = Number(process.env.AI_REVIEW_WORKER_CONCURRENCY ?? "1");
     return Number.isInteger(configured) && configured >= 1 && configured <= 20 ? configured : 1;
@@ -49,44 +51,78 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async tick() {
-    // Each timer tick can claim one additional job until the configured local
-    // concurrency is reached. The database SKIP LOCKED claim remains the
-    // cross-process guard, so multiple API instances cannot own the same job.
-    if (this.activeWorkers >= this.maxConcurrentJobs) return;
-    this.activeWorkers += 1;
+    if (this.dispatching) {
+      this.refillRequested = true;
+      return;
+    }
+
+    this.dispatching = true;
     try {
-      const claimed = await prisma.$queryRaw<Array<{ id: string }>>`
-        WITH candidate AS (
-          SELECT id FROM ai_review_jobs
-          WHERE (
-              status IN ('PENDING', 'RETRY')
-              AND next_attempt_at <= NOW()
+      // Fill every available local worker slot in one dispatch pass. A timer
+      // tick no longer starts only one job, which previously made a configured
+      // pool of N workers take N * POLL_INTERVAL_MS to ramp up under backlog.
+      // The atomic UPDATE ... SKIP LOCKED below remains the cross-process claim.
+      while (this.activeWorkers < this.maxConcurrentJobs) {
+        this.activeWorkers += 1;
+        let claimed: Array<{ id: string }>;
+        try {
+          claimed = await prisma.$queryRaw<Array<{ id: string }>>`
+            WITH candidate AS (
+              SELECT id FROM ai_review_jobs
+              WHERE (
+                  status IN ('PENDING', 'RETRY')
+                  AND next_attempt_at <= NOW()
+                )
+                OR (
+                  status = 'PROCESSING'
+                  AND (
+                    locked_at IS NULL
+                    OR locked_at < NOW() - INTERVAL '10 minutes'
+                  )
+                )
+              ORDER BY next_attempt_at ASC, created_at ASC
+              FOR UPDATE SKIP LOCKED
+              LIMIT 1
             )
-            OR (
-              status = 'PROCESSING'
-              AND (
-                locked_at IS NULL
-                OR locked_at < NOW() - INTERVAL '10 minutes'
-              )
-            )
-          ORDER BY next_attempt_at ASC, created_at ASC
-          FOR UPDATE SKIP LOCKED
-          LIMIT 1
-        )
-        UPDATE ai_review_jobs AS job
-        SET status = 'PROCESSING',
-            locked_at = NOW(),
-            attempt_count = attempt_count + 1,
-            updated_at = NOW()
-        FROM candidate
-        WHERE job.id = candidate.id
-        RETURNING job.id
-      `;
-      if (claimed.length) await this.processJob(claimed[0].id);
-    } catch (error) {
-      this.logger.error("AI review queue poll failed", error instanceof Error ? error.stack : undefined);
+            UPDATE ai_review_jobs AS job
+            SET status = 'PROCESSING',
+                locked_at = NOW(),
+                attempt_count = attempt_count + 1,
+                updated_at = NOW()
+            FROM candidate
+            WHERE job.id = candidate.id
+            RETURNING job.id
+          `;
+        } catch (error) {
+          this.activeWorkers = Math.max(0, this.activeWorkers - 1);
+          this.logger.error("AI review queue poll failed", error instanceof Error ? error.stack : undefined);
+          break;
+        }
+
+        if (!claimed.length) {
+          this.activeWorkers = Math.max(0, this.activeWorkers - 1);
+          break;
+        }
+
+        const jobId = claimed[0].id;
+        void this.processJob(jobId)
+          .catch((error: unknown) => {
+            this.logger.error("AI review job failed", error instanceof Error ? error.stack : undefined);
+          })
+          .finally(() => {
+            this.activeWorkers = Math.max(0, this.activeWorkers - 1);
+            void this.tick();
+          });
+      }
     } finally {
-      this.activeWorkers = Math.max(0, this.activeWorkers - 1);
+      this.dispatching = false;
+      // A worker or timer may request a refill while this dispatch pass is
+      // still awaiting a database claim. Run one more pass after releasing the
+      // dispatcher guard so an emptied slot is not left idle until next poll.
+      if (this.refillRequested) {
+        this.refillRequested = false;
+        void this.tick();
+      }
     }
   }
 

@@ -42,10 +42,23 @@ test("AI worker supports bounded local concurrency while defaulting to one job",
   const env = readFileSync(new URL("../../../.env.example", import.meta.url), "utf8");
   assert.match(worker, /AI_REVIEW_WORKER_CONCURRENCY \?\? "1"/);
   assert.match(worker, /configured >= 1 && configured <= 20/);
-  assert.match(worker, /this\.activeWorkers >= this\.maxConcurrentJobs/);
+  assert.match(worker, /while \(this\.activeWorkers < this\.maxConcurrentJobs\)/);
   assert.match(worker, /this\.activeWorkers \+= 1/);
   assert.match(worker, /this\.activeWorkers = Math\.max\(0, this\.activeWorkers - 1\)/);
   assert.match(worker, /FOR UPDATE SKIP LOCKED/);
   assert.doesNotMatch(worker, /private running = false/);
   assert.match(env, /AI_REVIEW_WORKER_CONCURRENCY=1/);
+});
+
+
+test("AI review dispatcher fills all configured free slots in one pass and refills on completion", () => {
+  const worker = readFileSync(new URL("../src/ai-config/ai-review.worker.ts", import.meta.url), "utf8");
+  const tick = worker.slice(worker.indexOf("private async tick()"), worker.indexOf("private async processJob("));
+  assert.match(worker, /private dispatching = false/);
+  assert.match(worker, /private refillRequested = false/);
+  assert.match(tick, /while \(this\.activeWorkers < this\.maxConcurrentJobs\)/);
+  assert.match(tick, /void this\.processJob\(jobId\)/);
+  assert.match(tick, /finally\(\(\) => \{[\s\S]*?this\.activeWorkers = Math\.max\(0, this\.activeWorkers - 1\)[\s\S]*?void this\.tick\(\)/);
+  assert.match(tick, /if \(this\.refillRequested\)/);
+  assert.match(tick, /FOR UPDATE SKIP LOCKED/);
 });
