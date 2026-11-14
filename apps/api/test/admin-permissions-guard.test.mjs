@@ -6,6 +6,8 @@ const guard = readFileSync(new URL("../src/permissions-admin/admin-permission.gu
 const referrals = readFileSync(new URL("../src/admin-referrals/admin-referrals.service.ts", import.meta.url), "utf8");
 const permissionService = readFileSync(new URL("../src/permissions-admin/permissions-admin.service.ts", import.meta.url), "utf8");
 const financePage = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
+const taskController = readFileSync(new URL("../src/task-admin/task-admin.controller.ts", import.meta.url), "utf8");
+const taskPage = readFileSync(new URL("../../admin/src/app/tasks/page.tsx", import.meta.url), "utf8");
 
 test("manual finance adjustments require wallet read and wallet balance adjustment permissions", () => {
   const mapping = guard.split("\n").find((line) => line.includes("adjustments$/"));
@@ -44,4 +46,14 @@ test("permission bootstrap is serialized and only the earliest active admin can 
   assert.match(bootstrap, /orderBy:\s*\[\{\s*createdAt:\s*"asc"\s*\},\s*\{\s*id:\s*"asc"\s*\}\s*\]/);
   assert.match(bootstrap, /firstActiveAdmin\.id\s*!==\s*actorId/);
   assert.match(bootstrap, /ForbiddenException/);
+});
+
+
+test("task claim history endpoint is covered by the task execution read permission", () => {
+  const mapping = guard.split("\n").find((line) => line.includes("tasks.executions.read"));
+  assert.ok(mapping, "missing task records permission mapping");
+  assert.match(mapping, /history/);
+  assert.match(mapping, /tasks\.executions\.read/);
+  assert.match(taskController, /@Get\("records\/history"\)/);
+  assert.match(taskPage, /\/api\/v1\/admin\/tasks\/records\/history/);
 });
