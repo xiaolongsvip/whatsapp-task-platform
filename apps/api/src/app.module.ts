@@ -18,6 +18,7 @@ import { ReportsModule } from "./reports/reports.module";
 import { PermissionsAdminModule } from "./permissions-admin/permissions-admin.module";
 import { AdminPermissionGuard } from "./permissions-admin/admin-permission.guard";
 import { SystemSettingsModule } from "./system-settings/system-settings.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { AdminHttpAuditInterceptor } from "./system-settings/admin-http-audit.interceptor";
 
 @Module({
@@ -39,6 +40,7 @@ import { AdminHttpAuditInterceptor } from "./system-settings/admin-http-audit.in
     ReportsModule,
     PermissionsAdminModule,
     SystemSettingsModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
