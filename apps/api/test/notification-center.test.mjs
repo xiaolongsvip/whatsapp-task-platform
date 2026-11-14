@@ -172,6 +172,7 @@ test("member read operations are user-scoped, idempotent and support mark-all wi
   const markAll = service.slice(service.indexOf("async markAllMemberNotificationsRead("), service.indexOf("async publicAnnouncements("));
   for (const fragment of [
     "target: { in: targetFilter }",
+    'publishedAt: { not: null }',
     "userId_notificationId: { userId, notificationId }",
     "notificationReadReceipt.upsert",
   ]) assert.ok(markRead.includes(fragment), "mark-read path missing " + fragment);
@@ -179,7 +180,11 @@ test("member read operations are user-scoped, idempotent and support mark-all wi
     "readReceipts: { none: { userId } }",
     "notificationReadReceipt.createMany",
     "skipDuplicates: true",
+    "take: batchSize",
+    "const batchSize = 500",
+    "while (true)",
   ]) assert.ok(markAll.includes(fragment), "mark-all path missing " + fragment);
+  assert.match(markAll, /prisma\\.\\$transaction\\(async \\(tx\\) =>/);
 });
 
 test("Android notification inbox loads pages, marks read, marks all read and displays unread count entry point", async () => {
