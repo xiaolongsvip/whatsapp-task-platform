@@ -184,7 +184,7 @@ test("member read operations are user-scoped, idempotent and support mark-all wi
     "const batchSize = 500",
     "while (true)",
   ]) assert.ok(markAll.includes(fragment), "mark-all path missing " + fragment);
-  assert.match(markAll, /prisma\\.\\$transaction\\(async \\(tx\\) =>/);
+  assert.ok(markAll.includes("prisma.$transaction(async (tx) =>"));
 });
 
 test("Android notification inbox loads pages, marks read, marks all read and displays unread count entry point", async () => {
