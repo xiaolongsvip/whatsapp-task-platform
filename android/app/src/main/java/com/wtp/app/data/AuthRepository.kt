@@ -504,8 +504,9 @@ object AuthRepository {
         try { request("POST", "auth/logout") } finally {
             cookieJar.replace(endpoint("").toHttpUrl().host, emptyList())
             clearPersistedCookies()
-            appContext?.getSharedPreferences(WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE)
-                ?.edit()?.clear()?.commit()
+            // Do not discard an ambiguous money-moving request on logout.
+            // The key/body are scoped to payout account + amount and are cleared
+            // only after a server-confirmed success or an explicit quote rejection.
         }
     }
 }
