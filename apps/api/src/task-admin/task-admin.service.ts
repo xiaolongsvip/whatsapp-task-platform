@@ -149,12 +149,15 @@ export class TaskAdminService {
       where.taskId = taskId;
     }
     if (keyword) {
-      where.OR = [
-        { id: { contains: keyword, mode: "insensitive" } },
+      const searchConditions: Prisma.TaskClaimWhereInput[] = [
         { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
         { user: { is: { phone: { contains: keyword } } } },
         { contactAssignment: { is: { contactNumber: { is: { phoneE164: { contains: keyword } } } } } },
       ];
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(keyword)) {
+        searchConditions.push({ id: keyword });
+      }
+      where.OR = searchConditions;
     }
 
     const [total, claims] = await prisma.$transaction([
