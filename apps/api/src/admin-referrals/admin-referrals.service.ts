@@ -208,7 +208,16 @@ export class AdminReferralsService {
     const joins = `
         FROM referral_rewards rr
         LEFT JOIN ledger_entries credit
-          ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
+          ON credit.idempotency_key = rr.idempotency_key
+          AND credit.source_type = 'REFERRAL_COMMISSION'
+          AND credit.direction = 'CREDIT'
+          AND credit.amount_minor = rr.amount_minor
+          AND UPPER(BTRIM(credit.currency)) = UPPER(BTRIM(rr.currency))
+          AND EXISTS (
+            SELECT 1 FROM wallets commission_wallet
+            WHERE commission_wallet.id = credit.wallet_id
+              AND commission_wallet.user_id = rr.beneficiary_id
+          )
         LEFT JOIN users source_user ON source_user.id = rr.source_user_id
         LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id`;
     const where = baseWhere + " AND " + statusWhere;
