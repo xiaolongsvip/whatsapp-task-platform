@@ -1914,7 +1914,7 @@ private fun isClaimDeadlinePassed(claim: JSONObject, serverClockOffsetMillis: Lo
         status = claim.optString("status"),
         expiresAt = claim.optString("expiresAt").takeUnless { it == "null" },
         claimedAt = claim.optString("claimedAt").takeUnless { it == "null" },
-        nowMillis = System.currentTimeMillis() + serverClockOffsetMillis
+        nowMillis = ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)
     )
 
 private fun formatDate(value: String): String {
