@@ -46,6 +46,25 @@ export class TaskAdminController {
     return this.tasks.deleteExecutionTestData();
   }
 
+  @Get("records/history")
+  async listClaimHistory(
+    @Req() request: Request,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+    @Query("keyword") keyword?: string,
+    @Query("taskId") taskId?: string,
+    @Query("status") status?: string,
+  ) {
+    await this.adminAuth.getCurrentAdmin(adminToken(request));
+    return this.tasks.listClaimHistory({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 20,
+      keyword,
+      taskId,
+      status,
+    });
+  }
+
   @Get("records")
   async listRecords(
     @Req() request: Request,
