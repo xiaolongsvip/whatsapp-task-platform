@@ -46,3 +46,13 @@ test("referral commission is credited only by a matching referral ledger entry o
   assert.match(method, /BTRIM\(credit\.currency\).*BTRIM\(rr\.currency\)/);
   assert.match(method, /commission_wallet\.user_id = rr\.beneficiary_id/);
 });
+
+test("admin invite list shows net credited referral commissions rather than unposted reward entitlements", () => {
+  const method = service.slice(service.indexOf("async listInvites("), service.indexOf("async relation("));
+  assert.match(method, /credit\.source_type = 'REFERRAL_COMMISSION'/);
+  assert.match(method, /credit\.direction = 'CREDIT'/);
+  assert.match(method, /credit\.amount_minor = rr\.amount_minor/);
+  assert.match(method, /BTRIM\(credit\.currency\).*BTRIM\(rr\.currency\)/);
+  assert.match(method, /commission_wallet\.user_id = rr\.beneficiary_id/);
+  assert.match(method, /row\.amountMinor\.toString\(\)/);
+});
