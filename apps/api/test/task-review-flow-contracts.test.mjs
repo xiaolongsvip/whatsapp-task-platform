@@ -87,3 +87,10 @@ test("wallet history separates posted ledger movements from pending withdrawal w
   has(wallet, 'status: "POSTED"');
   has(wallet, 'not: "PAID"');
 });
+
+test("viewing a different task record does not clear the active screenshot claim binding", async () => {
+  const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskHallScreen.kt");
+  const selection = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskSelectionState.kt");
+  assert.match(screen, /shouldClearActiveClaimOnViewDetails\(activeClaimId, claim\.optString\("id"\)\)/);
+  assert.match(selection, /activeClaimId == viewedClaimId/);
+});
