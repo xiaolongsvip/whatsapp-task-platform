@@ -18,9 +18,13 @@ object CaptureSessionState {
     private const val KEY_PATH = "path"
     private const val KEY_CLAIM_ID = "claim_id"
     private const val KEY_IDEMPOTENCY = "idempotency_key"
+    private const val KEY_OWNER_USER_ID = "owner_user_id"
 
     @Volatile
     private var preferences: SharedPreferences? = null
+    @Volatile
+    private var appFilesDir: File? = null
+    private var authenticatedUserId: String? = null
 
     private val persistenceLock = Any()
 
@@ -51,28 +55,78 @@ object CaptureSessionState {
     /** Must be called from Application context before the capture service is used. */
     fun initialize(context: Context) {
         synchronized(persistenceLock) {
-            val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val appContext = context.applicationContext
+            val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             preferences = prefs
+            appFilesDir = appContext.filesDir
+            authenticatedUserId = null
+            _activeClaimId.value = null
 
             val path = prefs.getString(KEY_PATH, null)
             val claimId = prefs.getString(KEY_CLAIM_ID, null)
             val idempotencyKey = prefs.getString(KEY_IDEMPOTENCY, null)
             val name = prefs.getString(KEY_NAME, null)
+            val metadata = PendingEvidenceMetadata(
+                ownerUserId = prefs.getString(KEY_OWNER_USER_ID, null),
+                path = path,
+                claimId = claimId,
+                idempotencyKey = idempotencyKey,
+            )
 
-            if (!path.isNullOrBlank() &&
-                !claimId.isNullOrBlank() &&
-                !idempotencyKey.isNullOrBlank() &&
-                File(path).isFile
+            if (metadata.path?.isNotBlank() == true &&
+                metadata.claimId?.isNotBlank() == true &&
+                metadata.idempotencyKey?.isNotBlank() == true &&
+                isManagedEvidenceFile(path)
             ) {
                 _lastCaptureName.value = name ?: File(path).name
                 _lastCapturePath.value = path
                 _lastCaptureClaimId.value = claimId
                 _pendingIdempotencyKey.value = idempotencyKey
-                _activeClaimId.value = claimId
             } else {
+                deleteManagedEvidenceFile(path)
                 clearPersistedEvidence(prefs)
                 clearInMemoryEvidence()
             }
+        }
+    }
+
+    /**
+     * Restores a pending retry only after the server has identified the
+     * authenticated member. A different account can never inherit another
+     * member's screenshot, claim ID, or idempotency key.
+     */
+    fun setAuthenticatedUser(userId: String): Boolean {
+        val normalizedUserId = userId.trim()
+        if (normalizedUserId.isBlank()) return false
+
+        synchronized(persistenceLock) {
+            val prefs = preferences ?: return false
+            val path = _lastCapturePath.value
+            if (!path.isNullOrBlank()) {
+                val metadata = PendingEvidenceMetadata(
+                    ownerUserId = prefs.getString(KEY_OWNER_USER_ID, null),
+                    path = path,
+                    claimId = _lastCaptureClaimId.value,
+                    idempotencyKey = _pendingIdempotencyKey.value,
+                )
+                if (metadata.canRestoreFor(normalizedUserId, isManagedEvidenceFile(path) && File(path).isFile)) {
+                    _activeClaimId.value = metadata.claimId
+                } else {
+                    deleteManagedEvidenceFile(path)
+                    clearPersistedEvidence(prefs)
+                    clearInMemoryEvidence()
+                    _activeClaimId.value = null
+                }
+            } else {
+                val storedOwner = prefs.getString(KEY_OWNER_USER_ID, null)
+                if (!storedOwner.isNullOrBlank() && storedOwner != normalizedUserId) {
+                    clearPersistedEvidence(prefs)
+                }
+                _activeClaimId.value = null
+            }
+
+            authenticatedUserId = normalizedUserId
+            return true
         }
     }
 
@@ -82,18 +136,19 @@ object CaptureSessionState {
 
     internal fun setLastCapture(name: String, path: String, idempotencyKey: String, claimId: String? = null): Boolean {
         synchronized(persistenceLock) {
-            var persisted = true
             val prefs = preferences
-            if (!claimId.isNullOrBlank() && idempotencyKey.isNotBlank() && path.isNotBlank()) {
-                persisted = prefs != null && prefs.edit()
-                    .putString(KEY_NAME, name)
-                    .putString(KEY_PATH, path)
-                    .putString(KEY_CLAIM_ID, claimId)
-                    .putString(KEY_IDEMPOTENCY, idempotencyKey)
-                    .commit()
-            } else {
-                clearPersistedEvidence(prefs)
-            }
+            val ownerId = authenticatedUserId
+            val shouldPersist = !claimId.isNullOrBlank() &&
+                idempotencyKey.isNotBlank() &&
+                path.isNotBlank() &&
+                !ownerId.isNullOrBlank()
+            val persisted = shouldPersist && prefs != null && prefs.edit()
+                .putString(KEY_NAME, name)
+                .putString(KEY_PATH, path)
+                .putString(KEY_CLAIM_ID, claimId)
+                .putString(KEY_IDEMPOTENCY, idempotencyKey)
+                .putString(KEY_OWNER_USER_ID, ownerId)
+                .commit()
 
             _lastCaptureName.value = name
             _lastCapturePath.value = path
@@ -101,12 +156,13 @@ object CaptureSessionState {
             _pendingIdempotencyKey.value = idempotencyKey
             _uploadMessage.value = null
             _error.value = if (persisted) null else
-                "无法保存截图重试信息，请保持 APP 运行并检查设备存储空间。"
+                "无法安全保存截图重试信息，请确认已登录并检查设备存储空间。"
             return persisted
         }
     }
 
     fun setActiveClaim(claimId: String) {
+        if (claimId.isBlank() || authenticatedUserId.isNullOrBlank()) return
         _activeClaimId.value = claimId
         _uploadMessage.value = null
         _error.value = null
@@ -118,6 +174,7 @@ object CaptureSessionState {
 
     fun markLastCaptureUploaded(message: String) {
         synchronized(persistenceLock) {
+            val completedPath = _lastCapturePath.value
             clearPersistedEvidence(preferences)
             _lastCapturePath.value = null
             _pendingIdempotencyKey.value = null
@@ -125,6 +182,7 @@ object CaptureSessionState {
             _uploadMessage.value = message
             _error.value = null
             _activeClaimId.value = null
+            deleteManagedEvidenceFile(completedPath)
         }
     }
 
@@ -133,10 +191,22 @@ object CaptureSessionState {
             val pendingPath = _lastCapturePath.value
             clearPersistedEvidence(preferences)
             clearInMemoryEvidence()
-            if (!pendingPath.isNullOrBlank()) {
-                runCatching { File(pendingPath).delete() }
-            }
+            _activeClaimId.value = null
+            if (!pendingPath.isNullOrBlank()) deleteManagedEvidenceFile(pendingPath)
         }
+    }
+
+    private fun isManagedEvidenceFile(path: String?): Boolean {
+        if (path.isNullOrBlank()) return false
+        return runCatching {
+            val root = File(appFilesDir, "task-evidence").canonicalFile
+            val candidate = File(path).canonicalFile
+            candidate.path.startsWith(root.path + File.separator)
+        }.getOrDefault(false)
+    }
+
+    private fun deleteManagedEvidenceFile(path: String?) {
+        if (isManagedEvidenceFile(path)) runCatching { File(path!!).delete() }
     }
 
     private fun clearPersistedEvidence(prefs: SharedPreferences?) {
@@ -145,6 +215,7 @@ object CaptureSessionState {
             ?.remove(KEY_PATH)
             ?.remove(KEY_CLAIM_ID)
             ?.remove(KEY_IDEMPOTENCY)
+            ?.remove(KEY_OWNER_USER_ID)
             ?.commit()
     }
 
