@@ -9,6 +9,13 @@ class ClaimDeadlineTest {
     private val claimedAt = "2026-11-05T10:00:00Z"
 
     @Test
+    fun serverClockOffsetCorrectsDeviceClockSkew() {
+        val localNow = InstantMillis.parse("2026-11-05T10:00:00Z")
+        val offset = 120_000L
+        assertEquals(InstantMillis.parse("2026-11-05T10:02:00Z"), ClaimDeadline.serverNowMillis(localNow, offset))
+    }
+
+    @Test
     fun claimedTaskExpiresAfterThreeMinutesWhenServerDeadlineMissing() {
         assertEquals(
             InstantMillis.parse("2026-11-05T10:03:00Z"),
