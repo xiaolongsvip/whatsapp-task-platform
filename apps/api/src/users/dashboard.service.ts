@@ -156,11 +156,21 @@ export class DashboardService {
     const nextClaimAt = latestClaim && minClaimIntervalSeconds > 0
       ? new Date(latestClaim.claimedAt.getTime() + minClaimIntervalSeconds * 1000).toISOString()
       : null;
-    // Reserved dashboard contract. The protected admin announcement module
-    // will populate this from shared persistent storage in a later phase.
-    const announcements: string[] = [];
-
-    const supportSetting = await prisma.taskConfiguration.findUnique({ where: { key: "system.appSupport" } });
+    // Public in-app notices are read from the same records managed by the
+    // admin notification center. The app currently renders these in its home
+    // announcement ticker; this is not an operating-system push notification.
+    const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+    const noticeTargets = currentUser?.status === "ACTIVE" ? ["ALL", "ACTIVE"] : ["ALL"];
+    const [noticeRows, supportSetting] = await Promise.all([
+      prisma.adminNotification.findMany({
+        where: { status: "PUBLISHED", target: { in: noticeTargets } },
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: 5,
+        select: { title: true, content: true },
+      }),
+      prisma.taskConfiguration.findUnique({ where: { key: "system.appSupport" } }),
+    ]);
+    const announcements = noticeRows.map((item) => item.title ? item.title + "： " + item.content : item.content);
     const configuredSupportUrl = typeof supportSetting?.value === "object" && supportSetting.value !== null
       ? String((supportSetting.value as Record<string, unknown>).supportUrl ?? "").trim()
       : "";
