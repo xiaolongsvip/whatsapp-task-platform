@@ -132,6 +132,100 @@ export class TaskAdminService {
   }
 
 
+  async listClaimHistory(input: { page?: number; pageSize?: number; keyword?: string; taskId?: string; status?: string }) {
+    const page = Math.max(1, Math.floor(Number(input.page) || 1));
+    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
+    const keyword = input.keyword?.trim() ?? "";
+    const where: Prisma.TaskClaimWhereInput = {};
+    const allowedStatuses = ["CLAIMED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "EXPIRED", "CANCELLED"];
+    if (input.status && input.status !== "ALL" && allowedStatuses.includes(input.status)) {
+      where.status = input.status as never;
+    }
+    if (input.taskId?.trim()) {
+      const taskId = input.taskId.trim();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)) {
+        throw new BadRequestException("任务编号必须填写完整编号。");
+      }
+      where.taskId = taskId;
+    }
+    if (keyword) {
+      where.OR = [
+        { id: { contains: keyword, mode: "insensitive" } },
+        { task: { is: { title: { contains: keyword, mode: "insensitive" } } } },
+        { user: { is: { phone: { contains: keyword } } } },
+        { contactAssignment: { is: { contactNumber: { is: { phoneE164: { contains: keyword } } } } } },
+      ];
+    }
+
+    const [total, claims] = await prisma.$transaction([
+      prisma.taskClaim.count({ where }),
+      prisma.taskClaim.findMany({
+        where,
+        orderBy: [{ claimedAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          task: {
+            select: {
+              id: true, title: true, category: true, rewardMinor: true, currency: true,
+              group: { select: { name: true } },
+            },
+          },
+          user: { select: { phone: true } },
+          contactAssignment: {
+            include: {
+              contactNumber: { select: { phoneE164: true, countryCode: true, countryName: true } },
+            },
+          },
+          submissions: {
+            orderBy: { submittedAt: "desc" },
+            take: 1,
+            select: {
+              id: true, status: true, submittedAt: true, note: true,
+              aiReviewJob: { select: { status: true, decision: true, confidence: true, reason: true, lastError: true } },
+              reviews: {
+                orderBy: { reviewedAt: "desc" },
+                take: 1,
+                select: { decision: true, reason: true, reviewedAt: true },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      items: claims.map((claim) => {
+        const submission = claim.submissions[0] ?? null;
+        const review = submission?.reviews[0] ?? null;
+        const ai = submission?.aiReviewJob ?? null;
+        return {
+          id: claim.id,
+          taskId: claim.task.id,
+          taskName: claim.task.title,
+          category: claim.task.category,
+          groupName: claim.task.group?.name ?? "未分组",
+          phoneNumber: claim.contactAssignment?.contactNumber.phoneE164 ?? "—",
+          countryRegion: claim.contactAssignment?.contactNumber.countryName ?? claim.contactAssignment?.contactNumber.countryCode ?? "未标记",
+          userPhone: claim.user.phone,
+          rewardAmount: (Number(claim.task.rewardMinor) / 100).toFixed(2),
+          currency: claim.task.currency.trim(),
+          status: claim.status,
+          claimedAt: claim.claimedAt.toISOString(),
+          expiresAt: claim.expiresAt?.toISOString() ?? null,
+          submissionId: submission?.id ?? null,
+          submissionStatus: submission?.status ?? null,
+          submittedAt: submission?.submittedAt.toISOString() ?? null,
+          reviewDecision: review?.decision ?? ai?.decision ?? null,
+          reviewReason: review?.reason ?? ai?.reason ?? ai?.lastError ?? null,
+          aiReviewStatus: ai?.status ?? null,
+          aiConfidence: ai?.confidence ?? null,
+        };
+      }),
+      pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+    };
+  }
+
   async listRecords(input: { page?: number; pageSize?: number; keyword?: string; status?: string; groupName?: string; createdFrom?: string; createdTo?: string; countryRegion?: string; useStage?: string; taskId?: string; reviewResult?: string }) {
     const page = Math.max(1, Math.floor(Number(input.page) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
