@@ -391,7 +391,12 @@ export class NotificationsService {
     }
     const targetFilter = await this.memberNotificationTarget(userId);
     const notice = await prisma.adminNotification.findFirst({
-      where: { id: notificationId, status: "PUBLISHED", target: { in: targetFilter } },
+      where: {
+        id: notificationId,
+        status: "PUBLISHED",
+        publishedAt: { not: null },
+        target: { in: targetFilter },
+      },
       select: { id: true },
     });
     if (!notice) throw new NotFoundException("通知不存在或已不可查看。");
@@ -406,24 +411,40 @@ export class NotificationsService {
 
   async markAllMemberNotificationsRead(userId: string) {
     const targetFilter = await this.memberNotificationTarget(userId);
-    const result = await prisma.$transaction(async (tx) => {
-      const unread = await tx.adminNotification.findMany({
-        where: {
-          status: "PUBLISHED",
-          publishedAt: { not: null },
-          target: { in: targetFilter },
-          readReceipts: { none: { userId } },
-        },
-        select: { id: true },
+    const batchSize = 500;
+    let markedCount = 0;
+
+    // Mark in bounded batches so a user with a large notification history
+    // does not load every unread notification ID into one application array.
+    // Each committed batch is excluded from the next unread query by its
+    // read receipt. The unique constraint and skipDuplicates handle races
+    // with a concurrent single-read or read-all request.
+    while (true) {
+      const batch = await prisma.$transaction(async (tx) => {
+        const unread = await tx.adminNotification.findMany({
+          where: {
+            status: "PUBLISHED",
+            publishedAt: { not: null },
+            target: { in: targetFilter },
+            readReceipts: { none: { userId } },
+          },
+          orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
+          take: batchSize,
+          select: { id: true },
+        });
+        if (!unread.length) return { selected: 0, inserted: 0 };
+        const inserted = await tx.notificationReadReceipt.createMany({
+          data: unread.map((notice) => ({ userId, notificationId: notice.id })),
+          skipDuplicates: true,
+        });
+        return { selected: unread.length, inserted: inserted.count };
       });
-      if (!unread.length) return 0;
-      const inserted = await tx.notificationReadReceipt.createMany({
-        data: unread.map((notice) => ({ userId, notificationId: notice.id })),
-        skipDuplicates: true,
-      });
-      return inserted.count;
-    });
-    return { success: true, markedCount: result };
+
+      markedCount += batch.inserted;
+      if (batch.selected === 0) break;
+    }
+
+    return { success: true, markedCount };
   }
 
   async publicAnnouncements(userId: string) {
