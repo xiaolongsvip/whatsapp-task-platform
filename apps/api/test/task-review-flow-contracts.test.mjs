@@ -94,3 +94,12 @@ test("viewing a different task record does not clear the active screenshot claim
   assert.match(screen, /shouldClearActiveClaimOnViewDetails\(activeClaimId, claim\.optString\("id"\)\)/);
   assert.match(selection, /activeClaimId == viewedClaimId/);
 });
+
+test("Android rejected task records display the backend-provided review reason", () => {
+  const start = androidScreen.indexOf("private fun ClaimRecordCard");
+  const end = androidScreen.indexOf("\\n@Composable", start);
+  const card = androidScreen.slice(start, end > start ? end : undefined);
+  has(card, 'optString("reviewReason")');
+  has(card, '"审核原因"');
+  has(card, '"Review reason"');
+});
