@@ -220,23 +220,69 @@ export class DashboardService {
       prisma.referralEdge.count({ where: { inviterUserId: userId } }),
       prisma.referralEdge.count({ where: { inviterUserId: userId, invitee: { status: "ACTIVE" } } }),
       prisma.referralAncestor.count({ where: { ancestorUserId: userId } }),
-      prisma.referralReward.findMany({ where: { beneficiaryId: userId }, select: { amountMinor: true, currency: true } }),
-      prisma.referralReward.findMany({ where: { beneficiaryId: userId, createdAt: { gte: today } }, select: { amountMinor: true, currency: true } }),
-      prisma.referralReward.findMany({ where: { beneficiaryId: userId, createdAt: { gte: monthStart } }, select: { amountMinor: true, currency: true } }),
-      prisma.wallet.findMany({ where: { userId }, include: { entries: { select: { direction: true, amountMinor: true } }, withdrawals: { where: { status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] } }, select: { amountMinor: true } }, holds: { where: { status: "ACTIVE" }, select: { amountMinor: true } } } }),
+      prisma.referralReward.findMany({
+        where: { beneficiaryId: userId },
+        select: { amountMinor: true, currency: true, idempotencyKey: true },
+      }),
+      prisma.referralReward.findMany({
+        where: { beneficiaryId: userId, createdAt: { gte: today } },
+        select: { amountMinor: true, currency: true, idempotencyKey: true },
+      }),
+      prisma.referralReward.findMany({
+        where: { beneficiaryId: userId, createdAt: { gte: monthStart } },
+        select: { amountMinor: true, currency: true, idempotencyKey: true },
+      }),
+      prisma.wallet.findMany({
+        where: { userId },
+        include: {
+          entries: { select: { direction: true, amountMinor: true } },
+          withdrawals: {
+            where: { status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"] } },
+            select: { amountMinor: true },
+          },
+          holds: { where: { status: "ACTIVE" }, select: { amountMinor: true } },
+        },
+      }),
     ]);
-    const sum = (rows: Array<{ amountMinor: bigint; currency: string }>) => {
+
+    // A reward record is an entitlement, not proof of wallet settlement.
+    // Only matching posted CREDIT ledger entries count as earned commissions.
+    const rewardRows = [...rewards, ...todayRewards, ...monthRewards];
+    const rewardKeys = [...new Set(rewardRows.map((row) => row.idempotencyKey))];
+    const creditedKeys = new Set<string>();
+    for (let offset = 0; offset < rewardKeys.length; offset += 500) {
+      const batch = rewardKeys.slice(offset, offset + 500);
+      const credits = await prisma.ledgerEntry.findMany({
+        where: {
+          idempotencyKey: { in: batch },
+          direction: "CREDIT",
+          sourceType: "REFERRAL_COMMISSION",
+          wallet: { userId },
+        },
+        select: { idempotencyKey: true },
+      });
+      for (const credit of credits) creditedKeys.add(credit.idempotencyKey);
+    }
+
+    const sumCredited = (rows: typeof rewards) => {
       const totals: Record<string, string> = {};
-      for (const row of rows) totals[row.currency.trim()] = ((BigInt(totals[row.currency.trim()] ?? "0") + row.amountMinor)).toString();
+      for (const row of rows) {
+        if (!creditedKeys.has(row.idempotencyKey)) continue;
+        const currency = row.currency.trim();
+        totals[currency] = (BigInt(totals[currency] ?? "0") + row.amountMinor).toString();
+      }
       return totals;
     };
+
     const available = wallets.map((wallet) => {
       const credits = wallet.entries.filter((entry) => entry.direction === "CREDIT").reduce((v, entry) => v + entry.amountMinor, 0n);
       const debits = wallet.entries.filter((entry) => entry.direction === "DEBIT").reduce((v, entry) => v + entry.amountMinor, 0n);
       const reserved = wallet.withdrawals.reduce((v, item) => v + item.amountMinor, 0n);
       const frozen = wallet.holds.reduce((v, item) => v + item.amountMinor, 0n);
-      return { currency: wallet.currency.trim(), amountMinor: (credits - debits - reserved - frozen > 0n ? credits - debits - reserved - frozen : 0n).toString() };
+      const balance = credits - debits - reserved - frozen;
+      return { currency: wallet.currency.trim(), amountMinor: (balance > 0n ? balance : 0n).toString() };
     });
+
     let code = user?.referralCode ?? "";
     // Upgrade legacy long codes when the member opens the promotion page.
     // Referral edges reference user IDs, so the existing team relationships remain intact.
@@ -265,13 +311,13 @@ export class DashboardService {
     }
     return {
       referralCode: code,
-      inviteUrl: code && process.env.WEB_ORIGIN?.trim() ? `${process.env.WEB_ORIGIN.trim().replace(/\/+$/, "")}/r/${encodeURIComponent(code)}` : "",
+      inviteUrl: code && process.env.WEB_ORIGIN?.trim() ? `${process.env.WEB_ORIGIN.trim().replace(/\\/+$/, "")}/r/${encodeURIComponent(code)}` : "",
       inviteCount: directInvites,
       activeCount: activeInvites,
       teamCount,
-      todayCommissions: sum(todayRewards),
-      totalCommissions: sum(rewards),
-      monthCommissions: sum(monthRewards),
+      todayCommissions: sumCredited(todayRewards),
+      totalCommissions: sumCredited(rewards),
+      monthCommissions: sumCredited(monthRewards),
       availableBalances: available,
     };
   }
