@@ -21,7 +21,11 @@ const POLL_INTERVAL_MS = 5000;
 export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AiReviewWorker.name);
   private timer: ReturnType<typeof setInterval> | undefined;
-  private running = false;
+  private activeWorkers = 0;
+  private readonly maxConcurrentJobs = (() => {
+    const configured = Number(process.env.AI_REVIEW_WORKER_CONCURRENCY ?? "1");
+    return Number.isInteger(configured) && configured >= 1 && configured <= 20 ? configured : 1;
+  })();
 
   constructor(
     private readonly configService: AiConfigService,
@@ -45,8 +49,11 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async tick() {
-    if (this.running) return;
-    this.running = true;
+    // Each timer tick can claim one additional job until the configured local
+    // concurrency is reached. The database SKIP LOCKED claim remains the
+    // cross-process guard, so multiple API instances cannot own the same job.
+    if (this.activeWorkers >= this.maxConcurrentJobs) return;
+    this.activeWorkers += 1;
     try {
       const claimed = await prisma.$queryRaw<Array<{ id: string }>>`
         WITH candidate AS (
@@ -79,7 +86,7 @@ export class AiReviewWorker implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error("AI review queue poll failed", error instanceof Error ? error.stack : undefined);
     } finally {
-      this.running = false;
+      this.activeWorkers = Math.max(0, this.activeWorkers - 1);
     }
   }
 
