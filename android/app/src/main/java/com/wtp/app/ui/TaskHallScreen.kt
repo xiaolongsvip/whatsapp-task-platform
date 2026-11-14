@@ -1288,7 +1288,7 @@ private fun TaskCountdownBadge(expiresAt: String, serverClockOffsetMillis: Long,
     val expiryMillis = remember(expiresAt) {
         runCatching { Instant.parse(expiresAt).toEpochMilli() }.getOrDefault(0L)
     }
-    var remainingSeconds by remember(expiryMillis) {
+    var remainingSeconds by remember(expiryMillis, serverClockOffsetMillis) {
         mutableStateOf(((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0))
     }
     var expiryNotified by remember(expiryMillis) { mutableStateOf(false) }
@@ -1298,7 +1298,7 @@ private fun TaskCountdownBadge(expiresAt: String, serverClockOffsetMillis: Long,
             remainingSeconds = ((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0L) delay(1000)
         }
-        remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+        remainingSeconds = ((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0)
         if (expiryMillis > 0L && remainingSeconds <= 0L && !expiryNotified) {
             expiryNotified = true
             onExpired()
