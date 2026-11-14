@@ -438,14 +438,49 @@ class ScreenCaptureService : Service() {
 
         val directory = File(filesDir, "task-evidence").apply { mkdirs() }
         val file = File(directory, "capture_${System.currentTimeMillis()}.jpg")
-        FileOutputStream(file).use { output ->
-            if (!cropped.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
-                throw IllegalStateException("JPEG 编码失败。")
+        val maxUploadBytes = 8L * 1024L * 1024L
+        val qualities = intArrayOf(90, 85, 80, 75, 70, 65)
+        var bitmap = cropped
+        var scaledBitmap: Bitmap? = null
+        var encoded = false
+        try {
+            fun encodeAtSupportedQualities(): Boolean {
+                for (quality in qualities) {
+                    FileOutputStream(file, false).use { output ->
+                        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)) {
+                            throw IllegalStateException("JPEG 编码失败。")
+                        }
+                        output.flush()
+                    }
+                    if (file.length() in 1..maxUploadBytes) return true
+                }
+                return false
             }
-            output.flush()
+
+            encoded = encodeAtSupportedQualities()
+            // The API accepts at most 8 MiB. Large/high-density screens can
+            // exceed that limit at full resolution, so make one bounded resize
+            // and retry without reducing JPEG quality below 65 (to preserve
+            // small text in evidence screenshots).
+            if (!encoded && maxOf(bitmap.width, bitmap.height) > 2048) {
+                val scale = 2048.0 / maxOf(bitmap.width, bitmap.height).toDouble()
+                val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+                val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
+                scaledBitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+                bitmap = scaledBitmap!!
+                encoded = encodeAtSupportedQualities()
+            }
+            if (!encoded) {
+                throw IllegalStateException("截图压缩后仍超过 8 MB，请降低屏幕分辨率后重新截图。")
+            }
+            return file
+        } catch (error: Exception) {
+            file.delete()
+            throw error
+        } finally {
+            scaledBitmap?.recycle()
+            cropped.recycle()
         }
-        cropped.recycle()
-        return file
     }
 
     private fun startProjectionForeground() {
