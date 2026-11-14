@@ -271,7 +271,7 @@ export class DashboardService {
     // Only matching posted CREDIT ledger entries count as earned commissions.
     const rewardRows = [...rewards, ...todayRewards, ...monthRewards];
     const rewardKeys = [...new Set(rewardRows.map((row) => row.idempotencyKey))];
-    const creditedKeys = new Set<string>();
+    const creditsByKey = new Map<string, { amountMinor: bigint; currency: string }>();
     for (let offset = 0; offset < rewardKeys.length; offset += 500) {
       const batch = rewardKeys.slice(offset, offset + 500);
       const credits = await prisma.ledgerEntry.findMany({
@@ -281,15 +281,17 @@ export class DashboardService {
           sourceType: "REFERRAL_COMMISSION",
           wallet: { userId },
         },
-        select: { idempotencyKey: true },
+        select: { idempotencyKey: true, amountMinor: true, currency: true },
       });
-      for (const credit of credits) creditedKeys.add(credit.idempotencyKey);
+      for (const credit of credits) creditsByKey.set(credit.idempotencyKey, credit);
     }
 
     const sumCredited = (rows: typeof rewards) => {
       const totals: Record<string, string> = {};
       for (const row of rows) {
-        if (!creditedKeys.has(row.idempotencyKey)) continue;
+        const credit = creditsByKey.get(row.idempotencyKey);
+        if (!credit || credit.amountMinor !== row.amountMinor ||
+            credit.currency.trim().toUpperCase() !== row.currency.trim().toUpperCase()) continue;
         const currency = row.currency.trim();
         totals[currency] = (BigInt(totals[currency] ?? "0") + row.amountMinor).toString();
       }
@@ -501,10 +503,20 @@ export class DashboardService {
     // rather than treating every created reward as paid.
     const keys = pageRows.map((row) => row.idempotencyKey);
     const credits = keys.length ? await prisma.ledgerEntry.findMany({
-      where: { idempotencyKey: { in: keys }, direction: "CREDIT", wallet: { userId } },
-      select: { idempotencyKey: true },
+      where: {
+        idempotencyKey: { in: keys },
+        direction: "CREDIT",
+        sourceType: "REFERRAL_COMMISSION",
+        wallet: { userId },
+      },
+      select: { idempotencyKey: true, amountMinor: true, currency: true },
     }) : [];
-    const credited = new Set(credits.map((row) => row.idempotencyKey));
+    const creditsByKey = new Map(credits.map((row) => [row.idempotencyKey, row]));
+    const isCredited = (row: (typeof pageRows)[number]) => {
+      const credit = creditsByKey.get(row.idempotencyKey);
+      return Boolean(credit && credit.amountMinor === row.amountMinor &&
+        credit.currency.trim().toUpperCase() === row.currency.trim().toUpperCase());
+    };
     const totals = (items: typeof rows) => {
       const result: Record<string, string> = {};
       for (const row of items) {
@@ -513,7 +525,7 @@ export class DashboardService {
       }
       return result;
     };
-    const pending = pageRows.filter((row) => !credited.has(row.idempotencyKey));
+    const pending = pageRows.filter((row) => !isCredited(row));
     return {
       items: pageRows.map((row) => ({
         id: row.id,
@@ -521,7 +533,7 @@ export class DashboardService {
         depth: row.depth,
         amountMinor: row.amountMinor.toString(),
         currency: row.currency.trim(),
-        status: credited.has(row.idempotencyKey) ? "CREDITED" : "PENDING",
+        status: isCredited(row) ? "CREDITED" : "PENDING",
         createdAt: row.createdAt.toISOString(),
       })),
       pendingCommissions: totals(pending),

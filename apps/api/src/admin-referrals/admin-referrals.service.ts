@@ -95,8 +95,26 @@ export class AdminReferralsService {
       }),
     ]);
     const ids = users.map((user) => user.id);
+    const rewardGroupsQuery = ids.length ? prisma.$queryRawUnsafe<Array<{ beneficiaryId: string; currency: string; amountMinor: bigint }>>(
+      `SELECT rr.beneficiary_id AS "beneficiaryId", rr.currency,
+        COALESCE(SUM(rr.amount_minor), 0)::bigint AS "amountMinor"
+      FROM referral_rewards rr
+      INNER JOIN ledger_entries credit
+        ON credit.idempotency_key = rr.idempotency_key
+        AND credit.source_type = 'REFERRAL_COMMISSION'
+        AND credit.direction = 'CREDIT'
+        AND credit.amount_minor = rr.amount_minor
+        AND UPPER(BTRIM(credit.currency)) = UPPER(BTRIM(rr.currency))
+      INNER JOIN wallets commission_wallet
+        ON commission_wallet.id = credit.wallet_id
+        AND commission_wallet.user_id = rr.beneficiary_id
+      WHERE rr.beneficiary_id IN (${ids.map((_, index) => "$" + (index + 1) + "::uuid").join(", ")})
+      GROUP BY rr.beneficiary_id, rr.currency
+      ORDER BY rr.beneficiary_id, rr.currency`,
+      ...ids,
+    ) : null;
     const [rewardGroupsResult, directActiveResult] = await Promise.all([
-      ids.length ? prisma.referralReward.groupBy({ by: ["beneficiaryId", "currency"], where: { beneficiaryId: { in: ids } }, _sum: { amountMinor: true } }) : null,
+      rewardGroupsQuery,
       ids.length ? prisma.referralEdge.findMany({ where: { inviterUserId: { in: ids }, invitee: { status: "ACTIVE" } }, select: { inviterUserId: true } }) : null,
     ]);
     const rewardGroups = rewardGroupsResult ?? [];
@@ -106,7 +124,7 @@ export class AdminReferralsService {
     const rewardMap = new Map<string, Array<{ currency: string; amountMinor: string }>>();
     for (const row of rewardGroups) {
       const current = rewardMap.get(row.beneficiaryId) ?? [];
-      current.push({ currency: row.currency.trim(), amountMinor: (row._sum.amountMinor ?? 0n).toString() });
+      current.push({ currency: row.currency.trim(), amountMinor: row.amountMinor.toString() });
       rewardMap.set(row.beneficiaryId, current);
     }
     return {
@@ -208,7 +226,16 @@ export class AdminReferralsService {
     const joins = `
         FROM referral_rewards rr
         LEFT JOIN ledger_entries credit
-          ON credit.idempotency_key = rr.idempotency_key AND credit.direction = 'CREDIT'
+          ON credit.idempotency_key = rr.idempotency_key
+          AND credit.source_type = 'REFERRAL_COMMISSION'
+          AND credit.direction = 'CREDIT'
+          AND credit.amount_minor = rr.amount_minor
+          AND UPPER(BTRIM(credit.currency)) = UPPER(BTRIM(rr.currency))
+          AND EXISTS (
+            SELECT 1 FROM wallets commission_wallet
+            WHERE commission_wallet.id = credit.wallet_id
+              AND commission_wallet.user_id = rr.beneficiary_id
+          )
         LEFT JOIN users source_user ON source_user.id = rr.source_user_id
         LEFT JOIN users beneficiary ON beneficiary.id = rr.beneficiary_id`;
     const where = baseWhere + " AND " + statusWhere;

@@ -37,3 +37,22 @@ test("referral commission search only casts canonical UUID strings to UUID", () 
   assert.match(method, /fields\.push\("rr\.source_user_id = " \+ id \+ "::uuid"\)/);
   assert.match(method, /fields\.push\("rr\.beneficiary_id = " \+ id \+ "::uuid"\)/);
 });
+
+test("referral commission is credited only by a matching referral ledger entry owned by the beneficiary", () => {
+  const method = service.slice(service.indexOf("async listCommissions("), service.indexOf("async getSettings()"));
+  assert.match(method, /credit\.source_type = 'REFERRAL_COMMISSION'/);
+  assert.match(method, /credit\.direction = 'CREDIT'/);
+  assert.match(method, /credit\.amount_minor = rr\.amount_minor/);
+  assert.match(method, /BTRIM\(credit\.currency\).*BTRIM\(rr\.currency\)/);
+  assert.match(method, /commission_wallet\.user_id = rr\.beneficiary_id/);
+});
+
+test("admin invite list shows net credited referral commissions rather than unposted reward entitlements", () => {
+  const method = service.slice(service.indexOf("async listInvites("), service.indexOf("async relation("));
+  assert.match(method, /credit\.source_type = 'REFERRAL_COMMISSION'/);
+  assert.match(method, /credit\.direction = 'CREDIT'/);
+  assert.match(method, /credit\.amount_minor = rr\.amount_minor/);
+  assert.match(method, /BTRIM\(credit\.currency\).*BTRIM\(rr\.currency\)/);
+  assert.match(method, /commission_wallet\.user_id = rr\.beneficiary_id/);
+  assert.match(method, /row\.amountMinor\.toString\(\)/);
+});
