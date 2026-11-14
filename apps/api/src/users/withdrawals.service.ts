@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "./dashboard.service";
 import { ExchangeRatesService } from "./exchange-rates.service";
@@ -208,13 +209,15 @@ export class WithdrawalsService {
     if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
       throw new BadRequestException("Withdrawal amount must be greater than zero.");
     }
-    if (!idempotencyKeyInput || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idempotencyKeyInput)) {
-      throw new BadRequestException("A valid Idempotency-Key header is required for withdrawal requests.");
+    if (idempotencyKeyInput && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idempotencyKeyInput)) {
+      throw new BadRequestException("Idempotency-Key must be a valid UUID.");
     }
     if (!expectedQuote || !expectedQuote.rate || !expectedQuote.source || !expectedQuote.fetchedAt) {
       throw new BadRequestException("Withdrawal quote is missing. Refresh the quote before submitting.");
     }
-    const idempotencyKey = idempotencyKeyInput.toLowerCase();
+    // Keep older APP versions compatible; current clients send a persisted key,
+    // while legacy clients receive a one-request server key.
+    const idempotencyKey = idempotencyKeyInput?.toLowerCase() ?? randomUUID();
 
     // A committed request must be replayed before refreshing external FX data.
     // Otherwise a lost HTTP response followed by a rate change could create a second withdrawal.
