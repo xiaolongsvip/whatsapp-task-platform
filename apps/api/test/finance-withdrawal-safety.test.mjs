@@ -830,3 +830,55 @@ test("FX conversion rejects rates and converted amounts that round to zero while
   assert.equal(convert(12500n, 2, 2, 1.23456789), 15432n);
   assert.equal(convert(10000n, 2, 0, 150), 15000n);
 });
+
+
+test("withdrawal requests persist a unique idempotency key in the database", () => {
+  const schema = readFileSync(new URL("../../../packages/database/prisma/schema.prisma", import.meta.url), "utf8");
+  const requestMigration = readFileSync(new URL("../../../packages/database/prisma/migrations/20261115110000_add_withdrawal_request_idempotency/migration.sql", import.meta.url), "utf8");
+  assert.match(schema, /idempotencyKey\\s+String\\?\\s+@unique\\s+@map\\("idempotency_key"\\)/);
+  assert.match(requestMigration, /ADD COLUMN "idempotency_key" VARCHAR\\(64\\)/);
+  assert.match(requestMigration, /CREATE UNIQUE INDEX "withdrawal_requests_idempotency_key_key"/);
+});
+
+test("withdrawal API requires the key and replays an existing request before querying a refreshed FX rate", () => {
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  assert.match(usersController, /@Headers\\("idempotency-key"\\)/);
+  assert.match(usersController, /this\\.withdrawals\\.create\\([\\s\\S]*?idempotencyKey\\)/);
+  assert.match(withdrawals, /A valid Idempotency-Key header is required/);
+  assert.match(withdrawals, /where: \\{ idempotencyKey \\}/);
+  const create = withdrawals.slice(withdrawals.indexOf("async create("));
+  assert.ok(create.indexOf("this.idempotentReplay(") < create.indexOf("this.context(userId, payoutAccountId)"));
+  assert.match(create, /idempotencyKey,/);
+  assert.match(create, /code === "P2002"/);
+  assert.match(create, /this\\.idempotentReplay\\(userId, payoutAccountId, amountMinor, idempotencyKey, expectedQuote\\)/);
+});
+
+test("withdrawal replay is restricted to the same user, account, amount and frozen quote", () => {
+  const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
+  const replay = withdrawals.slice(withdrawals.indexOf("private async idempotentReplay("), withdrawals.indexOf("async create("));
+  for (const fragment of [
+    "existing.wallet.userId === userId",
+    "existing.payoutAccountId === payoutAccountId",
+    "existing.amountMinor === amountMinor",
+    "expectedQuote.payoutAmountMinor === (existing.payoutAmountMinor ?? existing.amountMinor).toString()",
+    "expectedQuote.source === existing.exchangeRateSource",
+    "expectedRate.toFixed(12) === storedRate.toFixed(12)",
+    "Date.parse(expectedQuote.fetchedAt) === existing.exchangeRateFetchedAt?.getTime()",
+    "Idempotency-Key has already been used for a different withdrawal request",
+  ]) assert.ok(replay.includes(fragment), "withdrawal replay guard missing: " + fragment);
+});
+
+test("Android persists the original withdrawal body and reuses its key across ambiguous failures and restarts", () => {
+  for (const fragment of [
+    'private const val WITHDRAWAL_REQUEST_PREFS = "wtp_pending_withdrawal"',
+    "WITHDRAWAL_REQUEST_BODY",
+    "getOrCreateWithdrawalRequest(",
+    ".commit()",
+    'mapOf("Idempotency-Key" to pending.idempotencyKey)',
+    "clearWithdrawalRequest(pending.fingerprint, pending.idempotencyKey)",
+    "clearPendingWithdrawalRequest(payoutAccountId: String, amountMinor: String)",
+  ]) assert.ok(androidAuthRepository.includes(fragment), "Android withdrawal idempotency missing: " + fragment);
+  assert.match(androidAuthRepository, /fun createWithdrawal\\([\\s\\S]*?pending\\.body[\\s\\S]*?Idempotency-Key/);
+  assert.match(androidApp, /AuthRepository\\.clearPendingWithdrawalRequest\\(id, minor\\)/);
+  assert.match(androidAuthRepository, /WITHDRAWAL_REQUEST_PREFS[\\s\\S]*?edit\\(\\)\\?\\.clear\\(\\)\\?\\.commit\\(\\)/);
+});
