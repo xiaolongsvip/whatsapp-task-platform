@@ -794,7 +794,7 @@ fun TaskHallScreen(
                                 activeClaimId = activeClaimId,
                                 busy = busyId != null,
                                 onViewDetails = {
-                                    if (activeClaimId != null) {
+                                    if (shouldClearActiveClaimOnViewDetails(activeClaimId, claim.optString("id"))) {
                                         CaptureSessionState.clearActiveClaim()
                                         if (CaptureSessionState.active.value) {
                                             context.startService(
