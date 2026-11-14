@@ -140,20 +140,23 @@ export class NotificationsService {
 
   async update(id: string, input: NoticeInput, adminId: string) {
     const data = validateNotice(input);
-    const existing = await prisma.adminNotification.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("通知记录不存在。");
-    if (existing.status !== "DRAFT") {
-      throw new ConflictException("只有草稿通知可以编辑；已发布通知请停用后保留原发送记录。");
-    }
-    const updated = await prisma.adminNotification.update({ where: { id }, data });
-    await prisma.auditEvent.create({
-      data: {
-        actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_DRAFT_UPDATED",
-        targetType: "ADMIN_NOTIFICATION", targetId: id,
-        metadata: { title: updated.title, target: updated.target },
-      },
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM admin_notifications WHERE id = ${id}::uuid FOR UPDATE`;
+      const existing = await tx.adminNotification.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException("通知记录不存在。");
+      if (existing.status !== "DRAFT") {
+        throw new ConflictException("只有草稿通知可以编辑；已发布通知请停用后保留原发送记录。");
+      }
+      const updated = await tx.adminNotification.update({ where: { id }, data });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_DRAFT_UPDATED",
+          targetType: "ADMIN_NOTIFICATION", targetId: id,
+          metadata: { title: updated.title, target: updated.target },
+        },
+      });
+      return { success: true, item: updated };
     });
-    return { success: true, item: updated };
   }
 
   async publish(id: string, adminId: string) {
@@ -199,21 +202,24 @@ export class NotificationsService {
   }
 
   async disable(id: string, adminId: string) {
-    const existing = await prisma.adminNotification.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("通知记录不存在。");
-    if (existing.status !== "PUBLISHED") throw new ConflictException("只有已发布的通知可以停用。");
-    const updated = await prisma.adminNotification.update({
-      where: { id },
-      data: { status: "DISABLED", disabledAt: new Date() },
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM admin_notifications WHERE id = ${id}::uuid FOR UPDATE`;
+      const existing = await tx.adminNotification.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException("通知记录不存在。");
+      if (existing.status !== "PUBLISHED") throw new ConflictException("只有已发布的通知可以停用。");
+      const updated = await tx.adminNotification.update({
+        where: { id },
+        data: { status: "DISABLED", disabledAt: new Date() },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_DISABLED",
+          targetType: "ADMIN_NOTIFICATION", targetId: id,
+          metadata: { title: updated.title, recipientCount: updated.recipientCount },
+        },
+      });
+      return { success: true, item: updated };
     });
-    await prisma.auditEvent.create({
-      data: {
-        actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_DISABLED",
-        targetType: "ADMIN_NOTIFICATION", targetId: id,
-        metadata: { title: updated.title, recipientCount: updated.recipientCount },
-      },
-    });
-    return { success: true, item: updated };
   }
 
   async listTemplates(input: { keyword?: string; enabled?: string }) {
