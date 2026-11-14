@@ -27,9 +27,9 @@ test("admin notification endpoints use role permissions for read, manage, templa
   assert.match(controller, /@Get\("templates"\)/);
   assert.match(controller, /@Post\(":id\/publish"\)/);
   assert.match(controller, /@Post\(":id\/disable"\)/);
-  assert.match(guard, /notifications\/records\$\)\) return "notifications\.read"/);
-  assert.match(guard, /notifications\/templates\$\)\) return method === "GET" \? "notifications\.read" : "notifications\.templates\.manage"/);
-  assert.match(guard, /notifications\/\[\^\/\]\+\/publish\$\)\) return "notifications\.manage"/);
+  assert.ok(guard.includes('if (is(/^\\/admin\\/notifications\\/records$/)) return "notifications.read";'));
+  assert.ok(guard.includes('if (is(/^\\/admin\\/notifications\\/templates$/)) return method === "GET" ? "notifications.read" : "notifications.templates.manage";'));
+  assert.ok(guard.includes('if (is(/^\\/admin\\/notifications\\/[^/]+\\/publish$/)) return "notifications.manage";'));
   assert.match(catalog, /\["notifications\.read"/);
   assert.match(catalog, /\["notifications\.manage"/);
   assert.match(catalog, /\["notifications\.templates\.manage"/);
