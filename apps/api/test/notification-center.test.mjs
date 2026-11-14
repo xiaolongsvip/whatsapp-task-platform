@@ -121,67 +121,88 @@ test("notice and template writes commit business rows and audit events atomicall
 test("member notification inbox stores per-user read receipts with unique ownership and cascading references", async () => {
   const schema = await read("../../../packages/database/prisma/schema.prisma");
   const migration = await read("../../../packages/database/prisma/migrations/20261115100000_add_notification_read_receipts/migration.sql");
-  assert.match(schema, /model NotificationReadReceipt \\{/);
-  assert.match(schema, /notificationReads\\s+NotificationReadReceipt\\[\\]/);
-  assert.match(schema, /readReceipts\\s+NotificationReadReceipt\\[\\]/);
-  assert.match(schema, /@@unique\\(\\[userId, notificationId\\]\\)/);
-  assert.match(migration, /CREATE TABLE "notification_read_receipts"/);
-  assert.match(migration, /notification_read_receipts_user_id_notification_id_key/);
-  assert.match(migration, /REFERENCES "users"\\("id"\\) ON DELETE CASCADE/);
-  assert.match(migration, /REFERENCES "admin_notifications"\\("id"\\) ON DELETE CASCADE/);
+  for (const fragment of [
+    "model NotificationReadReceipt {",
+    "notificationReads     NotificationReadReceipt[]",
+    "readReceipts      NotificationReadReceipt[]",
+    "@@unique([userId, notificationId])",
+  ]) assert.ok(schema.includes(fragment), "schema missing " + fragment);
+  for (const fragment of [
+    'CREATE TABLE "notification_read_receipts"',
+    "notification_read_receipts_user_id_notification_id_key",
+    'REFERENCES "users"("id") ON DELETE CASCADE',
+    'REFERENCES "admin_notifications"("id") ON DELETE CASCADE',
+  ]) assert.ok(migration.includes(fragment), "migration missing " + fragment);
 });
 
 test("member notification endpoints require a logged-in user and expose list, read and read-all operations", async () => {
   const controller = await read("../src/notifications/member-notifications.controller.ts");
   const module = await read("../src/notifications/notifications.module.ts");
-  assert.match(controller, /@Controller\\("users\\/notifications"\\)/);
-  assert.match(controller, /@Get\\(\\)/);
-  assert.match(controller, /this\\.auth\\.getCurrentUser\\(sessionToken\\(request\\)\\)/);
-  assert.match(controller, /@Patch\\(":id\\/read"\\)/);
-  assert.match(controller, /@Post\\("read-all"\\)/);
-  assert.match(module, /AuthModule/);
-  assert.match(module, /MemberNotificationsController/);
+  for (const fragment of [
+    '@Controller("users/notifications")',
+    "@Get()",
+    "this.auth.getCurrentUser(sessionToken(request))",
+    '@Patch(":id/read")',
+    '@Post("read-all")',
+  ]) assert.ok(controller.includes(fragment), "controller missing " + fragment);
+  assert.ok(module.includes("AuthModule"));
+  assert.ok(module.includes("MemberNotificationsController"));
 });
 
 test("member inbox only returns published notices targeted to the current user and uses stable cursor pagination", async () => {
   const service = await read("../src/notifications/notifications.service.ts");
   const list = service.slice(service.indexOf("async listForMember("), service.indexOf("async markMemberNotificationRead("));
-  assert.match(list, /status: "PUBLISHED"/);
-  assert.match(list, /publishedAt: \\{ not: null \\}/);
-  assert.match(list, /target: \\{ in: targetFilter \\}/);
-  assert.match(list, /readReceipts: \\{ none: \\{ userId \\} \\}/);
-  assert.match(list, /orderBy: \\[\\{ publishedAt: "desc" \\}, \\{ id: "desc" \\}\\]/);
-  assert.match(list, /take: take \\+ 1/);
-  assert.match(list, /nextCursor: hasMore/);
-  assert.match(list, /unreadCount/);
-  assert.match(list, /readReceipts: \\{/);
-  assert.match(list, /isRead: readAt !== null/);
+  for (const fragment of [
+    'status: "PUBLISHED"',
+    "publishedAt: { not: null }",
+    "target: { in: targetFilter }",
+    "readReceipts: { none: { userId } }",
+    'orderBy: [{ publishedAt: "desc" }, { id: "desc" }]',
+    "take: take + 1",
+    "nextCursor: hasMore",
+    "unreadCount",
+    "readReceipts: {",
+    "isRead: readAt !== null",
+  ]) assert.ok(list.includes(fragment), "inbox query missing " + fragment);
 });
 
 test("member read operations are user-scoped, idempotent and support mark-all without duplicate receipts", async () => {
   const service = await read("../src/notifications/notifications.service.ts");
   const markRead = service.slice(service.indexOf("async markMemberNotificationRead("), service.indexOf("async markAllMemberNotificationsRead("));
   const markAll = service.slice(service.indexOf("async markAllMemberNotificationsRead("), service.indexOf("async publicAnnouncements("));
-  assert.match(markRead, /target: \\{ in: targetFilter \\}/);
-  assert.match(markRead, /userId_notificationId: \\{ userId, notificationId \\}/);
-  assert.match(markRead, /notificationReadReceipt\\.upsert/);
-  assert.match(markAll, /readReceipts: \\{ none: \\{ userId \\} \\}/);
-  assert.match(markAll, /notificationReadReceipt\\.createMany/);
-  assert.match(markAll, /skipDuplicates: true/);
+  for (const fragment of [
+    "target: { in: targetFilter }",
+    "userId_notificationId: { userId, notificationId }",
+    "notificationReadReceipt.upsert",
+  ]) assert.ok(markRead.includes(fragment), "mark-read path missing " + fragment);
+  for (const fragment of [
+    "readReceipts: { none: { userId } }",
+    "notificationReadReceipt.createMany",
+    "skipDuplicates: true",
+  ]) assert.ok(markAll.includes(fragment), "mark-all path missing " + fragment);
 });
 
 test("Android notification inbox loads pages, marks read, marks all read and displays unread count entry point", async () => {
   const app = await read("../../../android/app/src/main/java/com/wtp/app/ui/TaskPlatformApp.kt");
   const screen = await read("../../../android/app/src/main/java/com/wtp/app/ui/MemberNotificationsScreen.kt");
   const repository = await read("../../../android/app/src/main/java/com/wtp/app/data/AuthRepository.kt");
-  assert.match(repository, /fun notifications\\(limit: Int = 30/);
-  assert.match(repository, /fun markNotificationRead\\(/);
-  assert.match(repository, /fun markAllNotificationsRead\\(/);
-  assert.match(screen, /AuthRepository\\.notifications\\(30/);
-  assert.match(screen, /AuthRepository\\.markNotificationRead\\(id\\)/);
-  assert.match(screen, /AuthRepository\\.markAllNotificationsRead\\(\\)/);
-  assert.match(screen, /nextCursor/);
-  assert.match(app, /MemberNotificationsScreen/);
-  assert.match(app, /unreadNotificationCount/);
-  assert.match(app, /onNotifications = \\{ showNotifications = true \\}/);
+  for (const fragment of [
+    "fun notifications(limit: Int = 30",
+    "fun markNotificationRead(",
+    "fun markAllNotificationsRead()",
+  ]) assert.ok(repository.includes(fragment), "repository missing " + fragment);
+  for (const fragment of [
+    "AuthRepository.notifications(30",
+    "AuthRepository.markNotificationRead(id)",
+    "AuthRepository.markAllNotificationsRead()",
+    "nextCursor",
+    'hasMore',
+    "Mark read",
+    "Read all",
+  ]) assert.ok(screen.includes(fragment), "notification screen missing " + fragment);
+  for (const fragment of [
+    "MemberNotificationsScreen",
+    "unreadNotificationCount",
+    "onNotifications = { showNotifications = true }",
+  ]) assert.ok(app.includes(fragment), "app shell missing " + fragment);
 });
