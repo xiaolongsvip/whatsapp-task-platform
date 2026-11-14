@@ -26,6 +26,30 @@ function zonedParts(date: Date, timezone: string): DateParts {
   };
 }
 
+export function startOfMonth(timezone: string): Date {
+  const now = new Date();
+  try {
+    const local = zonedParts(now, timezone);
+    const localMonthStartUtc = Date.UTC(local.year, local.month - 1, 1);
+    let candidate = localMonthStartUtc;
+    for (let i = 0; i < 2; i += 1) {
+      const offsetParts = zonedParts(new Date(candidate), timezone);
+      const representedAsUtc = Date.UTC(
+        offsetParts.year, offsetParts.month - 1, offsetParts.day,
+        offsetParts.hour, offsetParts.minute, offsetParts.second,
+      );
+      const offset = representedAsUtc - candidate;
+      candidate = localMonthStartUtc - offset;
+    }
+    return new Date(candidate);
+  } catch {
+    const utc = new Date(now);
+    utc.setUTCDate(1);
+    utc.setUTCHours(0, 0, 0, 0);
+    return utc;
+  }
+}
+
 export function startOfDay(timezone: string): Date {
   const now = new Date();
   try {
@@ -211,10 +235,8 @@ export class DashboardService {
     };
   }
   async getPromotionSummary(userId: string, timezone = "UTC") {
-    const now = new Date();
     const today = startOfDay(timezone);
-    const local = zonedParts(now, timezone);
-    const monthStart = new Date(Date.UTC(local.year, local.month - 1, 1));
+    const monthStart = startOfMonth(timezone);
     const [user, directInvites, activeInvites, teamCount, rewards, todayRewards, monthRewards, wallets] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { referralCode: true } }),
       prisma.referralEdge.count({ where: { inviterUserId: userId } }),
