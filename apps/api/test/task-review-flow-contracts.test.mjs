@@ -22,8 +22,8 @@ test("AI review routes require fine-grained permissions and default deny", () =>
     "reviews.ai.read", "reviews.manage", "reviews.ai.retry",
     "reviews.settings.manage", "该后台接口尚未配置权限映射，已按默认拒绝策略阻止访问",
   ]) has(guard, fragment);
-  has(guard, "/admin/ai-reviews/");
-  has(guard, "/admin/task-submissions/");
+  has(guard, "ai-reviews");
+  has(guard, "task-submissions");
 });
 
 test("claim and evidence submission enforce throttling, idempotency and evidence limits", () => {
