@@ -113,6 +113,7 @@ fun TaskPlatformApp() {
             appContext.stopService(Intent(appContext, ScreenCaptureService::class.java))
             CaptureSessionState.clearActiveClaim()
             CaptureSessionState.clearLastCapture()
+            CaptureSessionState.clearAuthenticatedUser()
             withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }
             authenticated = false
             phone = ""
