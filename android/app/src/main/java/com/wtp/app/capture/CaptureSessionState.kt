@@ -68,6 +68,7 @@ object CaptureSessionState {
                 _lastCapturePath.value = path
                 _lastCaptureClaimId.value = claimId
                 _pendingIdempotencyKey.value = idempotencyKey
+                _activeClaimId.value = claimId
             } else {
                 clearPersistedEvidence(prefs)
                 clearInMemoryEvidence()
@@ -81,18 +82,16 @@ object CaptureSessionState {
 
     internal fun setLastCapture(name: String, path: String, idempotencyKey: String, claimId: String? = null) {
         synchronized(persistenceLock) {
+            var persisted = true
             val prefs = preferences
-            if (!claimId.isNullOrBlank() && idempotencyKey.isNotBlank() && path.isNotBlank() && prefs != null) {
-                val saved = prefs.edit()
+            if (!claimId.isNullOrBlank() && idempotencyKey.isNotBlank() && path.isNotBlank()) {
+                persisted = prefs != null && prefs.edit()
                     .putString(KEY_NAME, name)
                     .putString(KEY_PATH, path)
                     .putString(KEY_CLAIM_ID, claimId)
                     .putString(KEY_IDEMPOTENCY, idempotencyKey)
                     .commit()
-                if (!saved) {
-                    _error.value = "无法保存截图重试信息，请保持 APP 运行并检查设备存储空间。"
-                }
-            } else if (claimId.isNullOrBlank()) {
+            } else {
                 clearPersistedEvidence(prefs)
             }
 
@@ -101,7 +100,8 @@ object CaptureSessionState {
             _lastCaptureClaimId.value = claimId
             _pendingIdempotencyKey.value = idempotencyKey
             _uploadMessage.value = null
-            if (_error.value == null) _error.value = null
+            _error.value = if (persisted) null else
+                "无法保存截图重试信息，请保持 APP 运行并检查设备存储空间。"
         }
     }
 
