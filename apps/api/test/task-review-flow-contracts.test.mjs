@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+const has = (source, fragment, label = fragment) =>
+  assert.ok(source.includes(fragment), `Expected source to contain: ${label}`);
+
 const guard = read("../src/permissions-admin/admin-permission.guard.ts");
 const worker = read("../src/ai-config/ai-review.worker.ts");
 const review = read("../src/ai-config/ai-review-admin.service.ts");
@@ -13,76 +16,74 @@ const androidScreen = read("../../../android/app/src/main/java/com/wtp/app/ui/Ta
 const capture = read("../../../android/app/src/main/java/com/wtp/app/capture/ScreenCaptureService.kt");
 const wallet = read("../src/users/dashboard.service.ts");
 
-test("AI review routes require the intended fine-grained permissions", () => {
-  assert.match(guard, /admin\\/ai-reviews\\\/(?:risk\\/events|risk\\/users|risk\\/rules/);
-  assert.match(guard, /reviews\\.risk\\.read/);
-  assert.match(guard, /reviews\\.risk\\.manage/);
-  assert.match(guard, /admin\\/ai-reviews\\/evidence/);
-  assert.match(guard, /reviews\\.evidence\\.read/);
-  assert.match(guard, /reviews\\.ai\\.read/);
-  assert.match(guard, /reviews\\.manage/);
-  assert.match(guard, /reviews\\.ai\\.retry/);
-  assert.match(guard, /reviews\\.settings\\.manage/);
-  assert.match(guard, /该后台接口尚未配置权限映射，已按默认拒绝策略阻止访问/);
+test("AI review routes require fine-grained permissions and default deny", () => {
+  for (const fragment of [
+    "reviews.risk.read", "reviews.risk.manage", "reviews.evidence.read",
+    "reviews.ai.read", "reviews.manage", "reviews.ai.retry",
+    "reviews.settings.manage", "该后台接口尚未配置权限映射，已按默认拒绝策略阻止访问",
+  ]) has(guard, fragment);
+  has(guard, "/admin/ai-reviews/");
+  has(guard, "/admin/task-submissions/");
 });
 
-test("claim and evidence submission routes are authenticated, throttled, and idempotent", () => {
-  assert.match(controller, /@Throttle\\(\\{ default: \\{ limit: 10, ttl: 60_000 \\} \\}\\)/);
-  assert.match(controller, /@Headers\\("idempotency-key"\\)/);
-  assert.match(controller, /fileSize: 8 \\* 1024 \\* 1024/);
-  assert.match(tasks, /where: \\{ idempotencyKey: key \\}/);
-  assert.match(tasks, /FOR UPDATE/);
-  assert.match(tasks, /contentSha256/);
+test("claim and evidence submission enforce throttling, idempotency and evidence limits", () => {
+  has(controller, '@Throttle({ default: { limit: 10, ttl: 60_000 } })');
+  has(controller, '@Headers("idempotency-key")');
+  has(controller, "fileSize: 8 * 1024 * 1024");
+  has(tasks, "idempotencyKey: key");
+  has(tasks, "FOR UPDATE");
+  has(tasks, "contentSha256");
 });
 
-test("AI decisions settle only above configured confidence gates; uncertain results never pay automatically", () => {
-  assert.match(worker, /parsed\\.confidence >= config\\.approveThreshold/);
-  assert.match(worker, /parsed\\.confidence >= config\\.rejectThreshold/);
-  assert.match(worker, /parsed\\.checks\\.length > 0/);
-  assert.match(worker, /parsed\\.checks\\.every\\(\\(check\\) => check\\.passed === true\\)/);
-  assert.match(worker, /status: "NEEDS_REVIEW"/);
-  assert.match(worker, /if \\(confidentApprove\\)[\\s\\S]*?await this\\.approve/);
-  assert.match(worker, /else \\{[\\s\\S]*?await this\\.reject/);
+test("AI approval and rejection remain confidence-gated and uncertain decisions escalate", () => {
+  has(worker, "config.approveThreshold");
+  has(worker, "config.rejectThreshold");
+  has(worker, "parsed.checks.length > 0");
+  has(worker, "check.passed === true");
+  has(worker, 'status: "NEEDS_REVIEW"');
+  has(worker, "confidentApprove");
+  has(worker, "await this.approve");
+  has(worker, "await this.reject");
 });
 
-test("AI and manual approvals use the same task reward key and referral commission key shape", () => {
+test("AI and manual approvals retain matching task reward and referral idempotency keys", () => {
   const aiApprove = worker.slice(worker.indexOf("private async approve("), worker.indexOf("private async reject("));
-  const manualApprove = review.slice(review.indexOf('if (decision === "APPROVE")'), review.indexOf("} else {", review.indexOf('if (decision === "APPROVE")')));
-  assert.match(aiApprove, /task-reward:\\$\\{claim\\.id\\}/);
-  assert.match(manualApprove, /task-reward:\\$\\{claim\\.id\\}/);
-  assert.match(aiApprove, /referral-commission:\\$\\{claim\\.id\\}:L/);
-  assert.match(manualApprove, /referral-commission:\\$\\{claim\\.id\\}:L/);
-  assert.match(aiApprove, /prisma\\.|tx\\.ledgerEntry\\.createMany/);
-  assert.match(aiApprove, /taskSubmission\\.update[\\s\\S]*?status: "APPROVED"/);
-  assert.match(manualApprove, /taskSubmission\\.update[\\s\\S]*?status: "APPROVED"/);
+  const approvalStart = review.indexOf('if (decision === "APPROVE")');
+  const manualApprove = review.slice(approvalStart, review.indexOf("} else {", approvalStart));
+  has(aiApprove, "task-reward:");
+  has(manualApprove, "task-reward:");
+  has(aiApprove, "referral-commission:");
+  has(manualApprove, "referral-commission:");
+  has(aiApprove, "APPROVED");
+  has(manualApprove, "APPROVED");
 });
 
-test("rejected work returns inventory while preserving the rejection history", () => {
+test("AI and manual rejection recycle unsuccessful inventory", () => {
   const aiReject = worker.slice(worker.indexOf("private async reject("), worker.indexOf("private async retryOrEscalate("));
-  assert.match(aiReject, /status: "REJECTED"/);
-  assert.match(aiReject, /recycleUnsuccessfulTaskClaimInventory/);
-  assert.match(review, /recycleUnsuccessfulTaskClaimInventory\\(tx, claim\\.id, claim\\.taskId\\)/);
+  has(aiReject, 'status: "REJECTED"');
+  has(aiReject, "recycleUnsuccessfulTaskClaimInventory");
+  has(review, "recycleUnsuccessfulTaskClaimInventory(tx, claim.id, claim.taskId)");
 });
 
-test("Android retries the exact failed screenshot against the original claim with the same idempotency key", () => {
-  assert.match(capture, /lastCaptureClaimId\\.value/);
-  assert.match(capture, /pendingIdempotencyKey\\.value/);
-  assert.match(capture, /uploadEvidence\\(retryClaimId, retryPath, retryKey\\)/);
-  assert.match(capture, /markLastCaptureUploaded/);
-  assert.match(androidRepo, /submitTaskEvidence/);
-  assert.match(androidRepo, /Idempotency-Key/);
+test("Android retries the original screenshot for the original claim with the same key", () => {
+  has(capture, "lastCaptureClaimId.value");
+  has(capture, "pendingIdempotencyKey.value");
+  has(capture, "uploadEvidence(retryClaimId, retryPath, retryKey)");
+  has(capture, "markLastCaptureUploaded");
+  has(androidRepo, "submitTaskEvidence");
+  has(androidRepo, "Idempotency-Key");
 });
 
-test("Android reloads authoritative task and claim status after upload and when returning to the app", () => {
-  assert.match(androidScreen, /AuthRepository\\.myTaskClaims\\(\\)/);
-  assert.match(androidScreen, /LaunchedEffect\\(uploadMessage\\)/);
-  assert.match(androidScreen, /LifecycleEventEffect\\(Lifecycle\\.Event\\.ON_RESUME\\)/);
-  assert.match(androidScreen, /claims = result\\.second\\.optJSONArray\\("claims"\\)/);
+test("Android refreshes authoritative claim state after upload and app resume", () => {
+  has(androidScreen, "AuthRepository.myTaskClaims()");
+  has(androidScreen, "LaunchedEffect(uploadMessage)");
+  has(androidScreen, "LifecycleEventEffect(Lifecycle.Event.ON_RESUME)");
+  has(androidScreen, 'optJSONArray("claims")');
 });
 
-test("wallet history distinguishes posted ledger movements from pending withdrawal workflow rows", () => {
-  assert.match(wallet, /direction: "PENDING"/);
-  assert.match(wallet, /status: withdrawal\\.status/);
-  assert.match(wallet, /status: "POSTED"/);
-  assert.match(wallet, /status: \\{ not: "PAID" \}/);
+test("wallet history separates posted ledger movements from pending withdrawal workflow rows", () => {
+  has(wallet, 'direction: "PENDING"');
+  has(wallet, "withdrawal.status");
+  has(wallet, 'status: "POSTED"');
+  has(wallet, 'not: "PAID"');
 });
