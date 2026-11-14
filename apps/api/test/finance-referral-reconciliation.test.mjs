@@ -14,6 +14,8 @@ test("finance reconciliation checks referral rewards against posted wallet ledge
   assert.match(method, /entry\.wallet\.userId !== reward\.beneficiaryId/);
   assert.match(method, /REFERRAL_COMMISSION_LEDGER_MISSING/);
   assert.match(method, /REFERRAL_COMMISSION_LEDGER_MISMATCH/);
+  assert.match(method, /REFERRAL_COMMISSION_REWARD_MISSING/);
   assert.match(method, /referralCommissionsChecked: referralRewards\.length/);
+  assert.match(method, /referralCommissionLedgerEntriesChecked: referralCredits\.length/);
   assert.match(method, /referralKeys\.slice\(offset, offset \+ 500\)/);
 });
