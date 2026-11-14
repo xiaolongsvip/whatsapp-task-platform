@@ -36,3 +36,16 @@ test("AI worker recovers PROCESSING jobs whose lease timestamp is NULL as well a
   assert.match(worker, /FOR UPDATE SKIP LOCKED/);
   assert.match(worker, /attempt_count = attempt_count \+ 1/);
 });
+
+test("AI worker supports bounded local concurrency while defaulting to one job", () => {
+  const worker = readFileSync(new URL("../src/ai-config/ai-review.worker.ts", import.meta.url), "utf8");
+  const env = readFileSync(new URL("../../../.env.example", import.meta.url), "utf8");
+  assert.match(worker, /AI_REVIEW_WORKER_CONCURRENCY \?\? "1"/);
+  assert.match(worker, /configured >= 1 && configured <= 20/);
+  assert.match(worker, /this\.activeWorkers >= this\.maxConcurrentJobs/);
+  assert.match(worker, /this\.activeWorkers \+= 1/);
+  assert.match(worker, /this\.activeWorkers = Math\.max\(0, this\.activeWorkers - 1\)/);
+  assert.match(worker, /FOR UPDATE SKIP LOCKED/);
+  assert.doesNotMatch(worker, /private running = false/);
+  assert.match(env, /AI_REVIEW_WORKER_CONCURRENCY=1/);
+});
