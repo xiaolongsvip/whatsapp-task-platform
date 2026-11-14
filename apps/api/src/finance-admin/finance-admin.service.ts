@@ -748,9 +748,9 @@ export class FinanceAdminService {
     const withdrawalIds = [...new Set(paidWithdrawals.map(x => x.id))];
     const [taskEntries, payoutEntries, payoutTransactions] = await Promise.all([
       claimIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } },
-        select: { sourceId: true, direction: true, amountMinor: true, currency: true } }) : [],
+        select: { sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: { select: { userId: true } } } }) : [],
       withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } },
-        select: { sourceId: true, direction: true, amountMinor: true, currency: true } }) : [],
+        select: { sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: { select: { userId: true } } } }) : [],
       withdrawalIds.length ? prisma.paymentTransaction.findMany({ where: { withdrawalRequestId: { in: withdrawalIds }, flow: "PAYOUT", status: "SUCCEEDED" },
         select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, metadata: true } }) : [],
     ]);
@@ -834,10 +834,10 @@ export class FinanceAdminService {
         continue;
       }
       const entry = rows[0];
-      if (entry.direction !== "CREDIT" || entry.amountMinor !== expectedAmount || entry.currency.trim().toUpperCase() !== expectedCurrency) {
+      if (entry.direction !== "CREDIT" || entry.amountMinor !== expectedAmount || entry.currency.trim().toUpperCase() !== expectedCurrency || entry.wallet.userId !== x.claim.userId) {
         items.push({ type: "TASK_REWARD_AMOUNT_MISMATCH", recordId: x.claimId,
           expectedAmountMinor: expectedAmount.toString(), expectedCurrency, actualAmountMinor: entry.amountMinor.toString(),
-          actualCurrency: entry.currency.trim(), actualDirection: entry.direction, message: "任务奖励流水的金额、币种或方向与任务配置不一致" });
+          actualCurrency: entry.currency.trim(), actualDirection: entry.direction, actualWalletUserId: entry.wallet.userId, expectedWalletUserId: x.claim.userId, message: "任务奖励流水的收款钱包、金额、币种或方向与任务领取人或任务配置不一致" });
       }
     }
     for (const x of paidWithdrawals) {
@@ -848,11 +848,12 @@ export class FinanceAdminService {
           message: ledgerRows.length === 0 ? "提现已标记付款成功，但未找到钱包扣款流水" : "同一提现存在多条钱包扣款流水" });
       } else {
         const entry = ledgerRows[0];
-        if (entry.direction !== "DEBIT" || entry.amountMinor !== x.amountMinor || entry.currency.trim().toUpperCase() !== x.currency.trim().toUpperCase()) {
+        if (entry.walletId !== x.walletId || entry.direction !== "DEBIT" || entry.amountMinor !== x.amountMinor || entry.currency.trim().toUpperCase() !== x.currency.trim().toUpperCase()) {
           items.push({ type: "WITHDRAWAL_LEDGER_AMOUNT_MISMATCH", recordId: x.id,
             expectedAmountMinor: x.amountMinor.toString(), expectedCurrency: x.currency.trim(), expectedDirection: "DEBIT",
             actualAmountMinor: entry.amountMinor.toString(), actualCurrency: entry.currency.trim(), actualDirection: entry.direction,
-            message: "提现钱包扣款流水的金额、币种或方向与提现申请不一致" });
+            expectedWalletId: x.walletId, actualWalletId: entry.walletId,
+            message: "提现钱包扣款流水的钱包、金额、币种或方向与提现申请不一致" });
         }
       }
       const transactions = payoutsByWithdrawal.get(x.id) ?? [];
