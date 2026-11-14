@@ -103,3 +103,20 @@ test("admin task configuration list exposes edit, publish, pause and close actio
   assert.match(admin, /taskAction\(task\.id,"pause"\)/);
   assert.match(admin, /taskAction\(task\.id,"close"\)/);
 });
+
+test("admin claim history reads durable TaskClaim and ContactAssignment records after slot recycling", async () => {
+  const service = await readSource("../src/task-admin/task-admin.service.ts");
+  const controller = await readSource("../src/task-admin/task-admin.controller.ts");
+  const admin = await readSource("../../admin/src/app/tasks/page.tsx");
+  const history = service.slice(service.indexOf("async listClaimHistory("), service.indexOf("async listRecords("));
+  assert.match(history, /prisma\.taskClaim\.findMany/);
+  assert.match(history, /contactAssignment:[\s\S]*?contactNumber/);
+  assert.match(history, /task:[\s\S]*?title/);
+  assert.match(history, /submissions:[\s\S]*?reviews/);
+  assert.match(history, /REJECTED/);
+  assert.match(controller, /@Get\("records\/history"\)/);
+  assert.match(controller, /this\.tasks\.listClaimHistory/);
+  assert.match(admin, /\/api\/v1\/admin\/tasks\/records\/history/);
+  assert.match(admin, /任务领取历史/);
+  assert.match(admin, /失败号码已回收到库存或重新分配/);
+});
