@@ -792,6 +792,7 @@ fun TaskHallScreen(
                                 claim = claim,
                                 isEnglish = isEnglish,
                                 activeClaimId = activeClaimId,
+                                serverClockOffsetMillis = serverClockOffsetMillis,
                                 busy = busyId != null,
                                 onViewDetails = {
                                     if (shouldClearActiveClaimOnViewDetails(activeClaimId, claim.optString("id"))) {
@@ -1283,18 +1284,18 @@ private fun TaskExecutionScreen(
 }
 
 @Composable
-private fun TaskCountdownBadge(expiresAt: String, isEnglish: Boolean, onExpired: () -> Unit) {
+private fun TaskCountdownBadge(expiresAt: String, serverClockOffsetMillis: Long, isEnglish: Boolean, onExpired: () -> Unit) {
     val expiryMillis = remember(expiresAt) {
         runCatching { Instant.parse(expiresAt).toEpochMilli() }.getOrDefault(0L)
     }
     var remainingSeconds by remember(expiryMillis) {
-        mutableStateOf(((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0))
+        mutableStateOf(((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0))
     }
     var expiryNotified by remember(expiryMillis) { mutableStateOf(false) }
 
-    LaunchedEffect(expiryMillis) {
+    LaunchedEffect(expiryMillis, serverClockOffsetMillis) {
         while (expiryMillis > 0L && remainingSeconds > 0L) {
-            remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            remainingSeconds = ((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0L) delay(1000)
         }
         remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
@@ -1633,6 +1634,7 @@ private fun ClaimedTaskCard(
     claim: JSONObject,
     isEnglish: Boolean,
     activeClaimId: String?,
+    serverClockOffsetMillis: Long,
     busy: Boolean,
     onViewDetails: () -> Unit,
     onGoWhatsApp: () -> Unit,
@@ -1671,6 +1673,7 @@ private fun ClaimedTaskCard(
                 ) {
                     TaskCountdownBadge(
                         expiresAt = expiresAt,
+                        serverClockOffsetMillis = serverClockOffsetMillis,
                         isEnglish = isEnglish,
                         onExpired = {
                             if (!countdownExpired) {
