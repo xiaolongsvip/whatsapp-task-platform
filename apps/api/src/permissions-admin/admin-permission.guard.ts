@@ -91,6 +91,14 @@ export class AdminPermissionGuard implements CanActivate {
     if (is(/^\/admin\/referrals\/(?:invites|relations|relations\/audit)$/)) return "referrals.read";
     if (is(/^\/admin\/referrals\/commissions$/)) return "referrals.commissions.read";
 
+    if (is(/^\/admin\/notifications\/records$/)) return "notifications.read";
+    if (is(/^\/admin\/notifications\/templates$/)) return method === "GET" ? "notifications.read" : "notifications.templates.manage";
+    if (is(/^\/admin\/notifications\/templates\/[^/]+(?:\/toggle)?$/)) return "notifications.templates.manage";
+    if (is(/^\/admin\/notifications\/[^/]+\/publish$/)) return "notifications.manage";
+    if (is(/^\/admin\/notifications\/[^/]+\/disable$/)) return "notifications.manage";
+    if (is(/^\/admin\/notifications(?:\/[^/]+)?$/)) return method === "GET" ? "notifications.read" : "notifications.manage";
+
+
     if (is(/^\/admin\/tasks\/records\/dev-test-data$/)) return "tasks.manage";
     if (is(/^\/admin\/tasks\/records\/bulk-message$/)) return "tasks.messages.manage";
     if (is(/^\/admin\/tasks\/records(?:\/[^/]+\/detail)?$/) && method === "GET") return "tasks.executions.read";
