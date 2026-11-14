@@ -38,10 +38,10 @@ test("permission bootstrap is serialized and only the earliest active admin can 
   );
   assert.match(bootstrap, /prisma\.\$transaction/);
   assert.match(bootstrap, /pg_advisory_xact_lock/);
-  assert.match(bootstrap, /tx\.adminUserRole\.count\(\) > 0/);
+  assert.match(bootstrap, /tx\.adminUserRole\.count\(\)\s*>\s*0/);
   assert.match(bootstrap, /tx\.adminUser\.findFirst/);
   assert.match(bootstrap, /where:\s*\{\s*status:\s*"ACTIVE"/);
-  assert.match(bootstrap, /orderBy:\s*\[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-  assert.match(bootstrap, /firstActiveAdmin\.id !== actorId/);
+  assert.match(bootstrap, /orderBy:\s*\[\{\s*createdAt:\s*"asc"\s*\},\s*\{\s*id:\s*"asc"\s*\}\s*\]/);
+  assert.match(bootstrap, /firstActiveAdmin\.id\s*!==\s*actorId/);
   assert.match(bootstrap, /ForbiddenException/);
 });
