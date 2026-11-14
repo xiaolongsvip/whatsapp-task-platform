@@ -95,10 +95,22 @@ export class PermissionsAdminService {
   }
  }
  private async ensureBootstrapSuperAdmin(actorId:string){
-  if(await prisma.adminUserRole.count()===0){
-   const role=await prisma.role.findFirst({where:{isSystem:true,name:"超级管理员"}});
-   if(role) await prisma.adminUserRole.createMany({data:[{adminUserId:actorId,roleId:role.id}],skipDuplicates:true});
-  }
+  await prisma.$transaction(async tx=>{
+   // Serialize first-run initialization so two concurrent admins cannot both
+   // claim the bootstrap super-admin role.
+   await tx.$queryRaw<Array<{ locked: null }>>`SELECT pg_advisory_xact_lock(2026111501::bigint) AS locked`;
+   if(await tx.adminUserRole.count()>0) return;
+   const firstActiveAdmin=await tx.adminUser.findFirst({
+    where:{status:"ACTIVE"},
+    orderBy:[{createdAt:"asc"},{id:"asc"}],
+    select:{id:true},
+   });
+   if(!firstActiveAdmin || firstActiveAdmin.id!==actorId){
+    throw new ForbiddenException("仅最早创建的有效管理员可以初始化首个超级管理员角色。");
+   }
+   const role=await tx.role.findFirst({where:{isSystem:true,name:"超级管理员"}});
+   if(role) await tx.adminUserRole.createMany({data:[{adminUserId:actorId,roleId:role.id}],skipDuplicates:true});
+  });
  }
  private async assertPermission(actorId:string,key:string){
   const count=await prisma.adminUserRole.count({where:{adminUserId:actorId,role:{status:"ACTIVE",permissions:{some:{permission:{key}}}}}});
