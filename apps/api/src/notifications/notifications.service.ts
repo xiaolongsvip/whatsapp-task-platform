@@ -125,17 +125,19 @@ export class NotificationsService {
 
   async create(input: NoticeInput, adminId: string) {
     const data = validateNotice(input);
-    const notice = await prisma.adminNotification.create({
-      data: { ...data, createdByAdminId: adminId },
+    return prisma.$transaction(async (tx) => {
+      const notice = await tx.adminNotification.create({
+        data: { ...data, createdByAdminId: adminId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_DRAFT_CREATED",
+          targetType: "ADMIN_NOTIFICATION", targetId: notice.id,
+          metadata: { title: notice.title, target: notice.target },
+        },
+      });
+      return { success: true, item: notice };
     });
-    await prisma.auditEvent.create({
-      data: {
-        actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_DRAFT_CREATED",
-        targetType: "ADMIN_NOTIFICATION", targetId: notice.id,
-        metadata: { title: notice.title, target: notice.target },
-      },
-    });
-    return { success: true, item: notice };
   }
 
   async update(id: string, input: NoticeInput, adminId: string) {
@@ -249,53 +251,59 @@ export class NotificationsService {
 
   async createTemplate(input: TemplateInput, adminId: string) {
     const data = validateTemplate(input);
-    const item = await prisma.notificationTemplate.create({
-      data: { ...data, createdByAdminId: adminId, updatedByAdminId: adminId },
+    return prisma.$transaction(async (tx) => {
+      const item = await tx.notificationTemplate.create({
+        data: { ...data, createdByAdminId: adminId, updatedByAdminId: adminId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_TEMPLATE_CREATED",
+          targetType: "NOTIFICATION_TEMPLATE", targetId: item.id,
+          metadata: { name: item.name },
+        },
+      });
+      return { success: true, item };
     });
-    await prisma.auditEvent.create({
-      data: {
-        actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_TEMPLATE_CREATED",
-        targetType: "NOTIFICATION_TEMPLATE", targetId: item.id,
-        metadata: { name: item.name },
-      },
-    });
-    return { success: true, item };
   }
 
   async updateTemplate(id: string, input: TemplateInput, adminId: string) {
     const data = validateTemplate(input);
-    const existing = await prisma.notificationTemplate.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("通知模板不存在。");
-    const item = await prisma.notificationTemplate.update({
-      where: { id },
-      data: { ...data, updatedByAdminId: adminId },
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.notificationTemplate.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException("通知模板不存在。");
+      const item = await tx.notificationTemplate.update({
+        where: { id },
+        data: { ...data, updatedByAdminId: adminId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_TEMPLATE_UPDATED",
+          targetType: "NOTIFICATION_TEMPLATE", targetId: id,
+          metadata: { name: item.name },
+        },
+      });
+      return { success: true, item };
     });
-    await prisma.auditEvent.create({
-      data: {
-        actorType: "ADMIN", actorId: adminId, action: "APP_NOTICE_TEMPLATE_UPDATED",
-        targetType: "NOTIFICATION_TEMPLATE", targetId: id,
-        metadata: { name: item.name },
-      },
-    });
-    return { success: true, item };
   }
 
   async toggleTemplate(id: string, enabled: boolean, adminId: string) {
-    const existing = await prisma.notificationTemplate.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("通知模板不存在。");
-    const item = await prisma.notificationTemplate.update({
-      where: { id },
-      data: { enabled, updatedByAdminId: adminId },
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.notificationTemplate.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException("通知模板不存在。");
+      const item = await tx.notificationTemplate.update({
+        where: { id },
+        data: { enabled, updatedByAdminId: adminId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorType: "ADMIN", actorId: adminId,
+          action: enabled ? "APP_NOTICE_TEMPLATE_ENABLED" : "APP_NOTICE_TEMPLATE_DISABLED",
+          targetType: "NOTIFICATION_TEMPLATE", targetId: id,
+          metadata: { name: item.name },
+        },
+      });
+      return { success: true, item };
     });
-    await prisma.auditEvent.create({
-      data: {
-        actorType: "ADMIN", actorId: adminId,
-        action: enabled ? "APP_NOTICE_TEMPLATE_ENABLED" : "APP_NOTICE_TEMPLATE_DISABLED",
-        targetType: "NOTIFICATION_TEMPLATE", targetId: id,
-        metadata: { name: item.name },
-      },
-    });
-    return { success: true, item };
   }
 
   async publicAnnouncements(userId: string) {
