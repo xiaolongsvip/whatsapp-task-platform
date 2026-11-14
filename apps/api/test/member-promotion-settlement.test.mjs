@@ -23,3 +23,10 @@ test("member commission summary batches ledger lookups to avoid oversized IN que
   assert.match(method, /for \(let offset = 0; offset < rewardKeys\.length; offset \+= 500\)/);
   assert.match(method, /rewardKeys\.slice\(offset, offset \+ 500\)/);
 });
+
+test("member promotion summary also verifies referral credit amount and currency", () => {
+  const method = service.slice(service.indexOf("async getPromotionSummary("), service.indexOf("async getWalletOverview("));
+  assert.match(method, /select: \{ idempotencyKey: true, amountMinor: true, currency: true \}/);
+  assert.match(method, /credit\.amountMinor !== row\.amountMinor/);
+  assert.match(method, /credit\.currency\.trim\(\)\.toUpperCase\(\) !== row\.currency\.trim\(\)\.toUpperCase\(\)/);
+});
