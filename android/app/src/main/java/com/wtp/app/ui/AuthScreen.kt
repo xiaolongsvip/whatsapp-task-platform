@@ -71,7 +71,7 @@ private val FieldFill = Color(0x24FFFFFF)
 private val FieldBorder = Color(0x789FC6F4)
 
 @Composable
-fun AuthScreen(onAuthenticated: (String) -> Unit) {
+fun AuthScreen(onAuthenticated: (String, String) -> Unit) {
     val scope = rememberCoroutineScope()
     var isRegister by remember { mutableStateOf(false) }
     var callingCode by remember { mutableStateOf("+1") }
@@ -201,11 +201,13 @@ fun AuthScreen(onAuthenticated: (String) -> Unit) {
                                 else -> scope.launch {
                                     busy = true
                                     try {
-                                        withContext(Dispatchers.IO) {
+                                        val authResult = withContext(Dispatchers.IO) {
                                             if (isRegister) AuthRepository.register(fullPhone, password, inviteCode)
                                             else AuthRepository.login(fullPhone, password)
                                         }
-                                        onAuthenticated(fullPhone)
+                                        val userId = authResult.optJSONObject("user")?.optString("id").orEmpty()
+                                        if (userId.isBlank()) throw IllegalStateException("登录成功，但服务器没有返回有效的用户标识，请重新登录。")
+                                        onAuthenticated(fullPhone, userId)
                                     } catch (exception: Exception) {
                                         error = exception.message ?: "请求失败，请检查网络和 API 服务。"
                                     } finally { busy = false }

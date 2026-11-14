@@ -70,6 +70,7 @@ class ScreenCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        CaptureSessionState.initialize(applicationContext)
         createNotificationChannel()
         workerThread = HandlerThread("wtp-screen-capture").apply { start() }
         workerHandler = Handler(workerThread!!.looper)
@@ -240,7 +241,13 @@ class ScreenCaptureService : Service() {
             val activeClaimId = CaptureSessionState.activeClaimId.value
             if (!activeClaimId.isNullOrBlank()) {
                 val idempotencyKey = UUID.randomUUID().toString()
-                CaptureSessionState.setLastCapture(file.name, file.absolutePath, idempotencyKey, activeClaimId)
+                val retryStateSaved = CaptureSessionState.setLastCapture(file.name, file.absolutePath, idempotencyKey, activeClaimId)
+                if (!retryStateSaved) {
+                    CaptureSessionState.setError("截图已保存在本机，但无法持久化重试信息；请检查设备存储空间后再操作。")
+                    updateNotification("无法安全保存重试信息，暂未上传截图")
+                    setFloatingStatus("保存失败\\n请检查存储")
+                    return
+                }
                 setFloatingStatus("上传中…")
                 updateNotification("截图成功，正在上传并提交审核…")
                 uploadEvidence(activeClaimId, file.absolutePath, idempotencyKey)

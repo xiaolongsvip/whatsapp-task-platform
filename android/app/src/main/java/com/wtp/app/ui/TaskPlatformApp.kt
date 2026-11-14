@@ -83,6 +83,9 @@ fun TaskPlatformApp() {
         checkRequiredUpdate()
         try {
             val user = withContext(Dispatchers.IO) { AuthRepository.currentUser() }
+            if (!CaptureSessionState.setAuthenticatedUser(user.optString("id"))) {
+                throw IllegalStateException("无法确认当前登录账户，已暂停恢复本地截图重试记录。")
+            }
             phone = user.optString("phone")
             language = user.optJSONObject("profile")?.optString("locale")?.takeIf { it == "en" } ?: "zh-CN"
             authenticated = true
@@ -97,11 +100,20 @@ fun TaskPlatformApp() {
             onRetry = { scope.launch { checkRequiredUpdate() } }
         )
         checkingUpdate || checking -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        !authenticated -> AuthScreen { phone = it; authenticated = true }
+        !authenticated -> AuthScreen { authenticatedPhone, userId ->
+            if (CaptureSessionState.setAuthenticatedUser(userId)) {
+                phone = authenticatedPhone
+                authenticated = true
+            } else {
+                phone = ""
+                authenticated = false
+            }
+        }
         else -> MemberShell(phone, language, onLanguageChanged = { language = it }) {
             appContext.stopService(Intent(appContext, ScreenCaptureService::class.java))
             CaptureSessionState.clearActiveClaim()
             CaptureSessionState.clearLastCapture()
+            CaptureSessionState.clearAuthenticatedUser()
             withContext(Dispatchers.IO) { runCatching { AuthRepository.logout() } }
             authenticated = false
             phone = ""
