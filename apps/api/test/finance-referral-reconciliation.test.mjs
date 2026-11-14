@@ -27,6 +27,10 @@ test("admin reconciliation detail displays referral beneficiary, expected amount
   assert.match(adminPage, /x\.actualSourceType/);
   assert.match(adminPage, /x\.actualWalletUserId/);
   assert.match(adminPage, /x\.expectedAmountMinor/);
+  assert.match(adminPage, /x\.expectedWalletUserId/);
+  assert.match(adminPage, /x\.actualWalletUserId/);
+  assert.match(adminPage, /x\.expectedWalletId/);
+  assert.match(adminPage, /x\.actualWalletId/);
 });
 
 
