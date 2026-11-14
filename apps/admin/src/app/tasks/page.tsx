@@ -39,6 +39,14 @@ type TaskGroupOption = { id: string; name: string; description: string | null; t
 type RecordStatus = "AVAILABLE" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "CLOSED" | "FROZEN" | "VOIDED";
 type TaskRecord = { id: string; taskId: string; taskStatus: TaskStatus; inventoryStatus: "AVAILABLE" | "ASSIGNED" | "USED" | "VOIDED"; taskName: string; phoneNumber: string; groupName: string; rewardAmount: string; currency: string; messageTemplate: string; countryRegion: string; status: RecordStatus; createdAt: string; claimId: string | null; claimedAt: string | null; claimedUserId: string | null };
 type TaskRecordsResponse = { items: TaskRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number }; stats: { total: number; available: number; inProgress: number; review: number; completed: number; closed: number; frozen: number; voided: number; todayCreated: number; todayCompleted: number; todayVoided: number; successRate: number } };
+type ClaimHistoryRecord = {
+  id: string; taskId: string; taskName: string; category: string; groupName: string;
+  phoneNumber: string; countryRegion: string; userPhone: string; rewardAmount: string; currency: string;
+  status: string; claimedAt: string; expiresAt: string | null; submissionId: string | null;
+  submissionStatus: string | null; submittedAt: string | null; reviewDecision: string | null;
+  reviewReason: string | null; aiReviewStatus: string | null; aiConfidence: number | null;
+};
+type ClaimHistoryResponse = { items: ClaimHistoryRecord[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } };
 
 type TaskForm = {
   title: string;
@@ -131,6 +139,15 @@ export default function AdminTasksPage() {
   const [useStageFilter, setUseStageFilter] = useState<"ALL" | "USED" | "UNUSED">("ALL");
   const [reviewResultFilter, setReviewResultFilter] = useState<"ALL" | "APPROVED" | "PENDING" | "REJECTED">("ALL");
   const [taskIdFilter, setTaskIdFilter] = useState("");
+  const [claimHistory, setClaimHistory] = useState<ClaimHistoryRecord[]>([]);
+  const [claimHistoryPage, setClaimHistoryPage] = useState(1);
+  const [claimHistoryPageSize, setClaimHistoryPageSize] = useState(20);
+  const [claimHistoryTotal, setClaimHistoryTotal] = useState(0);
+  const [claimHistoryTotalPages, setClaimHistoryTotalPages] = useState(1);
+  const [claimHistoryKeyword, setClaimHistoryKeyword] = useState("");
+  const [claimHistoryTaskId, setClaimHistoryTaskId] = useState("");
+  const [claimHistoryStatus, setClaimHistoryStatus] = useState("ALL");
+  const [claimHistoryLoading, setClaimHistoryLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<TaskRecord | null>(null);
   const [selectedGroup, setSelectedGroup] = useState("");
   const [groupSaving, setGroupSaving] = useState(false);
@@ -168,6 +185,29 @@ export default function AdminTasksPage() {
   useEffect(() => {
     if (authenticated) void loadRecords().catch((err)=>setError(err instanceof Error?err.message:"任务号码记录加载失败。"));
   }, [authenticated,loadRecords]);
+
+  const loadClaimHistory = useCallback(async () => {
+    setClaimHistoryLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(claimHistoryPage),
+        pageSize: String(claimHistoryPageSize),
+        keyword: claimHistoryKeyword.trim(),
+        taskId: claimHistoryTaskId.trim(),
+        status: claimHistoryStatus,
+      });
+      const result = await api<ClaimHistoryResponse>("/api/v1/admin/tasks/records/history?" + params.toString());
+      setClaimHistory(result.items);
+      setClaimHistoryTotal(result.pagination.total);
+      setClaimHistoryTotalPages(result.pagination.totalPages);
+    } finally {
+      setClaimHistoryLoading(false);
+    }
+  }, [claimHistoryPage,claimHistoryPageSize,claimHistoryKeyword,claimHistoryTaskId,claimHistoryStatus]);
+
+  useEffect(() => {
+    if (authenticated) void loadClaimHistory().catch((err)=>setError(err instanceof Error?err.message:"领取历史加载失败。"));
+  }, [authenticated,loadClaimHistory]);
 
   const groupNames = Array.from(new Set(taskGroups.map((group) => group.name).filter((name) => name && name !== "未分组")));
   const visibleRecords = records;
@@ -467,6 +507,49 @@ export default function AdminTasksPage() {
             {pageNumbers.map((number)=><button key={number} className={"tasks-outline-btn "+(page===number?"active":"")} onClick={()=>setPage(number)}>{number}</button>)}
             <button className="tasks-outline-btn" disabled={page>=totalPages} onClick={()=>setPage((value)=>Math.min(totalPages,value+1))}><ChevronRight size={14}/></button>
             <select value={pageSize} onChange={(event)=>{setPageSize(Number(event.target.value));setPage(1);}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select>
+          </div>
+        </footer>
+      </section>
+      <section className="tasks-management-card" aria-label="任务领取历史" style={{marginTop:16}}>
+        <div style={{padding:"16px 18px",borderBottom:"1px solid #e5eaf1"}}>
+          <h2 style={{margin:0,fontSize:16}}>任务领取历史</h2>
+          <p style={{margin:"5px 0 0",fontSize:12,color:"#718096"}}>独立读取历史领取与审核记录。即使失败号码已回收到库存或重新分配给其他任务，原任务、号码、用户和审核结果仍会保留在这里。</p>
+        </div>
+        <div className="tasks-toolbar">
+          <div className="tasks-search"><Search size={15}/><input value={claimHistoryKeyword} onChange={(event)=>setClaimHistoryKeyword(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"){setClaimHistoryPage(1);void loadClaimHistory();}}} placeholder="任务名称、领取编号、用户手机号或任务号码" aria-label="搜索领取历史"/></div>
+          <select aria-label="领取历史状态" value={claimHistoryStatus} onChange={(event)=>{setClaimHistoryStatus(event.target.value);setClaimHistoryPage(1);}}>
+            <option value="ALL">全部领取状态</option><option value="REJECTED">已拒绝</option><option value="EXPIRED">已超时</option><option value="CANCELLED">已取消</option><option value="APPROVED">已通过</option><option value="UNDER_REVIEW">审核中</option><option value="SUBMITTED">已提交</option><option value="CLAIMED">已领取</option><option value="IN_PROGRESS">执行中</option>
+          </select>
+          <input aria-label="领取历史任务编号" value={claimHistoryTaskId} onChange={(event)=>setClaimHistoryTaskId(event.target.value)} placeholder="完整任务 UUID" style={{maxWidth:250}}/>
+          <button className="tasks-primary-btn tasks-search-btn" type="button" disabled={claimHistoryLoading} onClick={()=>{setClaimHistoryPage(1);void loadClaimHistory();}}>查询历史</button>
+        </div>
+        <div style={{padding:"0 16px 10px",fontSize:12,color:"#718096"}}>共 {claimHistoryTotal.toLocaleString()} 条历史领取记录</div>
+        <div className="tasks-table-scroll">
+          <table className="tasks-management-table">
+            <thead><tr><th>任务名称</th><th>号码</th><th>领取用户</th><th>领取编号</th><th>领取状态</th><th>审核结论</th><th>审核理由</th><th>领取时间</th><th>提交时间</th></tr></thead>
+            <tbody>
+              {claimHistoryLoading ? <tr><td colSpan={9} className="tasks-empty-row">正在加载领取历史…</td></tr> :
+                claimHistory.map((item)=><tr key={item.id}>
+                  <td className="tasks-title-cell" title={item.taskName}>{item.taskName}</td>
+                  <td>{item.phoneNumber}</td><td>{item.userPhone}</td>
+                  <td title={item.id}>{item.id.slice(0,8)}…</td>
+                  <td><span className={"tasks-status-pill "+item.status.toLowerCase()}>{({CLAIMED:"已领取",IN_PROGRESS:"执行中",SUBMITTED:"已提交",UNDER_REVIEW:"审核中",APPROVED:"已通过",REJECTED:"已拒绝",EXPIRED:"已超时",CANCELLED:"已取消"} as Record<string,string>)[item.status] ?? item.status}</span></td>
+                  <td>{item.reviewDecision === "APPROVE" ? "通过" : item.reviewDecision === "REJECT" ? "拒绝" : item.reviewDecision ?? "—"}</td>
+                  <td className="tasks-template-cell" title={item.reviewReason ?? ""}>{item.reviewReason || "—"}</td>
+                  <td>{new Date(item.claimedAt).toLocaleString("zh-CN",{hour12:false})}</td>
+                  <td>{item.submittedAt ? new Date(item.submittedAt).toLocaleString("zh-CN",{hour12:false}) : "—"}</td>
+                </tr>)}
+              {!claimHistoryLoading && claimHistory.length===0 && <tr><td colSpan={9} className="tasks-empty-row">暂无符合条件的领取历史</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <footer className="tasks-table-footer">
+          <span>共 {claimHistoryTotal.toLocaleString()} 条</span>
+          <div className="tasks-pagination">
+            <button className="tasks-outline-btn" disabled={claimHistoryPage<=1 || claimHistoryLoading} onClick={()=>setClaimHistoryPage((value)=>Math.max(1,value-1))}><ChevronLeft size={14}/></button>
+            <span>{claimHistoryPage} / {claimHistoryTotalPages}</span>
+            <button className="tasks-outline-btn" disabled={claimHistoryPage>=claimHistoryTotalPages || claimHistoryLoading} onClick={()=>setClaimHistoryPage((value)=>Math.min(claimHistoryTotalPages,value+1))}><ChevronRight size={14}/></button>
+            <select value={claimHistoryPageSize} onChange={(event)=>{setClaimHistoryPageSize(Number(event.target.value));setClaimHistoryPage(1);}}><option value={20}>20 条/页</option><option value={50}>50 条/页</option><option value={100}>100 条/页</option></select>
           </div>
         </footer>
       </section>
