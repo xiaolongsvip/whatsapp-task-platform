@@ -161,7 +161,7 @@ export class DashboardService {
     // announcement ticker; this is not an operating-system push notification.
     const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
     const noticeTargets = currentUser?.status === "ACTIVE" ? ["ALL", "ACTIVE"] : ["ALL"];
-    const [noticeRows, supportSetting] = await Promise.all([
+    const [noticeRows, supportSetting, unreadNotificationCount] = await Promise.all([
       prisma.adminNotification.findMany({
         where: { status: "PUBLISHED", target: { in: noticeTargets } },
         orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
@@ -169,6 +169,14 @@ export class DashboardService {
         select: { title: true, content: true },
       }),
       prisma.taskConfiguration.findUnique({ where: { key: "system.appSupport" } }),
+      prisma.adminNotification.count({
+        where: {
+          status: "PUBLISHED",
+          publishedAt: { not: null },
+          target: { in: noticeTargets },
+          readReceipts: { none: { userId } },
+        },
+      }),
     ]);
     const announcements = noticeRows.map((item) => item.title ? item.title + "： " + item.content : item.content);
     const configuredSupportUrl = typeof supportSetting?.value === "object" && supportSetting.value !== null
@@ -178,6 +186,7 @@ export class DashboardService {
 
     return {
       announcements,
+      unreadNotificationCount,
       dailyTaskLimit,
       minClaimIntervalSeconds,
       nextClaimAt,

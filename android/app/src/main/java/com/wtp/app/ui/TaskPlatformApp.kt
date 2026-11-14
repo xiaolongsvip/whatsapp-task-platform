@@ -181,6 +181,7 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
     var showTeamPage by rememberSaveable { mutableStateOf(false) }
     var walletPage by rememberSaveable { mutableStateOf("home") }
     var profilePage by rememberSaveable { mutableStateOf("home") }
+    var showNotifications by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val navLabels = if (language == "en") listOf("Home", "Tasks", "Promote", "Wallet", "Me") else listOf("首页", "任务", "推广", "钱包", "我的")
     val navIcons = listOf(Icons.Default.Home, Icons.Default.Assignment, Icons.Default.Group, Icons.Default.Wallet, Icons.Default.AccountCircle)
@@ -189,8 +190,10 @@ private fun MemberShell(phone: String, language: String, onLanguageChanged: (Str
             navLabels.forEachIndexed { i, label -> NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(navIcons[i], label) }, label = { Text(label) }) }
         }
     }) { padding ->
-        when (tab) {
-            0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it }, language = language, onLanguageChanged = onLanguageChanged)
+        if (showNotifications) {
+            MemberNotificationsScreen(Modifier.padding(padding), language, onBack = { showNotifications = false })
+        } else when (tab) {
+            0 -> HomeDashboardScreen(Modifier.padding(padding), onNavigate = { tab = it }, language = language, onLanguageChanged = onLanguageChanged, onNotifications = { showNotifications = true })
             1 -> TaskHallScreen(Modifier.padding(padding), language, onLanguageChanged)
             2 -> when {
                 showTeamPage -> TeamDataScreen(Modifier.padding(padding), language, onBack = { showTeamPage = false })
@@ -525,7 +528,7 @@ private fun ProfileMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector
 }
 
 @Composable
-private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int) -> Unit, language: String, onLanguageChanged: (String) -> Unit) {
+private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int) -> Unit, language: String, onLanguageChanged: (String) -> Unit, onNotifications: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var data by remember { mutableStateOf<JSONObject?>(null) }
@@ -611,6 +614,22 @@ private fun HomeDashboardScreen(modifier: Modifier = Modifier, onNavigate: (Int)
             }
             Text(if (isEnglish) "Home" else "首页", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onNotifications) {
+                    Box {
+                        Icon(Icons.Default.Notifications, contentDescription = if (isEnglish) "Notifications" else "通知", tint = Color.White)
+                        val unread = data?.optInt("unreadNotificationCount", 0) ?: 0
+                        if (unread > 0) {
+                            Text(
+                                if (unread > 99) "99+" else unread.toString(),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.align(Alignment.TopEnd)
+                                    .background(Color(0xFFE53945), RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                            )
+                        }
+                    }
+                }
                 IconButton(onClick = {
                     val supportUrl = data?.optString("supportUrl")?.takeIf { it.isNotBlank() && it != "null" }
                     if (supportUrl == null) supportDialogOpen = true

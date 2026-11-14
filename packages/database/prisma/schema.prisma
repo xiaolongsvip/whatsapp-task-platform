@@ -157,6 +157,7 @@ model User {
   payoutAccounts        PayoutAccount[]
   paymentTransactions   PaymentTransaction[]
   devices               UserDevice[]
+  notificationReads     NotificationReadReceipt[]
 
   @@index([status, createdAt])
   @@map("users")
@@ -925,10 +926,25 @@ model AdminNotification {
   disabledAt        DateTime? @map("disabled_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
+  readReceipts      NotificationReadReceipt[]
 
   @@index([status, publishedAt])
   @@index([createdAt])
   @@map("admin_notifications")
+}
+
+model NotificationReadReceipt {
+  id             String            @id @default(uuid()) @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  notificationId String            @map("notification_id") @db.Uuid
+  readAt         DateTime          @default(now()) @map("read_at")
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification   AdminNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationId])
+  @@index([userId, readAt])
+  @@index([notificationId])
+  @@map("notification_read_receipts")
 }
 
 model NotificationTemplate {

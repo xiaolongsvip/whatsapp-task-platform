@@ -306,6 +306,126 @@ export class NotificationsService {
     });
   }
 
+  private async memberNotificationTarget(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+    if (!user) throw new NotFoundException("用户不存在。");
+    return user.status === "ACTIVE" ? ["ALL", "ACTIVE"] : ["ALL"];
+  }
+
+  async listForMember(userId: string, input: { limit?: string; beforePublishedAt?: string; beforeId?: string }) {
+    const parsedLimit = Number.parseInt(input.limit ?? "30", 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(50, Math.max(1, parsedLimit)) : 30;
+    let cursorDate: Date | null = null;
+    let cursorId: string | null = null;
+    if (input.beforePublishedAt || input.beforeId) {
+      if (!input.beforePublishedAt || !input.beforeId ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.beforeId)) {
+        throw new BadRequestException("通知分页游标无效，请刷新后重试。");
+      }
+      cursorDate = new Date(input.beforePublishedAt);
+      if (Number.isNaN(cursorDate.getTime())) {
+        throw new BadRequestException("通知分页时间无效，请刷新后重试。");
+      }
+      cursorId = input.beforeId;
+    }
+
+    const targetFilter = await this.memberNotificationTarget(userId);
+    const where: Prisma.AdminNotificationWhereInput = {
+      status: "PUBLISHED",
+      publishedAt: { not: null },
+      target: { in: targetFilter },
+      ...(cursorDate && cursorId ? {
+        OR: [
+          { publishedAt: { lt: cursorDate } },
+          { publishedAt: cursorDate, id: { lt: cursorId } },
+        ],
+      } : {}),
+    };
+    const unreadWhere: Prisma.AdminNotificationWhereInput = {
+      status: "PUBLISHED",
+      publishedAt: { not: null },
+      target: { in: targetFilter },
+      readReceipts: { none: { userId } },
+    };
+    const [rows, unreadCount] = await prisma.$transaction([
+      prisma.adminNotification.findMany({
+        where,
+        orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+        take: take + 1,
+        include: {
+          readReceipts: {
+            where: { userId },
+            select: { readAt: true },
+            take: 1,
+          },
+        },
+      }),
+      prisma.adminNotification.count({ where: unreadWhere }),
+    ]);
+    const hasMore = rows.length > take;
+    const items = rows.slice(0, take);
+    const last = items[items.length - 1];
+    return {
+      items: items.map((notice) => {
+        const readAt = notice.readReceipts[0]?.readAt ?? null;
+        return {
+          id: notice.id,
+          title: notice.title,
+          content: notice.content,
+          publishedAt: notice.publishedAt!.toISOString(),
+          isRead: readAt !== null,
+          readAt: readAt?.toISOString() ?? null,
+        };
+      }),
+      unreadCount,
+      hasMore,
+      nextCursor: hasMore && last?.publishedAt
+        ? { publishedAt: last.publishedAt.toISOString(), id: last.id }
+        : null,
+    };
+  }
+
+  async markMemberNotificationRead(userId: string, notificationId: string) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(notificationId)) {
+      throw new BadRequestException("通知 ID 格式无效。");
+    }
+    const targetFilter = await this.memberNotificationTarget(userId);
+    const notice = await prisma.adminNotification.findFirst({
+      where: { id: notificationId, status: "PUBLISHED", target: { in: targetFilter } },
+      select: { id: true },
+    });
+    if (!notice) throw new NotFoundException("通知不存在或已不可查看。");
+    const receipt = await prisma.notificationReadReceipt.upsert({
+      where: { userId_notificationId: { userId, notificationId } },
+      create: { userId, notificationId },
+      update: {},
+      select: { readAt: true },
+    });
+    return { success: true, notificationId, readAt: receipt.readAt.toISOString() };
+  }
+
+  async markAllMemberNotificationsRead(userId: string) {
+    const targetFilter = await this.memberNotificationTarget(userId);
+    const result = await prisma.$transaction(async (tx) => {
+      const unread = await tx.adminNotification.findMany({
+        where: {
+          status: "PUBLISHED",
+          publishedAt: { not: null },
+          target: { in: targetFilter },
+          readReceipts: { none: { userId } },
+        },
+        select: { id: true },
+      });
+      if (!unread.length) return 0;
+      const inserted = await tx.notificationReadReceipt.createMany({
+        data: unread.map((notice) => ({ userId, notificationId: notice.id })),
+        skipDuplicates: true,
+      });
+      return inserted.count;
+    });
+    return { success: true, markedCount: result };
+  }
+
   async publicAnnouncements(userId: string) {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
     const targetFilter = user?.status === "ACTIVE" ? ["ALL", "ACTIVE"] : ["ALL"];

@@ -226,6 +226,25 @@ object AuthRepository {
 
     fun dashboard(): JSONObject = request("GET", "users/dashboard")
 
+    fun notifications(limit: Int = 30, beforePublishedAt: String? = null, beforeId: String? = null): JSONObject {
+        val query = buildString {
+            append("users/notifications?limit=").append(limit.coerceIn(1, 50))
+            if (!beforePublishedAt.isNullOrBlank() && !beforeId.isNullOrBlank()) {
+                append("&beforePublishedAt=").append(java.net.URLEncoder.encode(beforePublishedAt, "UTF-8"))
+                append("&beforeId=").append(java.net.URLEncoder.encode(beforeId, "UTF-8"))
+            }
+        }
+        return request("GET", query)
+    }
+
+    fun markNotificationRead(id: String): JSONObject {
+        require(id.isNotBlank()) { "notification ID must not be blank" }
+        return request("PATCH", "users/notifications/$id/read")
+    }
+
+    fun markAllNotificationsRead(): JSONObject =
+        request("POST", "users/notifications/read-all")
+
     fun promotionSummary(): JSONObject = request("GET", "users/promotion")
 
     fun commissionRecords(limit: Int = 100, beforeCreatedAt: String? = null, beforeId: String? = null): JSONObject {
