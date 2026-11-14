@@ -101,7 +101,7 @@ export class AdminPermissionGuard implements CanActivate {
 
     if (is(/^\/admin\/tasks\/records\/dev-test-data$/)) return "tasks.manage";
     if (is(/^\/admin\/tasks\/records\/bulk-message$/)) return "tasks.messages.manage";
-    if (is(/^\/admin\/tasks\/records(?:\/[^/]+\/detail)?$/) && method === "GET") return "tasks.executions.read";
+    if (is(/^\/admin\/tasks\/records(?:\/history|\/[^/]+\/detail)?$/) && method === "GET") return "tasks.executions.read";
     if (is(/^\/admin\/tasks\/records\/[^/]+$/) && method === "DELETE") return "tasks.manage";
     if (is(/^\/admin\/tasks\/records\/(?:bulk-void|bulk-delete|bulk-group|[^/]+\/(?:void))$/)) return "tasks.manage";
     if (is(/^\/admin\/tasks\/message-templates(?:\/[^/]+)?$/)) return method === "GET" ? "tasks.messages.read" : "tasks.messages.manage";
