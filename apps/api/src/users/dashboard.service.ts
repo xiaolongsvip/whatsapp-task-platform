@@ -235,9 +235,7 @@ export class DashboardService {
     };
   }
   async getPromotionSummary(userId: string, timezone = "UTC") {
-    const now = new Date();
     const today = startOfDay(timezone);
-    const local = zonedParts(now, timezone);
     const monthStart = startOfMonth(timezone);
     const [user, directInvites, activeInvites, teamCount, rewards, todayRewards, monthRewards, wallets] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { referralCode: true } }),
