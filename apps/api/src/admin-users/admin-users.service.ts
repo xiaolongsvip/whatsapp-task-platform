@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import * as argon2 from "argon2";
 import { prisma } from "@wtp/database";
 import { startOfDay } from "../users/dashboard.service";
+import { lockUserDeviceIdentifier } from "../users/device-identifier-lock";
 
 const validStatuses = ["ALL", "ACTIVE", "SUSPENDED", "PENDING", "CLOSED"] as const;
 type FilterStatus = typeof validStatuses[number];
@@ -202,21 +203,35 @@ export class AdminUsersService {
     if (body.isFlagged !== undefined && typeof body.isFlagged !== "boolean") throw new BadRequestException("设备风险标记无效。");
     const reason = body.reason?.trim();
     if (!reason || reason.length > 500) throw new BadRequestException("请填写 1 到 500 个字符的操作原因。");
-    const selected = await prisma.userDevice.findFirst({ where: { id: deviceId, userId } });
+    const selected = await prisma.userDevice.findFirst({
+      where: { id: deviceId, userId },
+      select: { deviceIdentifier: true },
+    });
     if (!selected) throw new NotFoundException("设备记录不存在。");
-    // Apply device-level actions to every account row carrying this same app-scoped Android ID.
-    const linkedRows = await prisma.userDevice.findMany({ where: { deviceIdentifier: selected.deviceIdentifier } });
-    const statusChanged = body.status !== undefined && linkedRows.some((row) => row.status !== body.status);
-    const flagChanged = body.isFlagged !== undefined && linkedRows.some((row) => row.isFlagged !== body.isFlagged);
-    if (!statusChanged && !flagChanged) throw new BadRequestException("设备状态没有变化。");
-    const updated = await prisma.$transaction(async (tx) => {
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Use the same device-identifier lock as member registration so a new
+      // account cannot register while an administrator is restricting it.
+      await lockUserDeviceIdentifier(tx, selected.deviceIdentifier);
+      const linkedRows = await tx.userDevice.findMany({
+        where: { deviceIdentifier: selected.deviceIdentifier },
+      });
+      if (!linkedRows.length) throw new NotFoundException("设备记录不存在。");
+
+      const statusChanged = body.status !== undefined && linkedRows.some((row) => row.status !== body.status);
+      const flagChanged = body.isFlagged !== undefined && linkedRows.some((row) => row.isFlagged !== body.isFlagged);
+      if (!statusChanged && !flagChanged) throw new BadRequestException("设备状态没有变化。");
+
       const data = {
         ...(body.status !== undefined ? { status: body.status, statusUpdatedAt: new Date() } : {}),
         ...(body.isFlagged !== undefined ? { isFlagged: body.isFlagged, flagReason: body.isFlagged ? reason : null } : {}),
       };
       await tx.userDevice.updateMany({ where: { deviceIdentifier: selected.deviceIdentifier }, data });
       if (body.status === "BLOCKED") {
-        await tx.authSession.updateMany({ where: { userId: { in: linkedRows.map((row) => row.userId) }, revokedAt: null }, data: { revokedAt: new Date() } });
+        await tx.authSession.updateMany({
+          where: { userId: { in: linkedRows.map((row) => row.userId) }, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
       }
       const events = linkedRows.flatMap((row) => {
         const entries = [];
@@ -234,14 +249,32 @@ export class AdminUsersService {
       });
       if (events.length) await tx.userDeviceEvent.createMany({ data: events });
       await tx.auditEvent.create({
-        data: { actorType: "ADMIN", actorId: adminId, action: "USER_DEVICE_UPDATED", targetType: "USER", targetId: userId,
-          metadata: { deviceIdentifier: selected.deviceIdentifier, affectedDeviceIds: linkedRows.map((row) => row.id), affectedAccountCount: linkedRows.length, status: body.status, isFlagged: body.isFlagged, reason } },
+        data: {
+          actorType: "ADMIN",
+          actorId: adminId,
+          action: "USER_DEVICE_UPDATED",
+          targetType: "USER",
+          targetId: userId,
+          metadata: {
+            deviceIdentifier: selected.deviceIdentifier,
+            affectedDeviceIds: linkedRows.map((row) => row.id),
+            affectedAccountCount: linkedRows.length,
+            status: body.status,
+            isFlagged: body.isFlagged,
+            reason,
+          },
+        },
       });
-      return tx.userDevice.findFirst({ where: { id: deviceId } });
+      const updated = await tx.userDevice.findFirst({ where: { id: deviceId } });
+      return {
+        affectedAccounts: linkedRows.length,
+        device: updated ? {
+          id: updated.id, status: updated.status, isFlagged: updated.isFlagged, flagReason: updated.flagReason,
+        } : null,
+      };
     });
-    return { success: true, affectedAccounts: linkedRows.length, device: updated ? { id: updated.id, status: updated.status, isFlagged: updated.isFlagged, flagReason: updated.flagReason } : null };
+    return { success: true, ...result };
   }
-
   async updatePolicy(userId: string, body: { dailyTaskLimit?: number | null; minClaimIntervalSeconds?: number | null }) {
     if (body.dailyTaskLimit !== undefined && body.dailyTaskLimit !== null && (!Number.isInteger(body.dailyTaskLimit) || body.dailyTaskLimit < 0 || body.dailyTaskLimit > 100000)) throw new BadRequestException("每日任务上限必须是 0 到 100000 的整数；留空表示继承系统默认。");
     if (body.minClaimIntervalSeconds !== undefined && body.minClaimIntervalSeconds !== null && (!Number.isInteger(body.minClaimIntervalSeconds) || body.minClaimIntervalSeconds < 0 || body.minClaimIntervalSeconds > 86400)) throw new BadRequestException("最小领取间隔必须是 0 到 86400 秒；留空表示继承系统默认。");
