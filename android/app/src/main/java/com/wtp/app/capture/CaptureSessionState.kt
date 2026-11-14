@@ -55,6 +55,7 @@ object CaptureSessionState {
     /** Must be called from Application context before the capture service is used. */
     fun initialize(context: Context) {
         synchronized(persistenceLock) {
+            if (preferences != null) return
             val appContext = context.applicationContext
             val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             preferences = prefs
@@ -73,13 +74,15 @@ object CaptureSessionState {
                 idempotencyKey = idempotencyKey,
             )
 
-            if (metadata.path?.isNotBlank() == true &&
+            val validPath = path?.takeIf { candidate ->
+                candidate.isNotBlank() && isManagedEvidenceFile(candidate) && File(candidate).isFile
+            }
+            if (validPath != null &&
                 metadata.claimId?.isNotBlank() == true &&
-                metadata.idempotencyKey?.isNotBlank() == true &&
-                isManagedEvidenceFile(path)
+                metadata.idempotencyKey?.isNotBlank() == true
             ) {
-                _lastCaptureName.value = name ?: File(path).name
-                _lastCapturePath.value = path
+                _lastCaptureName.value = name ?: File(validPath).name
+                _lastCapturePath.value = validPath
                 _lastCaptureClaimId.value = claimId
                 _pendingIdempotencyKey.value = idempotencyKey
             } else {
@@ -170,6 +173,13 @@ object CaptureSessionState {
 
     fun clearActiveClaim() {
         _activeClaimId.value = null
+    }
+
+    fun clearAuthenticatedUser() {
+        synchronized(persistenceLock) {
+            authenticatedUserId = null
+            _activeClaimId.value = null
+        }
     }
 
     fun markLastCaptureUploaded(message: String) {
