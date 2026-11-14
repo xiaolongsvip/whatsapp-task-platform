@@ -588,6 +588,7 @@ model ReferralReward {
 
 model WithdrawalRequest {
   id            String           @id @default(uuid()) @db.Uuid
+  idempotencyKey String?          @unique @map("idempotency_key") @db.VarChar(64)
   walletId      String           @map("wallet_id") @db.Uuid
   amountMinor   BigInt           @map("amount_minor")
   currency      String           @db.Char(3)

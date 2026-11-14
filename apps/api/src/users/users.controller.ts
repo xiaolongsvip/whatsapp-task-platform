@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { ChangePasswordDto } from "./change-password.dto";
 import type { Request } from "express";
@@ -49,7 +49,11 @@ export class UsersController {
   }
 
   @Post("withdrawals")
-  async createWithdrawal(@Req() request: Request, @Body() body: CreateWithdrawalDto) {
+  async createWithdrawal(
+    @Req() request: Request,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: CreateWithdrawalDto,
+  ) {
     const user = await this.auth.getCurrentUser(sessionToken(request));
     return this.withdrawals.create(user.id, body.payoutAccountId, body.amountMinor, user.profile?.timezone ?? "UTC", {
       rate: body.expectedRate,
@@ -59,7 +63,7 @@ export class UsersController {
       walletCurrency: body.expectedWalletCurrency,
       payoutCurrency: body.expectedPayoutCurrency,
       payoutAmountMinor: body.expectedPayoutAmountMinor,
-    });
+    }, idempotencyKey);
   }
 
   @Get("payout-options")
