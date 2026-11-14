@@ -7,7 +7,7 @@ const service = readFileSync(new URL("../src/finance-admin/finance-admin.service
 test("finance reconciliation checks referral rewards against posted wallet ledger entries", () => {
   const method = service.slice(service.indexOf("async runFinanceReconciliation("), service.indexOf("async reconciliationRuns("));
   assert.match(method, /prisma\.referralReward\.findMany/);
-  assert.match(method, /sourceType: "REFERRAL_COMMISSION"/);
+  assert.match(method, /entry\.sourceType !== "REFERRAL_COMMISSION"/);
   assert.match(method, /direction !== "CREDIT"/);
   assert.match(method, /entry\.amountMinor !== reward\.amountMinor/);
   assert.match(method, /actualCurrency !== expectedCurrency/);
