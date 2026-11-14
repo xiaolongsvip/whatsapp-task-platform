@@ -80,7 +80,7 @@ object CaptureSessionState {
         _active.value = value
     }
 
-    internal fun setLastCapture(name: String, path: String, idempotencyKey: String, claimId: String? = null) {
+    internal fun setLastCapture(name: String, path: String, idempotencyKey: String, claimId: String? = null): Boolean {
         synchronized(persistenceLock) {
             var persisted = true
             val prefs = preferences
@@ -102,6 +102,7 @@ object CaptureSessionState {
             _uploadMessage.value = null
             _error.value = if (persisted) null else
                 "无法保存截图重试信息，请保持 APP 运行并检查设备存储空间。"
+            return persisted
         }
     }
 
@@ -129,8 +130,12 @@ object CaptureSessionState {
 
     fun clearLastCapture() {
         synchronized(persistenceLock) {
+            val pendingPath = _lastCapturePath.value
             clearPersistedEvidence(preferences)
             clearInMemoryEvidence()
+            if (!pendingPath.isNullOrBlank()) {
+                runCatching { File(pendingPath).delete() }
+            }
         }
     }
 
