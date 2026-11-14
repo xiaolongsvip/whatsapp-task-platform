@@ -271,7 +271,7 @@ export class DashboardService {
     // Only matching posted CREDIT ledger entries count as earned commissions.
     const rewardRows = [...rewards, ...todayRewards, ...monthRewards];
     const rewardKeys = [...new Set(rewardRows.map((row) => row.idempotencyKey))];
-    const creditedKeys = new Set<string>();
+    const creditsByKey = new Map<string, { amountMinor: bigint; currency: string }>();
     for (let offset = 0; offset < rewardKeys.length; offset += 500) {
       const batch = rewardKeys.slice(offset, offset + 500);
       const credits = await prisma.ledgerEntry.findMany({
@@ -281,15 +281,17 @@ export class DashboardService {
           sourceType: "REFERRAL_COMMISSION",
           wallet: { userId },
         },
-        select: { idempotencyKey: true },
+        select: { idempotencyKey: true, amountMinor: true, currency: true },
       });
-      for (const credit of credits) creditedKeys.add(credit.idempotencyKey);
+      for (const credit of credits) creditsByKey.set(credit.idempotencyKey, credit);
     }
 
     const sumCredited = (rows: typeof rewards) => {
       const totals: Record<string, string> = {};
       for (const row of rows) {
-        if (!creditedKeys.has(row.idempotencyKey)) continue;
+        const credit = creditsByKey.get(row.idempotencyKey);
+        if (!credit || credit.amountMinor !== row.amountMinor ||
+            credit.currency.trim().toUpperCase() !== row.currency.trim().toUpperCase()) continue;
         const currency = row.currency.trim();
         totals[currency] = (BigInt(totals[currency] ?? "0") + row.amountMinor).toString();
       }
