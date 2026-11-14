@@ -190,7 +190,6 @@ export class WithdrawalsService {
         createdAt: existing.createdAt.toISOString(),
       },
       availableBalanceMinor: (credited - debited - currentReserved - frozen).toString(),
-      idempotentReplay: true,
     };
   }
 
@@ -382,10 +381,10 @@ export class WithdrawalsService {
         const code = typeof error === "object" && error !== null && "code" in error
           ? String((error as { code?: unknown }).code)
           : "";
-        if (code === "P2034" && attempt < 2) {
+        if (code === "P2034") {
           const replay = await this.idempotentReplay(userId, payoutAccountId, amountMinor, idempotencyKey, expectedQuote);
           if (replay) return replay;
-          continue;
+          if (attempt < 2) continue;
         }
         if (code === "P2002") {
           const replay = await this.idempotentReplay(userId, payoutAccountId, amountMinor, idempotencyKey, expectedQuote);
