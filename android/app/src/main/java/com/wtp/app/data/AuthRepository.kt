@@ -27,6 +27,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import java.util.concurrent.TimeUnit
+import java.util.UUID
+import java.security.MessageDigest
 
 /**
  * Shares the server-issued HttpOnly session cookie with the web API.
@@ -37,6 +39,9 @@ object AuthRepository {
     private const val COOKIE_BLOB = "cookie_blob"
     private const val KEY_ALIAS = "wtp_session_aes_key"
     private const val HOST = "10.0.2.2"
+    private const val WITHDRAWAL_REQUEST_PREFS = "wtp_pending_withdrawal"
+    private const val WITHDRAWAL_REQUEST_KEY = "idempotency_key"
+    private const val WITHDRAWAL_REQUEST_FINGERPRINT = "request_fingerprint"
     private val mediaType = "application/json; charset=utf-8".toMediaType()
     @Volatile private var appContext: Context? = null
 
@@ -144,8 +149,14 @@ object AuthRepository {
     private fun endpoint(path: String) =
         (com.wtp.app.BuildConfig.API_BASE_URL.trimEnd('/') + "/" + path.trimStart('/'))
 
-    private fun request(method: String, path: String, body: JSONObject? = null): JSONObject {
+    private fun request(
+        method: String,
+        path: String,
+        body: JSONObject? = null,
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): JSONObject {
         val builder = Request.Builder().url(endpoint(path))
+        extraHeaders.forEach { (name, value) -> builder.header(name, value) }
         when (method) {
             "POST" -> builder.post((body ?: JSONObject()).toString().toRequestBody(mediaType))
             "PATCH" -> builder.patch((body ?: JSONObject()).toString().toRequestBody(mediaType))
@@ -294,17 +305,72 @@ object AuthRepository {
         return request("GET", "users/withdrawals?$query")
     }
 
-    fun createWithdrawal(payoutAccountId: String, amountMinor: String, quote: JSONObject): JSONObject =
-        request("POST", "users/withdrawals", JSONObject()
-            .put("payoutAccountId", payoutAccountId)
-            .put("amountMinor", amountMinor)
-            .put("expectedRate", quote.optString("rate"))
-            .put("expectedRateSource", quote.optString("rateSource"))
-            .put("expectedRateFetchedAt", quote.optString("rateFetchedAt"))
-            .put("expectedQuoteAmountMinor", quote.optString("amountMinor"))
-            .put("expectedWalletCurrency", quote.optString("walletCurrency"))
-            .put("expectedPayoutCurrency", quote.optString("payoutCurrency"))
-            .put("expectedPayoutAmountMinor", quote.optString("payoutAmountMinor")))
+    private fun withdrawalRequestFingerprint(payoutAccountId: String, amountMinor: String, quote: JSONObject): String {
+        val intent = listOf(
+            payoutAccountId,
+            amountMinor,
+            quote.optString("rate"),
+            quote.optString("rateSource"),
+            quote.optString("rateFetchedAt"),
+            quote.optString("amountMinor"),
+            quote.optString("walletCurrency"),
+            quote.optString("payoutCurrency"),
+            quote.optString("payoutAmountMinor"),
+        ).joinToString("\u001f")
+        val digest = MessageDigest.getInstance("SHA-256").digest(intent.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    @Synchronized
+    private fun getOrCreateWithdrawalRequestKey(fingerprint: String): String {
+        val prefs = appContext?.getSharedPreferences(WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE)
+            ?: throw IOException("AuthRepository.initialize(context) must be called before submitting a withdrawal.")
+        val savedFingerprint = prefs.getString(WITHDRAWAL_REQUEST_FINGERPRINT, null)
+        val savedKey = prefs.getString(WITHDRAWAL_REQUEST_KEY, null)
+        if (savedFingerprint == fingerprint && !savedKey.isNullOrBlank()) return savedKey
+
+        val newKey = UUID.randomUUID().toString()
+        val saved = prefs.edit()
+            .putString(WITHDRAWAL_REQUEST_FINGERPRINT, fingerprint)
+            .putString(WITHDRAWAL_REQUEST_KEY, newKey)
+            .commit()
+        if (!saved) throw IOException("Unable to persist the withdrawal retry key. Please retry before submitting.")
+        return newKey
+    }
+
+    @Synchronized
+    private fun clearWithdrawalRequestKey(fingerprint: String, idempotencyKey: String) {
+        val prefs = appContext?.getSharedPreferences(WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE) ?: return
+        if (prefs.getString(WITHDRAWAL_REQUEST_FINGERPRINT, null) != fingerprint ||
+            prefs.getString(WITHDRAWAL_REQUEST_KEY, null) != idempotencyKey
+        ) return
+        prefs.edit()
+            .remove(WITHDRAWAL_REQUEST_FINGERPRINT)
+            .remove(WITHDRAWAL_REQUEST_KEY)
+            .commit()
+    }
+
+    fun createWithdrawal(payoutAccountId: String, amountMinor: String, quote: JSONObject): JSONObject {
+        val fingerprint = withdrawalRequestFingerprint(payoutAccountId, amountMinor, quote)
+        val idempotencyKey = getOrCreateWithdrawalRequestKey(fingerprint)
+        val result = request(
+            "POST",
+            "users/withdrawals",
+            JSONObject()
+                .put("payoutAccountId", payoutAccountId)
+                .put("amountMinor", amountMinor)
+                .put("expectedRate", quote.optString("rate"))
+                .put("expectedRateSource", quote.optString("rateSource"))
+                .put("expectedRateFetchedAt", quote.optString("rateFetchedAt"))
+                .put("expectedQuoteAmountMinor", quote.optString("amountMinor"))
+                .put("expectedWalletCurrency", quote.optString("walletCurrency"))
+                .put("expectedPayoutCurrency", quote.optString("payoutCurrency"))
+                .put("expectedPayoutAmountMinor", quote.optString("payoutAmountMinor")),
+            mapOf("Idempotency-Key" to idempotencyKey),
+        )
+        clearWithdrawalRequestKey(fingerprint, idempotencyKey)
+        return result
+    }
 
     fun payoutOptions(): JSONObject = request("GET", "users/payout-options")
 
