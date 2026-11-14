@@ -90,11 +90,12 @@ export default function NotificationsPage() {
   const loadTemplates = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const result = await api<{items:Template[]}>("/api/v1/admin/notifications/templates");
+      const params = new URLSearchParams({keyword:keyword.trim()});
+      const result = await api<{items:Template[]}>("/api/v1/admin/notifications/templates?"+params.toString());
       setTemplates(result.items);
     } catch (e) { setError(e instanceof Error ? e.message : "通知模板加载失败。"); }
     finally { setLoading(false); }
-  },[]);
+  },[keyword]);
 
   useEffect(() => {
     if (tab==="notices") void loadNotices();
@@ -197,7 +198,7 @@ export default function NotificationsPage() {
           <header style={{padding:"13px 14px",borderBottom:"1px solid #edf1f6",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
             <b style={{fontSize:13,color:"#26364d"}}>{activeTitle}</b>
             <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
-              <div style={{position:"relative"}}><Search size={14} style={{position:"absolute",left:9,top:11,color:"#8492a6"}}/><input style={{...input,paddingLeft:29,width:250}} value={keyword} onChange={e=>setKeyword(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setPage(1);if(tab==="notices")void loadNotices();else if(tab==="records")void loadRecords();}}} placeholder={tab==="templates"?"搜索模板名称或内容":"搜索通知标题 / 内容"}/></div>
+              <div style={{position:"relative"}}><Search size={14} style={{position:"absolute",left:9,top:11,color:"#8492a6"}}/><input style={{...input,paddingLeft:29,width:250}} value={keyword} onChange={e=>setKeyword(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setPage(1);if(tab==="notices")void loadNotices();else if(tab==="records")void loadRecords();else void loadTemplates();}}} placeholder={tab==="templates"?"搜索模板名称或内容":"搜索通知标题 / 内容"}/></div>
               {tab==="notices"&&<select style={input} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="ALL">全部状态</option><option value="DRAFT">草稿</option><option value="PUBLISHED">已发布</option><option value="DISABLED">已停用</option></select>}
               <button style={button} disabled={loading} onClick={()=>{if(tab==="notices")void loadNotices();else if(tab==="records")void loadRecords();else void loadTemplates();}}><RefreshCw size={13}/>刷新</button>
               <button style={button} onClick={()=>{setKeyword("");setStatus("ALL");setPage(1);}}><X size={13}/>重置筛选</button>
