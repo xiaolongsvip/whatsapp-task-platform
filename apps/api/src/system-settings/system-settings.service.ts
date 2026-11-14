@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { prisma } from "@wtp/database";
+import type { Prisma } from "@wtp/database";
 import { randomUUID } from "node:crypto";
 
 type JsonRecord = Record<string, unknown>;
@@ -64,6 +65,43 @@ export class SystemSettingsService {
   private async audit(adminId: string, action: string, targetId: string, metadata: unknown) {
     await prisma.auditEvent.create({ data: { actorType: "ADMIN", actorId: adminId, action, targetType: "SYSTEM_SETTING", targetId, metadata: metadata as any } });
   }
+  private async lockAppVersionConfig(tx: Prisma.TransactionClient): Promise<any> {
+    await tx.taskConfiguration.upsert({
+      where: { key: "system.appVersion" },
+      create: { key: "system.appVersion", value: DEFAULT_VERSION as any },
+      update: {},
+    });
+    // Serialize draft edits, uploads, publish and revoke operations for this
+    // JSON configuration row; otherwise concurrent read/modify/write calls
+    // can silently overwrite one another's release history.
+    await tx.$queryRaw<Array<{ key: string }>>`SELECT key FROM task_configurations WHERE key = 'system.appVersion' FOR UPDATE`;
+    const row = await tx.taskConfiguration.findUnique({ where: { key: "system.appVersion" } });
+    return row?.value ?? DEFAULT_VERSION;
+  }
+
+  private async persistAppVersion(tx: Prisma.TransactionClient, value: unknown) {
+    await tx.taskConfiguration.update({
+      where: { key: "system.appVersion" },
+      data: { value: value as any },
+    });
+  }
+
+  private async auditAppVersion(
+    tx: Prisma.TransactionClient,
+    adminId: string,
+    action: string,
+    targetId: string,
+    metadata: unknown,
+  ) {
+    await tx.auditEvent.create({
+      data: {
+        actorType: "ADMIN", actorId: adminId, action,
+        targetType: "SYSTEM_SETTING", targetId, metadata: metadata as any,
+      },
+    });
+  }
+
+
   async saveSupport(input: JsonRecord, adminId: string) {
     const supportUrl = String(input.supportUrl ?? "").trim();
     if (supportUrl) {
@@ -101,75 +139,157 @@ export class SystemSettingsService {
     };
   }
   async saveVersion(input: JsonRecord, adminId: string) {
-    const current = await this.read("system.appVersion", DEFAULT_VERSION);
     const latestVersion = String(input.latestVersion ?? "").trim();
     const versionCode = Number(input.versionCode);
     const downloadUrl = String(input.downloadUrl ?? "").trim();
     if (!/^\d+\.\d+\.\d+$/.test(latestVersion)) throw new BadRequestException("版本号必须使用 x.y.z 格式");
     if (!Number.isSafeInteger(versionCode) || versionCode < 1) throw new BadRequestException("版本代码必须是正整数");
-    if (versionCode <= Number(current.versionCode ?? 0)) throw new BadRequestException("新版本代码必须大于当前线上版本代码");
     if (downloadUrl && !/^https:\/\//i.test(downloadUrl)) throw new BadRequestException("APK 下载地址必须使用 HTTPS");
-    const release = { version: latestVersion, versionCode, updateType: input.updateType === "MAJOR" ? "MAJOR" : "MINOR", downloadUrl, releaseNotes: String(input.releaseNotes ?? "").slice(0, 5000), releasedAt: new Date().toISOString(), status: "DRAFT" };
-    const releases = Array.isArray(current.releases) ? current.releases : [];
-    const next = { ...current, latestVersion, versionCode, updateType: release.updateType, downloadUrl, releaseNotes: release.releaseNotes, releases: [release, ...releases].slice(0, 100) };
-    await this.write("system.appVersion", next);
-    await this.audit(adminId, "APP_VERSION_DRAFT_SAVED", latestVersion, { versionCode, updateType: release.updateType });
-    return next;
-  }
-  async registerApkUpload(input: { fileName: string; size: number; downloadUrl: string; objectKey: string; sha256: string }, adminId: string) {
-    const current = await this.read("system.appVersion", DEFAULT_VERSION);
-    const releases = Array.isArray(current.releases) ? [...current.releases] : [];
-    const code = Number(current.versionCode ?? 0);
-    const version = String(current.latestVersion ?? "");
-    if (!version || !code) throw new BadRequestException("请先填写最新版本名称和版本代码，再上传 APK");
-    const release = { version, versionCode: code, updateType: current.updateType ?? "MINOR", downloadUrl: input.downloadUrl, objectKey: input.objectKey, fileName: input.fileName, size: input.size, sha256: input.sha256, releaseNotes: current.releaseNotes ?? "", status: "VERIFIED", uploadedAt: new Date().toISOString(), verifiedAt: new Date().toISOString() };
-    const next = { ...current, downloadUrl: input.downloadUrl, releases: [release, ...releases.filter((x: any) => Number(x.versionCode) !== code)].slice(0, 100) };
-    await this.write("system.appVersion", next);
-    await this.audit(adminId, "APP_APK_UPLOADED_AND_VERIFIED", String(code), { fileName: input.fileName, size: input.size, objectKey: input.objectKey, sha256: input.sha256 });
-    return { ...release };
-  }
-  async versionAction(versionCode: number, action: "PUBLISH" | "REVOKE", adminId: string) {
-    if (!Number.isSafeInteger(versionCode) || versionCode < 1) throw new BadRequestException("版本代码无效");
-    const current = await this.read("system.appVersion", DEFAULT_VERSION);
-    const releases = Array.isArray(current.releases) ? [...current.releases] : [];
-    const index = releases.findIndex((x: any) => Number(x.versionCode) === versionCode);
-    if (index < 0) throw new NotFoundException("版本发布记录不存在");
-    const release = { ...releases[index] } as any;
-    if (action === "PUBLISH") {
-      if (!release.downloadUrl || release.status !== "VERIFIED") throw new BadRequestException("该版本尚未上传并校验 APK，不能发布");
-      const publishedCode = Number(
-        releases.find((item: any) => item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion))?.versionCode ?? 0,
-      );
-      if (Number(release.versionCode) <= publishedCode) {
-        throw new BadRequestException("不能发布低于或等于当前线上版本代码的 APK");
-      }
-      release.status = "PUBLISHED";
-      release.publishedAt = new Date().toISOString();
-      current.currentVersion = release.version;
-      current.latestVersion = release.version;
-      current.versionCode = release.versionCode;
-      current.updateType = release.updateType;
-      current.downloadUrl = release.downloadUrl;
-    } else {
-      release.status = "REVOKED";
-      release.revokedAt = new Date().toISOString();
+
+    return prisma.$transaction(async (tx) => {
+      const current = await this.lockAppVersionConfig(tx);
+      const releases = Array.isArray(current.releases) ? [...current.releases] : [];
       const liveRelease = releases.find((item: any) =>
         item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion),
       );
-      if (Number(liveRelease?.versionCode ?? 0) === versionCode) {
-        const previous = releases.find((x: any, i: number) => i !== index && x.status === "PUBLISHED");
-        current.currentVersion = previous?.version ?? "";
-        current.latestVersion = previous?.version ?? "";
-        current.versionCode = previous?.versionCode ?? 0;
-        current.updateType = previous?.updateType ?? "MINOR";
-        current.downloadUrl = previous?.downloadUrl ?? "";
+      const liveVersionCode = Number(liveRelease?.versionCode ?? current.versionCode ?? 0);
+      if (versionCode <= liveVersionCode) {
+        throw new BadRequestException("新版本代码必须大于当前线上版本代码");
       }
-    }
-    releases[index] = release;
-    current.releases = releases;
-    await this.write("system.appVersion", current);
-    await this.audit(adminId, "APP_VERSION_" + action, String(versionCode), { version: release.version, status: release.status });
-    return current;
+
+      const existingIndex = releases.findIndex((item: any) => Number(item.versionCode) === versionCode);
+      const existing = existingIndex >= 0 ? releases[existingIndex] : null;
+      if (existing && existing.status !== "DRAFT") {
+        throw new BadRequestException("该版本代码已有已上传或发布记录，请使用新的版本代码");
+      }
+      const release = {
+        ...(existing ?? {}),
+        version: latestVersion,
+        versionCode,
+        updateType: input.updateType === "MAJOR" ? "MAJOR" : "MINOR",
+        downloadUrl,
+        releaseNotes: String(input.releaseNotes ?? "").slice(0, 5000),
+        releasedAt: new Date().toISOString(),
+        status: "DRAFT",
+      };
+      if (existingIndex >= 0) releases[existingIndex] = release;
+      else releases.unshift(release);
+      const next = {
+        ...current,
+        latestVersion,
+        versionCode,
+        updateType: release.updateType,
+        downloadUrl,
+        releaseNotes: release.releaseNotes,
+        releases: releases.slice(0, 100),
+      };
+      await this.persistAppVersion(tx, next);
+      await this.auditAppVersion(tx, adminId, "APP_VERSION_DRAFT_SAVED", latestVersion, {
+        versionCode, updateType: release.updateType,
+      });
+      return next;
+    });
+  }
+  async registerApkUpload(input: { fileName: string; size: number; downloadUrl: string; objectKey: string; sha256: string }, adminId: string) {
+    return prisma.$transaction(async (tx) => {
+      const current = await this.lockAppVersionConfig(tx);
+      const releases = Array.isArray(current.releases) ? [...current.releases] : [];
+      const code = Number(current.versionCode ?? 0);
+      const version = String(current.latestVersion ?? "");
+      if (!version || !Number.isSafeInteger(code) || code < 1) {
+        throw new BadRequestException("请先填写最新版本名称和版本代码，再上传 APK");
+      }
+      const draftIndex = releases.findIndex((item: any) =>
+        Number(item.versionCode) === code && String(item.version) === version && item.status === "DRAFT",
+      );
+      if (draftIndex < 0) {
+        throw new BadRequestException("请先保存一个高于当前线上版本的待发布草稿，再上传 APK；上传不会覆盖已发布版本");
+      }
+      const liveRelease = releases.find((item: any) =>
+        item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion),
+      );
+      const liveVersionCode = Number(liveRelease?.versionCode ?? 0);
+      if (code <= liveVersionCode) {
+        throw new BadRequestException("APK 版本代码必须高于当前线上版本，不能覆盖当前发布包");
+      }
+
+      const draft = releases[draftIndex];
+      const release = {
+        ...draft,
+        downloadUrl: input.downloadUrl,
+        objectKey: input.objectKey,
+        fileName: input.fileName,
+        size: input.size,
+        sha256: input.sha256,
+        status: "VERIFIED",
+        uploadedAt: new Date().toISOString(),
+        verifiedAt: new Date().toISOString(),
+      };
+      releases[draftIndex] = release;
+      const next = { ...current, downloadUrl: input.downloadUrl, releases };
+      await this.persistAppVersion(tx, next);
+      await this.auditAppVersion(tx, adminId, "APP_APK_UPLOADED_AND_VERIFIED", String(code), {
+        fileName: input.fileName, size: input.size, objectKey: input.objectKey, sha256: input.sha256,
+      });
+      return { ...release };
+    });
+  }
+  async versionAction(versionCode: number, action: "PUBLISH" | "REVOKE", adminId: string) {
+    if (!Number.isSafeInteger(versionCode) || versionCode < 1) throw new BadRequestException("版本代码无效");
+    return prisma.$transaction(async (tx) => {
+      const current = await this.lockAppVersionConfig(tx);
+      const releases = Array.isArray(current.releases) ? [...current.releases] : [];
+      const index = releases.findIndex((item: any) => Number(item.versionCode) === versionCode);
+      if (index < 0) throw new NotFoundException("版本发布记录不存在");
+      const release = { ...releases[index] } as any;
+
+      if (action === "PUBLISH") {
+        if (release.status !== "VERIFIED" || !release.downloadUrl) {
+          throw new BadRequestException("该版本尚未上传并校验 APK，不能发布");
+        }
+        const liveRelease = releases.find((item: any) =>
+          item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion),
+        );
+        const liveVersionCode = Number(liveRelease?.versionCode ?? 0);
+        if (Number(release.versionCode) <= liveVersionCode) {
+          throw new BadRequestException("不能发布低于或等于当前线上版本代码的 APK");
+        }
+        release.status = "PUBLISHED";
+        release.publishedAt = new Date().toISOString();
+        current.currentVersion = release.version;
+        current.latestVersion = release.version;
+        current.versionCode = release.versionCode;
+        current.updateType = release.updateType;
+        current.downloadUrl = release.downloadUrl;
+      } else {
+        if (release.status !== "PUBLISHED") {
+          throw new BadRequestException("只有正式发布的版本才能撤销");
+        }
+        release.status = "REVOKED";
+        release.revokedAt = new Date().toISOString();
+        const liveRelease = releases.find((item: any) =>
+          item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion),
+        );
+        if (Number(liveRelease?.versionCode ?? 0) === versionCode) {
+          const previous = releases
+            .filter((item: any, i: number) => i !== index && item.status === "PUBLISHED" && Number(item.versionCode) < versionCode)
+            .sort((left: any, right: any) => Number(right.versionCode) - Number(left.versionCode))[0];
+          current.currentVersion = previous?.version ?? "";
+          current.latestVersion = previous?.version ?? "";
+          current.versionCode = previous?.versionCode ?? 0;
+          current.updateType = previous?.updateType ?? "MINOR";
+          current.downloadUrl = previous?.downloadUrl ?? "";
+        }
+      }
+
+      releases[index] = release;
+      current.releases = releases;
+      await this.persistAppVersion(tx, current);
+      await this.auditAppVersion(tx, adminId, "APP_VERSION_" + action, String(versionCode), {
+        version: release.version, status: release.status,
+      });
+      return current;
+    });
   }
   async recordHelpAssetUpload(adminId: string, key: string, fileName: string, contentType: string, size: number) {
     await this.audit(adminId, "HELP_ASSET_UPLOAD_URL_CREATED", key, { fileName, contentType, size });
