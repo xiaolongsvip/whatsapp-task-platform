@@ -168,7 +168,13 @@ fun TaskHallScreen(
                 val activeId = CaptureSessionState.activeClaimId.value
                 if (!activeId.isNullOrBlank()) {
                     val activeClaim = claims.firstOrNull { it.optString("id") == activeId }
-                    if (activeClaim == null || activeClaim.optString("status") !in setOf("CLAIMED", "IN_PROGRESS")) {
+                    val hasPendingEvidenceForClaim =
+                        CaptureSessionState.lastCaptureClaimId.value == activeId &&
+                            !CaptureSessionState.lastCapturePath.value.isNullOrBlank() &&
+                            !CaptureSessionState.pendingIdempotencyKey.value.isNullOrBlank()
+                    if (!hasPendingEvidenceForClaim &&
+                        (activeClaim == null || activeClaim.optString("status") !in setOf("CLAIMED", "IN_PROGRESS"))
+                    ) {
                         CaptureSessionState.clearActiveClaim()
                     }
                 }
