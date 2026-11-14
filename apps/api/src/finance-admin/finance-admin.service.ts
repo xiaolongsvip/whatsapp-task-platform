@@ -720,7 +720,7 @@ export class FinanceAdminService {
         if (batch.length < batchSize) return all;
       }
     };
-    const [approvedSubmissions, paidWithdrawals, successfulPayouts, referralRewards] = await Promise.all([
+    const [approvedSubmissions, paidWithdrawals, successfulPayouts, referralRewards, referralCredits] = await Promise.all([
       fetchAll((skip, take) => prisma.taskSubmission.findMany({
         where: { status: "APPROVED" }, skip, take, orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
         include: { claim: { include: { task: { select: { title: true, rewardMinor: true, currency: true } }, user: { select: { phone: true } } } } },
@@ -736,6 +736,12 @@ export class FinanceAdminService {
       fetchAll((skip, take) => prisma.referralReward.findMany({
         skip, take, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: { id: true, beneficiaryId: true, amountMinor: true, currency: true, idempotencyKey: true },
+      })),
+      fetchAll((skip, take) => prisma.ledgerEntry.findMany({
+        where: { sourceType: "REFERRAL_COMMISSION" }, skip, take,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, sourceId: true, idempotencyKey: true, amountMinor: true, currency: true, direction: true,
+          wallet: { select: { userId: true } } },
       })),
     ]);
     const claimIds = [...new Set(approvedSubmissions.map(x => x.claimId))];
@@ -765,6 +771,17 @@ export class FinanceAdminService {
       referralLedgerEntries.push(...entries);
     }
     const referralLedgerByKey = new Map(referralLedgerEntries.map(entry => [entry.idempotencyKey, entry]));
+    const referralRewardKeys = new Set(referralKeys);
+    for (const entry of referralCredits) {
+      if (!referralRewardKeys.has(entry.idempotencyKey)) {
+        items.push({
+          type: "REFERRAL_COMMISSION_REWARD_MISSING", recordId: entry.id,
+          sourceId: entry.sourceId, amountMinor: entry.amountMinor.toString(), currency: entry.currency.trim(),
+          walletUserId: entry.wallet.userId,
+          message: "存在邀请佣金入账流水，但没有对应的邀请佣金奖励记录",
+        });
+      }
+    }
     const groupBySource = <T extends { sourceId: string }>(rows: T[]) => {
       const map = new Map<string, T[]>();
       for (const row of rows) map.set(row.sourceId, [...(map.get(row.sourceId) ?? []), row]);
@@ -874,14 +891,15 @@ export class FinanceAdminService {
         });
       }
     }
-    const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length + referralRewards.length;
+    const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length + referralRewards.length + referralCredits.length;
     const exceptionCount = items.length;
     const scanLimitReached = false;
     const completedAt = new Date();
     const status = scanLimitReached ? "INCOMPLETE" : exceptionCount === 0 ? "SUCCESS" : "FAILED";
     const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, uniqueApprovedClaimsChecked: checkedClaims.size,
       paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length,
-      referralCommissionsChecked: referralRewards.length, referralLedgerChecks: true,
+      referralCommissionsChecked: referralRewards.length, referralCommissionLedgerEntriesChecked: referralCredits.length,
+      referralLedgerChecks: true,
       amountDirectionCurrencyChecks: true, batchSize, scanLimitReached, exceptionCount };
     const run = await prisma.financeReconciliationRun.create({ data: {
       triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500) as Prisma.InputJsonValue,
