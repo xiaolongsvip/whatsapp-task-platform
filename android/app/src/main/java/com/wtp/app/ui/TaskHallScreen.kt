@@ -1846,6 +1846,34 @@ private fun ClaimRecordCard(claim: JSONObject, isEnglish: Boolean) {
                 color = WtpMuted,
                 style = MaterialTheme.typography.bodySmall
             )
+            if (status == "REJECTED") {
+                val reviewReason = claim.optJSONObject("latestSubmission")
+                    ?.optString("reviewReason")
+                    ?.takeUnless { it.isNullOrBlank() || it == "null" }
+                if (!reviewReason.isNullOrBlank()) {
+                    Surface(
+                        color = Color(0xFFFFF4E8),
+                        shape = RoundedCornerShape(9.dp)
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                if (isEnglish) "Review reason" else "审核原因",
+                                color = Color(0xFF9A3412),
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                            Text(
+                                reviewReason,
+                                color = Color(0xFF7C2D12),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
