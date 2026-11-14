@@ -799,7 +799,7 @@ export class FinanceAdminService {
         items.push({
           type: "REFERRAL_COMMISSION_LEDGER_MISSING", recordId: reward.id,
           beneficiaryId: reward.beneficiaryId, expectedAmountMinor: reward.amountMinor.toString(),
-          expectedCurrency: reward.currency.trim(),
+          expectedCurrency: reward.currency.trim(), expectedSourceType: "REFERRAL_COMMISSION", expectedDirection: "CREDIT",
           message: "邀请佣金奖励记录存在，但未找到对应钱包入账流水",
         });
         continue;
