@@ -104,10 +104,12 @@ export default function NotificationsPage() {
   },[tab,loadNotices,loadRecords,loadTemplates]);
 
   function openCreateNotice() {
+    void loadTemplates();
     setEditingNotice(null); setTitle(""); setContent(""); setTarget("ALL"); setEditorOpen(true);
   }
 
   function openEditNotice(item: Notice) {
+    void loadTemplates();
     setEditingNotice(item); setTitle(item.title); setContent(item.content); setTarget(item.target); setEditorOpen(true);
   }
 
