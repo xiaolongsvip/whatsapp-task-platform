@@ -882,5 +882,17 @@ test("Android persists the original withdrawal body and reuses its key across am
   assert.ok(androidAuthRepository.includes('mapOf("Idempotency-Key" to pending.idempotencyKey)'));
   assert.ok(androidApp.includes("AuthRepository.clearPendingWithdrawalRequest(id, minor)"));
   assert.ok(androidAuthRepository.includes("WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE)"));
-  assert.ok(androidAuthRepository.includes(".edit()?.clear()?.commit()"));
+  assert.ok(androidAuthRepository.includes("clearPersistedCookies()"));
+});
+
+
+test("Android keeps an ambiguous withdrawal request key when the user logs out", () => {
+  const logoutStart = androidAuthRepository.indexOf("fun logout()");
+  const logout = androidAuthRepository.slice(logoutStart, androidAuthRepository.indexOf("\\n    }", logoutStart));
+  assert.ok(logoutStart >= 0, "logout method must exist");
+  assert.ok(logout.includes("clearPersistedCookies()"));
+  assert.ok(!logout.includes("WITHDRAWAL_REQUEST_PREFS"));
+  assert.ok(!logout.includes("clearPendingWithdrawalRequest"));
+  assert.ok(androidAuthRepository.includes("clearWithdrawalRequest(pending.fingerprint, pending.idempotencyKey)"));
+  assert.ok(androidApp.includes("AuthRepository.clearPendingWithdrawalRequest(id, minor)"));
 });
