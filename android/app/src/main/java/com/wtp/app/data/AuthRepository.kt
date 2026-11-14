@@ -493,6 +493,8 @@ object AuthRepository {
         try { request("POST", "auth/logout") } finally {
             cookieJar.replace(endpoint("").toHttpUrl().host, emptyList())
             clearPersistedCookies()
+            appContext?.getSharedPreferences(WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE)
+                ?.edit()?.clear()?.commit()
         }
     }
 }
