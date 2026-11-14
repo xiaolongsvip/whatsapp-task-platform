@@ -1891,7 +1891,7 @@ private fun ApplyWithdrawalScreen(
                                             if (message.contains("exchange rate changed", ignoreCase = true) ||
                                                 message.contains("payout estimate no longer matches", ignoreCase = true)) {
                                                 runCatching {
-                                                    withContext(Dispatchers.IO) { AuthRepository.withdrawalQuote(id, minor) }
+                                                    withContext(Dispatchers.IO) { AuthRepository.clearPendingWithdrawalRequest(id, minor); AuthRepository.withdrawalQuote(id, minor) }
                                                 }.onSuccess { refreshedQuote ->
                                                     quote = refreshedQuote
                                                 }.onFailure {
