@@ -53,7 +53,7 @@ test("publish and revoke require valid state transitions and audit in the same t
   const action = service.slice(service.indexOf("async versionAction("), service.indexOf("async recordHelpAssetUpload("));
   assert.match(action, /release\.status !== "VERIFIED"/);
   assert.match(action, /release\.status !== "PUBLISHED"/);
-  assert.match(action, /versionCode <= liveVersionCode/);
+  assert.match(action, /Number\(release\.versionCode\) <= liveVersionCode/);
   assert.match(action, /APP_VERSION_" \+ action/);
   assert.match(action, /this\.auditAppVersion\(tx/);
 });
