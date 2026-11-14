@@ -79,7 +79,7 @@ test("published history excludes drafts and reports in-app audience snapshots, n
 test("admin UI saves drafts, publishes and disables notices, and persists template CRUD", async () => {
   const page = await read("../../admin/src/app/notifications/page.tsx");
   assert.match(page, /\/api\/v1\/admin\/notifications"/);
-  assert.match(page, /\/api\/v1\/admin\/notifications\/\+editingNotice\.id/);
+  assert.ok(page.includes('api("/api/v1/admin/notifications/"+editingNotice.id'));
   assert.match(page, /\/publish/);
   assert.match(page, /\/disable/);
   assert.match(page, /\/templates/);
