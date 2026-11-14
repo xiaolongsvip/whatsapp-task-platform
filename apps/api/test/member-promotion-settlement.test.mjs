@@ -10,7 +10,7 @@ test("member promotion commission totals include only commissions posted to the 
   assert.match(method, /direction: "CREDIT"/);
   assert.match(method, /sourceType: "REFERRAL_COMMISSION"/);
   assert.match(method, /wallet: \{ userId \}/);
-  assert.match(method, /creditedKeys\.has\(row\.idempotencyKey\)/);
+  assert.match(method, /creditsByKey\.get\(row\.idempotencyKey\)/);
   assert.match(method, /todayCommissions: sumCredited\(todayRewards\)/);
   assert.match(method, /totalCommissions: sumCredited\(rewards\)/);
   assert.match(method, /monthCommissions: sumCredited\(monthRewards\)/);
