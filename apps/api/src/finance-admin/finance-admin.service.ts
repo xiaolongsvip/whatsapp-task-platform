@@ -750,7 +750,7 @@ export class FinanceAdminService {
       claimIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } },
         select: { sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: { select: { userId: true } } } }) : [],
       withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } },
-        select: { sourceId: true, direction: true, amountMinor: true, currency: true } }) : [],
+        select: { sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: { select: { userId: true } } } }) : [],
       withdrawalIds.length ? prisma.paymentTransaction.findMany({ where: { withdrawalRequestId: { in: withdrawalIds }, flow: "PAYOUT", status: "SUCCEEDED" },
         select: { id: true, withdrawalRequestId: true, amountMinor: true, currency: true, metadata: true } }) : [],
     ]);
