@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const guard = readFileSync(new URL("../src/permissions-admin/admin-permission.guard.ts", import.meta.url), "utf8");
 const referrals = readFileSync(new URL("../src/admin-referrals/admin-referrals.service.ts", import.meta.url), "utf8");
+const permissionService = readFileSync(new URL("../src/permissions-admin/permissions-admin.service.ts", import.meta.url), "utf8");
 const financePage = readFileSync(new URL("../../admin/src/app/finance/page.tsx", import.meta.url), "utf8");
 
 test("manual finance adjustments require wallet read and wallet balance adjustment permissions", () => {
@@ -28,4 +29,19 @@ test("system support, exchange-rate and payout-catalog routes have explicit perm
   for (const route of ["support", "exchange-rates", "payout-catalogs", "system.settings.read", "system.settings.manage"]) {
     assert.ok(mapping.includes(route), "missing route or permission in mapping: " + route);
   }
+});
+
+test("permission bootstrap is serialized and only the earliest active admin can receive the first super-admin role", () => {
+  const bootstrap = permissionService.slice(
+    permissionService.indexOf("private async ensureBootstrapSuperAdmin("),
+    permissionService.indexOf("private async assertPermission("),
+  );
+  assert.match(bootstrap, /prisma\.\$transaction/);
+  assert.match(bootstrap, /pg_advisory_xact_lock/);
+  assert.match(bootstrap, /tx\.adminUserRole\.count\(\)\s*>\s*0/);
+  assert.match(bootstrap, /tx\.adminUser\.findFirst/);
+  assert.match(bootstrap, /where:\s*\{\s*status:\s*"ACTIVE"/);
+  assert.match(bootstrap, /orderBy:\s*\[\{\s*createdAt:\s*"asc"\s*\},\s*\{\s*id:\s*"asc"\s*\}\s*\]/);
+  assert.match(bootstrap, /firstActiveAdmin\.id\s*!==\s*actorId/);
+  assert.match(bootstrap, /ForbiddenException/);
 });
