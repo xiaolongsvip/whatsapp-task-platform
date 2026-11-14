@@ -840,11 +840,11 @@ test("withdrawal requests persist a unique idempotency key in the database", () 
   assert.match(requestMigration, /CREATE UNIQUE INDEX "withdrawal_requests_idempotency_key_key"/);
 });
 
-test("withdrawal API requires the key and replays an existing request before querying a refreshed FX rate", () => {
+test("withdrawal API uses persisted client keys and safely preserves legacy APP compatibility", () => {
   const withdrawals = readFileSync(new URL("../src/users/withdrawals.service.ts", import.meta.url), "utf8");
   assert.match(usersController, /@Headers\\("idempotency-key"\\)/);
   assert.match(usersController, /this\\.withdrawals\\.create\\([\\s\\S]*?idempotencyKey\\)/);
-  assert.match(withdrawals, /A valid Idempotency-Key header is required/);
+  assert.match(withdrawals, /Idempotency-Key must be a valid UUID/);\n  assert.match(withdrawals, /idempotencyKeyInput\\?\\.toLowerCase\\(\\) \\?\\? randomUUID\\(\\)/);
   assert.match(withdrawals, /where: \\{ idempotencyKey \\}/);
   const create = withdrawals.slice(withdrawals.indexOf("async create("));
   assert.ok(create.indexOf("this.idempotentReplay(") < create.indexOf("this.context(userId, payoutAccountId)"));
