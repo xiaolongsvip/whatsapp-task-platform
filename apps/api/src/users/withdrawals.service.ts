@@ -119,12 +119,87 @@ export class WithdrawalsService {
     };
   }
 
+  private async idempotentReplay(
+    userId: string,
+    payoutAccountId: string,
+    amountMinor: bigint,
+    idempotencyKey: string,
+    expectedQuote: { rate: string; source: string; fetchedAt: string; amountMinor: string; walletCurrency: string; payoutCurrency: string; payoutAmountMinor: string },
+  ) {
+    const existing = await prisma.withdrawalRequest.findUnique({
+      where: { idempotencyKey },
+      include: { wallet: { select: { id: true, userId: true } } },
+    });
+    if (!existing) return null;
+
+    const expectedRate = Number(expectedQuote.rate);
+    const storedRate = Number(existing.exchangeRate?.toString() ?? "NaN");
+    const sameRequest =
+      existing.wallet.userId === userId &&
+      existing.payoutAccountId === payoutAccountId &&
+      existing.amountMinor === amountMinor &&
+      expectedQuote.amountMinor === amountMinor.toString() &&
+      expectedQuote.walletCurrency.trim().toUpperCase() === existing.currency.trim().toUpperCase() &&
+      expectedQuote.payoutCurrency.trim().toUpperCase() === (existing.payoutCurrency ?? existing.currency).trim().toUpperCase() &&
+      expectedQuote.payoutAmountMinor === (existing.payoutAmountMinor ?? existing.amountMinor).toString() &&
+      expectedQuote.source === existing.exchangeRateSource &&
+      Number.isFinite(expectedRate) &&
+      Number.isFinite(storedRate) &&
+      expectedRate.toFixed(12) === storedRate.toFixed(12) &&
+      Date.parse(expectedQuote.fetchedAt) === existing.exchangeRateFetchedAt?.getTime();
+
+    if (!sameRequest) {
+      throw new ConflictException("Idempotency-Key has already been used for a different withdrawal request.");
+    }
+
+    const [ledgerGroups, reserved, holds] = await Promise.all([
+      prisma.ledgerEntry.groupBy({
+        by: ["direction"],
+        where: { walletId: existing.walletId },
+        _sum: { amountMinor: true },
+      }),
+      prisma.withdrawalRequest.aggregate({
+        where: { walletId: existing.walletId, status: { in: [...RESERVED_STATUSES] } },
+        _sum: { amountMinor: true },
+      }),
+      prisma.walletHold.aggregate({
+        where: { walletId: existing.walletId, status: "ACTIVE" },
+        _sum: { amountMinor: true },
+      }),
+    ]);
+    const credited = ledgerGroups.find((entry) => entry.direction === "CREDIT")?._sum.amountMinor ?? 0n;
+    const debited = ledgerGroups.find((entry) => entry.direction === "DEBIT")?._sum.amountMinor ?? 0n;
+    const currentReserved = reserved._sum.amountMinor ?? 0n;
+    const frozen = holds._sum.amountMinor ?? 0n;
+
+    return {
+      success: true,
+      item: {
+        id: existing.id,
+        amountMinor: existing.amountMinor.toString(),
+        currency: existing.currency.trim(),
+        payoutCurrency: existing.payoutCurrency?.trim() ?? existing.currency.trim(),
+        payoutAmountMinor: (existing.payoutAmountMinor ?? existing.amountMinor).toString(),
+        exchangeRate: existing.exchangeRate?.toString() ?? "1",
+        exchangeRateSource: existing.exchangeRateSource,
+        feeAmountMinor: (existing.feeAmountMinor ?? 0n).toString(),
+        feeCurrency: existing.feeCurrency?.trim() ?? existing.currency.trim(),
+        status: existing.status,
+        payoutAccountId: existing.payoutAccountId,
+        createdAt: existing.createdAt.toISOString(),
+      },
+      availableBalanceMinor: (credited - debited - currentReserved - frozen).toString(),
+      idempotentReplay: true,
+    };
+  }
+
   async create(
     userId: string,
     payoutAccountId: string,
     amountMinorInput: string,
     timezone = "UTC",
     expectedQuote?: { rate: string; source: string; fetchedAt: string; amountMinor: string; walletCurrency: string; payoutCurrency: string; payoutAmountMinor: string },
+    idempotencyKeyInput?: string,
   ) {
     let amountMinor: bigint;
     if (typeof amountMinorInput !== "string" || !/^[0-9]+$/.test(amountMinorInput)) throw new BadRequestException("Withdrawal amount is invalid.");
@@ -133,14 +208,23 @@ export class WithdrawalsService {
     if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
       throw new BadRequestException("Withdrawal amount must be greater than zero.");
     }
+    if (!idempotencyKeyInput || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idempotencyKeyInput)) {
+      throw new BadRequestException("A valid Idempotency-Key header is required for withdrawal requests.");
+    }
+    if (!expectedQuote || !expectedQuote.rate || !expectedQuote.source || !expectedQuote.fetchedAt) {
+      throw new BadRequestException("Withdrawal quote is missing. Refresh the quote before submitting.");
+    }
+    const idempotencyKey = idempotencyKeyInput.toLowerCase();
+
+    // A committed request must be replayed before refreshing external FX data.
+    // Otherwise a lost HTTP response followed by a rate change could create a second withdrawal.
+    const existingReplay = await this.idempotentReplay(userId, payoutAccountId, amountMinor, idempotencyKey, expectedQuote);
+    if (existingReplay) return existingReplay;
 
     // Fetch the latest rate before opening the serializable transaction. The exact
     // rate and converted payout amount are then frozen on the withdrawal record.
     const context = await this.context(userId, payoutAccountId);
     const rate = await this.exchangeRates.getRate(context.walletCurrency, context.payoutCurrency);
-    if (!expectedQuote || !expectedQuote.rate || !expectedQuote.source || !expectedQuote.fetchedAt) {
-      throw new BadRequestException("Withdrawal quote is missing. Refresh the quote before submitting.");
-    }
     const expectedRate = Number(expectedQuote.rate);
     const sameRate = Number.isFinite(expectedRate) && expectedRate.toFixed(12) === rate.rate.toFixed(12);
     const sameAmount = expectedQuote.amountMinor === amountMinor.toString();
@@ -174,6 +258,8 @@ export class WithdrawalsService {
     if (dailyLimitMinor <= 0n) throw new BadRequestException("The daily withdrawal limit is not configured correctly.");
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      const replay = await this.idempotentReplay(userId, payoutAccountId, amountMinor, idempotencyKey, expectedQuote);
+      if (replay) return replay;
       try {
         return await prisma.$transaction(async (tx) => {
           const account = await tx.payoutAccount.findFirst({
@@ -258,6 +344,7 @@ export class WithdrawalsService {
 
           const request = await tx.withdrawalRequest.create({
             data: {
+              idempotencyKey,
               walletId: wallet.id, payoutAccountId: account.id,
               amountMinor, currency: context.walletCurrency,
               payoutCurrency: context.payoutCurrency, payoutAmountMinor,
@@ -292,7 +379,15 @@ export class WithdrawalsService {
         const code = typeof error === "object" && error !== null && "code" in error
           ? String((error as { code?: unknown }).code)
           : "";
-        if (code === "P2034" && attempt < 2) continue;
+        if (code === "P2034" && attempt < 2) {
+          const replay = await this.idempotentReplay(userId, payoutAccountId, amountMinor, idempotencyKey, expectedQuote);
+          if (replay) return replay;
+          continue;
+        }
+        if (code === "P2002") {
+          const replay = await this.idempotentReplay(userId, payoutAccountId, amountMinor, idempotencyKey, expectedQuote);
+          if (replay) return replay;
+        }
         throw error;
       }
     }
