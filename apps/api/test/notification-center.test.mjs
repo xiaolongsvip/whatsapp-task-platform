@@ -96,3 +96,23 @@ test("Android dashboard announcement ticker reads the same dashboard announcemen
   assert.match(app, /values = data\?\.optJSONArray\("announcements"\)/);
   assert.match(repository, /fun dashboard\(\): JSONObject = request\("GET", "users\/dashboard"\)/);
 });
+
+
+test("notice and template writes commit business rows and audit events atomically", async () => {
+  const service = await read("../src/notifications/notifications.service.ts");
+  const createNotice = service.slice(service.indexOf("async create("), service.indexOf("async update("));
+  const createTemplate = service.slice(service.indexOf("async createTemplate("), service.indexOf("async updateTemplate("));
+  const updateTemplate = service.slice(service.indexOf("async updateTemplate("), service.indexOf("async toggleTemplate("));
+  const toggleTemplate = service.slice(service.indexOf("async toggleTemplate("), service.indexOf("async publicAnnouncements("));
+
+  for (const [name, method, write] of [
+    ["notice creation", createNotice, "tx.adminNotification.create"],
+    ["template creation", createTemplate, "tx.notificationTemplate.create"],
+    ["template update", updateTemplate, "tx.notificationTemplate.update"],
+    ["template toggle", toggleTemplate, "tx.notificationTemplate.update"],
+  ]) {
+    assert.match(method, /prisma\.\$transaction/, name + " must use a transaction");
+    assert.ok(method.includes(write), name + " must write through the transaction client");
+    assert.match(method, /tx\.auditEvent\.create/, name + " must persist its audit event in the same transaction");
+  }
+});
