@@ -33,3 +33,12 @@ test("team history uses a stable compound cursor and preserves full level counts
   assert.match(app, /private fun TeamDataScreen/);
   assert.match(app, /Unable to load more team members/);
 });
+
+test("member commission history requires the exact referral credit type, owner, amount and currency", () => {
+  const method = dashboard.slice(dashboard.indexOf("async getCommissionRecords("), dashboard.indexOf("async getTeamMembers("));
+  assert.match(method, /sourceType: "REFERRAL_COMMISSION"/);
+  assert.match(method, /wallet: \{ userId \}/);
+  assert.match(method, /amountMinor === row\.amountMinor/);
+  assert.match(method, /credit\.currency\.trim\(\)\.toUpperCase\(\) === row\.currency\.trim\(\)\.toUpperCase\(\)/);
+  assert.match(method, /status: isCredited\(row\) \? "CREDITED" : "PENDING"/);
+});
