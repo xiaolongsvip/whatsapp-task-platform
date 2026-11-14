@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { NotificationsService } from "./notifications.service";
@@ -74,7 +74,7 @@ export class NotificationsAdminController {
   @Post("templates/:id/toggle")
   async toggleTemplate(@Req() request: Request, @Param("id") id: string, @Body() body: { enabled?: unknown }) {
     const admin = await this.admin(request);
-    if (typeof body.enabled !== "boolean") throw new Error("enabled 必须为布尔值。");
+    if (typeof body.enabled !== "boolean") throw new BadRequestException("enabled 必须为布尔值。");
     return this.notifications.toggleTemplate(id, body.enabled, admin.id);
   }
 }
