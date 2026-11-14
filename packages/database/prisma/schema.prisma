@@ -926,11 +926,11 @@ model AdminNotification {
   disabledAt        DateTime? @map("disabled_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
+  readReceipts      NotificationReadReceipt[]
 
   @@index([status, publishedAt])
   @@index([createdAt])
   @@map("admin_notifications")
-  readReceipts      NotificationReadReceipt[]
 }
 
 model NotificationReadReceipt {
