@@ -311,7 +311,7 @@ export class DashboardService {
     }
     return {
       referralCode: code,
-      inviteUrl: code && process.env.WEB_ORIGIN?.trim() ? `${process.env.WEB_ORIGIN.trim().replace(/\\/+$/, "")}/r/${encodeURIComponent(code)}` : "",
+      inviteUrl: code && process.env.WEB_ORIGIN?.trim() ? `${process.env.WEB_ORIGIN.trim().replace(/\/+$/, "")}/r/${encodeURIComponent(code)}` : "",
       inviteCount: directInvites,
       activeCount: activeInvites,
       teamCount,
