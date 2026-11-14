@@ -240,7 +240,7 @@ fun TaskHallScreen(
     fun startAndOpenWhatsApp(claim: JSONObject) {
         // The countdown is a client-side guard only; the API rechecks expiry
         // under the claim lock before changing the claim to IN_PROGRESS.
-        if (isClaimDeadlinePassed(claim)) {
+        if (isClaimDeadlinePassed(claim, serverClockOffsetMillis)) {
             val expiredId = claim.optString("id")
             locallyExpiredClaimIds = locallyExpiredClaimIds + expiredId
             if (selectedClaimId == expiredId) selectedClaimId = null
@@ -325,7 +325,7 @@ fun TaskHallScreen(
     val expirableStatuses = setOf("CLAIMED", "IN_PROGRESS")
     val isLocallyExpired: (JSONObject) -> Boolean = { claim ->
         claim.optString("status") in expirableStatuses &&
-            (claim.optString("id") in locallyExpiredClaimIds || isClaimDeadlinePassed(claim))
+            (claim.optString("id") in locallyExpiredClaimIds || isClaimDeadlinePassed(claim, serverClockOffsetMillis))
     }
     val inProgressClaims = claims.filter {
         it.optString("status") in IN_PROGRESS_STATUSES && !isLocallyExpired(it)
@@ -792,6 +792,7 @@ fun TaskHallScreen(
                                 claim = claim,
                                 isEnglish = isEnglish,
                                 activeClaimId = activeClaimId,
+                                serverClockOffsetMillis = serverClockOffsetMillis,
                                 busy = busyId != null,
                                 onViewDetails = {
                                     if (shouldClearActiveClaimOnViewDetails(activeClaimId, claim.optString("id"))) {
@@ -897,6 +898,7 @@ fun TaskHallScreen(
                 claim = selectedClaim,
                 isEnglish = isEnglish,
                 activeClaimId = activeClaimId,
+                serverClockOffsetMillis = serverClockOffsetMillis,
                 errorMessage = error,
                 abandoning = abandoningId == selectedClaim.optString("id"),
                 starting = busyId == selectedClaim.optString("id"),
@@ -965,6 +967,7 @@ private fun TaskExecutionScreen(
     claim: JSONObject,
     isEnglish: Boolean,
     activeClaimId: String?,
+    serverClockOffsetMillis: Long,
     errorMessage: String?,
     abandoning: Boolean,
     starting: Boolean,
@@ -983,10 +986,10 @@ private fun TaskExecutionScreen(
     val expiryMillis = remember(expiryValue) {
         if (timerStarted) runCatching { Instant.parse(expiryValue).toEpochMilli() }.getOrDefault(0L) else 0L
     }
-    var remainingSeconds by remember(expiryMillis, timerStarted) {
+    var remainingSeconds by remember(expiryMillis, timerStarted, serverClockOffsetMillis) {
         mutableStateOf(
             if (timerStarted) {
-                ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+                ((expiryMillis - (System.currentTimeMillis() + serverClockOffsetMillis)) / 1000).coerceAtLeast(0)
             } else {
                 0L
             }
@@ -1003,9 +1006,9 @@ private fun TaskExecutionScreen(
             "手动发送指定信息，完成后提交截图审核。"
         }
 
-    LaunchedEffect(expiryMillis, timerStarted) {
+    LaunchedEffect(expiryMillis, timerStarted, serverClockOffsetMillis) {
         while (timerStarted && remainingSeconds > 0) {
-            remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            remainingSeconds = ((expiryMillis - (System.currentTimeMillis() + serverClockOffsetMillis)) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0) delay(1000)
         }
         if (timerStarted && remainingSeconds <= 0 && status in setOf("CLAIMED", "IN_PROGRESS")) {
@@ -1281,21 +1284,21 @@ private fun TaskExecutionScreen(
 }
 
 @Composable
-private fun TaskCountdownBadge(expiresAt: String, isEnglish: Boolean, onExpired: () -> Unit) {
+private fun TaskCountdownBadge(expiresAt: String, serverClockOffsetMillis: Long, isEnglish: Boolean, onExpired: () -> Unit) {
     val expiryMillis = remember(expiresAt) {
         runCatching { Instant.parse(expiresAt).toEpochMilli() }.getOrDefault(0L)
     }
-    var remainingSeconds by remember(expiryMillis) {
-        mutableStateOf(((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0))
+    var remainingSeconds by remember(expiryMillis, serverClockOffsetMillis) {
+        mutableStateOf(((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0))
     }
     var expiryNotified by remember(expiryMillis) { mutableStateOf(false) }
 
-    LaunchedEffect(expiryMillis) {
+    LaunchedEffect(expiryMillis, serverClockOffsetMillis) {
         while (expiryMillis > 0L && remainingSeconds > 0L) {
-            remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            remainingSeconds = ((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0)
             if (remainingSeconds > 0L) delay(1000)
         }
-        remainingSeconds = ((expiryMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+        remainingSeconds = ((expiryMillis - ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)) / 1000).coerceAtLeast(0)
         if (expiryMillis > 0L && remainingSeconds <= 0L && !expiryNotified) {
             expiryNotified = true
             onExpired()
@@ -1631,6 +1634,7 @@ private fun ClaimedTaskCard(
     claim: JSONObject,
     isEnglish: Boolean,
     activeClaimId: String?,
+    serverClockOffsetMillis: Long,
     busy: Boolean,
     onViewDetails: () -> Unit,
     onGoWhatsApp: () -> Unit,
@@ -1669,6 +1673,7 @@ private fun ClaimedTaskCard(
                 ) {
                     TaskCountdownBadge(
                         expiresAt = expiresAt,
+                        serverClockOffsetMillis = serverClockOffsetMillis,
                         isEnglish = isEnglish,
                         onExpired = {
                             if (!countdownExpired) {
@@ -1907,12 +1912,12 @@ private fun taskExpiryValue(claim: JSONObject): String? {
     return claimedInstant.plusSeconds(180).toString()
 }
 
-private fun isClaimDeadlinePassed(claim: JSONObject): Boolean =
+private fun isClaimDeadlinePassed(claim: JSONObject, serverClockOffsetMillis: Long = 0L): Boolean =
     ClaimDeadline.isExpired(
         status = claim.optString("status"),
         expiresAt = claim.optString("expiresAt").takeUnless { it == "null" },
         claimedAt = claim.optString("claimedAt").takeUnless { it == "null" },
-        nowMillis = System.currentTimeMillis()
+        nowMillis = ClaimDeadline.serverNowMillis(System.currentTimeMillis(), serverClockOffsetMillis)
     )
 
 private fun formatDate(value: String): String {

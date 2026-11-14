@@ -20,6 +20,9 @@ internal object ClaimDeadline {
         return claimedMillis + 180_000L
     }
 
+    fun serverNowMillis(localNowMillis: Long, serverClockOffsetMillis: Long): Long =
+        localNowMillis + serverClockOffsetMillis
+
     fun isExpired(
         status: String,
         expiresAt: String?,
