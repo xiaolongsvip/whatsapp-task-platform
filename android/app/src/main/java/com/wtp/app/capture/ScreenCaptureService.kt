@@ -70,6 +70,7 @@ class ScreenCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        CaptureSessionState.initialize(applicationContext)
         createNotificationChannel()
         workerThread = HandlerThread("wtp-screen-capture").apply { start() }
         workerHandler = Handler(workerThread!!.looper)
