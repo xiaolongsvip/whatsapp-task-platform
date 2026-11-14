@@ -41,7 +41,6 @@ object AuthRepository {
     private const val HOST = "10.0.2.2"
     private const val WITHDRAWAL_REQUEST_PREFS = "wtp_pending_withdrawal"
     private const val WITHDRAWAL_REQUEST_KEY = "idempotency_key"
-    private const val WITHDRAWAL_REQUEST_FINGERPRINT = "request_fingerprint"
     private const val WITHDRAWAL_REQUEST_BODY = "request_body"
     private val mediaType = "application/json; charset=utf-8".toMediaType()
     @Volatile private var appContext: Context? = null
@@ -335,10 +334,11 @@ object AuthRepository {
         val prefs = appContext?.getSharedPreferences(WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE)
             ?: throw IOException("AuthRepository.initialize(context) must be called before submitting a withdrawal.")
         val fingerprint = withdrawalIntentFingerprint(payoutAccountId, amountMinor)
-        val savedFingerprint = prefs.getString(WITHDRAWAL_REQUEST_FINGERPRINT, null)
-        val savedKey = prefs.getString(WITHDRAWAL_REQUEST_KEY, null)
-        val savedBody = prefs.getString(WITHDRAWAL_REQUEST_BODY, null)
-        if (savedFingerprint == fingerprint && !savedKey.isNullOrBlank() && !savedBody.isNullOrBlank()) {
+        val keyPreference = "$WITHDRAWAL_REQUEST_KEY:$fingerprint"
+        val bodyPreference = "$WITHDRAWAL_REQUEST_BODY:$fingerprint"
+        val savedKey = prefs.getString(keyPreference, null)
+        val savedBody = prefs.getString(bodyPreference, null)
+        if (!savedKey.isNullOrBlank() && !savedBody.isNullOrBlank()) {
             val restoredBody = runCatching { JSONObject(savedBody) }.getOrNull()
             if (restoredBody != null) return PendingWithdrawalRequest(fingerprint, savedKey, restoredBody)
         }
@@ -346,9 +346,8 @@ object AuthRepository {
         val newKey = UUID.randomUUID().toString()
         val body = withdrawalRequestBody(payoutAccountId, amountMinor, quote)
         val saved = prefs.edit()
-            .putString(WITHDRAWAL_REQUEST_FINGERPRINT, fingerprint)
-            .putString(WITHDRAWAL_REQUEST_KEY, newKey)
-            .putString(WITHDRAWAL_REQUEST_BODY, body.toString())
+            .putString(keyPreference, newKey)
+            .putString(bodyPreference, body.toString())
             .commit()
         if (!saved) throw IOException("Unable to persist the withdrawal retry details. Please retry before submitting.")
         return PendingWithdrawalRequest(fingerprint, newKey, body)
@@ -357,20 +356,18 @@ object AuthRepository {
     @Synchronized
     private fun clearWithdrawalRequest(fingerprint: String, idempotencyKey: String) {
         val prefs = appContext?.getSharedPreferences(WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE) ?: return
-        if (prefs.getString(WITHDRAWAL_REQUEST_FINGERPRINT, null) != fingerprint ||
-            prefs.getString(WITHDRAWAL_REQUEST_KEY, null) != idempotencyKey
-        ) return
+        val keyPreference = "$WITHDRAWAL_REQUEST_KEY:$fingerprint"
+        if (prefs.getString(keyPreference, null) != idempotencyKey) return
         prefs.edit()
-            .remove(WITHDRAWAL_REQUEST_FINGERPRINT)
-            .remove(WITHDRAWAL_REQUEST_KEY)
-            .remove(WITHDRAWAL_REQUEST_BODY)
+            .remove(keyPreference)
+            .remove("$WITHDRAWAL_REQUEST_BODY:$fingerprint")
             .commit()
     }
 
     fun clearPendingWithdrawalRequest(payoutAccountId: String, amountMinor: String) {
         val fingerprint = withdrawalIntentFingerprint(payoutAccountId, amountMinor)
         val prefs = appContext?.getSharedPreferences(WITHDRAWAL_REQUEST_PREFS, Context.MODE_PRIVATE) ?: return
-        val savedKey = prefs.getString(WITHDRAWAL_REQUEST_KEY, null) ?: return
+        val savedKey = prefs.getString("$WITHDRAWAL_REQUEST_KEY:$fingerprint", null) ?: return
         clearWithdrawalRequest(fingerprint, savedKey)
     }
 
