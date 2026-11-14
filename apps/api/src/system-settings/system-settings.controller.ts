@@ -76,14 +76,27 @@ export class SystemSettingsController {
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 100 * 1024 * 1024 } }))
   async uploadApk(@Req() req: Request, @UploadedFile() file?: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
     const a = await this.admin(req);
-    if (!file || !file.originalname.toLowerCase().endsWith(".apk") || !isApkArchive(file.buffer)) throw new BadRequestException("上传文件不是有效的 APK：ZIP 结构异常或缺少 AndroidManifest.xml");
+    if (!file || !file.originalname.toLowerCase().endsWith(".apk") || !isApkArchive(file.buffer)) {
+      throw new BadRequestException("上传文件不是有效的 APK：ZIP 结构异常或缺少 AndroidManifest.xml");
+    }
     const base = process.env.APP_DOWNLOAD_BASE_URL?.trim().replace(/\/+$/, "");
-    if (!base || !base.startsWith("https://")) throw new BadRequestException("请先在 API 环境配置 HTTPS 的 APP_DOWNLOAD_BASE_URL 公共下载域名");
+    if (!base || !base.startsWith("https://")) {
+      throw new BadRequestException("请先在 API 环境配置 HTTPS 的 APP_DOWNLOAD_BASE_URL 公共下载域名");
+    }
     const key = "app-updates/" + randomUUID() + "-" + file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     await this.objectStorage.putObject(key, file.buffer, "application/vnd.android.package-archive");
     const downloadUrl = base + "/" + key;
     const sha256 = createHash("sha256").update(file.buffer).digest("hex");
-    return this.settings.registerApkUpload({ fileName: file.originalname, size: file.size, downloadUrl, objectKey: key, sha256 }, a.id);
+    try {
+      return await this.settings.registerApkUpload({
+        fileName: file.originalname, size: file.size, downloadUrl, objectKey: key, sha256,
+      }, a.id);
+    } catch (error) {
+      // Do not leave an unreferenced APK object when a stale/missing draft is
+      // rejected by the transactional version check.
+      await this.objectStorage.deleteObject(key).catch(() => undefined);
+      throw error;
+    }
   }
   @Post("version/:versionCode/publish")
   async publishVersion(@Req() req: Request, @Param("versionCode") versionCode: string) { const a = await this.admin(req); return this.settings.versionAction(Number(versionCode), "PUBLISH", a.id); }
