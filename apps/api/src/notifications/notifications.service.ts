@@ -91,7 +91,36 @@ export class NotificationsService {
   }
 
   async listRecords(input: { page?: number; pageSize?: number; keyword?: string }) {
-    return this.list({ ...input, status: "ALL" });
+    const page = Math.max(1, Math.floor(Number(input.page) || 1));
+    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(input.pageSize) || 20)));
+    const keyword = input.keyword?.trim() ?? "";
+    const where: Prisma.AdminNotificationWhereInput = { publishedAt: { not: null } };
+    if (keyword) where.AND = [
+      { OR: [
+        { title: { contains: keyword, mode: "insensitive" } },
+        { content: { contains: keyword, mode: "insensitive" } },
+      ] },
+    ];
+    const [total, notices] = await prisma.$transaction([
+      prisma.adminNotification.count({ where }),
+      prisma.adminNotification.findMany({
+        where,
+        orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return {
+      items: notices.map((item) => ({
+        id: item.id, title: item.title, content: item.content, target: item.target,
+        status: item.status, recipientCount: item.recipientCount,
+        createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString(),
+        publishedAt: item.publishedAt?.toISOString() ?? null, disabledAt: item.disabledAt?.toISOString() ?? null,
+      })),
+      pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+      stats: { total, draft: 0, published: notices.filter((x) => x.status === "PUBLISHED").length, disabled: notices.filter((x) => x.status === "DISABLED").length, publishedAudience: notices.reduce((sum, item) => sum + item.recipientCount, 0) },
+      deliveryMode: "IN_APP" as const,
+    };
   }
 
   async create(input: NoticeInput, adminId: string) {
