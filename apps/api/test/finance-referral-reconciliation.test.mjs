@@ -28,3 +28,20 @@ test("admin reconciliation detail displays referral beneficiary, expected amount
   assert.match(adminPage, /x\.actualWalletUserId/);
   assert.match(adminPage, /x\.expectedAmountMinor/);
 });
+
+
+test("finance reconciliation verifies task reward credits belong to the task claimant wallet", () => {
+  const method = service.slice(service.indexOf("async runFinanceReconciliation("), service.indexOf("async reconciliationRuns("));
+  assert.match(method, /sourceType: "TASK_REWARD"[\s\S]*?select: \{ sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: \{ select: \{ userId: true \} \} \}/);
+  assert.match(method, /entry\.wallet\.userId !== x\.claim\.userId/);
+  assert.match(method, /actualWalletUserId: entry\.wallet\.userId/);
+  assert.match(method, /expectedWalletUserId: x\.claim\.userId/);
+});
+
+test("finance reconciliation verifies withdrawal debits belong to the withdrawal wallet", () => {
+  const method = service.slice(service.indexOf("async runFinanceReconciliation("), service.indexOf("async reconciliationRuns("));
+  assert.match(method, /sourceType: "WITHDRAWAL_PAYOUT"[\s\S]*?select: \{ sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: \{ select: \{ userId: true \} \} \}/);
+  assert.match(method, /entry\.walletId !== x\.walletId/);
+  assert.match(method, /expectedWalletId: x\.walletId/);
+  assert.match(method, /actualWalletId: entry\.walletId/);
+});
