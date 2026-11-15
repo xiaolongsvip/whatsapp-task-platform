@@ -49,3 +49,23 @@ test("finance reconciliation verifies withdrawal debits belong to the withdrawal
   assert.match(method, /expectedWalletId: x\.walletId/);
   assert.match(method, /actualWalletId: entry\.walletId/);
 });
+
+test("finance reconciliation scans all task reward ledger entries and flags entries without an approved claim", () => {
+  const method = service.slice(service.indexOf("async runFinanceReconciliation("), service.indexOf("async reconciliationRuns("));
+  assert.match(method, /where: \{ sourceType: "TASK_REWARD" \ }, skip, take/);
+  assert.match(method, /fetchAll\(\(skip, take\) => prisma\.ledgerEntry\.findMany/);
+  assert.match(method, /TASK_REWARD_ORPHAN_LEDGER/);
+  assert.match(method, /approvedClaimIds\.has\(entry\.sourceId\)/);
+});
+
+test("finance reconciliation persists all exception details and paginates run details", () => {
+  assert.match(service, /items: items as Prisma\.InputJsonValue/);
+  assert.doesNotMatch(service, /items: items\.slice\(0, 500\) as Prisma\.InputJsonValue/);
+  assert.match(service, /itemsPageSize: 50/);
+  assert.match(service, /allItems\.slice\(pg\.skip, pg\.skip \+ pg\.pageSize\)/);
+  assert.match(controller, /reconciliationRunDetail\(id, query\)/);
+  assert.match(adminPage, /loadReconciliationPage/);
+  assert.match(adminPage, /异常明细/);
+  assert.match(adminPage, /上一页/);
+  assert.match(adminPage, /下一页/);
+});
