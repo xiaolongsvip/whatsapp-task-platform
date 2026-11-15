@@ -750,7 +750,6 @@ export class FinanceAdminService {
           wallet: { select: { userId: true } } },
       })),
     ]);
-    const claimIds = [...new Set(approvedSubmissions.map(x => x.claimId))];
     const withdrawalIds = [...new Set(paidWithdrawals.map(x => x.id))];
     const [payoutEntries, payoutTransactions] = await Promise.all([
       withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } },
