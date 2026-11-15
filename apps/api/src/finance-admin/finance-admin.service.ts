@@ -720,7 +720,7 @@ export class FinanceAdminService {
         if (batch.length < batchSize) return all;
       }
     };
-    const [approvedSubmissions, paidWithdrawals, successfulPayouts, referralRewards, referralCredits] = await Promise.all([
+    const [approvedSubmissions, paidWithdrawals, successfulPayouts, referralRewards, referralCredits, taskRewardLedgerEntries] = await Promise.all([
       fetchAll((skip, take) => prisma.taskSubmission.findMany({
         where: { status: "APPROVED" }, skip, take, orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
         include: { claim: { include: { task: { select: { title: true, rewardMinor: true, currency: true } }, user: { select: { phone: true } } } } },
@@ -743,12 +743,15 @@ export class FinanceAdminService {
         select: { id: true, sourceId: true, idempotencyKey: true, amountMinor: true, currency: true, direction: true,
           wallet: { select: { userId: true } } },
       })),
+      fetchAll((skip, take) => prisma.ledgerEntry.findMany({
+        where: { sourceType: "TASK_REWARD" }, skip, take,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, sourceId: true, walletId: true, amountMinor: true, currency: true, direction: true,
+          wallet: { select: { userId: true } } },
+      })),
     ]);
-    const claimIds = [...new Set(approvedSubmissions.map(x => x.claimId))];
     const withdrawalIds = [...new Set(paidWithdrawals.map(x => x.id))];
-    const [taskEntries, payoutEntries, payoutTransactions] = await Promise.all([
-      claimIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "TASK_REWARD", sourceId: { in: claimIds } },
-        select: { sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: { select: { userId: true } } } }) : [],
+    const [payoutEntries, payoutTransactions] = await Promise.all([
       withdrawalIds.length ? prisma.ledgerEntry.findMany({ where: { sourceType: "WITHDRAWAL_PAYOUT", sourceId: { in: withdrawalIds } },
         select: { sourceId: true, walletId: true, direction: true, amountMinor: true, currency: true, wallet: { select: { userId: true } } } }) : [],
       withdrawalIds.length ? prisma.paymentTransaction.findMany({ where: { withdrawalRequestId: { in: withdrawalIds }, flow: "PAYOUT", status: "SUCCEEDED" },
@@ -787,7 +790,7 @@ export class FinanceAdminService {
       for (const row of rows) map.set(row.sourceId, [...(map.get(row.sourceId) ?? []), row]);
       return map;
     };
-    const taskEntriesByClaim = groupBySource(taskEntries);
+    const taskEntriesByClaim = groupBySource(taskRewardLedgerEntries);
     const payoutEntriesByWithdrawal = groupBySource(payoutEntries);
     const payoutsByWithdrawal = new Map<string, typeof payoutTransactions>();
     for (const row of payoutTransactions) if (row.withdrawalRequestId) {
@@ -817,6 +820,17 @@ export class FinanceAdminService {
           actualSourceType: entry.sourceType, actualDirection: entry.direction,
           actualWalletUserId: entry.wallet.userId,
           message: "邀请佣金流水的类型、收款用户、金额、币种或方向与奖励记录不一致",
+        });
+      }
+    }
+    const approvedClaimIds = new Set(approvedSubmissions.map(x => x.claimId));
+    for (const entry of taskRewardLedgerEntries) {
+      if (!approvedClaimIds.has(entry.sourceId)) {
+        items.push({
+          type: "TASK_REWARD_ORPHAN_LEDGER", recordId: entry.id, sourceId: entry.sourceId,
+          walletUserId: entry.wallet.userId, walletId: entry.walletId,
+          amountMinor: entry.amountMinor.toString(), currency: entry.currency.trim(), direction: entry.direction,
+          message: "存在任务奖励流水，但未找到对应的已通过审核任务领取记录",
         });
       }
     }
@@ -892,21 +906,21 @@ export class FinanceAdminService {
         });
       }
     }
-    const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length + referralRewards.length + referralCredits.length;
+    const checkedCount = approvedSubmissions.length + paidWithdrawals.length + successfulPayouts.length + referralRewards.length + referralCredits.length + taskRewardLedgerEntries.length;
     const exceptionCount = items.length;
     const scanLimitReached = false;
     const completedAt = new Date();
     const status = scanLimitReached ? "INCOMPLETE" : exceptionCount === 0 ? "SUCCESS" : "FAILED";
     const summary = { approvedTaskSubmissionsChecked: approvedSubmissions.length, uniqueApprovedClaimsChecked: checkedClaims.size,
       paidWithdrawalsChecked: paidWithdrawals.length, successfulPayoutTransactionsChecked: successfulPayouts.length,
-      referralCommissionsChecked: referralRewards.length, referralCommissionLedgerEntriesChecked: referralCredits.length,
+      referralCommissionsChecked: referralRewards.length, referralCommissionLedgerEntriesChecked: referralCredits.length, taskRewardLedgerEntriesChecked: taskRewardLedgerEntries.length,
       referralLedgerChecks: true,
       amountDirectionCurrencyChecks: true, batchSize, scanLimitReached, exceptionCount };
     const run = await prisma.financeReconciliationRun.create({ data: {
-      triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items.slice(0, 500) as Prisma.InputJsonValue,
+      triggerType: "MANUAL", status, checkedCount, exceptionCount, summary, items: items as Prisma.InputJsonValue,
       createdByAdminId: adminId, createdAt: startedAt, completedAt,
     } });
-    return { id: run.id, status: run.status, checkedCount: run.checkedCount, exceptionCount, summary, items: items.slice(0, 500),
+    return { id: run.id, status: run.status, checkedCount: run.checkedCount, exceptionCount, summary, items: items.slice(0, 50), itemsPage: 1, itemsPageSize: 50, itemsTotal: items.length,
       createdAt: run.createdAt.toISOString(), completedAt: run.completedAt?.toISOString() ?? null };
   }
 
@@ -920,11 +934,15 @@ export class FinanceAdminService {
     return { ...pg, total, items: rows.map(x => ({ ...x, createdAt: x.createdAt.toISOString(), completedAt: x.completedAt?.toISOString() ?? null })) };
   }
 
-  async reconciliationRunDetail(id: string) {
+  async reconciliationRunDetail(id: string, query: { page?: string; pageSize?: string } = {}) {
     if (!isUuid(id)) throw new BadRequestException("对账运行 ID 格式不正确");
     const row = await prisma.financeReconciliationRun.findUnique({ where: { id } });
     if (!row) throw new NotFoundException("对账运行记录不存在");
-    return { ...row, createdAt: row.createdAt.toISOString(), completedAt: row.completedAt?.toISOString() ?? null };
+    const pg = pageArgs(query.page, query.pageSize ?? "50");
+    const allItems = Array.isArray(row.items) ? row.items as Array<Record<string, unknown>> : [];
+    return { ...row, items: allItems.slice(pg.skip, pg.skip + pg.pageSize), itemsPage: pg.page,
+      itemsPageSize: pg.pageSize, itemsTotal: row.exceptionCount,
+      createdAt: row.createdAt.toISOString(), completedAt: row.completedAt?.toISOString() ?? null };
   }
 
 }

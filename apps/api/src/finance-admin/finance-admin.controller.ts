@@ -66,7 +66,7 @@ export class FinanceAdminController {
   @Post("reconciliations/run")
   async runReconciliation(@Req() req: Request) { const admin = await this.authorize(req); return this.finance.runFinanceReconciliation(admin.id); }
   @Get("reconciliations/:id")
-  async reconciliationRunDetail(@Req() req: Request, @Param("id") id: string) { await this.authorize(req); return this.finance.reconciliationRunDetail(id); }
+  async reconciliationRunDetail(@Req() req: Request, @Param("id") id: string, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.reconciliationRunDetail(id, query); }
 
   @Get("transactions")
   async transactions(@Req() req: Request, @Query() query: Record<string,string>) { await this.authorize(req); return this.finance.transactions(query); }
