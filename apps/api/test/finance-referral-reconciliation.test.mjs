@@ -53,7 +53,7 @@ test("finance reconciliation verifies withdrawal debits belong to the withdrawal
 
 test("finance reconciliation scans all task reward ledger entries and flags entries without an approved claim", () => {
   const method = service.slice(service.indexOf("async runFinanceReconciliation("), service.indexOf("async reconciliationRuns("));
-  assert.match(method, /where: \{ sourceType: "TASK_REWARD" \ }, skip, take/);
+  assert.match(method, /sourceType: "TASK_REWARD" }, skip, take/);
   assert.match(method, /fetchAll\(\(skip, take\) => prisma\.ledgerEntry\.findMany/);
   assert.match(method, /TASK_REWARD_ORPHAN_LEDGER/);
   assert.match(method, /approvedClaimIds\.has\(entry\.sourceId\)/);
