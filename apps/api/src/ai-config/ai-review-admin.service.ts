@@ -463,9 +463,11 @@ export class AiReviewAdminService {
       source: "实时屏幕截图",
       captureMode: "APP 任务提交",
       trustLevel: "未接入风险评估",
-      reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
-        ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
-        item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
+      reviewStatus: review?.reviewerAdminId
+        ? (review.decision === "APPROVE" ? "人工审核通过" : "人工审核拒绝")
+        : item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核"
+        : ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中"
+        : item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
       reviewDecision: review?.decision ?? item.aiReviewJob?.decision ?? null,
       reviewReason: review?.reason ?? item.aiReviewJob?.reason ?? null,
       reviewedAt: review?.reviewedAt.toISOString() ?? null,
@@ -512,6 +514,11 @@ export class AiReviewAdminService {
         where, orderBy: { submittedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize,
         include: {
           aiReviewJob: { select: { status: true } },
+          reviews: {
+            orderBy: { reviewedAt: "desc" },
+            take: 1,
+            select: { reviewerAdminId: true, decision: true },
+          },
           claim: {
             include: {
               task: { select: { id: true, title: true, category: true } },
@@ -539,9 +546,11 @@ export class AiReviewAdminService {
         nextRetryAt: item.evidenceDeleteNextAttemptAt?.toISOString() ?? null,
         lastStorageError: item.evidenceDeleteLastError,
         source: "实时屏幕截图",
-        reviewStatus: item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核" :
-          ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中" :
-          item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
+        reviewStatus: item.reviews[0]?.reviewerAdminId
+          ? (item.reviews[0].decision === "APPROVE" ? "人工审核通过" : "人工审核拒绝")
+          : item.aiReviewJob?.status === "NEEDS_REVIEW" ? "人工复核"
+          : ["PENDING", "PROCESSING", "RETRY"].includes(item.aiReviewJob?.status ?? "") ? "智能审核中"
+          : item.status === "APPROVED" ? "AI 自动审核通过" : item.status === "REJECTED" ? "已拒绝" : "已提交",
         submittedAt: item.submittedAt.toISOString(), originalName: item.originalName,
         mimeType: item.mimeType, sizeBytes: item.sizeBytes, taskTitle: item.claim.task.title,
       })),

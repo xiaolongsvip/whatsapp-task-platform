@@ -60,3 +60,28 @@ test("evidence listing no longer exposes duplicate or impossible status filters"
   const evidenceRoute = controller.slice(controller.indexOf('@Get("evidence")'), controller.indexOf('@Get("evidence/:id/detail")'));
   assert.ok(!evidenceRoute.includes('@Query("status") status?: string'));
 });
+
+test("evidence list and detail distinguish human review decisions from AI auto-approval", async () => {
+  const source = await readSource("../src/ai-config/ai-review-admin.service.ts");
+
+  const detail = source.slice(
+    source.indexOf("async getEvidenceDetail"),
+    source.indexOf("async listEvidenceRecords"),
+  );
+  const listing = source.slice(
+    source.indexOf("async listEvidenceRecords"),
+    source.indexOf("async rerunAiReview"),
+  );
+
+  assert.ok(detail.includes("reviews: { orderBy: { reviewedAt: \"desc\" }, take: 1 }"));
+  assert.ok(detail.includes("review?.reviewerAdminId"));
+  assert.ok(detail.includes('"人工审核通过"'));
+  assert.ok(detail.includes('"人工审核拒绝"'));
+  assert.ok(detail.includes('"AI 自动审核通过"'));
+
+  assert.ok(listing.includes("select: { reviewerAdminId: true, decision: true }"));
+  assert.ok(listing.includes("item.reviews[0]?.reviewerAdminId"));
+  assert.ok(listing.includes('"人工审核通过"'));
+  assert.ok(listing.includes('"人工审核拒绝"'));
+  assert.ok(listing.includes('"AI 自动审核通过"'));
+});
