@@ -616,6 +616,7 @@ model WithdrawalRequest {
 
   @@index([status, createdAt])
   @@index([payoutAccountId])
+  @@index([payoutCurrency, status, createdAt])
   @@map("withdrawal_requests")
 }
 
@@ -669,6 +670,7 @@ model PaymentProviderConfig {
   updatedAt             DateTime @updatedAt @map("updated_at")
   transactions          PaymentTransaction[]
 
+  @@index([countryCode])
   @@map("payment_provider_configs")
 }
 
@@ -716,7 +718,7 @@ model AiReviewConfig {
   systemPrompt     String?  @map("system_prompt") @db.Text
   updatedByAdminId String?  @map("updated_by_admin_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  updatedAt        DateTime @updatedAt @map("updated_at") @default(now())
 
   @@map("ai_review_configs")
 }
@@ -735,7 +737,7 @@ model ObjectStorageConfig {
   enabled             Boolean  @default(false)
   updatedByAdminId    String?  @map("updated_by_admin_id") @db.Uuid
   createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  updatedAt           DateTime @updatedAt @map("updated_at") @default(now())
 
   @@map("object_storage_configs")
 }
@@ -923,10 +925,10 @@ model AdminNotification {
   recipientCount    Int       @default(0) @map("recipient_count")
   createdByAdminId  String?   @map("created_by_admin_id") @db.Uuid
   publishedByAdminId String?  @map("published_by_admin_id") @db.Uuid
-  publishedAt       DateTime? @map("published_at")
-  disabledAt        DateTime? @map("disabled_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  publishedAt       DateTime? @map("published_at") @db.Timestamptz(6)
+  disabledAt        DateTime? @map("disabled_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   readReceipts      NotificationReadReceipt[]
 
   @@index([status, publishedAt])
@@ -938,7 +940,7 @@ model NotificationReadReceipt {
   id             String            @id @default(uuid()) @db.Uuid
   userId         String            @map("user_id") @db.Uuid
   notificationId String            @map("notification_id") @db.Uuid
-  readAt         DateTime          @default(now()) @map("read_at")
+  readAt         DateTime          @default(now()) @map("read_at") @db.Timestamptz(6)
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   notification   AdminNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
@@ -956,8 +958,8 @@ model NotificationTemplate {
   enabled          Boolean  @default(true)
   createdByAdminId String?  @map("created_by_admin_id") @db.Uuid
   updatedByAdminId String?  @map("updated_by_admin_id") @db.Uuid
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([enabled, updatedAt])
   @@index([name])
@@ -967,6 +969,6 @@ model NotificationTemplate {
 model TaskConfiguration {
   key       String   @id @db.VarChar(80)
   value     Json
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at") @default(now())
   @@map("task_configurations")
 }
