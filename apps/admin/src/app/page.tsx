@@ -172,6 +172,9 @@ export default function AdminHomePage() {
         method: "POST",
         body: JSON.stringify(body),
       });
+      if (mode === "bootstrap") {
+        await api("/api/v1/admin/permissions/catalog");
+      }
       setPassword("");
       setBootstrapToken("");
       setIsAdmin(true);
@@ -311,7 +314,7 @@ export default function AdminHomePage() {
                 <label htmlFor="admin-email">账号或邮箱</label>
                 <div className="login-input-wrap">
                   <UserRound size={17} />
-                  <input id="admin-email" type={mode === "bootstrap" ? "email" : "text"} value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="请输入账号或邮箱" required autoComplete="username" />
+                  <input id="admin-email" type="text" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="请输入账号或邮箱" required autoComplete="username" />
                 </div>
               </div>
 
@@ -319,7 +322,7 @@ export default function AdminHomePage() {
                 <label htmlFor="admin-password">密码</label>
                 <div className="login-input-wrap">
                   <LockKeyhole size={17} />
-                  <input id="admin-password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="请输入密码" minLength={mode === "bootstrap" ? 10 : 1} maxLength={128} required autoComplete={mode === "bootstrap" ? "new-password" : "current-password"} />
+                  <input id="admin-password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="请输入密码" minLength={1} maxLength={128} required autoComplete={mode === "bootstrap" ? "new-password" : "current-password"} />
                   <button type="button" className="password-toggle" aria-label={showPassword ? "隐藏密码" : "显示密码"} onClick={() => setShowPassword(!showPassword)}>
                     {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
@@ -345,7 +348,15 @@ export default function AdminHomePage() {
             {error && <div className="notice error login-notice">{error}</div>}
             {message && <div className="notice login-notice">{message}</div>}
 
-            <button type="button" className="bootstrap-toggle" onClick={() => { setMode(mode === "login" ? "bootstrap" : "login"); setError(""); setMessage(""); }}>
+            <button type="button" className="bootstrap-toggle" onClick={() => {
+              const nextMode = mode === "login" ? "bootstrap" : "login";
+              setMode(nextMode);
+              setAdminEmail(nextMode === "bootstrap" ? "admin" : "");
+              setPassword(nextMode === "bootstrap" ? "admin" : "");
+              setBootstrapToken("");
+              setError("");
+              setMessage("");
+            }}>
               {mode === "login" ? "首次初始化管理员" : "返回管理员登录"}
             </button>
             <p className="login-security"><ShieldCheck size={14} /> 安全加密连接 · 未授权访问将被拒绝</p>
