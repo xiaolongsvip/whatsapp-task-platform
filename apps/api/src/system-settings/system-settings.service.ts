@@ -190,7 +190,7 @@ export class SystemSettingsService {
       return next;
     });
   }
-  async registerApkUpload(input: { version: string; versionCode: number; fileName: string; size: number; downloadUrl: string; objectKey: string; sha256: string }, adminId: string) {
+  async registerApkUpload(input: { version: string; versionCode: number; updateType: "MAJOR" | "MINOR"; releaseNotes: string; fileName: string; size: number; downloadUrl: string; objectKey: string; sha256: string }, adminId: string) {
     return prisma.$transaction(async (tx) => {
       const current = await this.lockAppVersionConfig(tx);
       const releases = Array.isArray(current.releases) ? [...current.releases] : [];
@@ -220,8 +220,8 @@ export class SystemSettingsService {
         ...(existing ?? {}),
         version,
         versionCode: code,
-        updateType: existing?.updateType ?? (current.updateType === "MAJOR" ? "MAJOR" : "MINOR"),
-        releaseNotes: String(existing?.releaseNotes ?? current.releaseNotes ?? "").slice(0, 5000),
+        updateType: existing?.updateType ?? input.updateType,
+        releaseNotes: String(existing?.releaseNotes ?? input.releaseNotes ?? current.releaseNotes ?? "").slice(0, 5000),
         downloadUrl: input.downloadUrl,
         objectKey: input.objectKey,
         fileName: input.fileName,
