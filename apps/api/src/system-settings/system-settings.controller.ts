@@ -97,6 +97,8 @@ export class SystemSettingsController {
     try {
       return await this.settings.registerApkUpload({
         version: apkVersion.versionName, versionCode: apkVersion.versionCode,
+        updateType: req.body?.updateType === "MAJOR" ? "MAJOR" : "MINOR",
+        releaseNotes: String(req.body?.releaseNotes ?? "").slice(0, 5000),
         fileName: file.originalname, size: file.size, downloadUrl, objectKey: key, sha256,
       }, a.id);
     } catch (error) {
