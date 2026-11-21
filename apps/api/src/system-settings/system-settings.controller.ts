@@ -86,7 +86,7 @@ export class SystemSettingsController {
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : "无法读取 APK 版本信息");
     }
-    const base = process.env.APP_DOWNLOAD_BASE_URL?.trim().replace(/\\/+$/, "");
+    const base = process.env.APP_DOWNLOAD_BASE_URL?.trim().replace(/\/+$/, "");
     if (!base || !base.startsWith("https://")) {
       throw new BadRequestException("请先在 API 环境配置 HTTPS 的 APP_DOWNLOAD_BASE_URL 公共下载域名");
     }
