@@ -196,7 +196,7 @@ export class SystemSettingsService {
       const releases = Array.isArray(current.releases) ? [...current.releases] : [];
       const version = String(input.version ?? "").trim();
       const code = Number(input.versionCode);
-      if (!/^\\d+\\.\\d+\\.\\d+$/.test(version) || !Number.isSafeInteger(code) || code < 1) {
+      if (!/^\d+\\.\d+\\.\d+$/.test(version) || !Number.isSafeInteger(code) || code < 1) {
         throw new BadRequestException("APK 内部版本信息无效：versionName 必须为 x.y.z，versionCode 必须为正整数");
       }
       const liveRelease = releases.find((item: any) =>
