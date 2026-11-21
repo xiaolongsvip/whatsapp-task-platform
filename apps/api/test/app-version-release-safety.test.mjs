@@ -26,15 +26,16 @@ test("version draft, APK upload and publish/revoke operations serialize on the s
   }
 });
 
-test("APK upload requires a saved draft newer than the currently published version", async () => {
+test("APK upload creates a verified release from embedded version metadata without requiring a saved draft", async () => {
   const service = await read("../src/system-settings/system-settings.service.ts");
   const upload = service.slice(service.indexOf("async registerApkUpload("), service.indexOf("async versionAction("));
-  assert.match(upload, /item\.status === "DRAFT"/);
-  assert.match(upload, /Number\(item\.versionCode\) === code/);
+  assert.match(upload, /versionName|input\.version/);
+  assert.match(upload, /Number\(item\.versionCode\) === code|Number\(item\.versionCode\) === code/);
   assert.match(upload, /code <= liveVersionCode/);
   assert.match(upload, /status: "VERIFIED"/);
-  assert.match(upload, /releases\[draftIndex\] = release/);
-  assert.doesNotMatch(upload, /releases\.filter\(\(x: any\) => Number\(x\.versionCode\) !== code\)/);
+  assert.match(upload, /if \(existingIndex >= 0\) releases\[existingIndex\] = release;\s*else releases\.unshift\(release\)/);
+  assert.match(upload, /existing\.status !== "DRAFT"/);
+  assert.doesNotMatch(upload, /draftIndex/);
 });
 
 test("failed APK registration removes the uploaded object instead of leaving an orphan", async () => {

@@ -190,32 +190,38 @@ export class SystemSettingsService {
       return next;
     });
   }
-  async registerApkUpload(input: { fileName: string; size: number; downloadUrl: string; objectKey: string; sha256: string }, adminId: string) {
+  async registerApkUpload(input: { version: string; versionCode: number; updateType: "MAJOR" | "MINOR"; releaseNotes: string; fileName: string; size: number; downloadUrl: string; objectKey: string; sha256: string }, adminId: string) {
     return prisma.$transaction(async (tx) => {
       const current = await this.lockAppVersionConfig(tx);
       const releases = Array.isArray(current.releases) ? [...current.releases] : [];
-      const code = Number(current.versionCode ?? 0);
-      const version = String(current.latestVersion ?? "");
-      if (!version || !Number.isSafeInteger(code) || code < 1) {
-        throw new BadRequestException("请先填写最新版本名称和版本代码，再上传 APK");
-      }
-      const draftIndex = releases.findIndex((item: any) =>
-        Number(item.versionCode) === code && String(item.version) === version && item.status === "DRAFT",
-      );
-      if (draftIndex < 0) {
-        throw new BadRequestException("请先保存一个高于当前线上版本的待发布草稿，再上传 APK；上传不会覆盖已发布版本");
+      const version = String(input.version ?? "").trim();
+      const code = Number(input.versionCode);
+      if (!/^\d+\.\d+\.\d+$/.test(version) || !Number.isSafeInteger(code) || code < 1) {
+        throw new BadRequestException("APK 内部版本信息无效：versionName 必须为 x.y.z，versionCode 必须为正整数");
       }
       const liveRelease = releases.find((item: any) =>
         item.status === "PUBLISHED" && String(item.version) === String(current.currentVersion),
       );
-      const liveVersionCode = Number(liveRelease?.versionCode ?? 0);
+      const liveVersionCode = Number(liveRelease?.versionCode ?? current.versionCode ?? 0);
       if (code <= liveVersionCode) {
-        throw new BadRequestException("APK 版本代码必须高于当前线上版本，不能覆盖当前发布包");
+        throw new BadRequestException("APK 内部版本代码必须高于当前线上版本，不能覆盖当前发布包");
       }
 
-      const draft = releases[draftIndex];
+      const existingIndex = releases.findIndex((item: any) => Number(item.versionCode) === code);
+      const existing = existingIndex >= 0 ? releases[existingIndex] : null;
+      if (existing && existing.status !== "DRAFT") {
+        throw new BadRequestException("该 APK 版本代码已有上传或发布记录，请使用新的版本代码");
+      }
+      if (existing && String(existing.version) !== version) {
+        throw new BadRequestException("APK 内部版本名称与已有草稿不一致，请检查版本草稿");
+      }
+
       const release = {
-        ...draft,
+        ...(existing ?? {}),
+        version,
+        versionCode: code,
+        updateType: existing?.updateType ?? input.updateType,
+        releaseNotes: String(existing?.releaseNotes ?? input.releaseNotes ?? current.releaseNotes ?? "").slice(0, 5000),
         downloadUrl: input.downloadUrl,
         objectKey: input.objectKey,
         fileName: input.fileName,
@@ -225,11 +231,21 @@ export class SystemSettingsService {
         uploadedAt: new Date().toISOString(),
         verifiedAt: new Date().toISOString(),
       };
-      releases[draftIndex] = release;
-      const next = { ...current, downloadUrl: input.downloadUrl, releases };
+      if (existingIndex >= 0) releases[existingIndex] = release;
+      else releases.unshift(release);
+      const next = {
+        ...current,
+        latestVersion: version,
+        versionCode: code,
+        updateType: release.updateType,
+        downloadUrl: input.downloadUrl,
+        releaseNotes: release.releaseNotes,
+        releases: releases.slice(0, 100),
+      };
       await this.persistAppVersion(tx, next);
       await this.auditAppVersion(tx, adminId, "APP_APK_UPLOADED_AND_VERIFIED", String(code), {
-        fileName: input.fileName, size: input.size, objectKey: input.objectKey, sha256: input.sha256,
+        version, versionCode: code, fileName: input.fileName, size: input.size,
+        objectKey: input.objectKey, sha256: input.sha256,
       });
       return { ...release };
     });

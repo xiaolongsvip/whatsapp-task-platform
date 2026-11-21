@@ -6,6 +6,7 @@ import { AdminAuthService } from "../admin-auth/admin-auth.service";
 import { SystemSettingsService } from "./system-settings.service";
 import { S3ObjectStorageService } from "../tasks/s3-object-storage.service";
 import { ExchangeRatesService } from "../users/exchange-rates.service";
+import { readApkVersion } from "./apk-version";
 
 const COOKIE = "wtp_admin_session";
 function isApkArchive(buffer: Buffer): boolean {
@@ -79,6 +80,12 @@ export class SystemSettingsController {
     if (!file || !file.originalname.toLowerCase().endsWith(".apk") || !isApkArchive(file.buffer)) {
       throw new BadRequestException("上传文件不是有效的 APK：ZIP 结构异常或缺少 AndroidManifest.xml");
     }
+    let apkVersion: { versionName: string; versionCode: number };
+    try {
+      apkVersion = readApkVersion(file.buffer);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "无法读取 APK 版本信息");
+    }
     const base = process.env.APP_DOWNLOAD_BASE_URL?.trim().replace(/\/+$/, "");
     if (!base || !base.startsWith("https://")) {
       throw new BadRequestException("请先在 API 环境配置 HTTPS 的 APP_DOWNLOAD_BASE_URL 公共下载域名");
@@ -89,6 +96,9 @@ export class SystemSettingsController {
     const sha256 = createHash("sha256").update(file.buffer).digest("hex");
     try {
       return await this.settings.registerApkUpload({
+        version: apkVersion.versionName, versionCode: apkVersion.versionCode,
+        updateType: req.body?.updateType === "MAJOR" ? "MAJOR" : "MINOR",
+        releaseNotes: String(req.body?.releaseNotes ?? "").slice(0, 5000),
         fileName: file.originalname, size: file.size, downloadUrl, objectKey: key, sha256,
       }, a.id);
     } catch (error) {
